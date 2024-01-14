@@ -15,7 +15,8 @@ from spark_on_k8s.utils.job_waiter import SparkJobWaiter
 def default_app_id_suffix() -> str:
     """Default function to generate a suffix for the application ID
 
-    Returns: the current timestamp in the format %Y%m%d%H%M%S prefixed with a dash (e.g. -20240101123456)
+    Returns:
+        the current timestamp in the format %Y%m%d%H%M%S prefixed with a dash (e.g. -20240101123456)
     """
     return f"-{datetime.now().strftime('%Y%m%d%H%M%S')}"
 

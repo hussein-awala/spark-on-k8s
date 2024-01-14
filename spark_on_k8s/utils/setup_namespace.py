@@ -8,6 +8,13 @@ from spark_on_k8s.kubernetes_client import KubernetesClientManager
 
 
 class SparkOnK8SNamespaceSetup:
+    """Utility class to set up a namespace for Spark on Kubernetes.
+
+    Args:
+        k8s_client_manager (KubernetesClientManager, optional): Kubernetes client manager.
+            Defaults to None.
+    """
+
     def __init__(
         self,
         *,
@@ -17,6 +24,15 @@ class SparkOnK8SNamespaceSetup:
         self.logger = logging.getLogger(__name__)
 
     def setup_namespace(self, namespace: str):
+        """Set up a namespace for Spark on Kubernetes.
+
+        This method creates a namespace if it doesn't exist, creates a service account for Spark
+        if it doesn't exist, and creates a cluster role binding for the service account and the
+        edit cluster role if it doesn't exist.
+
+        Args:
+            namespace (str): the namespace to set up
+        """
         with self.k8s_client_manager.client() as client:
             api = k8s.CoreV1Api(client)
             namespaces = [ns.metadata.name for ns in api.list_namespace().items]

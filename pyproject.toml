@@ -45,3 +45,6 @@ docstring-code-format = true
 [tool.ruff.isort]
 required-imports = ["from __future__ import annotations"]
 combine-as-imports = true
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"

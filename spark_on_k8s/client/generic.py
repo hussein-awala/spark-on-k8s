@@ -4,7 +4,7 @@ import logging
 import re
 from datetime import datetime
 from enum import Enum
-from typing import Callable
+from typing import Callable, Literal
 
 from kubernetes import client as k8s
 
@@ -13,10 +13,16 @@ from spark_on_k8s.utils.job_waiter import SparkJobWaiter
 
 
 def default_app_id_suffix() -> str:
+    """Default function to generate a suffix for the application ID
+
+    Returns: the current timestamp in the format %Y%m%d%H%M%S prefixed with a dash (e.g. -20240101123456)
+    """
     return f"-{datetime.now().strftime('%Y%m%d%H%M%S')}"
 
 
 class SparkJobWait(str, Enum):
+    """Enum for the Spark job waiter options"""
+
     NO_WAIT = "no_wait"
     WAIT = "wait"
     PRINT = "print"
@@ -24,6 +30,25 @@ class SparkJobWait(str, Enum):
 
 
 class SparkOnK8S:
+    """Client for submitting Spark jobs to Kubernetes
+
+    Examples:
+        >>> from spark_on_k8s.client.generic import SparkOnK8S
+        >>> spark = SparkOnK8S()
+        >>> spark.submit_job(
+        ...     image="husseinawala/spark:v3.5.0",
+        ...     app_path="local:///opt/spark/examples/jars/spark-examples_2.12-3.5.0.jar",
+        ...     class_name="org.apache.spark.examples.SparkPi",
+        ...     app_name="spark-pi",
+        ...     app_arguments=["1000"],
+        ...     namespace="spark",
+        ...     service_account="spark",
+        ...     job_waiter="print",
+        ... )
+    Args:
+        k8s_client_manager: Kubernetes client manager to use for creating Kubernetes clients
+    """
+
     logger = logging.getLogger(__name__)
 
     def __init__(
@@ -45,8 +70,25 @@ class SparkOnK8S:
         class_name: str | None = None,
         app_arguments: list[str] | None = None,
         app_id_suffix: Callable[[], str] = default_app_id_suffix,
-        job_waiter: str = SparkJobWait.NO_WAIT,
+        job_waiter: Literal["no_wait", "wait", "print", "log"] = SparkJobWait.NO_WAIT,
     ):
+        """Submit a Spark job to Kubernetes
+
+        Args:
+            image: Docker image to use for the Spark driver and executors
+            app_path: Path to the application JAR / Python / R file
+            namespace: Kubernetes namespace to use, defaults to "default"
+            service_account: Kubernetes service account to use for the Spark driver,
+                defaults to "spark"
+            app_name: Name of the Spark application, defaults to a generated name as
+                `spark-job{app_id_suffix()}`
+            spark_conf: Dictionary of spark configuration to pass to the application
+            class_name: Name of the class to execute
+            app_arguments: List of arguments to pass to the application
+            app_id_suffix: Function to generate a suffix for the application ID, defaults to
+                `default_app_id_suffix`
+            job_waiter: How to wait for the job to finish. One of "no_wait", "wait", "print" or "log"
+        """
         app_name, app_id = self._parse_app_name_and_id(app_name=app_name, app_id_suffix=app_id_suffix)
 
         spark_conf = spark_conf or {}
@@ -101,6 +143,23 @@ class SparkOnK8S:
     def _parse_app_name_and_id(
         self, *, app_name: str | None = None, app_id_suffix: Callable[[], str] = default_app_id_suffix
     ) -> tuple[str, str]:
+        """Parse the application name and ID
+
+        This function will generate a valid application name and ID from the provided application name.
+            It will ensure that the application name and ID respect the Kubernetes naming conventions
+            (e.g. no uppercase characters, no
+        special characters, start with a letter, etc.), and they are not too long
+            (less than 64 characters for service
+        names and labels values).
+
+        Args:
+            app_name: Name of the Spark application
+            app_id_suffix: Function to generate a suffix for the application ID,
+                defaults to `default_app_id_suffix`
+
+        Returns:
+            Tuple of the application name and ID
+        """
         if not app_name:
             app_name = f"spark-job{app_id_suffix()}"
             app_id = app_name
@@ -127,7 +186,14 @@ class SparkOnK8S:
 
     @staticmethod
     def _spark_config_to_arguments(spark_conf: dict[str, str] | None) -> list[str]:
-        # Convert Spark configuration to a list of arguments
+        """Convert Spark configuration to a list of arguments
+
+        Args:
+            spark_conf: Spark configuration dictionary
+
+        Returns:
+            List of arguments
+        """
         if not spark_conf:
             return []
         args = []
@@ -147,8 +213,23 @@ class SparkOnK8S:
         env_variables: dict[str, str] | None = None,
         pod_resources: dict[str, str] | None = None,
         args: list[str] | None = None,
-    ):
-        # Create a pod template spec for a Spark application
+    ) -> k8s.V1PodTemplateSpec:
+        """Create a pod spec for a Spark application
+
+        Args:
+            app_name: Name of the Spark application
+            app_id: ID of the Spark application
+            image: Docker image to use for the Spark driver and executors
+            namespace: Kubernetes namespace to use, defaults to "default"
+            service_account: Kubernetes service account to use for the Spark driver, defaults to "spark"
+            container_name: Name of the container, defaults to "driver"
+            env_variables: Dictionary of environment variables to pass to the container
+            pod_resources: Dictionary of resources to request for the container
+            args: List of arguments to pass to the container
+
+        Returns:
+            Pod template spec for the Spark application
+        """
         pod_metadata = k8s.V1ObjectMeta(
             name=f"{app_id}-driver",
             namespace=namespace,
@@ -185,7 +266,18 @@ class SparkOnK8S:
         pod_resources: dict[str, str] | None = None,
         args: list[str] | None = None,
     ) -> k8s.V1Container:
-        # Create a container for a Spark application
+        """Create a container spec for the Spark driver
+
+        Args:
+            image: Docker image to use for the Spark driver and executors
+            container_name: Name of the container, defaults to "driver"
+            env_variables: Dictionary of environment variables to pass to the container
+            pod_resources: Dictionary of resources to request for the container
+            args: List of arguments to pass to the container
+
+        Returns:
+            Container spec for the Spark driver
+        """
         return k8s.V1Container(
             name=container_name,
             image=image,
@@ -222,6 +314,15 @@ class SparkOnK8S:
         app_name: str,
         app_id: str,
     ) -> dict[str, str]:
+        """Create labels for a Spark application
+
+        Args:
+            app_name: Name of the Spark application
+            app_id: ID of the Spark application
+
+        Returns:
+            Dictionary of labels for the Spark application resources
+        """
         return {"spark-app-name": app_name, "spark-app-selector": app_id, "spark-role": "driver"}
 
     def _create_headless_service_object(
@@ -231,8 +332,18 @@ class SparkOnK8S:
         app_id: str,
         namespace: str = "default",
         pod_owner_uid: str | None = None,
-    ):
-        # Create a service spec for a Spark application
+    ) -> k8s.V1Service:
+        """Create a headless service for a Spark application
+
+        Args:
+            app_name: Name of the Spark application
+            app_id: ID of the Spark application
+            namespace: Kubernetes namespace to use, defaults to "default"
+            pod_owner_uid: UID of the pod to use as owner reference for the service
+
+        Returns:
+            The created headless service for the Spark application
+        """
         labels = self.job_labels(
             app_name=app_name,
             app_id=app_id,

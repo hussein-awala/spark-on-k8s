@@ -8,8 +8,8 @@ from typing import Callable
 
 from kubernetes import client as k8s
 
-from spark_on_k8s.job_waiter import SparkJobWaiter
 from spark_on_k8s.kubernetes_client import KubernetesClientManager
+from spark_on_k8s.utils.job_waiter import SparkJobWaiter
 
 
 def default_app_id_suffix() -> str:

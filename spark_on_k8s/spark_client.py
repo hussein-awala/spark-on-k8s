@@ -9,9 +9,11 @@ from spark_on_k8s.kubernetes_client import KubernetesClientManager
 
 class SparkOnK8S:
     def __init__(
-        self, *, k8s_client_manager: KubernetesClientManager = KubernetesClientManager(),
+        self,
+        *,
+        k8s_client_manager: KubernetesClientManager | None = None,
     ):
-        self.k8s_client_manager = k8s_client_manager
+        self.k8s_client_manager = k8s_client_manager or KubernetesClientManager()
 
     def submit_job(
         self,
@@ -29,33 +31,40 @@ class SparkOnK8S:
             app_id = app_name
         else:
             app_id = f"{app_name}-{datetime.now().strftime('%Y%m%d%H%M%S')}"
-        driver_args = [
-            "driver",
-            "--master",
-            "k8s://https://kubernetes.default.svc.cluster.local:443",
-            "--conf",
-            f"spark.app.name={app_name}",
-            "--conf",
-            f"spark.app.id={app_id}",
-            "--conf",
-            f"spark.kubernetes.namespace={namespace}",
-            "--conf",
-            f"spark.kubernetes.authenticate.driver.serviceAccountName={service_account}",
-            "--conf",
-            f"spark.kubernetes.container.image={image}",
-            "--conf",
-            f"spark.driver.host={app_id}",
-            "--conf",
-            "spark.driver.port=7077",
-            "--conf",
-            f"spark.kubernetes.driver.pod.name={app_id}-driver",
-            "--conf",
-            f"spark.kubernetes.executor.podNamePrefix={app_id}",
-        ] + self._spark_config_to_arguments(spark_conf) + [
-            "--class", main_class,
-        ] + [
-            jar_path,
-        ] + (main_class_parameters or [])
+        driver_args = (
+            [
+                "driver",
+                "--master",
+                "k8s://https://kubernetes.default.svc.cluster.local:443",
+                "--conf",
+                f"spark.app.name={app_name}",
+                "--conf",
+                f"spark.app.id={app_id}",
+                "--conf",
+                f"spark.kubernetes.namespace={namespace}",
+                "--conf",
+                f"spark.kubernetes.authenticate.driver.serviceAccountName={service_account}",
+                "--conf",
+                f"spark.kubernetes.container.image={image}",
+                "--conf",
+                f"spark.driver.host={app_id}",
+                "--conf",
+                "spark.driver.port=7077",
+                "--conf",
+                f"spark.kubernetes.driver.pod.name={app_id}-driver",
+                "--conf",
+                f"spark.kubernetes.executor.podNamePrefix={app_id}",
+            ]
+            + self._spark_config_to_arguments(spark_conf)
+            + [
+                "--class",
+                main_class,
+            ]
+            + [
+                jar_path,
+            ]
+            + (main_class_parameters or [])
+        )
         pod = self._create_spark_pod_spec(
             app_name=app_name,
             app_id=app_id,
@@ -122,7 +131,7 @@ class SparkOnK8S:
                     pod_resources=pod_resources,
                     args=args,
                 )
-            ]
+            ],
         )
         template = k8s.V1PodTemplateSpec(
             metadata=pod_metadata,
@@ -143,14 +152,15 @@ class SparkOnK8S:
         return k8s.V1Container(
             name=container_name,
             image=image,
-            env=[k8s.V1EnvVar(name=key, value=value) for key, value in (env_variables or {}).items()] + [
+            env=[k8s.V1EnvVar(name=key, value=value) for key, value in (env_variables or {}).items()]
+            + [
                 k8s.V1EnvVar(
                     name="SPARK_DRIVER_BIND_ADDRESS",
                     value_from=k8s.V1EnvVarSource(
                         field_ref=k8s.V1ObjectFieldSelector(
                             field_path="status.podIP",
                         )
-                    )
+                    ),
                 ),
             ],
             resources=k8s.V1ResourceRequirements(
@@ -166,7 +176,7 @@ class SparkOnK8S:
                     container_port=4040,
                     name="ui-port",
                 ),
-            ]
+            ],
         )
 
     @staticmethod
@@ -175,11 +185,7 @@ class SparkOnK8S:
         app_name: str,
         app_id: str,
     ) -> dict[str, str]:
-        return {
-            "spark-app-name": app_name,
-            "spark-app-selector": app_id,
-            "spark-role": "driver"
-        }
+        return {"spark-app-name": app_name, "spark-app-selector": app_id, "spark-role": "driver"}
 
     @staticmethod
     def _create_headless_service_object(
@@ -194,14 +200,18 @@ class SparkOnK8S:
             app_name=app_name,
             app_id=app_id,
         )
-        owner = [
-            k8s.V1OwnerReference(
-                api_version="v1",
-                kind="Pod",
-                name=f"{app_id}-driver",
-                uid=pod_owner_uid,
-            )
-        ] if pod_owner_uid else None
+        owner = (
+            [
+                k8s.V1OwnerReference(
+                    api_version="v1",
+                    kind="Pod",
+                    name=f"{app_id}-driver",
+                    uid=pod_owner_uid,
+                )
+            ]
+            if pod_owner_uid
+            else None
+        )
         return k8s.V1Service(
             metadata=k8s.V1ObjectMeta(
                 name=app_id,
@@ -223,5 +233,5 @@ class SparkOnK8S:
                 ],
                 type="ClusterIP",
                 cluster_ip="None",
-            )
+            ),
         )

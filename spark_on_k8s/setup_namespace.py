@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 
 from kubernetes import client as k8s
@@ -7,9 +9,11 @@ from spark_on_k8s.kubernetes_client import KubernetesClientManager
 
 class SparkOnK8SNamespaceSetup:
     def __init__(
-        self, *, k8s_client_manager: KubernetesClientManager = KubernetesClientManager(),
+        self,
+        *,
+        k8s_client_manager: KubernetesClientManager | None,
     ):
-        self.k8s_client_manager = k8s_client_manager
+        self.k8s_client_manager = k8s_client_manager or KubernetesClientManager()
         self.logger = logging.getLogger(__name__)
 
     def setup_namespace(self, namespace: str):
@@ -25,7 +29,9 @@ class SparkOnK8SNamespaceSetup:
                         ),
                     ),
                 )
-            service_accounts = [sa.metadata.name for sa in api.list_namespaced_service_account(namespace=namespace).items]
+            service_accounts = [
+                sa.metadata.name for sa in api.list_namespaced_service_account(namespace=namespace).items
+            ]
             if "spark" not in service_accounts:
                 self.logger.info(f"Creating spark service account in namespace {namespace}")
                 api.create_namespaced_service_account(

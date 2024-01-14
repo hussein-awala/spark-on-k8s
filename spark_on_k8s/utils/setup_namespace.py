@@ -57,7 +57,7 @@ class SparkOnK8SNamespaceSetup:
                             name="edit",
                         ),
                         subjects=[
-                            k8s.RbacV1Subject(
+                            k8s.V1Subject(
                                 kind="ServiceAccount",
                                 name="spark",
                                 namespace=namespace,

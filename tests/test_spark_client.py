@@ -153,6 +153,9 @@ class TestSparkOnK8s:
         """
         Test the method _parse_app_name_and_id
         """
-        actual_app_name, actual_app_id = SparkOnK8S._parse_app_name_and_id(app_name, app_id_suffix)
+        spark_client = SparkOnK8S()
+        actual_app_name, actual_app_id = spark_client._parse_app_name_and_id(
+            app_name=app_name, app_id_suffix=app_id_suffix
+        )
         assert actual_app_name == expected_app_name, "The app name is not as expected"
         assert actual_app_id == expected_app_id, "The app id is not as expected"

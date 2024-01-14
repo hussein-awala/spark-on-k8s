@@ -36,7 +36,7 @@ class SparkOnK8S:
         app_arguments: list[str] | None = None,
         app_id_suffix: Callable[[], str] = default_app_id_suffix,
     ):
-        app_name, app_id = self._parse_app_name_and_id(app_name, app_id_suffix)
+        app_name, app_id = self._parse_app_name_and_id(app_name=app_name, app_id_suffix=app_id_suffix)
 
         spark_conf = spark_conf or {}
         main_class_parameters = app_arguments or []
@@ -81,9 +81,8 @@ class SparkOnK8S:
                 ),
             )
 
-    @staticmethod
     def _parse_app_name_and_id(
-        app_name: str | None = None, app_id_suffix: Callable[[], str] = default_app_id_suffix
+        self, *, app_name: str | None = None, app_id_suffix: Callable[[], str] = default_app_id_suffix
     ) -> tuple[str, str]:
         if not app_name:
             app_name = f"spark-job{app_id_suffix()}"
@@ -104,7 +103,7 @@ class SparkOnK8S:
             app_name = re.sub(r"-*$", "", app_name)
             app_id = app_name + app_id_suffix_str
             if app_name != original_app_name:
-                SparkOnK8S.logger.warning(
+                self.logger.warning(
                     f"Application name {original_app_name} is too long and will be truncated to {app_name}"
                 )
         return app_name, app_id
@@ -119,8 +118,8 @@ class SparkOnK8S:
             args.extend(["--conf", f"{key}={value}"])
         return args
 
-    @staticmethod
     def _create_spark_pod_spec(
+        self,
         *,
         app_name: str,
         app_id: str,
@@ -136,7 +135,7 @@ class SparkOnK8S:
         pod_metadata = k8s.V1ObjectMeta(
             name=f"{app_id}-driver",
             namespace=namespace,
-            labels=SparkOnK8S._job_labels(
+            labels=self.job_labels(
                 app_name=app_name,
                 app_id=app_id,
             ),
@@ -145,7 +144,7 @@ class SparkOnK8S:
             service_account_name=service_account,
             restart_policy="Never",
             containers=[
-                SparkOnK8S._create_driver_container(
+                self._create_driver_container(
                     image=image,
                     container_name=container_name,
                     env_variables=env_variables,
@@ -160,8 +159,8 @@ class SparkOnK8S:
         )
         return template
 
-    @staticmethod
     def _create_driver_container(
+        self,
         *,
         image: str,
         container_name: str = "driver",
@@ -200,16 +199,16 @@ class SparkOnK8S:
             ],
         )
 
-    @staticmethod
-    def _job_labels(
+    def job_labels(
+        self,
         *,
         app_name: str,
         app_id: str,
     ) -> dict[str, str]:
         return {"spark-app-name": app_name, "spark-app-selector": app_id, "spark-role": "driver"}
 
-    @staticmethod
     def _create_headless_service_object(
+        self,
         *,
         app_name: str,
         app_id: str,
@@ -217,7 +216,7 @@ class SparkOnK8S:
         pod_owner_uid: str | None = None,
     ):
         # Create a service spec for a Spark application
-        labels = SparkOnK8S._job_labels(
+        labels = self.job_labels(
             app_name=app_name,
             app_id=app_id,
         )

@@ -11,7 +11,7 @@ class SparkOnK8SNamespaceSetup:
     def __init__(
         self,
         *,
-        k8s_client_manager: KubernetesClientManager | None,
+        k8s_client_manager: KubernetesClientManager | None = None,
     ):
         self.k8s_client_manager = k8s_client_manager or KubernetesClientManager()
         self.logger = logging.getLogger(__name__)

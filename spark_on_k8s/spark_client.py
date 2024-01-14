@@ -1,13 +1,22 @@
 from __future__ import annotations
 
+import logging
+import re
 from datetime import datetime
+from typing import Callable
 
 from kubernetes import client as k8s
 
 from spark_on_k8s.kubernetes_client import KubernetesClientManager
 
 
+def default_app_id_suffix() -> str:
+    return f"-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+
+
 class SparkOnK8S:
+    logger = logging.getLogger(__name__)
+
     def __init__(
         self,
         *,
@@ -25,12 +34,9 @@ class SparkOnK8S:
         spark_conf: dict[str, str] | None = None,
         class_name: str | None = None,
         app_arguments: list[str] | None = None,
+        app_id_suffix: Callable[[], str] = default_app_id_suffix,
     ):
-        if not app_name:
-            app_name = f"spark-{datetime.now().strftime('%Y%m%d%H%M%S')}"
-            app_id = app_name
-        else:
-            app_id = f"{app_name}-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+        app_name, app_id = self._parse_app_name_and_id(app_name, app_id_suffix)
 
         spark_conf = spark_conf or {}
         main_class_parameters = app_arguments or []
@@ -74,6 +80,34 @@ class SparkOnK8S:
                     pod_owner_uid=pod.metadata.uid,
                 ),
             )
+
+    @staticmethod
+    def _parse_app_name_and_id(
+        app_name: str | None = None, app_id_suffix: Callable[[], str] = default_app_id_suffix
+    ) -> tuple[str, str]:
+        if not app_name:
+            app_name = f"spark-job{app_id_suffix()}"
+            app_id = app_name
+        else:
+            original_app_name = app_name
+            # All to lowercase
+            app_name = app_name.lower()
+            app_id_suffix_str = app_id_suffix()
+            if len(app_name) > (63 - len(app_id_suffix_str) + 1):
+                app_name = app_name[: (63 - len(app_id_suffix_str)) + 1]
+            # Replace all non-alphanumeric characters with dashes
+            app_name = re.sub(r"[^0-9a-zA-Z]+", "-", app_name)
+            # Remove leading non-alphabetic characters
+            app_name = re.sub(r"^[^a-zA-Z]*", "", app_name)
+            # Remove leading and trailing dashes
+            app_name = re.sub(r"^-*", "", app_name)
+            app_name = re.sub(r"-*$", "", app_name)
+            app_id = app_name + app_id_suffix_str
+            if app_name != original_app_name:
+                SparkOnK8S.logger.warning(
+                    f"Application name {original_app_name} is too long and will be truncated to {app_name}"
+                )
+        return app_name, app_id
 
     @staticmethod
     def _spark_config_to_arguments(spark_conf: dict[str, str] | None) -> list[str]:

@@ -5,7 +5,7 @@ from typing import Callable
 
 import pytest
 from freezegun import freeze_time
-from spark_on_k8s.spark_client import SparkOnK8S, default_app_id_suffix
+from spark_on_k8s.client.generic import SparkOnK8S, default_app_id_suffix
 
 FAKE_TIME = datetime.datetime(2024, 1, 14, 12, 12, 31)
 

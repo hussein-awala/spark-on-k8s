@@ -18,59 +18,46 @@ class SparkOnK8S:
     def submit_job(
         self,
         image: str,
-        main_class: str,
-        main_class_parameters: list[str] | None = None,
+        app_path: str,
         namespace: str = "default",
         service_account: str = "spark",
         app_name: str | None = None,
         spark_conf: dict[str, str] | None = None,
-        jar_path: str = "local:///opt/spark/jars/spark-kubernetes_2.12-3.5.0.jar",
+        class_name: str | None = None,
+        app_arguments: list[str] | None = None,
     ):
         if not app_name:
             app_name = f"spark-{datetime.now().strftime('%Y%m%d%H%M%S')}"
             app_id = app_name
         else:
             app_id = f"{app_name}-{datetime.now().strftime('%Y%m%d%H%M%S')}"
-        driver_args = (
-            [
-                "driver",
-                "--master",
-                "k8s://https://kubernetes.default.svc.cluster.local:443",
-                "--conf",
-                f"spark.app.name={app_name}",
-                "--conf",
-                f"spark.app.id={app_id}",
-                "--conf",
-                f"spark.kubernetes.namespace={namespace}",
-                "--conf",
-                f"spark.kubernetes.authenticate.driver.serviceAccountName={service_account}",
-                "--conf",
-                f"spark.kubernetes.container.image={image}",
-                "--conf",
-                f"spark.driver.host={app_id}",
-                "--conf",
-                "spark.driver.port=7077",
-                "--conf",
-                f"spark.kubernetes.driver.pod.name={app_id}-driver",
-                "--conf",
-                f"spark.kubernetes.executor.podNamePrefix={app_id}",
-            ]
-            + self._spark_config_to_arguments(spark_conf)
-            + [
-                "--class",
-                main_class,
-            ]
-            + [
-                jar_path,
-            ]
-            + (main_class_parameters or [])
+
+        spark_conf = spark_conf or {}
+        main_class_parameters = app_arguments or []
+
+        basic_conf = {
+            "spark.app.name": app_name,
+            "spark.app.id": app_id,
+            "spark.kubernetes.namespace": namespace,
+            "spark.kubernetes.authenticate.driver.serviceAccountName": service_account,
+            "spark.kubernetes.container.image": image,
+            "spark.driver.host": app_id,
+            "spark.driver.port": "7077",
+            "spark.kubernetes.driver.pod.name": f"{app_id}-driver",
+            "spark.kubernetes.executor.podNamePrefix": app_id,
+        }
+        driver_command_args = ["driver", "--master", "k8s://https://kubernetes.default.svc.cluster.local:443"]
+        if class_name:
+            driver_command_args.extend(["--class", class_name])
+        driver_command_args.extend(
+            self._spark_config_to_arguments({**basic_conf, **spark_conf}) + [app_path, *main_class_parameters]
         )
         pod = self._create_spark_pod_spec(
             app_name=app_name,
             app_id=app_id,
             image=image,
             namespace=namespace,
-            args=driver_args,
+            args=driver_command_args,
         )
         with self.k8s_client_manager.client() as client:
             api = k8s.CoreV1Api(client)

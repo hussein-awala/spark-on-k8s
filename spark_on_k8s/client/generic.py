@@ -3,15 +3,24 @@ from __future__ import annotations
 import logging
 import re
 from datetime import datetime
+from enum import Enum
 from typing import Callable
 
 from kubernetes import client as k8s
 
+from spark_on_k8s.job_waiter import SparkJobWaiter
 from spark_on_k8s.kubernetes_client import KubernetesClientManager
 
 
 def default_app_id_suffix() -> str:
     return f"-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+
+
+class SparkJobWait(str, Enum):
+    NO_WAIT = "no_wait"
+    WAIT = "wait"
+    PRINT = "print"
+    LOG = "log"
 
 
 class SparkOnK8S:
@@ -23,6 +32,7 @@ class SparkOnK8S:
         k8s_client_manager: KubernetesClientManager | None = None,
     ):
         self.k8s_client_manager = k8s_client_manager or KubernetesClientManager()
+        self.job_waiter = SparkJobWaiter(k8s_client_manager=self.k8s_client_manager)
 
     def submit_job(
         self,
@@ -35,6 +45,7 @@ class SparkOnK8S:
         class_name: str | None = None,
         app_arguments: list[str] | None = None,
         app_id_suffix: Callable[[], str] = default_app_id_suffix,
+        job_waiter: str = SparkJobWait.NO_WAIT,
     ):
         app_name, app_id = self._parse_app_name_and_id(app_name=app_name, app_id_suffix=app_id_suffix)
 
@@ -80,6 +91,12 @@ class SparkOnK8S:
                     pod_owner_uid=pod.metadata.uid,
                 ),
             )
+        if job_waiter in (SparkJobWait.PRINT, SparkJobWait.LOG):
+            self.job_waiter.stream_logs(
+                namespace=namespace, pod_name=pod.metadata.name, print_logs=job_waiter == SparkJobWait.PRINT
+            )
+        elif job_waiter == SparkJobWait.WAIT:
+            self.job_waiter.wait_for_job(namespace=namespace, pod_name=pod.metadata.name)
 
     def _parse_app_name_and_id(
         self, *, app_name: str | None = None, app_id_suffix: Callable[[], str] = default_app_id_suffix

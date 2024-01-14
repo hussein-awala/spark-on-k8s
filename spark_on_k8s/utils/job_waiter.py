@@ -9,6 +9,22 @@ from spark_on_k8s.kubernetes_client import KubernetesClientManager
 
 
 class SparkJobWaiter:
+    """Wait for a Spark job to finish and stream its logs.
+
+    Examples:
+        >>> from spark_on_k8s.utils.job_waiter import SparkJobWaiter
+        >>> job_waiter = SparkJobWaiter()
+        >>> job_waiter.stream_logs(
+        ...     namespace="spark",
+        ...     pod_name="20240114225118-driver",
+        ...     print_logs=True,
+        ... )
+
+    Args:
+        k8s_client_manager (KubernetesClientManager, optional): Kubernetes client manager. Defaults to None.
+        logger (logging.Logger, optional): Logger. Defaults to None.
+    """
+
     def __init__(
         self,
         *,
@@ -19,6 +35,12 @@ class SparkJobWaiter:
         self.logger = logger or logging.getLogger(__name__)
 
     def wait_for_job(self, *, namespace: str, pod_name: str):
+        """Wait for a Spark job to finish.
+
+        Args:
+            namespace (str): Namespace.
+            pod_name (str): Pod name.
+        """
         termination_statuses = {"Succeeded", "Failed"}
         with self.k8s_client_manager.client() as client:
             api = k8s.CoreV1Api(client)
@@ -37,6 +59,14 @@ class SparkJobWaiter:
             self.logger.info(f"Pod {pod_name} finished with status {pod.status.phase}")
 
     def stream_logs(self, *, namespace: str, pod_name: str, print_logs: bool = False):
+        """Stream logs from a Spark job.
+
+        Args:
+            namespace (str): Namespace.
+            pod_name (str): Pod name.
+            print_logs (bool, optional): Whether to print log lines or use the logger to log them.
+                Defaults to False.
+        """
         with self.k8s_client_manager.client() as client:
             api = k8s.CoreV1Api(client)
             while True:

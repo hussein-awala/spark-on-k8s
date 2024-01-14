@@ -45,6 +45,7 @@ class SparkOnK8S:
         ...     service_account="spark",
         ...     job_waiter="print",
         ... )
+
     Args:
         k8s_client_manager: Kubernetes client manager to use for creating Kubernetes clients
     """

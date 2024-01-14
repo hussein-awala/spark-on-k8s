@@ -73,6 +73,7 @@ class SparkOnK8S:
         app_arguments: list[str] | None = None,
         app_id_suffix: Callable[[], str] = default_app_id_suffix,
         job_waiter: Literal["no_wait", "wait", "print", "log"] = SparkJobWait.NO_WAIT,
+        image_pull_policy: Literal["Always", "Never", "IfNotPresent"] = "IfNotPresent",
     ):
         """Submit a Spark job to Kubernetes
 
@@ -90,6 +91,7 @@ class SparkOnK8S:
             app_id_suffix: Function to generate a suffix for the application ID, defaults to
                 `default_app_id_suffix`
             job_waiter: How to wait for the job to finish. One of "no_wait", "wait", "print" or "log"
+            image_pull_policy: Image pull policy for the driver and executors, defaults to "IfNotPresent"
         """
         app_name, app_id = self._parse_app_name_and_id(app_name=app_name, app_id_suffix=app_id_suffix)
 
@@ -106,6 +108,7 @@ class SparkOnK8S:
             "spark.driver.port": "7077",
             "spark.kubernetes.driver.pod.name": f"{app_id}-driver",
             "spark.kubernetes.executor.podNamePrefix": app_id,
+            "spark.kubernetes.container.image.pullPolicy": image_pull_policy,
         }
         driver_command_args = ["driver", "--master", "k8s://https://kubernetes.default.svc.cluster.local:443"]
         if class_name:
@@ -117,6 +120,7 @@ class SparkOnK8S:
             app_name=app_name,
             app_id=app_id,
             image=image,
+            image_pull_policy=image_pull_policy,
             namespace=namespace,
             args=driver_command_args,
         )
@@ -215,6 +219,7 @@ class SparkOnK8S:
         env_variables: dict[str, str] | None = None,
         pod_resources: dict[str, str] | None = None,
         args: list[str] | None = None,
+        image_pull_policy: Literal["Always", "Never", "IfNotPresent"] = "IfNotPresent",
     ) -> k8s.V1PodTemplateSpec:
         """Create a pod spec for a Spark application
 
@@ -228,6 +233,7 @@ class SparkOnK8S:
             env_variables: Dictionary of environment variables to pass to the container
             pod_resources: Dictionary of resources to request for the container
             args: List of arguments to pass to the container
+            image_pull_policy: Image pull policy for the driver and executors, defaults to "IfNotPresent"
 
         Returns:
             Pod template spec for the Spark application
@@ -250,6 +256,7 @@ class SparkOnK8S:
                     env_variables=env_variables,
                     pod_resources=pod_resources,
                     args=args,
+                    image_pull_policy=image_pull_policy,
                 )
             ],
         )
@@ -267,6 +274,7 @@ class SparkOnK8S:
         env_variables: dict[str, str] | None = None,
         pod_resources: dict[str, str] | None = None,
         args: list[str] | None = None,
+        image_pull_policy: Literal["Always", "Never", "IfNotPresent"] = "IfNotPresent",
     ) -> k8s.V1Container:
         """Create a container spec for the Spark driver
 
@@ -276,6 +284,7 @@ class SparkOnK8S:
             env_variables: Dictionary of environment variables to pass to the container
             pod_resources: Dictionary of resources to request for the container
             args: List of arguments to pass to the container
+            image_pull_policy: Image pull policy for the driver and executors, defaults to "IfNotPresent"
 
         Returns:
             Container spec for the Spark driver
@@ -283,6 +292,7 @@ class SparkOnK8S:
         return k8s.V1Container(
             name=container_name,
             image=image,
+            image_pull_policy=image_pull_policy,
             env=[k8s.V1EnvVar(name=key, value=value) for key, value in (env_variables or {}).items()]
             + [
                 k8s.V1EnvVar(

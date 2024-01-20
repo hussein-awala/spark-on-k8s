@@ -9,12 +9,17 @@ packages = [{include = "spark_on_k8s"}]
 [tool.poetry.dependencies]
 python = "^3.8"
 kubernetes = "^28.1.0"
+kubernetes-asyncio = {version = "^28.2.1", optional = true}
+fastapi = {version = "^0.109.0", optional = true}
 
 [tool.poetry.dev-dependencies]
 mock = "^5.1.0"
 pytest = "^7.4.3"
 pre-commit = "^3"
 freezegun = "^1.4.0"
+
+[tool.poetry.extras]
+api = ["fastapi", "kubernetes-asyncio", "uvicorn", "httpx"]
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

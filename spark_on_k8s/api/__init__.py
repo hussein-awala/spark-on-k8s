@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 from httpx import AsyncClient
 
-from spark_on_k8s.kubernetes_async_client import KubernetesAsyncClientManager
+from spark_on_k8s.api.kubernetes_async_client import KubernetesAsyncClientManager
 
 if TYPE_CHECKING:
     from kubernetes.client import ApiClient

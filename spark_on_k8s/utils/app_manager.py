@@ -100,19 +100,22 @@ class SparkAppManager:
                 return _app_status(api)
         return _app_status(client)
 
-    def wait_for_app(self, *, namespace: str, pod_name: str):
+    def wait_for_app(self, *, namespace: str, pod_name: str | None = None, app_id: str | None = None):
         """Wait for a Spark app to finish.
 
         Args:
             namespace (str): Namespace.
             pod_name (str): Pod name.
+            app_id (str): App ID.
         """
         termination_statuses = {SparkAppStatus.Succeeded, SparkAppStatus.Failed, SparkAppStatus.Unknown}
         with self.k8s_client_manager.client() as client:
             api = k8s.CoreV1Api(client)
             while True:
                 try:
-                    status = self.app_status(namespace=namespace, pod_name=pod_name, client=api)
+                    status = self.app_status(
+                        namespace=namespace, pod_name=pod_name, app_id=app_id, client=api
+                    )
                     if status in termination_statuses:
                         break
                 except ApiException as e:
@@ -150,3 +153,22 @@ class SparkAppManager:
                 else:
                     self.logger.info(line)
             watcher.stop()
+
+    def list_apps(self, namespace: str) -> list[str]:
+        """List apps.
+
+        Args:
+            namespace (str): Namespace.
+
+        Returns:
+            list[str]: Spark apps in the namespace.
+        """
+        with self.k8s_client_manager.client() as client:
+            api = k8s.CoreV1Api(client)
+            return [
+                pod.metadata.labels["spark-app-id"]
+                for pod in api.list_namespaced_pod(
+                    namespace=namespace,
+                    label_selector="spark-role=driver",
+                ).items
+            ]

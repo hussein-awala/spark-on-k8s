@@ -21,7 +21,7 @@ from spark_on_k8s.cli.options import (
 )
 
 
-@click.group(name="app")
+@click.group(name="app", help="Create and manage a single Spark applications.")
 def app_cli():
     pass
 
@@ -33,7 +33,10 @@ class SparkAppCommand(click.Command):
         self.params.insert(1, namespace_option)
 
 
-@app_cli.command(cls=SparkAppCommand)
+@app_cli.command(
+    cls=SparkAppCommand,
+    help="Get the status of a Spark application.",
+)
 def status(app_id: str, namespace: str):
     from spark_on_k8s.utils.app_manager import SparkAppManager
 
@@ -41,7 +44,7 @@ def status(app_id: str, namespace: str):
     print(app_manager.app_status(namespace=namespace, app_id=app_id).value)
 
 
-@app_cli.command(cls=SparkAppCommand)
+@app_cli.command(cls=SparkAppCommand, help="Stream the logs of a Spark application.")
 def logs(app_id: str, namespace: str):
     from spark_on_k8s.utils.app_manager import SparkAppManager
 
@@ -49,7 +52,7 @@ def logs(app_id: str, namespace: str):
     app_manager.stream_logs(namespace=namespace, app_id=app_id, print_logs=True)
 
 
-@app_cli.command(cls=SparkAppCommand)
+@app_cli.command(cls=SparkAppCommand, help="Kill a Spark application.")
 def kill(app_id: str, namespace: str):
     from spark_on_k8s.utils.app_manager import SparkAppManager
 
@@ -60,6 +63,7 @@ def kill(app_id: str, namespace: str):
 @app_cli.command(
     cls=SparkAppCommand,
     params=[force_option],
+    help="Delete a Spark application.",
 )
 def delete(app_id: str, namespace: str, force: bool):
     from spark_on_k8s.utils.app_manager import SparkAppManager
@@ -68,7 +72,7 @@ def delete(app_id: str, namespace: str, force: bool):
     app_manager.delete_app(namespace=namespace, app_id=app_id, force=force)
 
 
-@app_cli.command(cls=SparkAppCommand)
+@app_cli.command(cls=SparkAppCommand, help="Wait for a Spark application to finish.")
 def wait(app_id: str, namespace: str):
     from spark_on_k8s.utils.app_manager import SparkAppManager
 
@@ -91,7 +95,8 @@ def wait(app_id: str, namespace: str):
         logs_option,
         image_pull_policy_option,
         ui_reverse_proxy_option,
-    ]
+    ],
+    help="Submit a Spark application.",
 )
 @click.argument("app_arguments", nargs=-1, type=str)
 def submit(

@@ -5,7 +5,7 @@ import click
 from spark_on_k8s.cli.options import namespace_option
 
 
-@click.group(name="apps")
+@click.group(name="apps", help="Manage Spark applications in a namespace.")
 def apps_cli():
     pass
 
@@ -16,7 +16,7 @@ class SparkAppsCommand(click.Command):
         self.params.append(namespace_option)
 
 
-@apps_cli.command(cls=SparkAppsCommand)
+@apps_cli.command(cls=SparkAppsCommand, help="List all Spark applications in a namespace.")
 def list(namespace: str):
     from spark_on_k8s.utils.app_manager import SparkAppManager
 

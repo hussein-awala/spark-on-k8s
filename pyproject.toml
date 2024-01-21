@@ -20,6 +20,10 @@ freezegun = "^1.4.0"
 
 [tool.poetry.extras]
 api = ["fastapi", "kubernetes-asyncio", "uvicorn", "httpx", "jinja2"]
+cli = ["click"]
+
+[tool.poetry.scripts]
+spark-on-k8s = { reference = "spark_on_k8s:cli.main", extras = ["cli"], type = "console" }
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

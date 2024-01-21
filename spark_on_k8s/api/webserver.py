@@ -1,28 +1,24 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 import httpx
 from fastapi import APIRouter
 from starlette.background import BackgroundTask
+from starlette.requests import Request  # noqa: TCH002
 from starlette.responses import StreamingResponse
 
 from spark_on_k8s.api import AsyncHttpClientSingleton
 
-if TYPE_CHECKING:
-    from starlette.requests import Request
-
 router = APIRouter(
-    prefix="/ui",
-    tags=["spark-jobs"],
+    prefix="/webserver",
+    tags=["spark-jobs", "webserver"],
     include_in_schema=False,
 )
 
 
-@router.get("/{path:path}")
-async def reverse_proxy(request: Request):
+@router.get("/ui/{path:path}")
+async def ui_reverse_proxy(request: Request):
     path = request.url.path
-    path = path.replace(router.prefix, "").lstrip("/")
+    path = path.replace(router.prefix + "/ui", "").lstrip("/")
     namespace = path.split("/")[0]
     service_name = path.split("/")[1]
     path = path.replace(f"{namespace}/{service_name}", "")

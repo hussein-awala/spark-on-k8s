@@ -113,7 +113,7 @@ class SparkOnK8S:
         }
         extra_labels = {}
         if ui_reverse_proxy:
-            basic_conf["spark.ui.proxyBase"] = f"/ui/{namespace}/{app_id}"
+            basic_conf["spark.ui.proxyBase"] = f"/webserver/ui/{namespace}/{app_id}"
             basic_conf["spark.ui.proxyRedirectUri"] = "/"
             extra_labels["spark-ui-proxy"] = "true"
         driver_command_args = ["driver", "--master", "k8s://https://kubernetes.default.svc.cluster.local:443"]

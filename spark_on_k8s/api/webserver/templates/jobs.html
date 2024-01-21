@@ -66,7 +66,7 @@
     {% for job in jobs_list %}
     <tr>
         <td>{{ job.job_id }}</td>
-        <td>{{ job.status }}</td>
+        <td>{{ job.status.value }}</td>
         <td>
             {% if job.spark_ui_proxy %}
             <a href="/webserver/ui/{{ namespace }}/{{ job.job_id }}" target="_blank">

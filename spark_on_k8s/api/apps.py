@@ -5,7 +5,7 @@ from kubernetes_asyncio.client import CoreV1Api
 from pydantic import BaseModel
 
 from spark_on_k8s.api import KubernetesClientSingleton
-from spark_on_k8s.utils.app_waiter import SparkAppStatus, get_app_status
+from spark_on_k8s.utils.app_manager import SparkAppStatus, get_app_status
 
 router = APIRouter(
     prefix="/apps",

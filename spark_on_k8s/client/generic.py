@@ -9,7 +9,7 @@ from typing import Callable, Literal
 from kubernetes import client as k8s
 
 from spark_on_k8s.kubernetes_client import KubernetesClientManager
-from spark_on_k8s.utils.app_waiter import SparkAppWaiter
+from spark_on_k8s.utils.app_manager import SparkAppManager
 
 
 def default_app_id_suffix() -> str:
@@ -59,7 +59,7 @@ class SparkOnK8S:
         k8s_client_manager: KubernetesClientManager | None = None,
     ):
         self.k8s_client_manager = k8s_client_manager or KubernetesClientManager()
-        self.app_waiter = SparkAppWaiter(k8s_client_manager=self.k8s_client_manager)
+        self.app_manager = SparkAppManager(k8s_client_manager=self.k8s_client_manager)
 
     def submit_app(
         self,
@@ -148,11 +148,11 @@ class SparkOnK8S:
                 ),
             )
         if app_waiter in (SparkAppWait.PRINT, SparkAppWait.LOG):
-            self.app_waiter.stream_logs(
+            self.app_manager.stream_logs(
                 namespace=namespace, pod_name=pod.metadata.name, print_logs=app_waiter == SparkAppWait.PRINT
             )
         elif app_waiter == SparkAppWait.WAIT:
-            self.app_waiter.wait_for_app(namespace=namespace, pod_name=pod.metadata.name)
+            self.app_manager.wait_for_app(namespace=namespace, pod_name=pod.metadata.name)
 
     def _parse_app_name_and_id(
         self, *, app_name: str | None = None, app_id_suffix: Callable[[], str] = default_app_id_suffix

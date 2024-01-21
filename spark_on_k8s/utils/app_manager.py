@@ -33,13 +33,13 @@ def get_app_status(pod: k8s.V1Pod) -> SparkAppStatus:
         return SparkAppStatus.Unknown
 
 
-class SparkAppWaiter:
-    """Wait for a Spark app to finish and stream its logs.
+class SparkAppManager:
+    """Manage Spark apps on Kubernetes.
 
     Examples:
-        >>> from spark_on_k8s.utils.app_waiter import SparkAppWaiter
-        >>> app_waiter = SparkAppWaiter()
-        >>> app_waiter.stream_logs(
+        >>> from spark_on_k8s.utils.app_manager import SparkAppManager
+        >>> app_manager = SparkAppManager()
+        >>> app_manager.stream_logs(
         ...     namespace="spark",
         ...     pod_name="20240114225118-driver",
         ...     print_logs=True,

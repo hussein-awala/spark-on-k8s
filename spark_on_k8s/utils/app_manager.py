@@ -83,12 +83,12 @@ class SparkAppManager:
             if pod_name is None and app_id is None:
                 raise ValueError("Either pod_name or app_id must be specified")
             if pod_name is not None:
-                _pod = api.read_namespaced_pod(
+                _pod = _client.read_namespaced_pod(
                     namespace=namespace,
                     name=pod_name,
                 )
             else:
-                _pod = api.list_namespaced_pod(
+                _pod = _client.list_namespaced_pod(
                     namespace=namespace,
                     label_selector=f"spark-app-id={app_id}",
                 ).items[0]

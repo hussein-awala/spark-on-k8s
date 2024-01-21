@@ -1,11 +1,36 @@
 from __future__ import annotations
 
 import logging
+from enum import Enum
 
 from kubernetes import client as k8s, watch
 from kubernetes.client import ApiException
 
 from spark_on_k8s.kubernetes_client import KubernetesClientManager
+
+
+class SparkAppStatus(str, Enum):
+    """Spark app status."""
+
+    Pending = "Pending"
+    Running = "Running"
+    Succeeded = "Succeeded"
+    Failed = "Failed"
+    Unknown = "Unknown"
+
+
+def get_app_status(pod: k8s.V1Pod) -> SparkAppStatus:
+    """Get app status."""
+    if pod.status.phase == "Pending":
+        return SparkAppStatus.Pending
+    elif pod.status.phase == "Running":
+        return SparkAppStatus.Running
+    elif pod.status.phase == "Succeeded":
+        return SparkAppStatus.Succeeded
+    elif pod.status.phase == "Failed":
+        return SparkAppStatus.Failed
+    else:
+        return SparkAppStatus.Unknown
 
 
 class SparkAppWaiter:
@@ -34,6 +59,33 @@ class SparkAppWaiter:
         self.k8s_client_manager = k8s_client_manager or KubernetesClientManager()
         self.logger = logger or logging.getLogger(__name__)
 
+    def app_status(
+        self, *, namespace: str, pod_name: str, client: k8s.CoreV1Api | None = None
+    ) -> SparkAppStatus:
+        """Get app status.
+
+        Args:
+            namespace (str): Namespace.
+            pod_name (str): Pod name.
+            client (k8s.CoreV1Api, optional): Kubernetes client. Defaults to None.
+
+        Returns:
+            SparkAppStatus: App status.
+        """
+
+        def _app_status(_client: k8s.CoreV1Api) -> SparkAppStatus:
+            _pod = api.read_namespaced_pod(
+                namespace=namespace,
+                name=pod_name,
+            )
+            return get_app_status(_pod)
+
+        if client is None:
+            with self.k8s_client_manager.client() as client:
+                api = k8s.CoreV1Api(client)
+                return _app_status(api)
+        return _app_status(client)
+
     def wait_for_app(self, *, namespace: str, pod_name: str):
         """Wait for a Spark app to finish.
 
@@ -41,22 +93,19 @@ class SparkAppWaiter:
             namespace (str): Namespace.
             pod_name (str): Pod name.
         """
-        termination_statuses = {"Succeeded", "Failed"}
+        termination_statuses = {SparkAppStatus.Succeeded, SparkAppStatus.Failed, SparkAppStatus.Unknown}
         with self.k8s_client_manager.client() as client:
             api = k8s.CoreV1Api(client)
             while True:
                 try:
-                    pod = api.read_namespaced_pod(
-                        namespace=namespace,
-                        name=pod_name,
-                    )
+                    status = self.app_status(namespace=namespace, pod_name=pod_name, client=api)
+                    if status in termination_statuses:
+                        break
                 except ApiException as e:
                     if e.status == 404:
                         self.logger.info(f"Pod {pod_name} was deleted")
                         return
-                if pod.status.phase in termination_statuses:
-                    break
-            self.logger.info(f"Pod {pod_name} finished with status {pod.status.phase}")
+            self.logger.info(f"Pod {pod_name} finished with status {status.value}")
 
     def stream_logs(self, *, namespace: str, pod_name: str, print_logs: bool = False):
         """Stream logs from a Spark app.

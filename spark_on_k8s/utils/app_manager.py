@@ -124,15 +124,35 @@ class SparkAppManager:
                         return
             self.logger.info(f"Pod {pod_name} finished with status {status.value}")
 
-    def stream_logs(self, *, namespace: str, pod_name: str, print_logs: bool = False):
+    def stream_logs(
+        self,
+        *,
+        namespace: str,
+        pod_name: str | None = None,
+        app_id: str | None = None,
+        print_logs: bool = False,
+    ):
         """Stream logs from a Spark app.
 
         Args:
             namespace (str): Namespace.
             pod_name (str): Pod name.
+            app_id (str): App ID.
             print_logs (bool, optional): Whether to print log lines or use the logger to log them.
                 Defaults to False.
         """
+        if pod_name is None and app_id is None:
+            raise ValueError("Either pod_name or app_id must be specified")
+        if pod_name is None:
+            with self.k8s_client_manager.client() as client:
+                api = k8s.CoreV1Api(client)
+                pods = api.list_namespaced_pod(
+                    namespace=namespace,
+                    label_selector=f"spark-app-id={app_id}",
+                ).items
+                if len(pods) == 0:
+                    raise ValueError(f"No pods found for app {app_id}")
+                pod_name = pods[0].metadata.name
         with self.k8s_client_manager.client() as client:
             api = k8s.CoreV1Api(client)
             while True:

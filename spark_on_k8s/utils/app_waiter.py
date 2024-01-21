@@ -60,13 +60,19 @@ class SparkAppWaiter:
         self.logger = logger or logging.getLogger(__name__)
 
     def app_status(
-        self, *, namespace: str, pod_name: str, client: k8s.CoreV1Api | None = None
+        self,
+        *,
+        namespace: str,
+        pod_name: str | None = None,
+        app_id: str | None = None,
+        client: k8s.CoreV1Api | None = None,
     ) -> SparkAppStatus:
         """Get app status.
 
         Args:
             namespace (str): Namespace.
-            pod_name (str): Pod name.
+            pod_name (str): Pod name. Defaults to None.
+            app_id (str): App ID. Defaults to None.
             client (k8s.CoreV1Api, optional): Kubernetes client. Defaults to None.
 
         Returns:
@@ -74,10 +80,18 @@ class SparkAppWaiter:
         """
 
         def _app_status(_client: k8s.CoreV1Api) -> SparkAppStatus:
-            _pod = api.read_namespaced_pod(
-                namespace=namespace,
-                name=pod_name,
-            )
+            if pod_name is None and app_id is None:
+                raise ValueError("Either pod_name or app_id must be specified")
+            if pod_name is not None:
+                _pod = api.read_namespaced_pod(
+                    namespace=namespace,
+                    name=pod_name,
+                )
+            else:
+                _pod = api.list_namespaced_pod(
+                    namespace=namespace,
+                    label_selector=f"spark-app-id={app_id}",
+                ).items[0]
             return get_app_status(_pod)
 
         if client is None:

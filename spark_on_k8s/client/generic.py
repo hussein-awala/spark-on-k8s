@@ -348,7 +348,7 @@ class SparkOnK8S:
         """
         return {
             "spark-app-name": app_name,
-            "spark-app-selector": app_id,
+            "spark-app-id": app_id,
             "spark-role": "driver",
             **(extra_labels or {}),
         }

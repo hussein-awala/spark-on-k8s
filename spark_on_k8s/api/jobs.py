@@ -59,7 +59,7 @@ async def list_jobs(namespace: str) -> list[SparkJob]:
     )
     return [
         SparkJob(
-            job_id=pod.metadata.name,
+            job_id=pod.metadata.labels.get("spark-app-id", pod.metadata.name),
             status=_get_job_status(pod),
             spark_ui_proxy=pod.metadata.labels.get("spark-ui-proxy", False),
         )

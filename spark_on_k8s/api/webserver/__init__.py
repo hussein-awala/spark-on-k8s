@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 import os
 
 import httpx
@@ -54,7 +53,6 @@ async def jobs(request: Request):
     """List spark jobs in a namespace, and display them in a web page."""
     namespace = request.query_params.get("namespace", "default")
     jobs_list = await list_jobs(namespace)
-    logging.warning(jobs_list)
     return templates.TemplateResponse(
         "jobs.html",
         {

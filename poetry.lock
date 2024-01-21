@@ -1316,9 +1316,8 @@ multidict = ">=4.0"
 
 [extras]
 api = ["fastapi", "kubernetes-asyncio"]
-cli = []
 
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.8"
-content-hash = "8a5d883ee8bb29e83564976cfbd0249525c7d5e69f29c84e453dc3c1a5ff727e"
+content-hash = "266c9e36e556e76636d9799077a3106699161769e3d2aef264f48c9424eaf81f"

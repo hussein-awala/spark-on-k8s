@@ -5,6 +5,7 @@ from enum import Enum
 
 from kubernetes import client as k8s, watch
 from kubernetes.client import ApiException
+from kubernetes.stream import stream
 
 from spark_on_k8s.kubernetes_client import KubernetesClientManager
 
@@ -192,3 +193,48 @@ class SparkAppManager:
                     label_selector="spark-role=driver",
                 ).items
             ]
+
+    def kill_app(self, namespace: str, pod_name: str | None = None, app_id: str | None = None):
+        """Kill an app.
+
+        Args:
+            namespace (str): Namespace.
+            app_id (str): App ID.
+        """
+        if pod_name is None and app_id is None:
+            raise ValueError("Either pod_name or app_id must be specified")
+        with self.k8s_client_manager.client() as client:
+            api = k8s.CoreV1Api(client)
+            if pod_name is None:
+                pods = api.list_namespaced_pod(
+                    namespace=namespace,
+                    label_selector=f"spark-app-id={app_id}",
+                ).items
+                if len(pods) == 0:
+                    raise ValueError(f"No pods found for app {app_id}")
+                pod = pods[0]
+            else:
+                pod = api.read_namespaced_pod(
+                    namespace=namespace,
+                    name=pod_name,
+                )
+            container_name = pod.spec.containers[0].name
+            if pod.status.phase != "Running":
+                print(f"App is not running, it is {get_app_status(pod).value}")
+                return
+            if pod.status.container_statuses[0].state.terminated is not None:
+                print("App is already terminated")
+                return
+            stream(
+                api.connect_get_namespaced_pod_exec,
+                pod.metadata.name,
+                namespace,
+                command=["/bin/sh", "-c", "kill 1"],
+                container=container_name,
+                stderr=True,
+                stdin=False,
+                stdout=True,
+                tty=False,
+                _preload_content=False,
+            )
+        print(f"Killed app {app_id}")

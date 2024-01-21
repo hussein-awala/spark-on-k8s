@@ -199,6 +199,7 @@ class SparkAppManager:
 
         Args:
             namespace (str): Namespace.
+            pod_name (str): Pod name.
             app_id (str): App ID.
         """
         if pod_name is None and app_id is None:
@@ -238,3 +239,37 @@ class SparkAppManager:
                 _preload_content=False,
             )
         print(f"Killed app {app_id}")
+
+    def delete_app(
+        self, namespace: str, pod_name: str | None = None, app_id: str | None = None, force: bool = False
+    ):
+        """Delete an app.
+
+        Args:
+            namespace (str): Namespace.
+            pod_name (str): Pod name.
+            app_id (str): App ID.
+            force (bool, optional): Whether to force delete the app. Defaults to False.
+        """
+        if pod_name is None and app_id is None:
+            raise ValueError("Either pod_name or app_id must be specified")
+        with self.k8s_client_manager.client() as client:
+            api = k8s.CoreV1Api(client)
+            if app_id:
+                # we don't use `delete_collection_namespaced_pod` to know if the app exists or not
+                pods = api.list_namespaced_pod(
+                    namespace=namespace,
+                    label_selector=f"spark-app-id={app_id}",
+                ).items
+                if len(pods) == 0:
+                    raise ValueError(f"No pods found for app {app_id}")
+                pod_name = pods[0].metadata.name
+            api.delete_namespaced_pod(
+                name=pod_name,
+                namespace=namespace,
+                body=k8s.V1DeleteOptions(
+                    grace_period_seconds=0 if force else None,
+                    propagation_policy="Foreground",
+                ),
+            )
+        print(f"Deleted app {app_id}")

@@ -33,6 +33,7 @@ class SparkJob(BaseModel):
 
     job_id: str
     status: SparkJobStatus
+    spark_ui_proxy: bool = False
 
 
 def _get_job_status(pod: V1Pod) -> SparkJobStatus:
@@ -60,6 +61,7 @@ async def list_jobs(namespace: str) -> list[SparkJob]:
         SparkJob(
             job_id=pod.metadata.name,
             status=_get_job_status(pod),
+            spark_ui_proxy=pod.metadata.labels.get("spark-ui-proxy", False),
         )
         for pod in driver_pods.items
     ]

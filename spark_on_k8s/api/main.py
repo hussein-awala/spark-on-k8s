@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from spark_on_k8s import __version__
 from spark_on_k8s.api import AsyncHttpClientSingleton, KubernetesClientSingleton
 from spark_on_k8s.api.jobs import router as jobs_router
+from spark_on_k8s.api.ui import router as ui_router
 
 
 async def on_start_up() -> None:
@@ -25,6 +26,7 @@ app = FastAPI(
     on_shutdown=[on_shutdown],
 )
 app.include_router(jobs_router)
+app.include_router(ui_router)
 
 
 @app.get("/")

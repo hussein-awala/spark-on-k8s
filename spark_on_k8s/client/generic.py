@@ -74,6 +74,7 @@ class SparkOnK8S:
         app_id_suffix: Callable[[], str] = default_app_id_suffix,
         job_waiter: Literal["no_wait", "wait", "print", "log"] = SparkJobWait.NO_WAIT,
         image_pull_policy: Literal["Always", "Never", "IfNotPresent"] = "IfNotPresent",
+        ui_reverse_proxy: bool = False,
     ):
         """Submit a Spark job to Kubernetes
 
@@ -110,6 +111,11 @@ class SparkOnK8S:
             "spark.kubernetes.executor.podNamePrefix": app_id,
             "spark.kubernetes.container.image.pullPolicy": image_pull_policy,
         }
+        extra_labels = {}
+        if ui_reverse_proxy:
+            basic_conf["spark.ui.proxyBase"] = f"/ui/{namespace}/{app_id}"
+            basic_conf["spark.ui.proxyRedirectUri"] = "/"
+            extra_labels["spark-ui-proxy"] = "true"
         driver_command_args = ["driver", "--master", "k8s://https://kubernetes.default.svc.cluster.local:443"]
         if class_name:
             driver_command_args.extend(["--class", class_name])
@@ -123,6 +129,7 @@ class SparkOnK8S:
             image_pull_policy=image_pull_policy,
             namespace=namespace,
             args=driver_command_args,
+            extra_labels=extra_labels,
         )
         with self.k8s_client_manager.client() as client:
             api = k8s.CoreV1Api(client)
@@ -137,6 +144,7 @@ class SparkOnK8S:
                     app_id=app_id,
                     namespace=namespace,
                     pod_owner_uid=pod.metadata.uid,
+                    extra_labels=extra_labels,
                 ),
             )
         if job_waiter in (SparkJobWait.PRINT, SparkJobWait.LOG):
@@ -220,6 +228,7 @@ class SparkOnK8S:
         pod_resources: dict[str, str] | None = None,
         args: list[str] | None = None,
         image_pull_policy: Literal["Always", "Never", "IfNotPresent"] = "IfNotPresent",
+        extra_labels: dict[str, str] | None = None,
     ) -> k8s.V1PodTemplateSpec:
         """Create a pod spec for a Spark application
 
@@ -244,6 +253,7 @@ class SparkOnK8S:
             labels=self.job_labels(
                 app_name=app_name,
                 app_id=app_id,
+                extra_labels=extra_labels,
             ),
         )
         pod_spec = k8s.V1PodSpec(
@@ -325,6 +335,7 @@ class SparkOnK8S:
         *,
         app_name: str,
         app_id: str,
+        extra_labels: dict[str, str] | None = None,
     ) -> dict[str, str]:
         """Create labels for a Spark application
 
@@ -335,7 +346,12 @@ class SparkOnK8S:
         Returns:
             Dictionary of labels for the Spark application resources
         """
-        return {"spark-app-name": app_name, "spark-app-selector": app_id, "spark-role": "driver"}
+        return {
+            "spark-app-name": app_name,
+            "spark-app-selector": app_id,
+            "spark-role": "driver",
+            **(extra_labels or {}),
+        }
 
     def _create_headless_service_object(
         self,
@@ -344,6 +360,7 @@ class SparkOnK8S:
         app_id: str,
         namespace: str = "default",
         pod_owner_uid: str | None = None,
+        extra_labels: dict[str, str] | None = None,
     ) -> k8s.V1Service:
         """Create a headless service for a Spark application
 
@@ -359,6 +376,7 @@ class SparkOnK8S:
         labels = self.job_labels(
             app_name=app_name,
             app_id=app_id,
+            extra_labels=extra_labels,
         )
         owner = (
             [

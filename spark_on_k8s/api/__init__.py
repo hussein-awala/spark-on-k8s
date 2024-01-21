@@ -4,10 +4,11 @@ from typing import TYPE_CHECKING
 
 from httpx import AsyncClient
 
+from spark_on_k8s.api.config import APIConfiguration
 from spark_on_k8s.api.kubernetes_async_client import KubernetesAsyncClientManager
 
 if TYPE_CHECKING:
-    from kubernetes.client import ApiClient
+    from kubernetes_asyncio.client import ApiClient
 
 
 class KubernetesClientSingleton:
@@ -18,7 +19,12 @@ class KubernetesClientSingleton:
     @classmethod
     async def client(cls) -> ApiClient:
         if not cls._client:
-            cls._client = await KubernetesAsyncClientManager().create_client()
+            cls._client = await KubernetesAsyncClientManager(
+                config_file=APIConfiguration.K8S_CONFIG_FILE,
+                context=APIConfiguration.K8S_CONTEXT,
+                client_configuration=APIConfiguration.K8S_CLIENT_CONFIG,
+                in_cluster=APIConfiguration.K8S_IN_CLUSTER,
+            ).create_client()
         return cls._client
 
 

@@ -13,6 +13,7 @@ class KubernetesAsyncClientManager:
         context (str, optional): Kubernetes context. Defaults to None.
         client_configuration (k8s.Configuration, optional): Kubernetes client configuration.
             Defaults to None.
+        in_cluster (bool, optional): Whether to load the in-cluster config. Defaults to False.
     """
 
     def __init__(
@@ -20,10 +21,12 @@ class KubernetesAsyncClientManager:
         config_file: str | None = None,
         context: str | None = None,
         client_configuration: k8s.Configuration | None = None,
+        in_cluster: bool = False,
     ) -> None:
         self.config_file = config_file
         self.context = context
         self.client_configuration = client_configuration
+        self.in_cluster = in_cluster
 
     @asynccontextmanager
     async def client(self) -> k8s.ApiClient:
@@ -58,9 +61,12 @@ class KubernetesAsyncClientManager:
         Returns:
             k8s.ApiClient: Kubernetes client.
         """
-        await config.load_kube_config(
-            config_file=self.config_file,
-            context=self.context,
-            client_configuration=self.client_configuration,
-        )
+        if not self.in_cluster:
+            await config.load_kube_config(
+                config_file=self.config_file,
+                context=self.context,
+                client_configuration=self.client_configuration,
+            )
+        else:
+            config.load_incluster_config()
         return k8s.ApiClient()

@@ -29,6 +29,11 @@ app.include_router(jobs_router)
 app.include_router(webserver_router)
 
 
-@app.get("/")
+@app.get("/", include_in_schema=False)
 async def root():
     return {"message": "Welcome to Spark on Kubernetes!"}
+
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}

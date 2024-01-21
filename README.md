@@ -1,6 +1,129 @@
 # Spark On Kubernetes
 
+Spark on Kubernetes is a python package that makes it easy to submit and manage spark apps on Kubernetes.
+It provides a Python client that can be used to submit apps in your API or scheduler of choice, and a CLI
+that can be used to submit apps from the command line, instead of  using spark-submit.
+
+It also provides an optional REST API with a web UI that can be used to list and manage apps, and access the
+spark UI through the reverse proxy.
+
+## Installation
+To install the core python package (only the Python client and the helpers), run:
+```bash
+pip install spark-on-k8s
+```
+If you want to use the REST API and the web UI, you will also need to install the api package:
+```bash
+pip install spark-on-k8s[api]
+```
+
+You can also install the package from source with pip or poetry:
+```bash
+# With pip
+pip install . # For the core package
+pip install ".[api]" # For the API package
+
+# With poetry
+poetry install # For the core package
+poetry install -E api # For the API package
+```
+
+## Usage
+
+### Python Client
+The Python client can be used to submit apps from your Python code, instead of using spark-submit:
+```python
+from spark_on_k8s.client.generic import SparkOnK8S
+
+client = SparkOnK8S()
+client.submit_app(
+    image="my-registry/my-image:latest",
+    app_path="local:///opt/spark/work-dir/my-app.py",
+    app_arguments=["arg1", "arg2"],
+    app_name="my-app",
+    namespace="spark-namespace",
+    service_account="spark-service-account",
+    app_waiter="log",
+    image_pull_policy="Never",
+    ui_reverse_proxy=True,
+)
+```
+
+### CLI
+The CLI can be used to submit apps from the command line, instead of using spark-submit, it can also be used to
+manage apps submitted with the Python client (list, get, delete, logs, etc.):
+
+Submit a app:
+```bash
+spark-on-k8s app submit \
+  --image my-registry/my-image:latest \
+  --path local:///opt/spark/work-dir/my-app.py \
+  -n spark \
+  --name my-app \
+  --image-pull-policy Never \
+  --ui-reverse-proxy \
+  --log \
+  param1 param2
+```
+Kill a app:
+```bash
+spark-on-k8s app kill -n spark-namespace --app-id my-app
+```
+
+List apps:
+```bash
+spark-on-k8s apps list -n spark-namespace
+```
+
+You can check the help for more information:
+```bash
+spark-on-k8s --help
+spark-on-k8s app --help
+spark-on-k8s apps --help
+```
+
+### REST API
+
+The REST API implements some of the same functionality as the CLI but in async way, and also provides a web UI
+that can be used to list the apps in the cluster and access the spark UI through a reverse proxy. The UI will be
+improved in the future and more functionality will be added to both UI and API.
+
+To run the API, you can use the CLI:
+```bash
+spark-on-k8s api start \
+    --host "0.0.0.0" \
+    --port 8080 \
+    --workers 4 \
+    --log-level error \
+    --limit-concurrency 100
+```
+
+To list the apps, you can use the API:
+```bash
+curl -X 'GET' \
+  'http://0.0.0.0:8080/apps/list_apps/spark-namespace' \
+  -H 'accept: application/json'
+```
+
+To access the spark UI of the app APP_ID, in the namespace NAMESPACE, you can use the web UI link:
+`http://0.0.0.0:8080/webserver/ui/NAMESPACE/APP_ID`, or getting all the application and then clicking
+on the button `Open Spark UI` from the link `http://0.0.0.0:8080/webserver/apps?namespace=NAMESPACE`.
+
+### API in production
+
+To deploy the API in production, you can use the project helm chart, that setups all the required resources in the
+cluster, including the API deployment, the service, the ingress and the RBAC resources. The API has a configuration
+class that loads the configuration from environment variables, so you can use the helm chart `env` values to configure
+the API and its Kubernetes client.
+
+To install the helm chart, you can run:
+```bash
+helm install chart spark-on-k8s --values examples/helm/values.yaml
+```
+
 ## Examples
+
+Here are some examples of how to package and submit spark apps with this package.
 
 ### Python
 First, build the docker image and push it to a registry accessible by your cluster,

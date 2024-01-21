@@ -9,7 +9,7 @@ from typing import Callable, Literal
 from kubernetes import client as k8s
 
 from spark_on_k8s.kubernetes_client import KubernetesClientManager
-from spark_on_k8s.utils.job_waiter import SparkJobWaiter
+from spark_on_k8s.utils.app_waiter import SparkAppWaiter
 
 
 def default_app_id_suffix() -> str:
@@ -21,8 +21,8 @@ def default_app_id_suffix() -> str:
     return f"-{datetime.now().strftime('%Y%m%d%H%M%S')}"
 
 
-class SparkJobWait(str, Enum):
-    """Enum for the Spark job waiter options"""
+class SparkAppWait(str, Enum):
+    """Enum for the Spark app waiter options"""
 
     NO_WAIT = "no_wait"
     WAIT = "wait"
@@ -31,12 +31,12 @@ class SparkJobWait(str, Enum):
 
 
 class SparkOnK8S:
-    """Client for submitting Spark jobs to Kubernetes
+    """Client for submitting Spark apps to Kubernetes
 
     Examples:
         >>> from spark_on_k8s.client.generic import SparkOnK8S
         >>> spark = SparkOnK8S()
-        >>> spark.submit_job(
+        >>> spark.submit_app(
         ...     image="husseinawala/spark:v3.5.0",
         ...     app_path="local:///opt/spark/examples/jars/spark-examples_2.12-3.5.0.jar",
         ...     class_name="org.apache.spark.examples.SparkPi",
@@ -44,7 +44,7 @@ class SparkOnK8S:
         ...     app_arguments=["1000"],
         ...     namespace="spark",
         ...     service_account="spark",
-        ...     job_waiter="print",
+        ...     app_waiter="print",
         ... )
 
     Args:
@@ -59,9 +59,9 @@ class SparkOnK8S:
         k8s_client_manager: KubernetesClientManager | None = None,
     ):
         self.k8s_client_manager = k8s_client_manager or KubernetesClientManager()
-        self.job_waiter = SparkJobWaiter(k8s_client_manager=self.k8s_client_manager)
+        self.app_waiter = SparkAppWaiter(k8s_client_manager=self.k8s_client_manager)
 
-    def submit_job(
+    def submit_app(
         self,
         image: str,
         app_path: str,
@@ -72,11 +72,11 @@ class SparkOnK8S:
         class_name: str | None = None,
         app_arguments: list[str] | None = None,
         app_id_suffix: Callable[[], str] = default_app_id_suffix,
-        job_waiter: Literal["no_wait", "wait", "print", "log"] = SparkJobWait.NO_WAIT,
+        app_waiter: Literal["no_wait", "wait", "print", "log"] = SparkAppWait.NO_WAIT,
         image_pull_policy: Literal["Always", "Never", "IfNotPresent"] = "IfNotPresent",
         ui_reverse_proxy: bool = False,
     ):
-        """Submit a Spark job to Kubernetes
+        """Submit a Spark app to Kubernetes
 
         Args:
             image: Docker image to use for the Spark driver and executors
@@ -85,13 +85,13 @@ class SparkOnK8S:
             service_account: Kubernetes service account to use for the Spark driver,
                 defaults to "spark"
             app_name: Name of the Spark application, defaults to a generated name as
-                `spark-job{app_id_suffix()}`
+                `spark-app{app_id_suffix()}`
             spark_conf: Dictionary of spark configuration to pass to the application
             class_name: Name of the class to execute
             app_arguments: List of arguments to pass to the application
             app_id_suffix: Function to generate a suffix for the application ID, defaults to
                 `default_app_id_suffix`
-            job_waiter: How to wait for the job to finish. One of "no_wait", "wait", "print" or "log"
+            app_waiter: How to wait for the app to finish. One of "no_wait", "wait", "print" or "log"
             image_pull_policy: Image pull policy for the driver and executors, defaults to "IfNotPresent"
         """
         app_name, app_id = self._parse_app_name_and_id(app_name=app_name, app_id_suffix=app_id_suffix)
@@ -147,12 +147,12 @@ class SparkOnK8S:
                     extra_labels=extra_labels,
                 ),
             )
-        if job_waiter in (SparkJobWait.PRINT, SparkJobWait.LOG):
-            self.job_waiter.stream_logs(
-                namespace=namespace, pod_name=pod.metadata.name, print_logs=job_waiter == SparkJobWait.PRINT
+        if app_waiter in (SparkAppWait.PRINT, SparkAppWait.LOG):
+            self.app_waiter.stream_logs(
+                namespace=namespace, pod_name=pod.metadata.name, print_logs=app_waiter == SparkAppWait.PRINT
             )
-        elif job_waiter == SparkJobWait.WAIT:
-            self.job_waiter.wait_for_job(namespace=namespace, pod_name=pod.metadata.name)
+        elif app_waiter == SparkAppWait.WAIT:
+            self.app_waiter.wait_for_app(namespace=namespace, pod_name=pod.metadata.name)
 
     def _parse_app_name_and_id(
         self, *, app_name: str | None = None, app_id_suffix: Callable[[], str] = default_app_id_suffix
@@ -175,7 +175,7 @@ class SparkOnK8S:
             Tuple of the application name and ID
         """
         if not app_name:
-            app_name = f"spark-job{app_id_suffix()}"
+            app_name = f"spark-app{app_id_suffix()}"
             app_id = app_name
         else:
             original_app_name = app_name
@@ -250,7 +250,7 @@ class SparkOnK8S:
         pod_metadata = k8s.V1ObjectMeta(
             name=f"{app_id}-driver",
             namespace=namespace,
-            labels=self.job_labels(
+            labels=self.app_labels(
                 app_name=app_name,
                 app_id=app_id,
                 extra_labels=extra_labels,
@@ -330,7 +330,7 @@ class SparkOnK8S:
             ],
         )
 
-    def job_labels(
+    def app_labels(
         self,
         *,
         app_name: str,
@@ -373,7 +373,7 @@ class SparkOnK8S:
         Returns:
             The created headless service for the Spark application
         """
-        labels = self.job_labels(
+        labels = self.app_labels(
             app_name=app_name,
             app_id=app_id,
             extra_labels=extra_labels,

@@ -10,11 +10,11 @@ from starlette.responses import HTMLResponse, StreamingResponse
 from starlette.templating import Jinja2Templates
 
 from spark_on_k8s.api import AsyncHttpClientSingleton
-from spark_on_k8s.api.jobs import list_jobs
+from spark_on_k8s.api.apps import list_apps
 
 router = APIRouter(
     prefix="/webserver",
-    tags=["spark-jobs", "webserver"],
+    tags=["spark-apps", "webserver"],
     include_in_schema=False,
 )
 
@@ -48,16 +48,16 @@ current_dir = os.path.dirname(os.path.realpath(__file__))
 templates = Jinja2Templates(directory=os.path.join(current_dir, "templates"))
 
 
-@router.get("/jobs", response_class=HTMLResponse)
-async def jobs(request: Request):
-    """List spark jobs in a namespace, and display them in a web page."""
+@router.get("/apps", response_class=HTMLResponse)
+async def apps(request: Request):
+    """List spark apps in a namespace, and display them in a web page."""
     namespace = request.query_params.get("namespace", "default")
-    jobs_list = await list_jobs(namespace)
+    apps_list = await list_apps(namespace)
     return templates.TemplateResponse(
-        "jobs.html",
+        "apps.html",
         {
             "request": request,
-            "jobs_list": jobs_list,
+            "apps_list": apps_list,
             "namespace": namespace,
         },
     )

@@ -19,17 +19,17 @@ class TestSparkOnK8s:
         "app_name, app_id_suffix, expected_app_name, expected_app_id",
         [
             pytest.param(
-                "spark-job-name",
+                "spark-app-name",
                 empty_suffix,
-                "spark-job-name",
-                "spark-job-name",
+                "spark-app-name",
+                "spark-app-name",
                 id="app_name_without_suffix",
             ),
             pytest.param(
-                "spark-job-name",
+                "spark-app-name",
                 default_app_id_suffix,
-                "spark-job-name",
-                "spark-job-name-20240114121231",
+                "spark-app-name",
+                "spark-app-name-20240114121231",
                 id="app_name_with_suffix",
             ),
             pytest.param(
@@ -119,15 +119,15 @@ class TestSparkOnK8s:
             pytest.param(
                 None,
                 empty_suffix,
-                "spark-job",
-                "spark-job",
+                "spark-app",
+                "spark-app",
                 id="none_app_name_without_suffix",
             ),
             pytest.param(
                 None,
                 default_app_id_suffix,
-                "spark-job-20240114121231",
-                "spark-job-20240114121231",
+                "spark-app-20240114121231",
+                "spark-app-20240114121231",
                 id="none_app_name_with_suffix",
             ),
             pytest.param(

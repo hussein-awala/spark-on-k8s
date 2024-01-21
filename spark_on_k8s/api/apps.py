@@ -13,13 +13,13 @@ if TYPE_CHECKING:
     from kubernetes_asyncio.client import V1Pod
 
 router = APIRouter(
-    prefix="/jobs",
-    tags=["spark-jobs"],
+    prefix="/apps",
+    tags=["spark-apps"],
 )
 
 
-class SparkJobStatus(str, Enum):
-    """Spark job status."""
+class SparkAppStatus(str, Enum):
+    """Spark app status."""
 
     Pending = "Pending"
     Running = "Running"
@@ -28,39 +28,39 @@ class SparkJobStatus(str, Enum):
     Unknown = "Unknown"
 
 
-class SparkJob(BaseModel):
-    """Job status."""
+class SparkApp(BaseModel):
+    """App status."""
 
-    job_id: str
-    status: SparkJobStatus
+    app_id: str
+    status: SparkAppStatus
     spark_ui_proxy: bool = False
 
 
-def _get_job_status(pod: V1Pod) -> SparkJobStatus:
-    """Get job status."""
+def _get_app_status(pod: V1Pod) -> SparkAppStatus:
+    """Get app status."""
     if pod.status.phase == "Pending":
-        return SparkJobStatus.Pending
+        return SparkAppStatus.Pending
     elif pod.status.phase == "Running":
-        return SparkJobStatus.Running
+        return SparkAppStatus.Running
     elif pod.status.phase == "Succeeded":
-        return SparkJobStatus.Succeeded
+        return SparkAppStatus.Succeeded
     elif pod.status.phase == "Failed":
-        return SparkJobStatus.Failed
+        return SparkAppStatus.Failed
     else:
-        return SparkJobStatus.Unknown
+        return SparkAppStatus.Unknown
 
 
-@router.get("/list_jobs/{namespace}")
-async def list_jobs(namespace: str) -> list[SparkJob]:
-    """List spark jobs in a namespace."""
+@router.get("/list_apps/{namespace}")
+async def list_apps(namespace: str) -> list[SparkApp]:
+    """List spark apps in a namespace."""
     core_client = CoreV1Api(await KubernetesClientSingleton.client())
     driver_pods = await core_client.list_namespaced_pod(
         namespace=namespace, label_selector="spark-role=driver"
     )
     return [
-        SparkJob(
-            job_id=pod.metadata.labels.get("spark-app-id", pod.metadata.name),
-            status=_get_job_status(pod),
+        SparkApp(
+            app_id=pod.metadata.labels.get("spark-app-id", pod.metadata.name),
+            status=_get_app_status(pod),
             spark_ui_proxy=pod.metadata.labels.get("spark-ui-proxy", False),
         )
         for pod in driver_pods.items

@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Spark Jobs Status</title>
+    <title>Spark Apps Status</title>
     <meta http-equiv="refresh" content="10">
     <style>
         /*TODO: Move this to a separate CSS file*/
@@ -56,21 +56,21 @@
 </head>
 <body>
 <!--TODO: Improve the UI-->
-<h1>Spark Jobs Status</h1>
+<h1>Spark Apps Status</h1>
 
 <table border="1">
     <tr>
-        <th>Job ID</th>
+        <th>App ID</th>
         <th>Status</th>
         <th>Spark UI</th>
     </tr>
-    {% for job in jobs_list %}
+    {% for app in apps_list %}
     <tr>
-        <td>{{ job.job_id }}</td>
-        <td>{{ job.status.value }}</td>
+        <td>{{ app.app_id }}</td>
+        <td>{{ app.status.value }}</td>
         <td>
-            {% if job.spark_ui_proxy %}
-            <a href="/webserver/ui/{{ namespace }}/{{ job.job_id }}" target="_blank">
+            {% if app.spark_ui_proxy %}
+            <a href="/webserver/ui/{{ namespace }}/{{ app.app_id }}" target="_blank">
                 <button class="spark-button">Open Spark UI</button>
             </a>
             {% endif %}

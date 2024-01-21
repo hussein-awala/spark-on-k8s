@@ -8,13 +8,13 @@ from kubernetes.client import ApiException
 from spark_on_k8s.kubernetes_client import KubernetesClientManager
 
 
-class SparkJobWaiter:
-    """Wait for a Spark job to finish and stream its logs.
+class SparkAppWaiter:
+    """Wait for a Spark app to finish and stream its logs.
 
     Examples:
-        >>> from spark_on_k8s.utils.job_waiter import SparkJobWaiter
-        >>> job_waiter = SparkJobWaiter()
-        >>> job_waiter.stream_logs(
+        >>> from spark_on_k8s.utils.app_waiter import SparkAppWaiter
+        >>> app_waiter = SparkAppWaiter()
+        >>> app_waiter.stream_logs(
         ...     namespace="spark",
         ...     pod_name="20240114225118-driver",
         ...     print_logs=True,
@@ -34,8 +34,8 @@ class SparkJobWaiter:
         self.k8s_client_manager = k8s_client_manager or KubernetesClientManager()
         self.logger = logger or logging.getLogger(__name__)
 
-    def wait_for_job(self, *, namespace: str, pod_name: str):
-        """Wait for a Spark job to finish.
+    def wait_for_app(self, *, namespace: str, pod_name: str):
+        """Wait for a Spark app to finish.
 
         Args:
             namespace (str): Namespace.
@@ -59,7 +59,7 @@ class SparkJobWaiter:
             self.logger.info(f"Pod {pod_name} finished with status {pod.status.phase}")
 
     def stream_logs(self, *, namespace: str, pod_name: str, print_logs: bool = False):
-        """Stream logs from a Spark job.
+        """Stream logs from a Spark app.
 
         Args:
             namespace (str): Namespace.

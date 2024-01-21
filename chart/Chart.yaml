@@ -1,0 +1,6 @@
+apiVersion: v2
+name: spark-on-k8s
+description: A Helm chart for spark-on-k8s API and Web UI.
+type: application
+version: 0.1.0
+appVersion: "0.0.1"

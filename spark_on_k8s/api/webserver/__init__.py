@@ -1,12 +1,17 @@
 from __future__ import annotations
 
+import logging
+import os
+
 import httpx
 from fastapi import APIRouter
 from starlette.background import BackgroundTask
 from starlette.requests import Request  # noqa: TCH002
-from starlette.responses import StreamingResponse
+from starlette.responses import HTMLResponse, StreamingResponse
+from starlette.templating import Jinja2Templates
 
 from spark_on_k8s.api import AsyncHttpClientSingleton
+from spark_on_k8s.api.jobs import list_jobs
 
 router = APIRouter(
     prefix="/webserver",
@@ -37,4 +42,24 @@ async def ui_reverse_proxy(request: Request):
         status_code=reverse_proxy_resp.status_code,
         headers=reverse_proxy_resp.headers,
         background=BackgroundTask(reverse_proxy_resp.aclose),
+    )
+
+
+current_dir = os.path.dirname(os.path.realpath(__file__))
+templates = Jinja2Templates(directory=os.path.join(current_dir, "templates"))
+
+
+@router.get("/jobs", response_class=HTMLResponse)
+async def jobs(request: Request):
+    """List spark jobs in a namespace, and display them in a web page."""
+    namespace = request.query_params.get("namespace", "default")
+    jobs_list = await list_jobs(namespace)
+    logging.warning(jobs_list)
+    return templates.TemplateResponse(
+        "jobs.html",
+        {
+            "request": request,
+            "jobs_list": jobs_list,
+            "namespace": namespace,
+        },
     )

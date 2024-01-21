@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Spark Jobs Status</title>
+    <meta http-equiv="refresh" content="10">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+            margin: 20px;
+        }
+
+        h1 {
+            color: #428bca;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #428bca;
+            color: #fff;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+
+        tr:hover {
+            background-color: #ddd;
+        }
+
+        .spark-button {
+            background-color: #5bc0de;
+            color: #fff;
+            border: none;
+            padding: 5px 10px;
+            cursor: pointer;
+        }
+
+        a {
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+
+<h1>Spark Jobs Status</h1>
+
+<table border="1">
+    <tr>
+        <th>Job ID</th>
+        <th>Status</th>
+        <th>Spark UI</th>
+    </tr>
+    {% for job in jobs_list %}
+    <tr>
+        <td>{{ job.job_id }}</td>
+        <td>{{ job.status }}</td>
+        <td>
+            {% if job.spark_ui_proxy %}
+            <a href="/webserver/ui/{{ namespace }}/{{ job.job_id }}" target="_blank">
+                <button class="spark-button">Open Spark UI</button>
+            </a>
+            {% endif %}
+        </td>
+    </tr>
+    {% endfor %}
+</table>
+
+</body>
+</html>

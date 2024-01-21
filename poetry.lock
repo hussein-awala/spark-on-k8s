@@ -1320,4 +1320,4 @@ api = ["fastapi", "kubernetes-asyncio"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.8"
-content-hash = "788cd40a7ffcdb7672e5f14f417a1d6a857fa74f576212965449fb1f9ad7a461"
+content-hash = "266c9e36e556e76636d9799077a3106699161769e3d2aef264f48c9424eaf81f"

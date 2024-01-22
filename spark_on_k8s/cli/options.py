@@ -140,3 +140,30 @@ executor_memory_overhead_option = click.Option(
     show_default=True,
     help="The executor memory overhead (in MB).",
 )
+executor_min_instances_option = click.Option(
+    ("--executor-min-instances",),
+    type=int,
+    default=None,
+    show_default=True,
+    help="The minimum number of executor instances. If provided, dynamic allocation is enabled.",
+)
+executor_max_instances_option = click.Option(
+    ("--executor-max-instances",),
+    type=int,
+    default=None,
+    show_default=True,
+    help="The maximum number of executor instances. If provided, dynamic allocation is enabled.",
+)
+executor_initial_instances_option = click.Option(
+    ("--executor-initial-instances",),
+    type=int,
+    default=None,
+    show_default=True,
+    help=(
+        "The initial number of executor instances. If max and min are not provided, dynamic "
+        "allocation will be disabled and the number of executors will be fixed to this or 2 if "
+        "this is not provided. If max or min or both are provided, dynamic allocation will be "
+        "enabled and the number of executors will be between min and max (inclusive), and this "
+        "will be the initial number of executors with a default of 0."
+    ),
+)

@@ -14,8 +14,11 @@ from spark_on_k8s.cli.options import (
     driver_memory_option,
     driver_memory_overhead_option,
     executor_cpu_option,
+    executor_initial_instances_option,
+    executor_max_instances_option,
     executor_memory_option,
     executor_memory_overhead_option,
+    executor_min_instances_option,
     force_option,
     image_pull_policy_option,
     logs_option,
@@ -107,6 +110,9 @@ def wait(app_id: str, namespace: str):
         executor_cpu_option,
         executor_memory_option,
         executor_memory_overhead_option,
+        executor_min_instances_option,
+        executor_max_instances_option,
+        executor_initial_instances_option,
     ],
     help="Submit a Spark application.",
 )
@@ -130,8 +136,11 @@ def submit(
     executor_cpu: int,
     executor_memory: int,
     executor_memory_overhead: int,
+    executor_min_instances: int,
+    executor_max_instances: int,
+    executor_initial_instances: int,
 ):
-    from spark_on_k8s.client.generic import PodResources, SparkOnK8S
+    from spark_on_k8s.client.generic import ExecutorInstances, PodResources, SparkOnK8S
 
     spark_client = SparkOnK8S()
     spark_client.submit_app(
@@ -155,5 +164,10 @@ def submit(
             cpu=executor_cpu,
             memory=executor_memory,
             memory_overhead=executor_memory_overhead,
+        ),
+        executor_instances=ExecutorInstances(
+            min=executor_min_instances,
+            max=executor_max_instances,
+            initial=executor_initial_instances,
         ),
     )

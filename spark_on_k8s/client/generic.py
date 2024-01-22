@@ -46,6 +46,22 @@ class PodResources:
     memory_overhead: int = 512
 
 
+@dataclass(kw_only=True)
+class ExecutorInstances:
+    """Number of executors to request
+
+    Attributes:
+        min: Minimum number of executors. If provided, dynamic allocation is enabled
+        max: Maximum number of executors. If provided, dynamic allocation is enabled
+        initial: Initial number of executors. If max and min are not provided, defaults to 2,
+            dynamic allocation will be disabled and the number of executors will be fixed.
+    """
+
+    min: int | None = None
+    max: int | None = None
+    initial: int | None = None
+
+
 class SparkOnK8S:
     """Client for submitting Spark apps to Kubernetes
 
@@ -94,6 +110,7 @@ class SparkOnK8S:
         ui_reverse_proxy: bool = False,
         driver_resources: PodResources | None = None,
         executor_resources: PodResources | None = None,
+        executor_instances: ExecutorInstances | None = None,
     ):
         """Submit a Spark app to Kubernetes
 
@@ -117,6 +134,12 @@ class SparkOnK8S:
                 memory and512Mi of memory overhead
             executor_resources: Resources to request for the Spark executors. Defaults to 1 CPU core, 1Gi
                 of memory and 512Mi of memory overhead
+            executor_instances: Number of executors to request. If max and min are not provided, dynamic
+                allocation will be disabled and the number of executors will be fixed to initial or 2 if
+                initial is not provided. If max or min or both are provided, dynamic allocation will be
+                enabled and the number of executors will be between min and max (inclusive), and initial
+                will be the initial number of executors with a default of 0.
+
         """
         app_name, app_id = self._parse_app_name_and_id(app_name=app_name, app_id_suffix=app_id_suffix)
 
@@ -125,6 +148,7 @@ class SparkOnK8S:
 
         driver_resources = driver_resources or PodResources()
         executor_resources = executor_resources or PodResources()
+        executor_instances = executor_instances or ExecutorInstances(initial=2)
 
         basic_conf = {
             "spark.app.name": app_name,
@@ -147,6 +171,17 @@ class SparkOnK8S:
             basic_conf["spark.ui.proxyBase"] = f"/webserver/ui/{namespace}/{app_id}"
             basic_conf["spark.ui.proxyRedirectUri"] = "/"
             extra_labels["spark-ui-proxy"] = "true"
+        if executor_instances.min is not None or executor_instances.max is not None:
+            basic_conf["spark.dynamicAllocation.enabled"] = "true"
+            basic_conf["spark.dynamicAllocation.shuffleTracking.enabled"] = "true"
+            basic_conf["spark.dynamicAllocation.minExecutors"] = f"{executor_instances.min or 0}"
+            if executor_instances.max is not None:
+                basic_conf["spark.dynamicAllocation.maxExecutors"] = f"{executor_instances.max}"
+            basic_conf["spark.dynamicAllocation.initialExecutors"] = f"{executor_instances.initial or 0}"
+        else:
+            basic_conf[
+                "spark.executor.instances"
+            ] = f"{executor_instances.initial if executor_instances.initial is not None else 2}"
         driver_command_args = ["driver", "--master", "k8s://https://kubernetes.default.svc.cluster.local:443"]
         if class_name:
             driver_command_args.extend(["--class", class_name])

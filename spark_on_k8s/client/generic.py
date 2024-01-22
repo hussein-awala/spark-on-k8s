@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import re
+from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from typing import Callable, Literal
@@ -28,6 +29,21 @@ class SparkAppWait(str, Enum):
     WAIT = "wait"
     PRINT = "print"
     LOG = "log"
+
+
+@dataclass(kw_only=True)
+class PodResources:
+    """Resources to request for the Spark driver and executors
+
+    Attributes:
+        cpu: Number of CPU cores to request
+        memory: Amount of memory to request in MB
+        memory_overhead: Amount of memory overhead to request in MB
+    """
+
+    cpu: int = 1
+    memory: int = 1024
+    memory_overhead: int = 512
 
 
 class SparkOnK8S:
@@ -63,6 +79,7 @@ class SparkOnK8S:
 
     def submit_app(
         self,
+        *,
         image: str,
         app_path: str,
         namespace: str = "default",
@@ -75,6 +92,8 @@ class SparkOnK8S:
         app_waiter: Literal["no_wait", "wait", "print", "log"] = SparkAppWait.NO_WAIT,
         image_pull_policy: Literal["Always", "Never", "IfNotPresent"] = "IfNotPresent",
         ui_reverse_proxy: bool = False,
+        driver_resources: PodResources | None = None,
+        executor_resources: PodResources | None = None,
     ):
         """Submit a Spark app to Kubernetes
 
@@ -93,11 +112,19 @@ class SparkOnK8S:
                 `default_app_id_suffix`
             app_waiter: How to wait for the app to finish. One of "no_wait", "wait", "print" or "log"
             image_pull_policy: Image pull policy for the driver and executors, defaults to "IfNotPresent"
+            ui_reverse_proxy: Whether to use a reverse proxy for the Spark UI, defaults to False
+            driver_resources: Resources to request for the Spark driver. Defaults to 1 CPU core, 1Gi of
+                memory and512Mi of memory overhead
+            executor_resources: Resources to request for the Spark executors. Defaults to 1 CPU core, 1Gi
+                of memory and 512Mi of memory overhead
         """
         app_name, app_id = self._parse_app_name_and_id(app_name=app_name, app_id_suffix=app_id_suffix)
 
         spark_conf = spark_conf or {}
         main_class_parameters = app_arguments or []
+
+        driver_resources = driver_resources or PodResources()
+        executor_resources = executor_resources or PodResources()
 
         basic_conf = {
             "spark.app.name": app_name,
@@ -110,6 +137,10 @@ class SparkOnK8S:
             "spark.kubernetes.driver.pod.name": f"{app_id}-driver",
             "spark.kubernetes.executor.podNamePrefix": app_id,
             "spark.kubernetes.container.image.pullPolicy": image_pull_policy,
+            "spark.driver.memory": f"{driver_resources.memory}m",
+            "spark.executor.cores": f"{executor_resources.cpu}",
+            "spark.executor.memory": f"{executor_resources.memory}m",
+            "spark.executor.memoryOverhead": f"{executor_resources.memory_overhead}m",
         }
         extra_labels = {}
         if ui_reverse_proxy:
@@ -130,6 +161,16 @@ class SparkOnK8S:
             namespace=namespace,
             args=driver_command_args,
             extra_labels=extra_labels,
+            pod_resources={
+                "requests": {
+                    "cpu": f"{driver_resources.cpu}",
+                    "memory": f"{driver_resources.memory + driver_resources.memory_overhead}Mi",
+                },
+                "limits": {
+                    "cpu": f"{driver_resources.cpu}",
+                    "memory": f"{driver_resources.memory + driver_resources.memory_overhead}Mi",
+                },
+            },
         )
         with self.k8s_client_manager.client() as client:
             api = k8s.CoreV1Api(client)
@@ -225,7 +266,7 @@ class SparkOnK8S:
         service_account: str = "spark",
         container_name: str = "driver",
         env_variables: dict[str, str] | None = None,
-        pod_resources: dict[str, str] | None = None,
+        pod_resources: dict[str, dict[str, str]] | None = None,
         args: list[str] | None = None,
         image_pull_policy: Literal["Always", "Never", "IfNotPresent"] = "IfNotPresent",
         extra_labels: dict[str, str] | None = None,
@@ -282,7 +323,7 @@ class SparkOnK8S:
         image: str,
         container_name: str = "driver",
         env_variables: dict[str, str] | None = None,
-        pod_resources: dict[str, str] | None = None,
+        pod_resources: dict[str, dict[str, str]] | None = None,
         args: list[str] | None = None,
         image_pull_policy: Literal["Always", "Never", "IfNotPresent"] = "IfNotPresent",
     ) -> k8s.V1Container:

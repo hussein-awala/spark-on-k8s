@@ -98,3 +98,45 @@ ui_reverse_proxy_option = click.Option(
     show_default=True,
     help="Whether to enable UI reverse proxy.",
 )
+driver_cpu_option = click.Option(
+    ("--driver-cpu",),
+    type=int,
+    default=1,
+    show_default=True,
+    help="The driver CPU.",
+)
+driver_memory_option = click.Option(
+    ("--driver-memory",),
+    type=int,
+    default=1024,
+    show_default=True,
+    help="The driver memory (in MB).",
+)
+driver_memory_overhead_option = click.Option(
+    ("--driver-memory-overhead",),
+    type=int,
+    default=512,
+    show_default=True,
+    help="The driver memory overhead (in MB).",
+)
+executor_cpu_option = click.Option(
+    ("--executor-cpu",),
+    type=int,
+    default=1,
+    show_default=True,
+    help="The executor CPU.",
+)
+executor_memory_option = click.Option(
+    ("--executor-memory",),
+    type=int,
+    default=1024,
+    show_default=True,
+    help="The executor memory (in MB).",
+)
+executor_memory_overhead_option = click.Option(
+    ("--executor-memory-overhead",),
+    type=int,
+    default=512,
+    show_default=True,
+    help="The executor memory overhead (in MB).",
+)

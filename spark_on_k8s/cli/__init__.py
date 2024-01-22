@@ -16,7 +16,7 @@ def main():
     cli.add_command(app_cli)
     cli.add_command(apps_cli)
     cli.add_command(api_cli)
-    cli()
+    cli(max_content_width=120)
 
 
 if __name__ == "__main__":

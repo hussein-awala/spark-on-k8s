@@ -10,6 +10,12 @@ from spark_on_k8s.cli.options import (
     app_path_option,
     class_name_option,
     docker_image_option,
+    driver_cpu_option,
+    driver_memory_option,
+    driver_memory_overhead_option,
+    executor_cpu_option,
+    executor_memory_option,
+    executor_memory_overhead_option,
     force_option,
     image_pull_policy_option,
     logs_option,
@@ -95,6 +101,12 @@ def wait(app_id: str, namespace: str):
         logs_option,
         image_pull_policy_option,
         ui_reverse_proxy_option,
+        driver_cpu_option,
+        driver_memory_option,
+        driver_memory_overhead_option,
+        executor_cpu_option,
+        executor_memory_option,
+        executor_memory_overhead_option,
     ],
     help="Submit a Spark application.",
 )
@@ -112,8 +124,14 @@ def submit(
     image_pull_policy: Literal["Always", "Never", "IfNotPresent"],
     ui_reverse_proxy: bool,
     app_arguments: tuple[str, ...],
+    driver_cpu: int,
+    driver_memory: int,
+    driver_memory_overhead: int,
+    executor_cpu: int,
+    executor_memory: int,
+    executor_memory_overhead: int,
 ):
-    from spark_on_k8s.client.generic import SparkOnK8S
+    from spark_on_k8s.client.generic import PodResources, SparkOnK8S
 
     spark_client = SparkOnK8S()
     spark_client.submit_app(
@@ -128,4 +146,14 @@ def submit(
         image_pull_policy=image_pull_policy,
         ui_reverse_proxy=ui_reverse_proxy,
         app_arguments=list(app_arguments),
+        driver_resources=PodResources(
+            cpu=driver_cpu,
+            memory=driver_memory,
+            memory_overhead=driver_memory_overhead,
+        ),
+        executor_resources=PodResources(
+            cpu=executor_cpu,
+            memory=executor_memory,
+            memory_overhead=executor_memory_overhead,
+        ),
     )

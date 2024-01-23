@@ -69,12 +69,13 @@ class SparkOnK8SNamespaceSetup(LoggingMixin):
                 )
             rbac_api = k8s.RbacAuthorizationV1Api(client)
             cluster_role_bindings = [crb.metadata.name for crb in rbac_api.list_cluster_role_binding().items]
-            if "spark-role-binding" not in cluster_role_bindings:
+            role_binding_name = f"spark-role-binding-{namespace}"
+            if role_binding_name not in cluster_role_bindings:
                 self.log(msg="Creating spark role binding", level=logging.INFO, should_print=should_print)
                 rbac_api.create_cluster_role_binding(
                     body=k8s.V1ClusterRoleBinding(
                         metadata=k8s.V1ObjectMeta(
-                            name="spark-role-binding",
+                            name=role_binding_name,
                         ),
                         role_ref=k8s.V1RoleRef(
                             api_group="rbac.authorization.k8s.io",

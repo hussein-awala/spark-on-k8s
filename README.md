@@ -30,6 +30,26 @@ poetry install -E api # For the API package
 
 ## Usage
 
+### Setup the Kubernetes namespace
+
+When submitting a Spark application to Kubernetes, we only create the driver pod, which is responsible for creating and
+managing the executors pods. To give the driver pod the permissions to create the executors pods, we can give it a
+service account with the required permissions. To simplify this process, we provide a helper function that creates
+a namespace if needed, and a service account with the required permissions:
+
+With Python:
+```python
+from spark_on_k8s.utils.setup_namespace import SparkOnK8SNamespaceSetup
+
+spark_on_k8s_setuper = SparkOnK8SNamespaceSetup()
+spark_on_k8s_setuper.setup_namespace(namespace="<namespace name>")
+```
+
+With the CLI:
+```bash
+spark-on-k8s namespace setup -n <namespace name>
+```
+
 ### Python Client
 The Python client can be used to submit apps from your Python code, instead of using spark-submit:
 

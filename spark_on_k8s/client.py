@@ -11,6 +11,7 @@ from kubernetes import client as k8s
 
 from spark_on_k8s.kubernetes_client import KubernetesClientManager
 from spark_on_k8s.utils.app_manager import SparkAppManager
+from spark_on_k8s.utils.logging_mixin import LoggingMixin
 
 
 def default_app_id_suffix() -> str:
@@ -62,7 +63,7 @@ class ExecutorInstances:
     initial: int | None = None
 
 
-class SparkOnK8S:
+class SparkOnK8S(LoggingMixin):
     """Client for submitting Spark apps to Kubernetes
 
     Examples:
@@ -81,15 +82,16 @@ class SparkOnK8S:
 
     Args:
         k8s_client_manager: Kubernetes client manager to use for creating Kubernetes clients
+        logger_name: Name of the logger to use for logging, defaults to "SparkOnK8S"
     """
-
-    logger = logging.getLogger(__name__)
 
     def __init__(
         self,
         *,
         k8s_client_manager: KubernetesClientManager | None = None,
+        logger_name: str | None = None,
     ):
+        super().__init__(logger_name=logger_name or "SparkOnK8S")
         self.k8s_client_manager = k8s_client_manager or KubernetesClientManager()
         self.app_manager = SparkAppManager(k8s_client_manager=self.k8s_client_manager)
 
@@ -111,6 +113,7 @@ class SparkOnK8S:
         driver_resources: PodResources | None = None,
         executor_resources: PodResources | None = None,
         executor_instances: ExecutorInstances | None = None,
+        should_print: bool = False,
     ):
         """Submit a Spark app to Kubernetes
 
@@ -139,9 +142,11 @@ class SparkOnK8S:
                 initial is not provided. If max or min or both are provided, dynamic allocation will be
                 enabled and the number of executors will be between min and max (inclusive), and initial
                 will be the initial number of executors with a default of 0.
-
+            should_print: Whether to print logs instead of logging them, defaults to False
         """
-        app_name, app_id = self._parse_app_name_and_id(app_name=app_name, app_id_suffix=app_id_suffix)
+        app_name, app_id = self._parse_app_name_and_id(
+            app_name=app_name, app_id_suffix=app_id_suffix, should_print=should_print
+        )
 
         spark_conf = spark_conf or {}
         main_class_parameters = app_arguments or []
@@ -231,7 +236,11 @@ class SparkOnK8S:
             self.app_manager.wait_for_app(namespace=namespace, pod_name=pod.metadata.name)
 
     def _parse_app_name_and_id(
-        self, *, app_name: str | None = None, app_id_suffix: Callable[[], str] = default_app_id_suffix
+        self,
+        *,
+        app_name: str | None = None,
+        app_id_suffix: Callable[[], str] = default_app_id_suffix,
+        should_print: bool = False,
     ) -> tuple[str, str]:
         """Parse the application name and ID
 
@@ -246,6 +255,7 @@ class SparkOnK8S:
             app_name: Name of the Spark application
             app_id_suffix: Function to generate a suffix for the application ID,
                 defaults to `default_app_id_suffix`
+            should_print: Whether to print logs instead of logging them, defaults to False
 
         Returns:
             Tuple of the application name and ID
@@ -269,8 +279,13 @@ class SparkOnK8S:
             app_name = re.sub(r"-*$", "", app_name)
             app_id = app_name + app_id_suffix_str
             if app_name != original_app_name:
-                self.logger.warning(
-                    f"Application name {original_app_name} is too long and will be truncated to {app_name}"
+                self.log(
+                    msg=(
+                        f"Application name {original_app_name} is too long"
+                        f" and will be truncated to {app_name}"
+                    ),
+                    level=logging.WARNING,
+                    should_print=should_print,
                 )
         return app_name, app_id
 

@@ -9,6 +9,7 @@ from kubernetes.client import ApiException
 from kubernetes.stream import stream
 
 from spark_on_k8s.kubernetes_client import KubernetesClientManager
+from spark_on_k8s.utils.logging_mixin import LoggingMixin
 
 
 class SparkAppStatus(str, Enum):
@@ -35,7 +36,7 @@ def get_app_status(pod: k8s.V1Pod) -> SparkAppStatus:
         return SparkAppStatus.Unknown
 
 
-class SparkAppManager:
+class SparkAppManager(LoggingMixin):
     """Manage Spark apps on Kubernetes.
 
     Examples:
@@ -44,22 +45,22 @@ class SparkAppManager:
         >>> app_manager.stream_logs(
         ...     namespace="spark",
         ...     pod_name="20240114225118-driver",
-        ...     print_logs=True,
+        ...     should_print=True,
         ... )
 
     Args:
         k8s_client_manager (KubernetesClientManager, optional): Kubernetes client manager. Defaults to None.
-        logger (logging.Logger, optional): Logger. Defaults to None.
+        logger_name (str, optional): logger name. Defaults to "SparkAppManager".
     """
 
     def __init__(
         self,
         *,
         k8s_client_manager: KubernetesClientManager | None = None,
-        logger: logging.Logger | None = None,
+        logger_name: str | None = None,
     ):
+        super().__init__(logger_name=logger_name or "SparkAppManager")
         self.k8s_client_manager = k8s_client_manager or KubernetesClientManager()
-        self.logger = logger or logging.getLogger(__name__)
 
     def app_status(
         self,
@@ -102,7 +103,14 @@ class SparkAppManager:
                 return _app_status(api)
         return _app_status(client)
 
-    def wait_for_app(self, *, namespace: str, pod_name: str | None = None, app_id: str | None = None):
+    def wait_for_app(
+        self,
+        *,
+        namespace: str,
+        pod_name: str | None = None,
+        app_id: str | None = None,
+        should_print: bool = False,
+    ):
         """Wait for a Spark app to finish.
 
         Args:
@@ -122,9 +130,15 @@ class SparkAppManager:
                         break
                 except ApiException as e:
                     if e.status == 404:
-                        self.logger.info(f"Pod {pod_name} was deleted")
+                        self.log(
+                            msg=f"Pod {pod_name} was deleted", level=logging.INFO, should_print=should_print
+                        )
                         return
-            self.logger.info(f"Pod {pod_name} finished with status {status.value}")
+            self.log(
+                msg=f"Pod {pod_name} finished with status {status.value}",
+                level=logging.INFO,
+                should_print=should_print,
+            )
 
     def stream_logs(
         self,
@@ -132,7 +146,7 @@ class SparkAppManager:
         namespace: str,
         pod_name: str | None = None,
         app_id: str | None = None,
-        print_logs: bool = False,
+        should_print: bool = False,
     ):
         """Stream logs from a Spark app.
 
@@ -140,8 +154,7 @@ class SparkAppManager:
             namespace (str): Namespace.
             pod_name (str): Pod name.
             app_id (str): App ID.
-            print_logs (bool, optional): Whether to print log lines or use the logger to log them.
-                Defaults to False.
+            should_print (bool, optional): Whether to print logs instead of logging them.
         """
         if pod_name is None and app_id is None:
             raise ValueError("Either pod_name or app_id must be specified")
@@ -170,10 +183,7 @@ class SparkAppManager:
                 namespace=namespace,
                 name=pod_name,
             ):
-                if print_logs:
-                    print(line)
-                else:
-                    self.logger.info(line)
+                self.log(msg=line, level=logging.INFO, should_print=should_print)
             watcher.stop()
 
     def list_apps(self, namespace: str) -> list[str]:

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from enum import Enum
+from typing import Literal
 
 from kubernetes import client as k8s, watch
 from kubernetes.client import ApiException
@@ -273,3 +274,203 @@ class SparkAppManager:
                 ),
             )
         print(f"Deleted app {app_id}")
+
+    @staticmethod
+    def create_spark_pod_spec(
+        *,
+        app_name: str,
+        app_id: str,
+        image: str,
+        namespace: str = "default",
+        service_account: str = "spark",
+        container_name: str = "driver",
+        env_variables: dict[str, str] | None = None,
+        pod_resources: dict[str, dict[str, str]] | None = None,
+        args: list[str] | None = None,
+        image_pull_policy: Literal["Always", "Never", "IfNotPresent"] = "IfNotPresent",
+        extra_labels: dict[str, str] | None = None,
+    ) -> k8s.V1PodTemplateSpec:
+        """Create a pod spec for a Spark application
+
+        Args:
+            app_name: Name of the Spark application
+            app_id: ID of the Spark application
+            image: Docker image to use for the Spark driver and executors
+            namespace: Kubernetes namespace to use, defaults to "default"
+            service_account: Kubernetes service account to use for the Spark driver, defaults to "spark"
+            container_name: Name of the container, defaults to "driver"
+            env_variables: Dictionary of environment variables to pass to the container
+            pod_resources: Dictionary of resources to request for the container
+            args: List of arguments to pass to the container
+            image_pull_policy: Image pull policy for the driver and executors, defaults to "IfNotPresent"
+            extra_labels: Dictionary of extra labels to add to the pod template
+
+        Returns:
+            Pod template spec for the Spark application
+        """
+        pod_metadata = k8s.V1ObjectMeta(
+            name=f"{app_id}-driver",
+            namespace=namespace,
+            labels=SparkAppManager.spark_app_labels(
+                app_name=app_name,
+                app_id=app_id,
+                extra_labels=extra_labels,
+            ),
+        )
+        pod_spec = k8s.V1PodSpec(
+            service_account_name=service_account,
+            restart_policy="Never",
+            containers=[
+                SparkAppManager.create_driver_container(
+                    image=image,
+                    container_name=container_name,
+                    env_variables=env_variables,
+                    pod_resources=pod_resources,
+                    args=args,
+                    image_pull_policy=image_pull_policy,
+                )
+            ],
+        )
+        template = k8s.V1PodTemplateSpec(
+            metadata=pod_metadata,
+            spec=pod_spec,
+        )
+        return template
+
+    @staticmethod
+    def create_driver_container(
+        *,
+        image: str,
+        container_name: str = "driver",
+        env_variables: dict[str, str] | None = None,
+        pod_resources: dict[str, dict[str, str]] | None = None,
+        args: list[str] | None = None,
+        image_pull_policy: Literal["Always", "Never", "IfNotPresent"] = "IfNotPresent",
+    ) -> k8s.V1Container:
+        """Create a container spec for the Spark driver
+
+        Args:
+            image: Docker image to use for the Spark driver and executors
+            container_name: Name of the container, defaults to "driver"
+            env_variables: Dictionary of environment variables to pass to the container
+            pod_resources: Dictionary of resources to request for the container
+            args: List of arguments to pass to the container
+            image_pull_policy: Image pull policy for the driver and executors, defaults to "IfNotPresent"
+
+        Returns:
+            Container spec for the Spark driver
+        """
+        return k8s.V1Container(
+            name=container_name,
+            image=image,
+            image_pull_policy=image_pull_policy,
+            env=[k8s.V1EnvVar(name=key, value=value) for key, value in (env_variables or {}).items()]
+            + [
+                k8s.V1EnvVar(
+                    name="SPARK_DRIVER_BIND_ADDRESS",
+                    value_from=k8s.V1EnvVarSource(
+                        field_ref=k8s.V1ObjectFieldSelector(
+                            field_path="status.podIP",
+                        )
+                    ),
+                ),
+            ],
+            resources=k8s.V1ResourceRequirements(
+                **(pod_resources or {}),
+            ),
+            args=args or [],
+            ports=[
+                k8s.V1ContainerPort(
+                    container_port=7077,
+                    name="driver-port",
+                ),
+                k8s.V1ContainerPort(
+                    container_port=4040,
+                    name="ui-port",
+                ),
+            ],
+        )
+
+    @staticmethod
+    def spark_app_labels(
+        *,
+        app_name: str,
+        app_id: str,
+        extra_labels: dict[str, str] | None = None,
+    ) -> dict[str, str]:
+        """Create labels for a Spark application
+
+        Args:
+            app_name: Name of the Spark application
+            app_id: ID of the Spark application
+
+        Returns:
+            Dictionary of labels for the Spark application resources
+        """
+        return {
+            "spark-app-name": app_name,
+            "spark-app-id": app_id,
+            "spark-role": "driver",
+            **(extra_labels or {}),
+        }
+
+    @staticmethod
+    def create_headless_service_object(
+        *,
+        app_name: str,
+        app_id: str,
+        namespace: str = "default",
+        pod_owner_uid: str | None = None,
+        extra_labels: dict[str, str] | None = None,
+    ) -> k8s.V1Service:
+        """Create a headless service for a Spark application
+
+        Args:
+            app_name: Name of the Spark application
+            app_id: ID of the Spark application
+            namespace: Kubernetes namespace to use, defaults to "default"
+            pod_owner_uid: UID of the pod to use as owner reference for the service
+
+        Returns:
+            The created headless service for the Spark application
+        """
+        labels = SparkAppManager.spark_app_labels(
+            app_name=app_name,
+            app_id=app_id,
+            extra_labels=extra_labels,
+        )
+        owner = (
+            [
+                k8s.V1OwnerReference(
+                    api_version="v1",
+                    kind="Pod",
+                    name=f"{app_id}-driver",
+                    uid=pod_owner_uid,
+                )
+            ]
+            if pod_owner_uid
+            else None
+        )
+        return k8s.V1Service(
+            metadata=k8s.V1ObjectMeta(
+                name=app_id,
+                labels=labels,
+                namespace=namespace,
+                owner_references=owner,
+            ),
+            spec=k8s.V1ServiceSpec(
+                selector=labels,
+                ports=[
+                    k8s.V1ServicePort(
+                        port=7077,
+                        name="driver-port",
+                    ),
+                    k8s.V1ServicePort(
+                        port=4040,
+                        name="ui-port",
+                    ),
+                ],
+                type="ClusterIP",
+                cluster_ip="None",
+            ),
+        )

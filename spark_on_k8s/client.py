@@ -28,7 +28,6 @@ class SparkAppWait(str, Enum):
 
     NO_WAIT = "no_wait"
     WAIT = "wait"
-    PRINT = "print"
     LOG = "log"
 
 
@@ -77,7 +76,7 @@ class SparkOnK8S(LoggingMixin):
         ...     app_arguments=["1000"],
         ...     namespace="spark",
         ...     service_account="spark",
-        ...     app_waiter="print",
+        ...     app_waiter="log",
         ... )
 
     Args:
@@ -107,7 +106,7 @@ class SparkOnK8S(LoggingMixin):
         class_name: str | None = None,
         app_arguments: list[str] | None = None,
         app_id_suffix: Callable[[], str] = default_app_id_suffix,
-        app_waiter: Literal["no_wait", "wait", "print", "log"] = SparkAppWait.NO_WAIT,
+        app_waiter: Literal["no_wait", "wait", "log"] = SparkAppWait.NO_WAIT,
         image_pull_policy: Literal["Always", "Never", "IfNotPresent"] = "IfNotPresent",
         ui_reverse_proxy: bool = False,
         driver_resources: PodResources | None = None,
@@ -130,7 +129,7 @@ class SparkOnK8S(LoggingMixin):
             app_arguments: List of arguments to pass to the application
             app_id_suffix: Function to generate a suffix for the application ID, defaults to
                 `default_app_id_suffix`
-            app_waiter: How to wait for the app to finish. One of "no_wait", "wait", "print" or "log"
+            app_waiter: How to wait for the app to finish. One of "no_wait", "wait", or "log"
             image_pull_policy: Image pull policy for the driver and executors, defaults to "IfNotPresent"
             ui_reverse_proxy: Whether to use a reverse proxy for the Spark UI, defaults to False
             driver_resources: Resources to request for the Spark driver. Defaults to 1 CPU core, 1Gi of
@@ -228,12 +227,16 @@ class SparkOnK8S(LoggingMixin):
                     extra_labels=extra_labels,
                 ),
             )
-        if app_waiter in (SparkAppWait.PRINT, SparkAppWait.LOG):
+        if app_waiter == SparkAppWait.LOG:
             self.app_manager.stream_logs(
-                namespace=namespace, pod_name=pod.metadata.name, print_logs=app_waiter == SparkAppWait.PRINT
+                namespace=namespace,
+                pod_name=pod.metadata.name,
+                should_print=should_print,
             )
         elif app_waiter == SparkAppWait.WAIT:
-            self.app_manager.wait_for_app(namespace=namespace, pod_name=pod.metadata.name)
+            self.app_manager.wait_for_app(
+                namespace=namespace, pod_name=pod.metadata.name, should_print=should_print
+            )
 
     def _parse_app_name_and_id(
         self,

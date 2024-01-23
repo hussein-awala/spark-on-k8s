@@ -58,7 +58,7 @@ def logs(app_id: str, namespace: str):
     from spark_on_k8s.utils.app_manager import SparkAppManager
 
     app_manager = SparkAppManager()
-    app_manager.stream_logs(namespace=namespace, app_id=app_id, print_logs=True)
+    app_manager.stream_logs(namespace=namespace, app_id=app_id, should_print=True)
 
 
 @app_cli.command(cls=SparkAppCommand, help="Kill a Spark application.")
@@ -86,7 +86,7 @@ def wait(app_id: str, namespace: str):
     from spark_on_k8s.utils.app_manager import SparkAppManager
 
     app_manager = SparkAppManager()
-    app_manager.wait_for_app(namespace=namespace, app_id=app_id)
+    app_manager.wait_for_app(namespace=namespace, app_id=app_id, should_print=True)
     app_status = app_manager.app_status(namespace=namespace, app_id=app_id)
     print(f"App {app_id} has terminated with status {app_status.value}")
 
@@ -151,7 +151,7 @@ def submit(
         app_name=name,
         spark_conf=spark_conf,
         class_name=class_name,
-        app_waiter="print" if logs else "wait" if wait else "no_wait",
+        app_waiter="log" if logs else "wait" if wait else "no_wait",
         image_pull_policy=image_pull_policy,
         ui_reverse_proxy=ui_reverse_proxy,
         app_arguments=list(app_arguments),
@@ -170,4 +170,5 @@ def submit(
             max=executor_max_instances,
             initial=executor_initial_instances,
         ),
+        should_print=True,
     )

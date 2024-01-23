@@ -66,7 +66,7 @@ class SparkOnK8S:
     """Client for submitting Spark apps to Kubernetes
 
     Examples:
-        >>> from spark_on_k8s.client.generic import SparkOnK8S
+        >>> from spark_on_k8s.client import SparkOnK8S
         >>> spark = SparkOnK8S()
         >>> spark.submit_app(
         ...     image="husseinawala/spark:v3.5.0",

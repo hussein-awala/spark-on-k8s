@@ -140,7 +140,7 @@ def submit(
     executor_max_instances: int,
     executor_initial_instances: int,
 ):
-    from spark_on_k8s.client.generic import ExecutorInstances, PodResources, SparkOnK8S
+    from spark_on_k8s.client import ExecutorInstances, PodResources, SparkOnK8S
 
     spark_client = SparkOnK8S()
     spark_client.submit_app(

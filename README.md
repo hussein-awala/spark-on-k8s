@@ -32,8 +32,9 @@ poetry install -E api # For the API package
 
 ### Python Client
 The Python client can be used to submit apps from your Python code, instead of using spark-submit:
+
 ```python
-from spark_on_k8s.client.generic import SparkOnK8S
+from spark_on_k8s.client import SparkOnK8S
 
 client = SparkOnK8S()
 client.submit_app(

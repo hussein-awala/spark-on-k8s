@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 
-from spark_on_k8s.client import SparkOnK8S
+from spark_on_k8s.client import ExecutorInstances, SparkOnK8S
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
@@ -19,4 +19,7 @@ if __name__ == "__main__":
         # If you test this locally (minikube or kind) without pushing the image to a registry,
         # you need to set the image_pull_policy to Never.
         image_pull_policy="Never",
+        ui_reverse_proxy=True,
+        # Run with dynamic allocation enabled, with minimum of 0 executors and maximum of 5 executors
+        executor_instances=ExecutorInstances(min=0, max=5),
     )

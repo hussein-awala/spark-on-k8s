@@ -144,6 +144,10 @@ Then, submit the job:
 ```bash
 python examples/python/submit.py
 ```
+Or via the bash script:
+```bash
+./examples/python/submit.sh
+```
 
 ### Java
 Same as above, but with the java example:
@@ -161,4 +165,9 @@ docker push java-spark-job
 Then, submit the job:
 ```bash
 python examples/java/submit.py
+```
+
+Or via the bash script:
+```bash
+./examples/java/submit.sh
 ```

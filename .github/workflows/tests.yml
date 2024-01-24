@@ -12,7 +12,6 @@ on:
 
 jobs:
     test-python:
-        needs: linting
         strategy:
             fail-fast: true
             matrix:

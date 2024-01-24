@@ -24,7 +24,7 @@ jobs:
               - "poetry.lock"
   pytest:
     needs: changed-files
-    if: ${{ needs.changed-files.outputs.src == "true" }}
+    if: ${{ needs.changed-files.outputs.src == 'true' }}
     strategy:
       fail-fast: true
       matrix:

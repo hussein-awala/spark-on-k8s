@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from airflow import AirflowException
 from airflow.models import BaseOperator
@@ -9,6 +9,8 @@ from spark_on_k8s.k8s.sync_client import KubernetesClientManager
 
 if TYPE_CHECKING:
     from typing import Literal
+
+    import jinja2
 
     from airflow.utils.context import Context
     from spark_on_k8s.client import ExecutorInstances, PodResources
@@ -58,6 +60,23 @@ class SparkOnK8SOperator(BaseOperator):
         **kwargs: Other keyword arguments for BaseOperator.
     """
 
+    template_fields = (
+        "image",
+        "app_path",
+        "namespace",
+        "service_account",
+        "app_name",
+        "spark_conf",
+        "class_name",
+        "app_arguments",
+        "app_waiter",
+        "image_pull_policy",
+        "driver_resources",
+        "executor_resources",
+        "executor_instances",
+        "kubernetes_conn_id",
+    )
+
     def __init__(
         self,
         *,
@@ -99,8 +118,63 @@ class SparkOnK8SOperator(BaseOperator):
         self.poll_interval = poll_interval
         self.deferrable = deferrable
 
+    def _render_nested_template_fields(
+        self,
+        content: Any,
+        context: Context,
+        jinja_env: jinja2.Environment,
+        seen_oids: set,
+    ) -> None:
+        """Render nested template fields."""
+        from spark_on_k8s.client import ExecutorInstances, PodResources
+
+        if id(content) not in seen_oids:
+            template_fields: tuple | None
+
+            if isinstance(content, PodResources):
+                template_fields = ("cpu", "memory", "memory_overhead")
+            elif isinstance(content, ExecutorInstances):
+                template_fields = ("min", "max", "initial")
+            else:
+                template_fields = None
+
+            if template_fields:
+                seen_oids.add(id(content))
+                self._do_render_template_fields(content, template_fields, context, jinja_env, seen_oids)
+                return
+
+        super()._render_nested_template_fields(content, context, jinja_env, seen_oids)
+
     def execute(self, context):
-        from spark_on_k8s.client import SparkOnK8S
+        from spark_on_k8s.client import ExecutorInstances, PodResources, SparkOnK8S
+
+        # post-process template fields
+        if self.driver_resources:
+            self.driver_resources = PodResources(
+                cpu=int(self.driver_resources.cpu) if self.driver_resources.cpu is not None else None,
+                memory=int(self.driver_resources.memory)
+                if self.driver_resources.memory is not None
+                else None,
+                memory_overhead=int(self.driver_resources.memory_overhead)
+                if self.driver_resources.memory_overhead is not None
+                else None,
+            )
+        if self.executor_resources:
+            self.executor_resources = PodResources(
+                cpu=int(self.executor_resources.cpu) if self.executor_resources.cpu is not None else None,
+                memory=int(self.executor_resources.memory)
+                if self.executor_resources.memory is not None
+                else None,
+                memory_overhead=int(self.executor_resources.memory_overhead),
+            )
+        if self.executor_instances:
+            self.executor_instances = ExecutorInstances(
+                min=int(self.executor_instances.min) if self.executor_instances.min is not None else None,
+                max=int(self.executor_instances.max) if self.executor_instances.max is not None else None,
+                initial=int(self.executor_instances.initial)
+                if self.executor_instances.initial is not None
+                else None,
+            )
 
         k8s_client_manager = _AirflowKubernetesClientManager(
             kubernetes_conn_id=self.kubernetes_conn_id,

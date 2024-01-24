@@ -143,6 +143,11 @@ class SparkAppManager(LoggingMixin):
                             msg=f"Pod {pod_name} was deleted", level=logging.INFO, should_print=should_print
                         )
                         return
+                self.log(
+                    msg=f"Pod {pod_name} status is {status}, sleep {poll_interval}s",
+                    level=logging.INFO,
+                    should_print=should_print,
+                )
                 time.sleep(poll_interval)
             self.log(
                 msg=f"Pod {pod_name} finished with status {status.value}",
@@ -594,6 +599,11 @@ class AsyncSparkAppManager(LoggingMixin):
                             msg=f"Pod {pod_name} was deleted", level=logging.INFO, should_print=should_print
                         )
                         return
+                self.log(
+                    msg=f"Pod {pod_name} status is {status}, sleep {poll_interval}s",
+                    level=logging.INFO,
+                    should_print=should_print,
+                )
                 await asyncio.sleep(poll_interval)
             self.log(
                 msg=f"Pod {pod_name} finished with status {status.value}",

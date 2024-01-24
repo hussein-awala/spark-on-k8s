@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
 
 class _AirflowKubernetesClientManager(KubernetesClientManager):
-    """A kubernetes client manager for Airflow."""
+    """A Kubernetes client manager for Airflow."""
 
     def __init__(self, kubernetes_conn_id: str, **kwargs):
         super().__init__(**kwargs)

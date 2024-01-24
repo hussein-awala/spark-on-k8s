@@ -13,6 +13,9 @@ from spark_on_k8s.k8s.sync_client import KubernetesClientManager
 from spark_on_k8s.utils.app_manager import SparkAppManager
 from spark_on_k8s.utils.logging_mixin import LoggingMixin
 
+# For Python 3.8 and 3.9 compatibility
+KW_ONLY_DATACLASS = {"kw_only": True} if "kw_only" in dataclass.__kwdefaults__ else {}
+
 
 def default_app_id_suffix() -> str:
     """Default function to generate a suffix for the application ID
@@ -31,7 +34,7 @@ class SparkAppWait(str, Enum):
     LOG = "log"
 
 
-@dataclass(kw_only=True)
+@dataclass(**KW_ONLY_DATACLASS)
 class PodResources:
     """Resources to request for the Spark driver and executors
 
@@ -46,7 +49,7 @@ class PodResources:
     memory_overhead: int = 512
 
 
-@dataclass(kw_only=True)
+@dataclass(**KW_ONLY_DATACLASS)
 class ExecutorInstances:
     """Number of executors to request
 

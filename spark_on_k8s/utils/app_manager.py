@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import logging
+import time
 from enum import Enum
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from kubernetes import client as k8s, watch
 from kubernetes.client import ApiException
@@ -10,6 +11,11 @@ from kubernetes.stream import stream
 
 from spark_on_k8s.k8s.sync_client import KubernetesClientManager
 from spark_on_k8s.utils.logging_mixin import LoggingMixin
+
+if TYPE_CHECKING:
+    from kubernetes_asyncio import client as k8s_async
+
+    from spark_on_k8s.k8s.async_client import KubernetesAsyncClientManager
 
 
 class SparkAppStatus(str, Enum):
@@ -109,6 +115,7 @@ class SparkAppManager(LoggingMixin):
         namespace: str,
         pod_name: str | None = None,
         app_id: str | None = None,
+        poll_interval: float = 10,
         should_print: bool = False,
     ):
         """Wait for a Spark app to finish.
@@ -117,6 +124,8 @@ class SparkAppManager(LoggingMixin):
             namespace (str): Namespace.
             pod_name (str): Pod name.
             app_id (str): App ID.
+            poll_interval (float, optional): Poll interval in seconds. Defaults to 10.
+            should_print (bool, optional): Whether to print logs instead of logging them.
         """
         termination_statuses = {SparkAppStatus.Succeeded, SparkAppStatus.Failed, SparkAppStatus.Unknown}
         with self.k8s_client_manager.client() as client:
@@ -134,6 +143,7 @@ class SparkAppManager(LoggingMixin):
                             msg=f"Pod {pod_name} was deleted", level=logging.INFO, should_print=should_print
                         )
                         return
+                time.sleep(poll_interval)
             self.log(
                 msg=f"Pod {pod_name} finished with status {status.value}",
                 level=logging.INFO,
@@ -484,3 +494,109 @@ class SparkAppManager(LoggingMixin):
                 cluster_ip="None",
             ),
         )
+
+
+class AsyncSparkAppManager(LoggingMixin):
+    """Manage Spark apps on Kubernetes asynchronously.
+
+    Args:
+        k8s_client_manager (KubernetesClientManager, optional): Kubernetes client manager. Defaults to None.
+        logger_name (str, optional): logger name. Defaults to "SparkAppManager".
+    """
+
+    def __init__(
+        self,
+        *,
+        k8s_client_manager: KubernetesAsyncClientManager | None = None,
+        logger_name: str | None = None,
+    ):
+        from spark_on_k8s.k8s.async_client import KubernetesAsyncClientManager
+
+        super().__init__(logger_name=logger_name or "SparkAppManager")
+        self.k8s_client_manager = k8s_client_manager or KubernetesAsyncClientManager()
+
+    async def app_status(
+        self,
+        *,
+        namespace: str,
+        pod_name: str | None = None,
+        app_id: str | None = None,
+        client: k8s_async.CoreV1Api | None = None,
+    ) -> SparkAppStatus:
+        """Get app status asynchronously.
+
+        Args:
+            namespace (str): Namespace.
+            pod_name (str): Pod name. Defaults to None.
+            app_id (str): App ID. Defaults to None.
+            client (k8s.CoreV1Api, optional): Kubernetes client. Defaults to None.
+
+        Returns:
+            SparkAppStatus: App status.
+        """
+
+        async def _app_status(_client: k8s_async.CoreV1Api) -> SparkAppStatus:
+            if pod_name is None and app_id is None:
+                raise ValueError("Either pod_name or app_id must be specified")
+            if pod_name is not None:
+                _pod = await _client.read_namespaced_pod(
+                    namespace=namespace,
+                    name=pod_name,
+                )
+            else:
+                _pod = await _client.list_namespaced_pod(
+                    namespace=namespace,
+                    label_selector=f"spark-app-id={app_id}",
+                ).items[0]
+            return get_app_status(_pod)
+
+        if client is None:
+            async with self.k8s_client_manager.client() as client:
+                api = k8s.CoreV1Api(client)
+                return await _app_status(api)
+        return await _app_status(client)
+
+    async def wait_for_app(
+        self,
+        *,
+        namespace: str,
+        pod_name: str | None = None,
+        app_id: str | None = None,
+        poll_interval: float = 10,
+        should_print: bool = False,
+    ):
+        """Wait for a Spark app to finish asynchronously.
+
+        Args:
+            namespace (str): Namespace.
+            pod_name (str): Pod name.
+            app_id (str): App ID.
+            poll_interval (float, optional): Poll interval in seconds. Defaults to 10.
+            should_print (bool, optional): Whether to print logs instead of logging them.
+        """
+        import asyncio
+
+        from kubernetes_asyncio import client as k8s_async
+
+        termination_statuses = {SparkAppStatus.Succeeded, SparkAppStatus.Failed, SparkAppStatus.Unknown}
+        async with self.k8s_client_manager.client() as client:
+            api = k8s_async.CoreV1Api(client)
+            while True:
+                try:
+                    status = await self.app_status(
+                        namespace=namespace, pod_name=pod_name, app_id=app_id, client=api
+                    )
+                    if status in termination_statuses:
+                        break
+                except ApiException as e:
+                    if e.status == 404:
+                        self.log(
+                            msg=f"Pod {pod_name} was deleted", level=logging.INFO, should_print=should_print
+                        )
+                        return
+                await asyncio.sleep(poll_interval)
+            self.log(
+                msg=f"Pod {pod_name} finished with status {status.value}",
+                level=logging.INFO,
+                should_print=should_print,
+            )

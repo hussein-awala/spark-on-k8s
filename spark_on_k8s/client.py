@@ -113,7 +113,7 @@ class SparkOnK8S(LoggingMixin):
         executor_resources: PodResources | None = None,
         executor_instances: ExecutorInstances | None = None,
         should_print: bool = False,
-    ):
+    ) -> str:
         """Submit a Spark app to Kubernetes
 
         Args:
@@ -142,6 +142,9 @@ class SparkOnK8S(LoggingMixin):
                 enabled and the number of executors will be between min and max (inclusive), and initial
                 will be the initial number of executors with a default of 0.
             should_print: Whether to print logs instead of logging them, defaults to False
+
+        Returns:
+            Name of the Spark application pod
         """
         app_name, app_id = self._parse_app_name_and_id(
             app_name=app_name, app_id_suffix=app_id_suffix, should_print=should_print
@@ -237,6 +240,7 @@ class SparkOnK8S(LoggingMixin):
             self.app_manager.wait_for_app(
                 namespace=namespace, pod_name=pod.metadata.name, should_print=should_print
             )
+        return pod.metadata.name
 
     def _parse_app_name_and_id(
         self,

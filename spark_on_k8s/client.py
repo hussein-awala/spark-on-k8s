@@ -9,7 +9,7 @@ from typing import Callable, Literal
 
 from kubernetes import client as k8s
 
-from spark_on_k8s.kubernetes_client import KubernetesClientManager
+from spark_on_k8s.k8s.sync_client import KubernetesClientManager
 from spark_on_k8s.utils.app_manager import SparkAppManager
 from spark_on_k8s.utils.logging_mixin import LoggingMixin
 

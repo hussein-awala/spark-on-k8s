@@ -14,7 +14,7 @@ if __name__ == "__main__":
         app_name="spark-java-job-example",
         namespace="spark",
         service_account="spark",
-        app_waiter="print",
+        app_waiter="log",
         class_name="com.oss_tech.examples.TestJob",
         # If you test this locally (minikube or kind) without pushing the image to a registry,
         # you need to set the image_pull_policy to Never.

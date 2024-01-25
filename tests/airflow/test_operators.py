@@ -3,8 +3,6 @@ from __future__ import annotations
 from unittest import mock
 
 import pytest
-from spark_on_k8s.airflow.operators import SparkOnK8SOperator
-from spark_on_k8s.client import ExecutorInstances, PodResources
 
 from conftest import PYTHON_312
 
@@ -13,6 +11,9 @@ from conftest import PYTHON_312
 class TestSparkOnK8SOperator:
     @mock.patch("spark_on_k8s.client.SparkOnK8S.submit_app")
     def test_execute(self, mock_submit_app):
+        from spark_on_k8s.airflow.operators import SparkOnK8SOperator
+        from spark_on_k8s.client import ExecutorInstances, PodResources
+
         spark_app_task = SparkOnK8SOperator(
             task_id="spark_application",
             namespace="spark",
@@ -48,6 +49,9 @@ class TestSparkOnK8SOperator:
 
     @mock.patch("spark_on_k8s.client.SparkOnK8S.submit_app")
     def test_rendering_templates(self, mock_submit_app):
+        from spark_on_k8s.airflow.operators import SparkOnK8SOperator
+        from spark_on_k8s.client import ExecutorInstances, PodResources
+
         spark_app_task = SparkOnK8SOperator(
             task_id="spark_application",
             namespace="{{ template_namespace }}",

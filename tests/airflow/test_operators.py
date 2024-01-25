@@ -2,10 +2,14 @@ from __future__ import annotations
 
 from unittest import mock
 
+import pytest
 from spark_on_k8s.airflow.operators import SparkOnK8SOperator
 from spark_on_k8s.client import ExecutorInstances, PodResources
 
+from conftest import PYTHON_312
 
+
+@pytest.mark.skipif(PYTHON_312, reason="Python 3.12 is not supported by Airflow")
 class TestSparkOnK8SOperator:
     @mock.patch("spark_on_k8s.client.SparkOnK8S.submit_app")
     def test_execute(self, mock_submit_app):

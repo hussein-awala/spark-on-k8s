@@ -4219,4 +4219,4 @@ api = ["fastapi", "httpx", "jinja2", "kubernetes-asyncio", "uvicorn"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.8"
-content-hash = "8a941a6b688d08d4b820839c17ea070dca708ffc7876843f6708d5f0ad9a15de"
+content-hash = "7636e819006ef98a8395d107b1cfc3f9b5b697b86590dbe3bb17ed8393ffa561"

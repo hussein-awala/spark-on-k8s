@@ -184,7 +184,9 @@ and the CLI. Here is a list of the available environment variables:
 
 ## Examples
 
-Here are some examples of how to package and submit spark apps with this package.
+Here are some examples of how to package and submit spark apps with this package. In the examples, the base image is
+built with the spark image tool, as described in the
+[spark documentation](https://spark.apache.org/docs/latest/running-on-kubernetes.html#docker-images).
 
 ### Python
 First, build the docker image and push it to a registry accessible by your cluster,

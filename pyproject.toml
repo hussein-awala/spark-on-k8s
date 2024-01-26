@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "spark-on-k8s"
 version = "0.0.1"
-description = "A Python package to submit and manage Apache Spark jobs on Kubernetes"
+description = "A Python package to submit and manage Apache Spark applications on Kubernetes."
 authors = ["Hussein Awala <hussein@awala.fr>"]
 readme = "README.md"
 packages = [{include = "spark_on_k8s"}]

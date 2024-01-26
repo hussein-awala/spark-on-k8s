@@ -30,7 +30,7 @@ class KubernetesClientManager:
         """Create a Kubernetes client in a context manager.
 
         Examples:
-            >>> from spark_on_k8s.kubernetes_client import KubernetesClientManager
+            >>> from spark_on_k8s.k8s.sync_client import KubernetesClientManager
             >>> with KubernetesClientManager().client() as client:
             ...     api = k8s.CoreV1Api(client)
             ...     namespaces = [ns.metadata.name for ns in api.list_namespace().items]

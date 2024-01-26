@@ -4,6 +4,9 @@ version = "0.0.1"
 description = "A Python package to submit and manage Apache Spark applications on Kubernetes."
 authors = ["Hussein Awala <hussein@awala.fr>"]
 readme = "README.md"
+repository = "https://github.com/hussein-awala/spark-on-k8s"
+keywords = ["spark", "kubernetes", "k8s", "spark-submit", "spark-on-k8s"]
+license = "Apache-2.0"
 packages = [{include = "spark_on_k8s"}]
 
 [tool.poetry.dependencies]

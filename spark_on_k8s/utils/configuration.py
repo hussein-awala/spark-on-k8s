@@ -50,11 +50,11 @@ class Configuration:
     SPARK_ON_K8S_CLIENT_CONFIG = (
         k8s.Configuration(json.loads(getenv("SPARK_ON_K8S_CLIENT_CONFIG")))
         if getenv("SPARK_ON_K8S_CLIENT_CONFIG", None)
-        else None,
+        else None
     )
     SPARK_ON_K8S_ASYNC_CLIENT_CONFIG = (
         async_k8s.Configuration(json.loads(getenv("SPARK_ON_K8S_ASYNC_CLIENT_CONFIG")))
         if getenv("SPARK_ON_K8S_ASYNC_CLIENT_CONFIG", None)
-        else None,
+        else None
     )
     SPARK_ON_K8S_IN_CLUSTER = bool(getenv("SPARK_ON_K8S_IN_CLUSTER", False))

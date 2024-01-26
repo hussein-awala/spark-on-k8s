@@ -166,10 +166,13 @@ class TestSparkOnK8s:
         assert actual_app_name == expected_app_name, "The app name is not as expected"
         assert actual_app_id == expected_app_id, "The app id is not as expected"
 
+    @mock.patch("kubernetes.config.kube_config.load_kube_config")
     @mock.patch("kubernetes.client.api.core_v1_api.CoreV1Api.create_namespaced_pod")
     @mock.patch("kubernetes.client.api.core_v1_api.CoreV1Api.create_namespaced_service")
     @freeze_time(FAKE_TIME)
-    def test_submit_app(self, mock_create_namespaced_service, mock_create_namespaced_pod):
+    def test_submit_app(
+        self, mock_create_namespaced_service, mock_create_namespaced_pod, mock_load_kube_config
+    ):
         """Test the method submit_app"""
 
         spark_client = SparkOnK8S()
@@ -246,12 +249,17 @@ class TestSparkOnK8s:
             "100000",
         ]
 
+    @mock.patch("kubernetes.config.kube_config.load_kube_config")
     @mock.patch("spark_on_k8s.utils.app_manager.SparkAppManager.stream_logs")
     @mock.patch("kubernetes.client.api.core_v1_api.CoreV1Api.create_namespaced_pod")
     @mock.patch("kubernetes.client.api.core_v1_api.CoreV1Api.create_namespaced_service")
     @freeze_time(FAKE_TIME)
     def test_submit_app_with_env_configurations(
-        self, mock_create_namespaced_service, mock_create_namespaced_pod, mock_stream_logs
+        self,
+        mock_create_namespaced_service,
+        mock_create_namespaced_pod,
+        mock_stream_logs,
+        mock_load_kube_config,
     ):
         """Test the method submit_app with env configurations"""
         os.environ["SPARK_ON_K8S_DOCKER_IMAGE"] = "test-spark-on-k8s-docker-image"

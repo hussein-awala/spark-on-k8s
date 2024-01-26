@@ -11,7 +11,9 @@ from kubernetes import client as k8s
 
 from spark_on_k8s.k8s.sync_client import KubernetesClientManager
 from spark_on_k8s.utils.app_manager import SparkAppManager
+from spark_on_k8s.utils.configuration import Configuration
 from spark_on_k8s.utils.logging_mixin import LoggingMixin
+from spark_on_k8s.utils.types import NOTSET, ArgNotSet
 
 # For Python 3.8 and 3.9 compatibility
 KW_ONLY_DATACLASS = {"kw_only": True} if "kw_only" in dataclass.__kwdefaults__ else {}
@@ -100,22 +102,22 @@ class SparkOnK8S(LoggingMixin):
     def submit_app(
         self,
         *,
-        image: str,
-        app_path: str,
-        namespace: str = "default",
-        service_account: str = "spark",
-        app_name: str | None = None,
-        spark_conf: dict[str, str] | None = None,
-        class_name: str | None = None,
-        app_arguments: list[str] | None = None,
-        app_id_suffix: Callable[[], str] = default_app_id_suffix,
-        app_waiter: Literal["no_wait", "wait", "log"] = SparkAppWait.NO_WAIT,
-        image_pull_policy: Literal["Always", "Never", "IfNotPresent"] = "IfNotPresent",
-        ui_reverse_proxy: bool = False,
-        driver_resources: PodResources | None = None,
-        executor_resources: PodResources | None = None,
-        executor_instances: ExecutorInstances | None = None,
-        should_print: bool = False,
+        image: str | ArgNotSet = NOTSET,
+        app_path: str | ArgNotSet = NOTSET,
+        namespace: str | ArgNotSet = NOTSET,
+        service_account: str | ArgNotSet = NOTSET,
+        app_name: str | ArgNotSet = NOTSET,
+        spark_conf: dict[str, str] | ArgNotSet = NOTSET,
+        class_name: str | ArgNotSet = NOTSET,
+        app_arguments: list[str] | ArgNotSet = NOTSET,
+        app_id_suffix: Callable[[], str] | ArgNotSet = NOTSET,
+        app_waiter: Literal["no_wait", "wait", "log"] | ArgNotSet = NOTSET,
+        image_pull_policy: Literal["Always", "Never", "IfNotPresent"] | ArgNotSet = NOTSET,
+        ui_reverse_proxy: bool | ArgNotSet = NOTSET,
+        driver_resources: PodResources | ArgNotSet = NOTSET,
+        executor_resources: PodResources | ArgNotSet = NOTSET,
+        executor_instances: ExecutorInstances | ArgNotSet = NOTSET,
+        should_print: bool | ArgNotSet = NOTSET,
     ) -> str:
         """Submit a Spark app to Kubernetes
 
@@ -149,6 +151,64 @@ class SparkOnK8S(LoggingMixin):
         Returns:
             Name of the Spark application pod
         """
+        if image is NOTSET:
+            if Configuration.SPARK_ON_K8S_DOCKER_IMAGE is None:
+                raise ValueError(
+                    "Docker image is not set."
+                    "Please set the image argument or the environment variable SPARK_ON_K8S_DOCKER_IMAGE"
+                )
+            image = Configuration.SPARK_ON_K8S_DOCKER_IMAGE
+        if app_path is NOTSET:
+            if Configuration.SPARK_ON_K8S_APP_PATH is None:
+                raise ValueError(
+                    "Application path is not set."
+                    "Please set the app_path argument or the environment variable SPARK_ON_K8S_APP_PATH"
+                )
+            app_path = Configuration.SPARK_ON_K8S_APP_PATH
+        if namespace is NOTSET:
+            namespace = Configuration.SPARK_ON_K8S_NAMESPACE
+        if service_account is NOTSET:
+            service_account = Configuration.SPARK_ON_K8S_SERVICE_ACCOUNT
+        if app_name is NOTSET:
+            app_name = Configuration.SPARK_ON_K8S_APP_NAME
+        if spark_conf is NOTSET:
+            spark_conf = Configuration.SPARK_ON_K8S_SPARK_CONF
+        if class_name is NOTSET:
+            class_name = Configuration.SPARK_ON_K8S_CLASS_NAME
+        if app_arguments is NOTSET:
+            app_arguments = Configuration.SPARK_ON_K8S_APP_ARGUMENTS
+        if app_id_suffix is NOTSET:
+            app_id_suffix = default_app_id_suffix
+        if app_waiter is NOTSET:
+            app_waiter = Configuration.SPARK_ON_K8S_APP_WAITER
+        if image_pull_policy is NOTSET:
+            image_pull_policy = Configuration.SPARK_ON_K8S_IMAGE_PULL_POLICY
+        if ui_reverse_proxy is NOTSET:
+            ui_reverse_proxy = Configuration.SPARK_ON_K8S_UI_REVERSE_PROXY
+        if driver_resources is NOTSET:
+            driver_resources = PodResources(
+                cpu=Configuration.SPARK_ON_K8S_DRIVER_CPU,
+                memory=Configuration.SPARK_ON_K8S_DRIVER_MEMORY,
+                memory_overhead=Configuration.SPARK_ON_K8S_DRIVER_MEMORY_OVERHEAD,
+            )
+        if executor_resources is NOTSET:
+            executor_resources = PodResources(
+                cpu=Configuration.SPARK_ON_K8S_EXECUTOR_CPU,
+                memory=Configuration.SPARK_ON_K8S_EXECUTOR_MEMORY,
+                memory_overhead=Configuration.SPARK_ON_K8S_EXECUTOR_MEMORY_OVERHEAD,
+            )
+        if executor_instances is NOTSET:
+            executor_instances = ExecutorInstances(
+                min=Configuration.SPARK_ON_K8S_EXECUTOR_MIN_INSTANCES,
+                max=Configuration.SPARK_ON_K8S_EXECUTOR_MAX_INSTANCES,
+                initial=Configuration.SPARK_ON_K8S_EXECUTOR_INITIAL_INSTANCES,
+            )
+            if (
+                executor_instances.min is None
+                and executor_instances.max is None
+                and executor_instances.initial is None
+            ):
+                executor_instances.initial = 2
         app_name, app_id = self._parse_app_name_and_id(
             app_name=app_name, app_id_suffix=app_id_suffix, should_print=should_print
         )

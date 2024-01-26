@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import click
 
+from spark_on_k8s.api.configuration import APIConfiguration
+
 
 @click.group(name="api", help="Manage the spark-on-k8s API.")
 def api_cli():
@@ -13,35 +15,35 @@ def api_cli():
 )
 @click.option(
     "--host",
-    default="127.0.0.1",
+    default=APIConfiguration.SPARK_ON_K8S_API_HOST,
     type=str,
     show_default=True,
     help="The host to bind to.",
 )
 @click.option(
     "--port",
-    default=8000,
+    default=APIConfiguration.SPARK_ON_K8S_API_PORT,
     type=int,
     show_default=True,
     help="The port to bind to.",
 )
 @click.option(
     "--workers",
-    default=4,
+    default=APIConfiguration.SPARK_ON_K8S_API_WORKERS,
     type=int,
     show_default=True,
     help="The number of workers.",
 )
 @click.option(
     "--log-level",
-    default="info",
+    default=APIConfiguration.SPARK_ON_K8S_API_LOG_LEVEL,
     show_default=True,
     type=click.Choice(["critical", "error", "warning", "info", "debug"]),
     help="The log level.",
 )
 @click.option(
     "--limit-concurrency",
-    default=None,
+    default=APIConfiguration.SPARK_ON_K8S_API_LIMIT_CONCURRENCY,
     type=int,
     show_default=True,
     help="The maximum number of concurrent connections.",

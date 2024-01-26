@@ -4,6 +4,9 @@ from contextlib import contextmanager
 
 from kubernetes import client as k8s, config
 
+from spark_on_k8s.utils.configuration import Configuration
+from spark_on_k8s.utils.types import NOTSET, ArgNotSet
+
 
 class KubernetesClientManager:
     """Kubernetes client manager.
@@ -17,13 +20,21 @@ class KubernetesClientManager:
 
     def __init__(
         self,
-        config_file: str | None = None,
-        context: str | None = None,
-        client_configuration: k8s.Configuration | None = None,
+        config_file: str | ArgNotSet = NOTSET,
+        context: str | ArgNotSet = NOTSET,
+        client_configuration: k8s.Configuration | ArgNotSet = NOTSET,
+        in_cluster: bool | ArgNotSet = NOTSET,
     ) -> None:
-        self.config_file = config_file
-        self.context = context
-        self.client_configuration = client_configuration
+        self.config_file = (
+            config_file if config_file is not NOTSET else Configuration.SPARK_ON_K8S_CONFIG_FILE
+        )
+        self.context = context if context is not NOTSET else Configuration.SPARK_ON_K8S_CONTEXT
+        self.client_configuration = (
+            client_configuration
+            if client_configuration is not NOTSET
+            else Configuration.SPARK_ON_K8S_CLIENT_CONFIG
+        )
+        self.in_cluster = in_cluster if in_cluster is not NOTSET else Configuration.SPARK_ON_K8S_IN_CLUSTER
 
     @contextmanager
     def client(self) -> k8s.ApiClient:
@@ -57,9 +68,12 @@ class KubernetesClientManager:
         Returns:
             k8s.ApiClient: Kubernetes client.
         """
-        config.load_kube_config(
-            config_file=self.config_file,
-            context=self.context,
-            client_configuration=self.client_configuration,
-        )
+        if not self.in_cluster:
+            config.load_kube_config(
+                config_file=self.config_file,
+                context=self.context,
+                client_configuration=self.client_configuration,
+            )
+        else:
+            config.load_incluster_config()
         return k8s.ApiClient()

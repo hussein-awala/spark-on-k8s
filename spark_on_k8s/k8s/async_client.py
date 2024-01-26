@@ -4,6 +4,9 @@ from contextlib import asynccontextmanager
 
 from kubernetes_asyncio import client as k8s, config
 
+from spark_on_k8s.utils.configuration import Configuration
+from spark_on_k8s.utils.types import NOTSET, ArgNotSet
+
 
 class KubernetesAsyncClientManager:
     """Kubernetes async client manager.
@@ -18,15 +21,21 @@ class KubernetesAsyncClientManager:
 
     def __init__(
         self,
-        config_file: str | None = None,
-        context: str | None = None,
-        client_configuration: k8s.Configuration | None = None,
-        in_cluster: bool = False,
+        config_file: str | ArgNotSet = NOTSET,
+        context: str | ArgNotSet = NOTSET,
+        client_configuration: k8s.Configuration | ArgNotSet = NOTSET,
+        in_cluster: bool | ArgNotSet = NOTSET,
     ) -> None:
-        self.config_file = config_file
-        self.context = context
-        self.client_configuration = client_configuration
-        self.in_cluster = in_cluster
+        self.config_file = (
+            config_file if config_file is not NOTSET else Configuration.SPARK_ON_K8S_CONFIG_FILE
+        )
+        self.context = context if context is not NOTSET else Configuration.SPARK_ON_K8S_CONTEXT
+        self.client_configuration = (
+            client_configuration
+            if client_configuration is not NOTSET
+            else Configuration.SPARK_ON_K8S_CLIENT_CONFIG
+        )
+        self.in_cluster = in_cluster if in_cluster is not NOTSET else Configuration.SPARK_ON_K8S_IN_CLUSTER
 
     @asynccontextmanager
     async def client(self) -> k8s.ApiClient:

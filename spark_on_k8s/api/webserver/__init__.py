@@ -9,8 +9,9 @@ from starlette.requests import Request  # noqa: TCH002
 from starlette.responses import HTMLResponse, StreamingResponse
 from starlette.templating import Jinja2Templates
 
-from spark_on_k8s.api import APIConfiguration, AsyncHttpClientSingleton
+from spark_on_k8s.api import AsyncHttpClientSingleton
 from spark_on_k8s.api.apps import list_apps
+from spark_on_k8s.api.configuration import APIConfiguration
 
 router = APIRouter(
     prefix="/webserver",
@@ -51,7 +52,7 @@ templates = Jinja2Templates(directory=os.path.join(current_dir, "templates"))
 @router.get("/apps", response_class=HTMLResponse)
 async def apps(request: Request):
     """List spark apps in a namespace, and display them in a web page."""
-    namespace = request.query_params.get("namespace", APIConfiguration.K8S_DEFAULT_NAMESPACE)
+    namespace = request.query_params.get("namespace", APIConfiguration.SPARK_ON_K8S_API_DEFAULT_NAMESPACE)
     apps_list = await list_apps(namespace)
     return templates.TemplateResponse(
         "apps.html",

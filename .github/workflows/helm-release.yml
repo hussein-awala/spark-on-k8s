@@ -1,0 +1,36 @@
+name: helm-release
+
+on:
+  workflow_dispatch:
+    inputs:
+      app_version:
+        description: 'The current latest version of spark-on-k8s python package'
+        required: true
+      chart_version:
+        description: 'The version of the chart to be released'
+        required: true
+
+jobs:
+  helm-build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Helm
+        uses: azure/setup-helm@v3
+
+      - name: Login to Github registry
+        run: |
+          echo ${{ secrets.GITHUB_TOKEN }} | helm registry login ghcr.io/${{ github.actor }} --username ${{ github.actor }} --password-stdin
+
+      - name: Package Helm chart
+        run: |
+          helm package chart --version ${{ github.event.inputs.chart_version }} --app-version ${{ github.event.inputs.app_version }}
+
+      - name: Push Helm chart
+        run: |
+          helm push ./spark-on-k8s-${{ github.event.inputs.chart_version }}.tgz oci://ghcr.io/${{ github.actor }}

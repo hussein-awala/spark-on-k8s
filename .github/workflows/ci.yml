@@ -16,7 +16,7 @@ jobs:
     outputs:
       should_run_pytest: ${{ steps.check-pytest.outputs.src }}
     steps:
-      - name: Check out repository
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - id: check-pytest

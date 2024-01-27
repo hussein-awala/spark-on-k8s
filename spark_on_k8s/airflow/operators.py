@@ -182,7 +182,7 @@ class SparkOnK8SOperator(BaseOperator):
         spark_client = SparkOnK8S(
             k8s_client_manager=k8s_client_manager,
         )
-        spark_client.submit_app(
+        driver_pod_name = spark_client.submit_app(
             image=self.image,
             app_path=self.app_path,
             namespace=self.namespace,
@@ -203,7 +203,7 @@ class SparkOnK8SOperator(BaseOperator):
         if self.deferrable:
             self.defer(
                 trigger=SparkOnK8STrigger(
-                    driver_pod_name=self.app_name,
+                    driver_pod_name=driver_pod_name,
                     namespace=self.namespace,
                     kubernetes_conn_id=self.kubernetes_conn_id,
                     poll_interval=self.poll_interval,

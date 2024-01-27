@@ -1,7 +1,7 @@
 replicaCount: 1
 
 image:
-  repository: spark-on-k8s
+  repository: ghcr.io/hussein-awala/spark-on-k8s
   pullPolicy: IfNotPresent
   tag: "latest"
 

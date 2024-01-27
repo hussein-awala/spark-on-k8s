@@ -220,7 +220,13 @@ class SparkAppManager(LoggingMixin):
                 ).items
             ]
 
-    def kill_app(self, namespace: str, pod_name: str | None = None, app_id: str | None = None):
+    def kill_app(
+        self,
+        namespace: str,
+        pod_name: str | None = None,
+        app_id: str | None = None,
+        should_print: bool = False,
+    ):
         """Kill an app.
 
         Args:
@@ -247,10 +253,11 @@ class SparkAppManager(LoggingMixin):
                 )
             container_name = pod.spec.containers[0].name
             if pod.status.phase != "Running":
-                print(f"App is not running, it is {get_app_status(pod).value}")
-                return
-            if pod.status.container_statuses[0].state.terminated is not None:
-                print("App is already terminated")
+                self.log(
+                    f"App is not running, it is {get_app_status(pod).value}",
+                    level=logging.INFO,
+                    should_print=should_print,
+                )
                 return
             stream(
                 api.connect_get_namespaced_pod_exec,
@@ -264,7 +271,6 @@ class SparkAppManager(LoggingMixin):
                 tty=False,
                 _preload_content=False,
             )
-        print(f"Killed app {app_id}")
 
     def delete_app(
         self, namespace: str, pod_name: str | None = None, app_id: str | None = None, force: bool = False
@@ -298,7 +304,6 @@ class SparkAppManager(LoggingMixin):
                     propagation_policy="Foreground",
                 ),
             )
-        print(f"Deleted app {app_id}")
 
     @staticmethod
     def create_spark_pod_spec(

@@ -20,7 +20,8 @@ class _AirflowKubernetesAsyncClientManager(KubernetesAsyncClientManager):
         from airflow.providers.cncf.kubernetes.hooks.kubernetes import AsyncKubernetesHook
 
         k8s_hook = AsyncKubernetesHook(conn_id=self.kubernetes_conn_id)
-        yield k8s_hook.get_conn()
+        async with k8s_hook.get_conn() as async_client:
+            yield async_client
 
 
 class SparkOnK8STrigger(BaseTrigger):

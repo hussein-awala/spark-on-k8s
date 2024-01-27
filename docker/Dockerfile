@@ -1,5 +1,7 @@
 FROM python:3.11-slim
 
+ARG SPARK_ON_K8S_API_VERSION=0.1.0
+
 ENV SPARK_ON_K8S_API_HOST=127.0.0.1
 ENV SPARK_ON_K8S_API_PORT=8000
 ENV SPARK_ON_K8S_API_WORKERS=4
@@ -8,6 +10,6 @@ ENV SPARK_ON_K8S_API_LIMIT_CONCURRENCY=1000
 
 ADD scripts/entrypoint.sh /entrypoint.sh
 
-RUN pip install spark-on-k8s[api]
+RUN pip install "spark-on-k8s[api]==${SPARK_ON_K8S_API_VERSION}"
 
 ENTRYPOINT ["/entrypoint.sh"]

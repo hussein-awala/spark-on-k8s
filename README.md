@@ -236,4 +236,5 @@ Or via the bash script:
 
 ## What's next
 
-You can check the [TODO](TODO.md) list for the things that we will work on in the future. All contributions are welcome!
+You can check the [TODO](https://github.com/hussein-awala/spark-on-k8s/blob/main/TODO.md) list for the things that we
+will work on in the future. All contributions are welcome!

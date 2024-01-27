@@ -9,7 +9,7 @@ from airflow.models.dag import DAG
 
 with DAG(
     dag_id="spark_on_k8s",
-    schedule_interval=None,
+    schedule=None,
     start_date=datetime(2024, 1, 1),
 ) as dag:
     """

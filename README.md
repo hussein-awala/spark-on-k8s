@@ -233,3 +233,7 @@ Or via the bash script:
 ```bash
 ./examples/java/submit.sh
 ```
+
+## What's next
+
+You can check the [TODO](TODO.md) list for the things that we will work on in the future. All contributions are welcome!

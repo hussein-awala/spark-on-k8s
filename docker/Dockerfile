@@ -1,5 +1,7 @@
 FROM python:3.11-slim
 
+LABEL org.opencontainers.image.source="https://github.com/hussein-awala/spark-on-k8s"
+
 ARG SPARK_ON_K8S_API_VERSION=0.1.0
 
 ENV SPARK_ON_K8S_API_HOST=127.0.0.1

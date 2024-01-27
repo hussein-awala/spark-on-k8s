@@ -539,6 +539,7 @@ class AsyncSparkAppManager(LoggingMixin):
         Returns:
             SparkAppStatus: App status.
         """
+        from kubernetes_asyncio import client as k8s_async
 
         async def _app_status(_client: k8s_async.CoreV1Api) -> SparkAppStatus:
             if pod_name is None and app_id is None:
@@ -557,7 +558,7 @@ class AsyncSparkAppManager(LoggingMixin):
 
         if client is None:
             async with self.k8s_client_manager.client() as client:
-                api = k8s.CoreV1Api(client)
+                api = k8s_async.CoreV1Api(client)
                 return await _app_status(api)
         return await _app_status(client)
 

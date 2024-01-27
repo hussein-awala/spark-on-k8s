@@ -64,6 +64,8 @@ class SparkOnK8SOperator(BaseOperator):
         poll_interval (int, optional): Poll interval for checking the Spark application status.
             Defaults to 10.
         deferrable (bool, optional): Whether the operator is deferrable. Defaults to False.
+        on_kill_action (Literal["keep", "delete", "kill"], optional): Action to take when the
+            operator is killed. Defaults to "delete".
         **kwargs: Other keyword arguments for BaseOperator.
     """
 

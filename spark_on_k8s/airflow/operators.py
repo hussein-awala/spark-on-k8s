@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from enum import Enum
 from typing import TYPE_CHECKING, Any
 
 from airflow.exceptions import AirflowException
@@ -31,6 +32,12 @@ class _AirflowKubernetesClientManager(KubernetesClientManager):
         return k8s_hook.get_conn()
 
 
+class OnKillAction(str, Enum):
+    KEEP = "keep"
+    DELETE = "delete"
+    KILL = "kill"
+
+
 class SparkOnK8SOperator(BaseOperator):
     """Submit a Spark application on Kubernetes.
 
@@ -59,6 +66,8 @@ class SparkOnK8SOperator(BaseOperator):
         deferrable (bool, optional): Whether the operator is deferrable. Defaults to False.
         **kwargs: Other keyword arguments for BaseOperator.
     """
+
+    _driver_pod_name: str | None = None
 
     template_fields = (
         "image",
@@ -97,6 +106,7 @@ class SparkOnK8SOperator(BaseOperator):
         kubernetes_conn_id: str = "kubernetes_default",
         poll_interval: int = 10,
         deferrable: bool = False,
+        on_kill_action: Literal["keep", "delete", "kill"] = OnKillAction.DELETE,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -117,6 +127,7 @@ class SparkOnK8SOperator(BaseOperator):
         self.kubernetes_conn_id = kubernetes_conn_id
         self.poll_interval = poll_interval
         self.deferrable = deferrable
+        self.on_kill_action = on_kill_action
 
     def _render_nested_template_fields(
         self,
@@ -147,6 +158,7 @@ class SparkOnK8SOperator(BaseOperator):
 
     def execute(self, context):
         from spark_on_k8s.client import ExecutorInstances, PodResources, SparkOnK8S
+        from spark_on_k8s.utils.app_manager import SparkAppManager
 
         # post-process template fields
         if self.driver_resources:
@@ -182,7 +194,7 @@ class SparkOnK8SOperator(BaseOperator):
         spark_client = SparkOnK8S(
             k8s_client_manager=k8s_client_manager,
         )
-        driver_pod_name = spark_client.submit_app(
+        self._driver_pod_name = spark_client.submit_app(
             image=self.image,
             app_path=self.app_path,
             namespace=self.namespace,
@@ -191,7 +203,7 @@ class SparkOnK8SOperator(BaseOperator):
             spark_conf=self.spark_conf,
             class_name=self.class_name,
             app_arguments=self.app_arguments,
-            app_waiter=self.app_waiter if not self.deferrable else "no_wait",
+            app_waiter="no_wait",
             image_pull_policy=self.image_pull_policy,
             ui_reverse_proxy=self.ui_reverse_proxy,
             driver_resources=self.driver_resources,
@@ -203,13 +215,37 @@ class SparkOnK8SOperator(BaseOperator):
         if self.deferrable:
             self.defer(
                 trigger=SparkOnK8STrigger(
-                    driver_pod_name=driver_pod_name,
+                    driver_pod_name=self._driver_pod_name,
                     namespace=self.namespace,
                     kubernetes_conn_id=self.kubernetes_conn_id,
                     poll_interval=self.poll_interval,
                 ),
                 method_name="execute_complete",
             )
+        k8s_client_manager = _AirflowKubernetesClientManager(
+            kubernetes_conn_id=self.kubernetes_conn_id,
+        )
+        spark_app_manager = SparkAppManager(
+            k8s_client_manager=k8s_client_manager,
+        )
+        if self.app_waiter == "wait":
+            spark_app_manager.wait_for_app(
+                namespace=self.namespace,
+                pod_name=self._driver_pod_name,
+                poll_interval=self.poll_interval,
+            )
+        elif self.app_waiter == "log":
+            spark_app_manager.stream_logs(
+                namespace=self.namespace,
+                pod_name=self._driver_pod_name,
+            )
+        app_status = spark_app_manager.app_status(
+            namespace=self.namespace,
+            pod_name=self._driver_pod_name,
+        )
+        if app_status == "Succeeded":
+            return app_status
+        raise AirflowException(f"The job finished with status: {app_status}")
 
     def execute_complete(self, context: Context, event: dict, **kwargs):
         if self.app_waiter == "log":
@@ -226,10 +262,38 @@ class SparkOnK8SOperator(BaseOperator):
                 pod_name=event["pod_name"],
             )
         if event["status"] == "Succeeded":
-            return
+            return event["status"]
         if event["status"] == "error":
             raise AirflowException(
-                "SparkOnK8STrigger failed: with error: {event['error']}\n"
+                f"SparkOnK8STrigger failed: with error: {event['error']}\n"
                 f"Stacktrace: {event['stacktrace']}"
             )
-        raise AirflowException("The job finished with status: {event['status']}")
+        raise AirflowException(f"The job finished with status: {event['status']}")
+
+    def on_kill(self) -> None:
+        if self.on_kill_action == OnKillAction.KEEP:
+            return
+        self.log.warning(self._driver_pod_name)
+        if self._driver_pod_name:
+            from spark_on_k8s.utils.app_manager import SparkAppManager
+
+            k8s_client_manager = _AirflowKubernetesClientManager(
+                kubernetes_conn_id=self.kubernetes_conn_id,
+            )
+            spark_app_manager = SparkAppManager(
+                k8s_client_manager=k8s_client_manager,
+            )
+            if self.on_kill_action == OnKillAction.DELETE:
+                self.log.info("Deleting Spark application...")
+                spark_app_manager.delete_app(
+                    namespace=self.namespace,
+                    pod_name=self._driver_pod_name,
+                )
+            elif self.on_kill_action == OnKillAction.KILL:
+                self.log.info("Killing Spark application...")
+                spark_app_manager.kill_app(
+                    namespace=self.namespace,
+                    pod_name=self._driver_pod_name,
+                )
+            else:
+                raise AirflowException(f"Invalid on_kill_action: {self.on_kill_action}")

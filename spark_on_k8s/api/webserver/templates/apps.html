@@ -69,7 +69,7 @@
         <td>{{ app.app_id }}</td>
         <td>{{ app.status.value }}</td>
         <td>
-            {% if app.spark_ui_proxy %}
+            {% if app.spark_ui_proxy and app.status.value == 'Running' %}
             <a href="/webserver/ui/{{ namespace }}/{{ app.app_id }}" target="_blank">
                 <button class="spark-button">Open Spark UI</button>
             </a>

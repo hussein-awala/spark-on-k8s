@@ -9,6 +9,11 @@ keywords = ["spark", "kubernetes", "k8s", "spark-submit", "spark-on-k8s"]
 license = "Apache-2.0"
 packages = [{include = "spark_on_k8s"}]
 
+[tool.poetry.urls]
+"Bug Tracker" = "https://github.com/hussein-awala/spark-on-k8s/issues"
+"Documentation" = "https://github.com/hussein-awala/spark-on-k8s/blob/main/README.md"
+"Source Code" = "https://github.com/hussein-awala/spark-on-k8s"
+
 [tool.poetry.dependencies]
 python = "^3.8"
 kubernetes = ">=22.0.0"

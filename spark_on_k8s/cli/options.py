@@ -34,6 +34,7 @@ docker_image_option = click.Option(
     ("--image",),
     type=str,
     default=Configuration.SPARK_ON_K8S_DOCKER_IMAGE,
+    show_default=True,
     required=Configuration.SPARK_ON_K8S_DOCKER_IMAGE is None,
     help="The docker image to use for the app.",
 )
@@ -41,6 +42,7 @@ app_path_option = click.Option(
     ("--path",),
     type=str,
     default=Configuration.SPARK_ON_K8S_APP_PATH,
+    show_default=True,
     required=Configuration.SPARK_ON_K8S_APP_PATH is None,
     help="The path to the app to submit.",
 )
@@ -55,6 +57,7 @@ app_name_option = click.Option(
     ("--name",),
     type=str,
     default=Configuration.SPARK_ON_K8S_APP_NAME,
+    show_default=True,
     required=False,
     help="The name of the app.",
 )
@@ -64,6 +67,7 @@ spark_conf_option = click.Option(
     multiple=True,
     callback=validate_spark_conf,
     default=Configuration.SPARK_ON_K8S_SPARK_CONF,
+    show_default=True,
     help="Spark configuration property in key=value format. Can be repeated.",
 )
 class_name_option = click.Option(

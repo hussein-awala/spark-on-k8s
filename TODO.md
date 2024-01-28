@@ -6,6 +6,7 @@ This is a list of things that we will work on in the future. If you want to cont
 
 - [ ] Support more Spark configuration options
 - [ ] Simplify setup to work with cloud provider services (e.g. S3, GCS, Glue, etc.)
+- [ ] Support creating of K8S ephemeral secrets to store and use credentials, configmaps for env vars, etc.
 - [ ] Support configuring Kubernetes client from cloud provider credentials
 (e.g. AWS access/secret keys, GCP service account, etc.)
 

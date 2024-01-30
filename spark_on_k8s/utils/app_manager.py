@@ -319,6 +319,7 @@ class SparkAppManager(LoggingMixin):
         args: list[str] | None = None,
         image_pull_policy: Literal["Always", "Never", "IfNotPresent"] = "IfNotPresent",
         extra_labels: dict[str, str] | None = None,
+        env_from_secrets: list[str] | None = None,
     ) -> k8s.V1PodTemplateSpec:
         """Create a pod spec for a Spark application
 
@@ -334,6 +335,7 @@ class SparkAppManager(LoggingMixin):
             args: List of arguments to pass to the container
             image_pull_policy: Image pull policy for the driver and executors, defaults to "IfNotPresent"
             extra_labels: Dictionary of extra labels to add to the pod template
+            env_from_secrets: List of secrets to use as environment variables
 
         Returns:
             Pod template spec for the Spark application
@@ -358,6 +360,7 @@ class SparkAppManager(LoggingMixin):
                     pod_resources=pod_resources,
                     args=args,
                     image_pull_policy=image_pull_policy,
+                    env_from_secrets=env_from_secrets,
                 )
             ],
         )
@@ -376,6 +379,7 @@ class SparkAppManager(LoggingMixin):
         pod_resources: dict[str, dict[str, str]] | None = None,
         args: list[str] | None = None,
         image_pull_policy: Literal["Always", "Never", "IfNotPresent"] = "IfNotPresent",
+        env_from_secrets: list[str] | None = None,
     ) -> k8s.V1Container:
         """Create a container spec for the Spark driver
 
@@ -386,6 +390,7 @@ class SparkAppManager(LoggingMixin):
             pod_resources: Dictionary of resources to request for the container
             args: List of arguments to pass to the container
             image_pull_policy: Image pull policy for the driver and executors, defaults to "IfNotPresent"
+            env_from_secrets: List of secrets to use as environment variables
 
         Returns:
             Container spec for the Spark driver
@@ -418,6 +423,14 @@ class SparkAppManager(LoggingMixin):
                     container_port=4040,
                     name="ui-port",
                 ),
+            ],
+            env_from=[
+                k8s.V1EnvFromSource(
+                    secret_ref=k8s.V1SecretEnvSource(
+                        name=secret_name,
+                    ),
+                )
+                for secret_name in (env_from_secrets or [])
             ],
         )
 
@@ -503,6 +516,37 @@ class SparkAppManager(LoggingMixin):
                 type="ClusterIP",
                 cluster_ip="None",
             ),
+        )
+
+    @staticmethod
+    def create_secret_object(
+        *,
+        app_name: str,
+        app_id: str,
+        secrets_values: dict[str, str],
+        namespace: str = "default",
+    ) -> k8s.V1Secret:
+        """Create a secret for a Spark application to store secrets values
+
+        Args:
+            app_name: Name of the Spark application
+            app_id: ID of the Spark application
+            secrets_values: Dictionary of secrets values
+            namespace: Kubernetes namespace to use, defaults to "default"
+
+        Returns:
+            The created secret for the Spark application
+        """
+        return k8s.V1Secret(
+            metadata=k8s.V1ObjectMeta(
+                name=app_id,
+                namespace=namespace,
+                labels=SparkAppManager.spark_app_labels(
+                    app_name=app_name,
+                    app_id=app_id,
+                ),
+            ),
+            string_data=secrets_values,
         )
 
 

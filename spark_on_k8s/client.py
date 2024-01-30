@@ -118,6 +118,7 @@ class SparkOnK8S(LoggingMixin):
         executor_resources: PodResources | ArgNotSet = NOTSET,
         executor_instances: ExecutorInstances | ArgNotSet = NOTSET,
         should_print: bool | ArgNotSet = NOTSET,
+        secret_values: dict[str, str] | ArgNotSet = NOTSET,
     ) -> str:
         """Submit a Spark app to Kubernetes
 
@@ -147,6 +148,7 @@ class SparkOnK8S(LoggingMixin):
                 enabled and the number of executors will be between min and max (inclusive), and initial
                 will be the initial number of executors with a default of 0.
             should_print: Whether to print logs instead of logging them, defaults to False
+            secret_values: Dictionary of secret values to pass to the application as environment variables
 
         Returns:
             Name of the Spark application pod
@@ -212,6 +214,11 @@ class SparkOnK8S(LoggingMixin):
         app_name, app_id = self._parse_app_name_and_id(
             app_name=app_name, app_id_suffix=app_id_suffix, should_print=should_print
         )
+        if secret_values is not NOTSET and secret_values is not None:
+            env_from_secrets = [app_id]
+        else:
+            secret_values = {}
+            env_from_secrets = []
 
         spark_conf = spark_conf or {}
         main_class_parameters = app_arguments or []
@@ -235,6 +242,7 @@ class SparkOnK8S(LoggingMixin):
             "spark.executor.cores": f"{executor_resources.cpu}",
             "spark.executor.memory": f"{executor_resources.memory}m",
             "spark.executor.memoryOverhead": f"{executor_resources.memory_overhead}m",
+            **self._executor_secrets_config(secret_values=secret_values, app_id=app_id),
         }
         extra_labels = {}
         if ui_reverse_proxy:
@@ -276,13 +284,36 @@ class SparkOnK8S(LoggingMixin):
                     "memory": f"{driver_resources.memory + driver_resources.memory_overhead}Mi",
                 },
             },
+            env_from_secrets=env_from_secrets,
         )
         with self.k8s_client_manager.client() as client:
             api = k8s.CoreV1Api(client)
+            if secret_values:
+                application_secret = self.app_manager.create_secret_object(
+                    app_name=app_name,
+                    app_id=app_id,
+                    secrets_values=secret_values,
+                    namespace=namespace,
+                )
+                api.create_namespaced_secret(namespace=namespace, body=application_secret)
             pod = api.create_namespaced_pod(
                 namespace=namespace,
                 body=pod,
             )
+            if secret_values:
+                application_secret.metadata.owner_references = [
+                    k8s.V1OwnerReference(
+                        api_version="v1",
+                        kind="Pod",
+                        name=pod.metadata.name,
+                        uid=pod.metadata.uid,
+                    )
+                ]
+                api.patch_namespaced_secret(
+                    namespace=namespace,
+                    name=application_secret.metadata.name,
+                    body=application_secret,
+                )
             api.create_namespaced_service(
                 namespace=namespace,
                 body=SparkAppManager.create_headless_service_object(
@@ -375,3 +406,24 @@ class SparkOnK8S(LoggingMixin):
         for key, value in spark_conf.items():
             args.extend(["--conf", f"{key}={value}"])
         return args
+
+    @staticmethod
+    def _executor_secrets_config(
+        secret_values: dict[str, str] | None,
+        app_id: str,
+    ) -> dict[str, str]:
+        """Spark configuration to load environment variables from the secret
+
+        Args:
+            secret_values: Secret values to pass to the application as environment variables
+            app_id: Application ID
+
+        Returns:
+            Spark configuration dictionary
+        """
+        if not secret_values:
+            return {}
+        return {
+            f"spark.kubernetes.executor.secretKeyRef.{secret_name}": f"{app_id}:{secret_name}"
+            for secret_name in secret_values.keys()
+        }

@@ -281,6 +281,7 @@ class TestSparkOnK8s:
         os.environ["SPARK_ON_K8S_SPARK_CONF"] = json.dumps(
             {"spark.conf1.key": "spark.conf1.value", "spark.conf2.key": "spark.conf2.value"}
         )
+        os.environ["SPARK_ON_K8S_SECRET_ENV_VAR"] = json.dumps({"KEY1": "VALUE1", "KEY2": "VALUE2"})
 
         importlib.reload(configuration_module)
         importlib.reload(client_module)
@@ -325,6 +326,10 @@ class TestSparkOnK8s:
             "spark.executor.memory=718m",
             "--conf",
             "spark.executor.memoryOverhead=512m",
+            "--conf",
+            f"spark.kubernetes.executor.secretKeyRef.KEY1={expected_app_id}:KEY1",
+            "--conf",
+            f"spark.kubernetes.executor.secretKeyRef.KEY2={expected_app_id}:KEY2",
             "--conf",
             f"spark.ui.proxyBase=/webserver/ui/test-namespace/{expected_app_id}",
             "--conf",

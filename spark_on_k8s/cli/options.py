@@ -20,14 +20,15 @@ force_option = click.Option(
 
 
 # Submit options
-def validate_spark_conf(ctx, param, value):
-    spark_conf = {}
+def validate_dictionary_option(ctx, param, value):
+    dict_values = {}
     for conf in value:
         try:
             key, val = conf.split("=")
-            spark_conf[key] = val
+            dict_values[key] = val
         except ValueError:
-            raise click.BadParameter("Spark conf parameter must be in the form key=value.") from None
+            raise click.BadParameter(f"{param.name} parameter must be in the form key=value.") from None
+    return dict_values
 
 
 docker_image_option = click.Option(
@@ -65,7 +66,7 @@ spark_conf_option = click.Option(
     ("--conf", "spark_conf"),
     type=str,
     multiple=True,
-    callback=validate_spark_conf,
+    callback=validate_dictionary_option,
     default=Configuration.SPARK_ON_K8S_SPARK_CONF,
     show_default=True,
     help="Spark configuration property in key=value format. Can be repeated.",
@@ -176,4 +177,13 @@ executor_initial_instances_option = click.Option(
         "enabled and the number of executors will be between min and max (inclusive), and this "
         "will be the initial number of executors with a default of 0."
     ),
+)
+secret_env_var_option = click.Option(
+    ("--secret-env-var",),
+    type=str,
+    multiple=True,
+    callback=validate_dictionary_option,
+    default=Configuration.SPARK_ON_K8S_SECRET_ENV_VAR,
+    show_default=True,
+    help="Secret environment variable in key=value format. Can be repeated.",
 )

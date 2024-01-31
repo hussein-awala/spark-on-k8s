@@ -42,6 +42,7 @@ class Configuration:
         if getenv("SPARK_ON_K8S_EXECUTOR_INITIAL_INSTANCES")
         else None
     )
+    SPARK_ON_K8S_SECRET_ENV_VAR = json.loads(getenv("SPARK_ON_K8S_SECRET_ENV_VAR", "{}"))
 
     # Kubernetes client configuration
     # K8S client configuration

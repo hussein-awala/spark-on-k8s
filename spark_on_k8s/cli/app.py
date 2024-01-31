@@ -23,6 +23,7 @@ from spark_on_k8s.cli.options import (
     image_pull_policy_option,
     logs_option,
     namespace_option,
+    secret_env_var_option,
     service_account_option,
     spark_conf_option,
     ui_reverse_proxy_option,
@@ -113,6 +114,7 @@ def wait(app_id: str, namespace: str):
         executor_min_instances_option,
         executor_max_instances_option,
         executor_initial_instances_option,
+        secret_env_var_option,
     ],
     help="Submit a Spark application.",
 )
@@ -139,6 +141,7 @@ def submit(
     executor_min_instances: int,
     executor_max_instances: int,
     executor_initial_instances: int,
+    secret_env_var: dict[str, str],
 ):
     from spark_on_k8s.client import ExecutorInstances, PodResources, SparkOnK8S
 
@@ -171,4 +174,5 @@ def submit(
             initial=executor_initial_instances,
         ),
         should_print=True,
+        secret_values=secret_env_var,
     )

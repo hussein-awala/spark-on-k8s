@@ -59,6 +59,8 @@ class SparkOnK8SOperator(BaseOperator):
         driver_resources (PodResources, optional): Driver pod resources. Defaults to None.
         executor_resources (PodResources, optional): Executor pod resources. Defaults to None.
         executor_instances (ExecutorInstances, optional): Executor instances. Defaults to None.
+        secret_values (dict[str, str], optional): Dictionary of secret values to pass to the application
+            as environment variables. Defaults to None.
         kubernetes_conn_id (str, optional): Kubernetes connection ID. Defaults to
             "kubernetes_default".
         poll_interval (int, optional): Poll interval for checking the Spark application status.
@@ -85,6 +87,7 @@ class SparkOnK8SOperator(BaseOperator):
         "driver_resources",
         "executor_resources",
         "executor_instances",
+        "secret_values",
         "kubernetes_conn_id",
     )
 
@@ -105,6 +108,7 @@ class SparkOnK8SOperator(BaseOperator):
         driver_resources: PodResources | None = None,
         executor_resources: PodResources | None = None,
         executor_instances: ExecutorInstances | None = None,
+        secret_values: dict[str, str] | None = None,
         kubernetes_conn_id: str = "kubernetes_default",
         poll_interval: int = 10,
         deferrable: bool = False,
@@ -126,6 +130,7 @@ class SparkOnK8SOperator(BaseOperator):
         self.driver_resources = driver_resources
         self.executor_resources = executor_resources
         self.executor_instances = executor_instances
+        self.secret_values = secret_values
         self.kubernetes_conn_id = kubernetes_conn_id
         self.poll_interval = poll_interval
         self.deferrable = deferrable
@@ -211,6 +216,7 @@ class SparkOnK8SOperator(BaseOperator):
             driver_resources=self.driver_resources,
             executor_resources=self.executor_resources,
             executor_instances=self.executor_instances,
+            secret_values=self.secret_values,
         )
         if self.app_waiter == "no_wait":
             return

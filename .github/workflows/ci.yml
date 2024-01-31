@@ -21,7 +21,7 @@ jobs:
 
       - id: check-pytest
         name: Should run pytest
-        uses: dorny/paths-filter@v2
+        uses: dorny/paths-filter@v3
         with:
           filters: |
             src:

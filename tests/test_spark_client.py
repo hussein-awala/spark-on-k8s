@@ -347,3 +347,73 @@ class TestSparkOnK8s:
             "arg1",
             "arg2",
         ]
+
+    @mock.patch("spark_on_k8s.k8s.sync_client.KubernetesClientManager.create_client")
+    @mock.patch("kubernetes.client.api.core_v1_api.CoreV1Api.create_namespaced_secret")
+    @mock.patch("kubernetes.client.api.core_v1_api.CoreV1Api.create_namespaced_pod")
+    @mock.patch("kubernetes.client.api.core_v1_api.CoreV1Api.create_namespaced_service")
+    @freeze_time(FAKE_TIME)
+    def test_submit_app_with_secrets(
+        self,
+        mock_create_namespaced_service,
+        mock_create_namespaced_pod,
+        mock_create_namespaced_secret,
+        mock_create_client,
+    ):
+        spark_client = SparkOnK8S()
+        spark_client.submit_app(
+            image="pyspark-job",
+            app_path="local:///opt/spark/work-dir/job.py",
+            namespace="spark",
+            service_account="spark",
+            app_name="pyspark-job-example",
+            app_arguments=["100000"],
+            app_waiter="no_wait",
+            image_pull_policy="Never",
+            ui_reverse_proxy=True,
+            driver_resources=PodResources(cpu=1, memory=2048, memory_overhead=1024),
+            executor_instances=ExecutorInstances(min=2, max=5, initial=5),
+            secret_values={
+                "KEY1": "VALUE1",
+                "KEY2": "VALUE2",
+            },
+        )
+
+        expected_app_name = "pyspark-job-example"
+        expected_app_id = f"{expected_app_name}-20240114121231"
+
+        created_pod = mock_create_namespaced_pod.call_args[1]["body"]
+        created_secret = mock_create_namespaced_secret.call_args[1]["body"]
+
+        assert created_pod.metadata.labels["spark-app-name"] == expected_app_name
+        assert created_pod.metadata.labels["spark-app-id"] == expected_app_id
+
+        created_pod = mock_create_namespaced_pod.call_args[1]["body"]
+        assert created_pod.spec.containers[0].env_from[0].secret_ref.name == expected_app_id
+        executors_secrets = [
+            {
+                "env_var": conf.split("=")[0].split(".")[-1],
+                "secret_name": conf.split("=")[1].split(":")[0],
+                "key": conf.split("=")[1].split(":")[-1],
+            }
+            for conf in created_pod.spec.containers[0].args
+            if conf.startswith("spark.kubernetes.executor.secretKeyRef.")
+        ]
+        assert executors_secrets == [
+            {
+                "env_var": "KEY1",
+                "secret_name": expected_app_id,
+                "key": "KEY1",
+            },
+            {
+                "env_var": "KEY2",
+                "secret_name": expected_app_id,
+                "key": "KEY2",
+            },
+        ]
+
+        assert created_secret.metadata.name == expected_app_id
+        assert created_secret.metadata.labels["spark-app-name"] == expected_app_name
+        assert created_secret.metadata.labels["spark-app-id"] == expected_app_id
+        assert created_secret.string_data["KEY1"] == "VALUE1"
+        assert created_secret.string_data["KEY2"] == "VALUE2"

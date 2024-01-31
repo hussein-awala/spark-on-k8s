@@ -11,6 +11,7 @@ from spark_on_k8s.cli.options import (
     class_name_option,
     docker_image_option,
     driver_cpu_option,
+    driver_env_vars_from_secrets_option,
     driver_memory_option,
     driver_memory_overhead_option,
     executor_cpu_option,
@@ -115,6 +116,7 @@ def wait(app_id: str, namespace: str):
         executor_max_instances_option,
         executor_initial_instances_option,
         secret_env_var_option,
+        driver_env_vars_from_secrets_option,
     ],
     help="Submit a Spark application.",
 )
@@ -142,6 +144,7 @@ def submit(
     executor_max_instances: int,
     executor_initial_instances: int,
     secret_env_var: dict[str, str],
+    driver_env_vars_from_secrets: list[str],
 ):
     from spark_on_k8s.client import ExecutorInstances, PodResources, SparkOnK8S
 
@@ -175,4 +178,5 @@ def submit(
         ),
         should_print=True,
         secret_values=secret_env_var,
+        driver_env_vars_from_secrets=driver_env_vars_from_secrets,
     )

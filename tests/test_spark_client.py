@@ -282,6 +282,7 @@ class TestSparkOnK8s:
             {"spark.conf1.key": "spark.conf1.value", "spark.conf2.key": "spark.conf2.value"}
         )
         os.environ["SPARK_ON_K8S_SECRET_ENV_VAR"] = json.dumps({"KEY1": "VALUE1", "KEY2": "VALUE2"})
+        os.environ["SPARK_ON_K8S_DRIVER_ENV_VARS_FROM_SECRET"] = "SECRET1,SECRET2"
 
         importlib.reload(configuration_module)
         importlib.reload(client_module)
@@ -352,6 +353,9 @@ class TestSparkOnK8s:
             "arg1",
             "arg2",
         ]
+        assert created_pod.spec.containers[0].env_from[0].secret_ref.name == expected_app_id
+        assert created_pod.spec.containers[0].env_from[1].secret_ref.name == "SECRET1"
+        assert created_pod.spec.containers[0].env_from[2].secret_ref.name == "SECRET2"
 
     @mock.patch("spark_on_k8s.k8s.sync_client.KubernetesClientManager.create_client")
     @mock.patch("kubernetes.client.api.core_v1_api.CoreV1Api.create_namespaced_secret")
@@ -382,6 +386,7 @@ class TestSparkOnK8s:
                 "KEY1": "VALUE1",
                 "KEY2": "VALUE2",
             },
+            driver_env_vars_from_secrets=["secret1", "secret2"],
         )
 
         expected_app_name = "pyspark-job-example"
@@ -395,6 +400,10 @@ class TestSparkOnK8s:
 
         created_pod = mock_create_namespaced_pod.call_args[1]["body"]
         assert created_pod.spec.containers[0].env_from[0].secret_ref.name == expected_app_id
+        assert created_pod.spec.containers[0].env_from[1].secret_ref.name == "secret1"
+        assert created_pod.spec.containers[0].env_from[2].secret_ref.name == "secret2"
+        # ensure that the provided secrets are added to the pod without trying to create them
+        mock_create_namespaced_secret.assert_called_once()
         executors_secrets = [
             {
                 "env_var": conf.split("=")[0].split(".")[-1],

@@ -31,6 +31,11 @@ def validate_dictionary_option(ctx, param, value):
     return dict_values
 
 
+def validate_list_option(ctx, param, value):
+    list_values = value.split(",") if value else []
+    return list_values
+
+
 docker_image_option = click.Option(
     ("--image",),
     type=str,
@@ -186,4 +191,12 @@ secret_env_var_option = click.Option(
     default=Configuration.SPARK_ON_K8S_SECRET_ENV_VAR,
     show_default=True,
     help="Secret environment variable in key=value format. Can be repeated.",
+)
+driver_env_vars_from_secrets_option = click.Option(
+    ("--driver-env-vars-from-secrets",),
+    type=str,
+    callback=validate_list_option,
+    default=Configuration.SPARK_ON_K8S_DRIVER_ENV_VARS_FROM_SECRET,
+    show_default=True,
+    help="Secrets to load environment variables from for the driver. Comma-separated list of secret names.",
 )

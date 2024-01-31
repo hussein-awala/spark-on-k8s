@@ -119,6 +119,7 @@ class SparkOnK8S(LoggingMixin):
         executor_instances: ExecutorInstances | ArgNotSet = NOTSET,
         should_print: bool | ArgNotSet = NOTSET,
         secret_values: dict[str, str] | ArgNotSet = NOTSET,
+        driver_env_vars_from_secrets: list[str] | ArgNotSet = NOTSET,
     ) -> str:
         """Submit a Spark app to Kubernetes
 
@@ -149,6 +150,8 @@ class SparkOnK8S(LoggingMixin):
                 will be the initial number of executors with a default of 0.
             should_print: Whether to print logs instead of logging them, defaults to False
             secret_values: Dictionary of secret values to pass to the application as environment variables
+            driver_env_vars_from_secrets: List of secret names to load environment variables from for
+                the driver
 
         Returns:
             Name of the Spark application pod
@@ -219,6 +222,10 @@ class SparkOnK8S(LoggingMixin):
         else:
             secret_values = Configuration.SPARK_ON_K8S_SECRET_ENV_VAR
             env_from_secrets = [app_id] if secret_values else []
+        if driver_env_vars_from_secrets is NOTSET:
+            driver_env_vars_from_secrets = Configuration.SPARK_ON_K8S_DRIVER_ENV_VARS_FROM_SECRET
+        if driver_env_vars_from_secrets:
+            env_from_secrets.extend(driver_env_vars_from_secrets)
 
         spark_conf = spark_conf or {}
         main_class_parameters = app_arguments or []

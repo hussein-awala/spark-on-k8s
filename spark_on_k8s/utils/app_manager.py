@@ -335,7 +335,7 @@ class SparkAppManager(LoggingMixin):
             args: List of arguments to pass to the container
             image_pull_policy: Image pull policy for the driver and executors, defaults to "IfNotPresent"
             extra_labels: Dictionary of extra labels to add to the pod template
-            env_from_secrets: List of secrets to use as environment variables
+            env_from_secrets: List of secrets to load environment variables from
 
         Returns:
             Pod template spec for the Spark application
@@ -390,7 +390,7 @@ class SparkAppManager(LoggingMixin):
             pod_resources: Dictionary of resources to request for the container
             args: List of arguments to pass to the container
             image_pull_policy: Image pull policy for the driver and executors, defaults to "IfNotPresent"
-            env_from_secrets: List of secrets to use as environment variables
+            env_from_secrets: List of secrets to load environment variables from
 
         Returns:
             Container spec for the Spark driver

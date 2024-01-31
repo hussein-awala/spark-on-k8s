@@ -43,6 +43,11 @@ class Configuration:
         else None
     )
     SPARK_ON_K8S_SECRET_ENV_VAR = json.loads(getenv("SPARK_ON_K8S_SECRET_ENV_VAR", "{}"))
+    SPARK_ON_K8S_DRIVER_ENV_VARS_FROM_SECRET = (
+        getenv("SPARK_ON_K8S_DRIVER_ENV_VARS_FROM_SECRET").split(",")
+        if getenv("SPARK_ON_K8S_DRIVER_ENV_VARS_FROM_SECRET")
+        else []
+    )
 
     # Kubernetes client configuration
     # K8S client configuration

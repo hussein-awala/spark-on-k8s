@@ -45,6 +45,7 @@ class TestSparkOnK8SOperator:
             ui_reverse_proxy=True,
             spark_conf=None,
             class_name=None,
+            secret_values=None,
         )
 
     @mock.patch("spark_on_k8s.client.SparkOnK8S.submit_app")
@@ -77,6 +78,10 @@ class TestSparkOnK8SOperator:
                 "spark.kubernetes.container.image": "{{ template_image }}",
                 "spark.kubernetes.container.image.pullPolicy": "{{ template_image_pull_policy }}",
             },
+            secret_values={
+                "KEY1": "VALUE1",
+                "KEY2": "{{ template_secret_value }}",
+            },
         )
         spark_app_task.render_template_fields(
             context={
@@ -94,6 +99,7 @@ class TestSparkOnK8SOperator:
                 "template_executor_instances_min": 0,
                 "template_executor_instances_max": 5,
                 "template_executor_instances_initial": 5,
+                "template_secret_value": "value from connection",
             },
         )
         spark_app_task.execute(None)
@@ -113,6 +119,10 @@ class TestSparkOnK8SOperator:
             spark_conf={
                 "spark.kubernetes.container.image": "pyspark-job",
                 "spark.kubernetes.container.image.pullPolicy": "Never",
+            },
+            secret_values={
+                "KEY1": "VALUE1",
+                "KEY2": "value from connection",
             },
             class_name=None,
         )

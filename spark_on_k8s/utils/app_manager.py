@@ -320,6 +320,8 @@ class SparkAppManager(LoggingMixin):
         image_pull_policy: Literal["Always", "Never", "IfNotPresent"] = "IfNotPresent",
         extra_labels: dict[str, str] | None = None,
         env_from_secrets: list[str] | None = None,
+        volumes: list[k8s.V1Volume] | None = None,
+        volume_mounts: list[k8s.V1VolumeMount] | None = None,
     ) -> k8s.V1PodTemplateSpec:
         """Create a pod spec for a Spark application
 
@@ -336,6 +338,8 @@ class SparkAppManager(LoggingMixin):
             image_pull_policy: Image pull policy for the driver and executors, defaults to "IfNotPresent"
             extra_labels: Dictionary of extra labels to add to the pod template
             env_from_secrets: List of secrets to load environment variables from
+            volumes: List of volumes to mount in the pod
+            volume_mounts: List of volume mounts to mount in the container
 
         Returns:
             Pod template spec for the Spark application
@@ -361,8 +365,10 @@ class SparkAppManager(LoggingMixin):
                     args=args,
                     image_pull_policy=image_pull_policy,
                     env_from_secrets=env_from_secrets,
+                    volume_mounts=volume_mounts,
                 )
             ],
+            volumes=volumes,
         )
         template = k8s.V1PodTemplateSpec(
             metadata=pod_metadata,
@@ -380,6 +386,7 @@ class SparkAppManager(LoggingMixin):
         args: list[str] | None = None,
         image_pull_policy: Literal["Always", "Never", "IfNotPresent"] = "IfNotPresent",
         env_from_secrets: list[str] | None = None,
+        volume_mounts: list[k8s.V1VolumeMount] | None = None,
     ) -> k8s.V1Container:
         """Create a container spec for the Spark driver
 
@@ -391,6 +398,7 @@ class SparkAppManager(LoggingMixin):
             args: List of arguments to pass to the container
             image_pull_policy: Image pull policy for the driver and executors, defaults to "IfNotPresent"
             env_from_secrets: List of secrets to load environment variables from
+            volume_mounts: List of volume mounts to mount in the container
 
         Returns:
             Container spec for the Spark driver
@@ -432,6 +440,7 @@ class SparkAppManager(LoggingMixin):
                 )
                 for secret_name in (env_from_secrets or [])
             ],
+            volume_mounts=volume_mounts,
         )
 
     @staticmethod

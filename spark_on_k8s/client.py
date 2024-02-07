@@ -120,6 +120,9 @@ class SparkOnK8S(LoggingMixin):
         should_print: bool | ArgNotSet = NOTSET,
         secret_values: dict[str, str] | ArgNotSet = NOTSET,
         driver_env_vars_from_secrets: list[str] | ArgNotSet = NOTSET,
+        volumes: list[k8s.V1Volume] | ArgNotSet = NOTSET,
+        driver_volume_mounts: list[k8s.V1VolumeMount] | ArgNotSet = NOTSET,
+        executor_volume_mounts: list[k8s.V1VolumeMount] | ArgNotSet = NOTSET,
     ) -> str:
         """Submit a Spark app to Kubernetes
 
@@ -152,6 +155,9 @@ class SparkOnK8S(LoggingMixin):
             secret_values: Dictionary of secret values to pass to the application as environment variables
             driver_env_vars_from_secrets: List of secret names to load environment variables from for
                 the driver
+            volumes: List of volumes to mount to the driver and/or executors
+            driver_volume_mounts: List of volume mounts to mount to the driver
+            executor_volume_mounts: List of volume mounts to mount to the executors
 
         Returns:
             Name of the Spark application pod
@@ -226,6 +232,12 @@ class SparkOnK8S(LoggingMixin):
             driver_env_vars_from_secrets = Configuration.SPARK_ON_K8S_DRIVER_ENV_VARS_FROM_SECRET
         if driver_env_vars_from_secrets:
             env_from_secrets.extend(driver_env_vars_from_secrets)
+        if volumes is NOTSET:
+            volumes = []
+        if driver_volume_mounts is NOTSET:
+            driver_volume_mounts = []
+        if executor_volume_mounts is NOTSET:
+            executor_volume_mounts = []
 
         spark_conf = spark_conf or {}
         main_class_parameters = app_arguments or []
@@ -292,6 +304,8 @@ class SparkOnK8S(LoggingMixin):
                 },
             },
             env_from_secrets=env_from_secrets,
+            volumes=volumes,
+            volume_mounts=driver_volume_mounts,
         )
         with self.k8s_client_manager.client() as client:
             api = k8s.CoreV1Api(client)

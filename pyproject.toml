@@ -17,7 +17,7 @@ packages = [{include = "spark_on_k8s"}]
 python = "^3.8"
 kubernetes = ">=22.0.0"
 click = "^8.0.1"
-fastapi = {version = "^0.109.0", optional = true}
+fastapi = {version = "^0.109.1", optional = true}
 kubernetes-asyncio = {version = ">=22.0.0", optional = true}
 uvicorn = {version = "^0.26.0", optional = true}
 httpx = {version = "^0.26.0", optional = true}

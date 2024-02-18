@@ -46,6 +46,9 @@ class TestSparkOnK8SOperator:
             spark_conf=None,
             class_name=None,
             secret_values=None,
+            volumes=None,
+            driver_volume_mounts=None,
+            executor_volume_mounts=None,
         )
 
     @mock.patch("spark_on_k8s.client.SparkOnK8S.submit_app")
@@ -125,4 +128,7 @@ class TestSparkOnK8SOperator:
                 "KEY2": "value from connection",
             },
             class_name=None,
+            volumes=None,
+            driver_volume_mounts=None,
+            executor_volume_mounts=None,
         )

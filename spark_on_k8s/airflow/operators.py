@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from typing import Literal
 
     import jinja2
+    from kubernetes import client as k8s
 
     from airflow.utils.context import Context
     from spark_on_k8s.client import ExecutorInstances, PodResources
@@ -61,6 +62,9 @@ class SparkOnK8SOperator(BaseOperator):
         executor_instances (ExecutorInstances, optional): Executor instances. Defaults to None.
         secret_values (dict[str, str], optional): Dictionary of secret values to pass to the application
             as environment variables. Defaults to None.
+        volumes: List of volumes to mount to the driver and/or executors.
+        driver_volume_mounts: List of volume mounts to mount to the driver.
+        executor_volume_mounts: List of volume mounts to mount to the executors.
         kubernetes_conn_id (str, optional): Kubernetes connection ID. Defaults to
             "kubernetes_default".
         poll_interval (int, optional): Poll interval for checking the Spark application status.
@@ -109,6 +113,9 @@ class SparkOnK8SOperator(BaseOperator):
         executor_resources: PodResources | None = None,
         executor_instances: ExecutorInstances | None = None,
         secret_values: dict[str, str] | None = None,
+        volumes: list[k8s.V1Volume] | None = None,
+        driver_volume_mounts: list[k8s.V1VolumeMount] | None = None,
+        executor_volume_mounts: list[k8s.V1VolumeMount] | None = None,
         kubernetes_conn_id: str = "kubernetes_default",
         poll_interval: int = 10,
         deferrable: bool = False,
@@ -131,6 +138,9 @@ class SparkOnK8SOperator(BaseOperator):
         self.executor_resources = executor_resources
         self.executor_instances = executor_instances
         self.secret_values = secret_values
+        self.volumes = volumes
+        self.driver_volume_mounts = driver_volume_mounts
+        self.executor_volume_mounts = executor_volume_mounts
         self.kubernetes_conn_id = kubernetes_conn_id
         self.poll_interval = poll_interval
         self.deferrable = deferrable
@@ -217,6 +227,9 @@ class SparkOnK8SOperator(BaseOperator):
             executor_resources=self.executor_resources,
             executor_instances=self.executor_instances,
             secret_values=self.secret_values,
+            volumes=self.volumes,
+            driver_volume_mounts=self.driver_volume_mounts,
+            executor_volume_mounts=self.executor_volume_mounts,
         )
         if self.app_waiter == "no_wait":
             return

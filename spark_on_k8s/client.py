@@ -232,11 +232,11 @@ class SparkOnK8S(LoggingMixin):
             driver_env_vars_from_secrets = Configuration.SPARK_ON_K8S_DRIVER_ENV_VARS_FROM_SECRET
         if driver_env_vars_from_secrets:
             env_from_secrets.extend(driver_env_vars_from_secrets)
-        if volumes is NOTSET:
+        if volumes is NOTSET or volumes is None:
             volumes = []
-        if driver_volume_mounts is NOTSET:
+        if driver_volume_mounts is NOTSET or driver_volume_mounts is None:
             driver_volume_mounts = []
-        if executor_volume_mounts is NOTSET:
+        if executor_volume_mounts is NOTSET or executor_volume_mounts is None:
             executor_volume_mounts = []
 
         spark_conf = spark_conf or {}

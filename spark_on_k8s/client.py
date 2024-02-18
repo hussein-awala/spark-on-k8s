@@ -5,7 +5,7 @@ import re
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from typing import Callable, Literal
+from typing import Any, Callable, Literal
 
 from kubernetes import client as k8s
 
@@ -279,6 +279,10 @@ class SparkOnK8S(LoggingMixin):
             basic_conf[
                 "spark.executor.instances"
             ] = f"{executor_instances.initial if executor_instances.initial is not None else 2}"
+        if executor_volume_mounts:
+            basic_conf.update(
+                self._executor_volumes_config(volumes=volumes, volume_mounts=executor_volume_mounts)
+            )
         driver_command_args = ["driver", "--master", "k8s://https://kubernetes.default.svc.cluster.local:443"]
         if class_name:
             driver_command_args.extend(["--class", class_name])
@@ -412,6 +416,12 @@ class SparkOnK8S(LoggingMixin):
         return app_name, app_id
 
     @staticmethod
+    def _value_to_str(value: Any) -> str:
+        if isinstance(value, bool):
+            return str(value).lower()
+        return str(value)
+
+    @staticmethod
     def _spark_config_to_arguments(spark_conf: dict[str, str] | None) -> list[str]:
         """Convert Spark configuration to a list of arguments
 
@@ -425,7 +435,7 @@ class SparkOnK8S(LoggingMixin):
             return []
         args = []
         for key, value in spark_conf.items():
-            args.extend(["--conf", f"{key}={value}"])
+            args.extend(["--conf", f"{key}={SparkOnK8S._value_to_str(value)}"])
         return args
 
     @staticmethod

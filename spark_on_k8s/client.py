@@ -474,6 +474,7 @@ class SparkOnK8S(LoggingMixin):
             "persistentVolumeClaim",
         }
         loaded_volumes = {}
+        volumes_config = {}
         for volume in volumes:
             volume_name = volume.name
             volume_mapped_type: str | None = None
@@ -486,21 +487,23 @@ class SparkOnK8S(LoggingMixin):
                     break
             volume_type = getattr(k8s, volume_type_str)
             if volume_mapped_type not in supported_volume_types:
-                # TODO: add warning or raise an exception?
                 continue
             loaded_volumes[volume_name] = volume_mapped_type
+            volumes_config[volume_name] = {}
             for attr in volume_type.attribute_map:
                 if getattr(volume, attr) is not None:
                     option_name = volume_type.attribute_map[attr]
-                    config[
+                    volumes_config[volume_name][
                         f"spark.kubernetes.executor.volumes.{volume_mapped_type}.{volume_name}.{option_name}"
                     ] = getattr(volume, attr)
         for volume_mount in volume_mounts:
             if volume_mount.name not in loaded_volumes:
                 raise ValueError(
-                    f"Volume {volume_mount.name} is not found in the volumes list."
-                    "Please make sure to add the volume to the volumes list"
+                    f"Volume {volume_mount.name} is not found in the volumes list or is not supported.\n"
+                    "Please make sure to add the volume to the volumes list and use one of"
+                    f" the supported types: {supported_volume_types}"
                 )
+            config.update(volumes_config[volume_mount.name])
             volume_config_prefix = (
                 "spark.kubernetes.executor.volumes."
                 f"{loaded_volumes[volume_mount.name]}.{volume_mount.name}.mount"

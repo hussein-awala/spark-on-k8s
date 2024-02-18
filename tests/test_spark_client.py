@@ -484,6 +484,12 @@ class TestSparkOnK8s:
                         claim_name="pvc1", read_only=True
                     ),
                 ),
+                k8s.V1Volume(
+                    name="not-used-volume",
+                    persistent_volume_claim=k8s.V1PersistentVolumeClaimVolumeSource(
+                        claim_name="pvc2", read_only=True
+                    ),
+                ),
             ],
             volume_mounts=[
                 k8s.V1VolumeMount(name="volume1", mount_path="/mnt/volume1"),

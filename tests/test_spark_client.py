@@ -9,6 +9,7 @@ from unittest import mock
 
 import pytest
 from freezegun import freeze_time
+from kubernetes import client as k8s
 from spark_on_k8s import client as client_module
 from spark_on_k8s.client import ExecutorInstances, PodResources, SparkOnK8S, default_app_id_suffix
 from spark_on_k8s.utils import configuration as configuration_module
@@ -431,3 +432,219 @@ class TestSparkOnK8s:
         assert created_secret.metadata.labels["spark-app-id"] == expected_app_id
         assert created_secret.string_data["KEY1"] == "VALUE1"
         assert created_secret.string_data["KEY2"] == "VALUE2"
+
+    def test__executor_volumes_config(self):
+        spark_client = SparkOnK8S()
+        executor_volumes_config = spark_client._executor_volumes_config(
+            volumes=[
+                k8s.V1Volume(
+                    name="volume1",
+                    host_path=k8s.V1HostPathVolumeSource(path="/mnt/volume1"),
+                ),
+                k8s.V1Volume(
+                    name="volume2",
+                    empty_dir=k8s.V1EmptyDirVolumeSource(medium="Memory", size_limit="1Gi"),
+                ),
+                k8s.V1Volume(
+                    name="volume3",
+                    secret=k8s.V1SecretVolumeSource(
+                        secret_name="secret1", items=[k8s.V1KeyToPath(key="key1", path="path1")]
+                    ),
+                ),
+                k8s.V1Volume(
+                    name="volume4",
+                    config_map=k8s.V1ConfigMapVolumeSource(
+                        name="configmap1", items=[k8s.V1KeyToPath(key="key1", path="path1")]
+                    ),
+                ),
+                k8s.V1Volume(
+                    name="volume5",
+                    projected=k8s.V1ProjectedVolumeSource(
+                        sources=[
+                            k8s.V1VolumeProjection(
+                                secret=k8s.V1SecretProjection(
+                                    items=[k8s.V1KeyToPath(key="key1", path="path1")]
+                                )
+                            ),
+                            k8s.V1VolumeProjection(
+                                config_map=k8s.V1ConfigMapProjection(
+                                    items=[k8s.V1KeyToPath(key="key1", path="path1")]
+                                )
+                            ),
+                        ]
+                    ),
+                ),
+                k8s.V1Volume(
+                    name="volume6",
+                    nfs=k8s.V1NFSVolumeSource(server="nfs-server", path="/mnt/volume6", read_only=True),
+                ),
+                k8s.V1Volume(
+                    name="volume7",
+                    persistent_volume_claim=k8s.V1PersistentVolumeClaimVolumeSource(
+                        claim_name="pvc1", read_only=True
+                    ),
+                ),
+                k8s.V1Volume(
+                    name="not-used-volume",
+                    persistent_volume_claim=k8s.V1PersistentVolumeClaimVolumeSource(
+                        claim_name="pvc2", read_only=True
+                    ),
+                ),
+            ],
+            volume_mounts=[
+                k8s.V1VolumeMount(name="volume1", mount_path="/mnt/volume1"),
+                k8s.V1VolumeMount(name="volume2", mount_path="/mnt/volume2", sub_path="sub-path"),
+                k8s.V1VolumeMount(name="volume6", mount_path="/mnt/volume3"),
+                k8s.V1VolumeMount(name="volume7", mount_path="/mnt/volume4", read_only=True),
+            ],
+        )
+        assert executor_volumes_config == {
+            # volumes config
+            "spark.kubernetes.executor.volumes.hostPath.volume1.path": "/mnt/volume1",
+            "spark.kubernetes.executor.volumes.emptyDir.volume2.medium": "Memory",
+            "spark.kubernetes.executor.volumes.emptyDir.volume2.sizeLimit": "1Gi",
+            "spark.kubernetes.executor.volumes.nfs.volume6.path": "/mnt/volume6",
+            "spark.kubernetes.executor.volumes.nfs.volume6.readOnly": True,
+            "spark.kubernetes.executor.volumes.nfs.volume6.server": "nfs-server",
+            "spark.kubernetes.executor.volumes.persistentVolumeClaim.volume7.claimName": "pvc1",
+            "spark.kubernetes.executor.volumes.persistentVolumeClaim.volume7.readOnly": True,
+            # volume mounts config
+            "spark.kubernetes.executor.volumes.hostPath.volume1.mount.path": "/mnt/volume1",
+            "spark.kubernetes.executor.volumes.emptyDir.volume2.mount.path": "/mnt/volume2",
+            "spark.kubernetes.executor.volumes.emptyDir.volume2.mount.subPath": "sub-path",
+            "spark.kubernetes.executor.volumes.nfs.volume6.mount.path": "/mnt/volume3",
+            "spark.kubernetes.executor.volumes.persistentVolumeClaim.volume7.mount.path": "/mnt/volume4",
+            "spark.kubernetes.executor.volumes.persistentVolumeClaim.volume7.mount.readOnly": True,
+        }
+
+    @mock.patch("spark_on_k8s.k8s.sync_client.KubernetesClientManager.create_client")
+    @mock.patch("kubernetes.client.api.core_v1_api.CoreV1Api.create_namespaced_pod")
+    @mock.patch("kubernetes.client.api.core_v1_api.CoreV1Api.create_namespaced_service")
+    @freeze_time(FAKE_TIME)
+    def test_submit_app_with_volumes(
+        self,
+        mock_create_namespaced_service,
+        mock_create_namespaced_pod,
+        mock_create_client,
+    ):
+        volumes = [
+            k8s.V1Volume(
+                name="volume1",
+                host_path=k8s.V1HostPathVolumeSource(path="/mnt/volume1"),
+            ),
+            k8s.V1Volume(
+                name="volume2",
+                empty_dir=k8s.V1EmptyDirVolumeSource(medium="Memory", size_limit="1Gi"),
+            ),
+            k8s.V1Volume(
+                name="volume3",
+                secret=k8s.V1SecretVolumeSource(
+                    secret_name="secret1", items=[k8s.V1KeyToPath(key="key1", path="path1")]
+                ),
+            ),
+            k8s.V1Volume(
+                name="volume4",
+                config_map=k8s.V1ConfigMapVolumeSource(
+                    name="configmap1", items=[k8s.V1KeyToPath(key="key1", path="path1")]
+                ),
+            ),
+            k8s.V1Volume(
+                name="volume5",
+                projected=k8s.V1ProjectedVolumeSource(
+                    sources=[
+                        k8s.V1VolumeProjection(
+                            secret=k8s.V1SecretProjection(items=[k8s.V1KeyToPath(key="key1", path="path1")])
+                        ),
+                        k8s.V1VolumeProjection(
+                            config_map=k8s.V1ConfigMapProjection(
+                                items=[k8s.V1KeyToPath(key="key1", path="path1")]
+                            )
+                        ),
+                    ]
+                ),
+            ),
+            k8s.V1Volume(
+                name="volume6",
+                nfs=k8s.V1NFSVolumeSource(server="nfs-server", path="/mnt/volume6", read_only=True),
+            ),
+            k8s.V1Volume(
+                name="volume7",
+                persistent_volume_claim=k8s.V1PersistentVolumeClaimVolumeSource(
+                    claim_name="pvc1", read_only=True
+                ),
+            ),
+            k8s.V1Volume(
+                name="not-used-volume",
+                persistent_volume_claim=k8s.V1PersistentVolumeClaimVolumeSource(
+                    claim_name="pvc2", read_only=True
+                ),
+            ),
+        ]
+        driver_volume_mounts = [
+            k8s.V1VolumeMount(name="volume1", mount_path="/mnt/volume1"),
+            k8s.V1VolumeMount(name="volume2", mount_path="/mnt/volume2", sub_path="sub-path"),
+            k8s.V1VolumeMount(name="volume3", mount_path="/mnt/volume3"),
+            k8s.V1VolumeMount(name="volume4", mount_path="/mnt/volume4"),
+            k8s.V1VolumeMount(name="volume5", mount_path="/mnt/volume5"),
+            k8s.V1VolumeMount(name="volume6", mount_path="/mnt/volume6"),
+            k8s.V1VolumeMount(name="volume7", mount_path="/mnt/volume7", read_only=True),
+        ]
+        executor_volume_mounts = [
+            k8s.V1VolumeMount(name="volume1", mount_path="/mnt/volume1"),
+            k8s.V1VolumeMount(name="volume2", mount_path="/mnt/volume2", sub_path="sub-path"),
+            k8s.V1VolumeMount(name="volume6", mount_path="/mnt/volume3"),
+            k8s.V1VolumeMount(name="volume7", mount_path="/mnt/volume4", read_only=True),
+        ]
+        spark_client = SparkOnK8S()
+        spark_client.submit_app(
+            image="pyspark-job",
+            app_path="local:///opt/spark/work-dir/job.py",
+            namespace="spark",
+            service_account="spark",
+            app_name="pyspark-job-example",
+            app_arguments=["100000"],
+            app_waiter="no_wait",
+            image_pull_policy="Never",
+            ui_reverse_proxy=True,
+            driver_resources=PodResources(cpu=1, memory=2048, memory_overhead=1024),
+            executor_instances=ExecutorInstances(min=2, max=5, initial=5),
+            volumes=volumes,
+            driver_volume_mounts=driver_volume_mounts,
+            executor_volume_mounts=executor_volume_mounts,
+        )
+
+        expected_app_name = "pyspark-job-example"
+        expected_app_id = f"{expected_app_name}-20240114121231"
+
+        created_pod = mock_create_namespaced_pod.call_args[1]["body"]
+
+        assert created_pod.metadata.labels["spark-app-name"] == expected_app_name
+        assert created_pod.metadata.labels["spark-app-id"] == expected_app_id
+
+        created_pod = mock_create_namespaced_pod.call_args[1]["body"]
+        assert created_pod.spec.volumes == volumes
+        assert created_pod.spec.containers[0].volume_mounts == driver_volume_mounts
+
+        arguments = created_pod.spec.containers[0].args
+        volumes_args = {
+            conf.split("=")[0]: conf.split("=")[1]
+            for conf in arguments
+            if conf.startswith("spark.kubernetes.executor.volumes.")
+        }
+
+        assert volumes_args == {
+            "spark.kubernetes.executor.volumes.hostPath.volume1.path": "/mnt/volume1",
+            "spark.kubernetes.executor.volumes.emptyDir.volume2.medium": "Memory",
+            "spark.kubernetes.executor.volumes.emptyDir.volume2.sizeLimit": "1Gi",
+            "spark.kubernetes.executor.volumes.nfs.volume6.path": "/mnt/volume6",
+            "spark.kubernetes.executor.volumes.nfs.volume6.readOnly": "true",
+            "spark.kubernetes.executor.volumes.nfs.volume6.server": "nfs-server",
+            "spark.kubernetes.executor.volumes.persistentVolumeClaim.volume7.claimName": "pvc1",
+            "spark.kubernetes.executor.volumes.persistentVolumeClaim.volume7.readOnly": "true",
+            "spark.kubernetes.executor.volumes.hostPath.volume1.mount.path": "/mnt/volume1",
+            "spark.kubernetes.executor.volumes.emptyDir.volume2.mount.path": "/mnt/volume2",
+            "spark.kubernetes.executor.volumes.emptyDir.volume2.mount.subPath": "sub-path",
+            "spark.kubernetes.executor.volumes.nfs.volume6.mount.path": "/mnt/volume3",
+            "spark.kubernetes.executor.volumes.persistentVolumeClaim.volume7.mount.path": "/mnt/volume4",
+            "spark.kubernetes.executor.volumes.persistentVolumeClaim.volume7.mount.readOnly": "true",
+        }

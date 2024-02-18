@@ -5,7 +5,7 @@ import re
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from typing import Callable, Literal
+from typing import Any, Callable, Literal
 
 from kubernetes import client as k8s
 
@@ -279,6 +279,10 @@ class SparkOnK8S(LoggingMixin):
             basic_conf[
                 "spark.executor.instances"
             ] = f"{executor_instances.initial if executor_instances.initial is not None else 2}"
+        if executor_volume_mounts:
+            basic_conf.update(
+                self._executor_volumes_config(volumes=volumes, volume_mounts=executor_volume_mounts)
+            )
         driver_command_args = ["driver", "--master", "k8s://https://kubernetes.default.svc.cluster.local:443"]
         if class_name:
             driver_command_args.extend(["--class", class_name])
@@ -412,6 +416,12 @@ class SparkOnK8S(LoggingMixin):
         return app_name, app_id
 
     @staticmethod
+    def _value_to_str(value: Any) -> str:
+        if isinstance(value, bool):
+            return str(value).lower()
+        return str(value)
+
+    @staticmethod
     def _spark_config_to_arguments(spark_conf: dict[str, str] | None) -> list[str]:
         """Convert Spark configuration to a list of arguments
 
@@ -425,7 +435,7 @@ class SparkOnK8S(LoggingMixin):
             return []
         args = []
         for key, value in spark_conf.items():
-            args.extend(["--conf", f"{key}={value}"])
+            args.extend(["--conf", f"{key}={SparkOnK8S._value_to_str(value)}"])
         return args
 
     @staticmethod
@@ -448,3 +458,69 @@ class SparkOnK8S(LoggingMixin):
             f"spark.kubernetes.executor.secretKeyRef.{secret_name}": f"{app_id}:{secret_name}"
             for secret_name in secret_values.keys()
         }
+
+    @staticmethod
+    def _executor_volumes_config(
+        volumes: list[k8s.V1Volume] | None,
+        volume_mounts: list[k8s.V1VolumeMount] | None,
+    ) -> dict[str, str]:
+        """Spark configuration to mount volumes to the executors
+
+        Args:
+            volumes: List of volumes to mount to the driver and/or executors
+            volume_mounts: List of volume mounts to mount to the executors
+
+        Returns:
+            Spark configuration dictionary
+        """
+        if not volumes:
+            return {}
+        config = {}
+        # https://spark.apache.org/docs/latest/running-on-kubernetes.html#using-kubernetes-volumes
+        supported_volume_types = {
+            "hostPath",
+            "emptyDir",
+            "nfs",
+            "persistentVolumeClaim",
+        }
+        loaded_volumes = {}
+        volumes_config = {}
+        for volume in volumes:
+            volume_name = volume.name
+            volume_mapped_type: str | None = None
+            volume_type_str: str | None = None
+            for attr in k8s.V1Volume.attribute_map:
+                if attr != "name" and getattr(volume, attr) is not None:
+                    volume_mapped_type = k8s.V1Volume.attribute_map[attr]
+                    volume_type_str = k8s.V1Volume.openapi_types[attr]
+                    volume = getattr(volume, attr)
+                    break
+            volume_type = getattr(k8s, volume_type_str)
+            if volume_mapped_type not in supported_volume_types:
+                continue
+            loaded_volumes[volume_name] = volume_mapped_type
+            volumes_config[volume_name] = {}
+            for attr in volume_type.attribute_map:
+                if getattr(volume, attr) is not None:
+                    option_name = volume_type.attribute_map[attr]
+                    volumes_config[volume_name][
+                        f"spark.kubernetes.executor.volumes.{volume_mapped_type}.{volume_name}.{option_name}"
+                    ] = getattr(volume, attr)
+        for volume_mount in volume_mounts:
+            if volume_mount.name not in loaded_volumes:
+                raise ValueError(
+                    f"Volume {volume_mount.name} is not found in the volumes list or is not supported.\n"
+                    "Please make sure to add the volume to the volumes list and use one of"
+                    f" the supported types: {supported_volume_types}"
+                )
+            config.update(volumes_config[volume_mount.name])
+            volume_config_prefix = (
+                "spark.kubernetes.executor.volumes."
+                f"{loaded_volumes[volume_mount.name]}.{volume_mount.name}.mount"
+            )
+            config[f"{volume_config_prefix}.path"] = volume_mount.mount_path
+            if volume_mount.sub_path:
+                config[f"{volume_config_prefix}.subPath"] = volume_mount.sub_path
+            if volume_mount.read_only:
+                config[f"{volume_config_prefix}.readOnly"] = True
+        return config

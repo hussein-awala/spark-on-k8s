@@ -24,7 +24,7 @@ def validate_dictionary_option(ctx, param, value):
     dict_values = {}
     for conf in value:
         try:
-            key, val = conf.split("=")
+            key, val = conf.split("=", 1)
             dict_values[key] = val
         except ValueError:
             raise click.BadParameter(f"{param.name} parameter must be in the form key=value.") from None

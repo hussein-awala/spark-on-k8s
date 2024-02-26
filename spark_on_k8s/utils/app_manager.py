@@ -233,6 +233,7 @@ class SparkAppManager(LoggingMixin):
             namespace (str): Namespace.
             pod_name (str): Pod name.
             app_id (str): App ID.
+            should_print (bool, optional): Whether to print logs instead of logging them.
         """
         if pod_name is None and app_id is None:
             raise ValueError("Either pod_name or app_id must be specified")
@@ -455,6 +456,7 @@ class SparkAppManager(LoggingMixin):
         Args:
             app_name: Name of the Spark application
             app_id: ID of the Spark application
+            extra_labels: Dictionary of extra labels to add to the labels
 
         Returns:
             Dictionary of labels for the Spark application resources
@@ -482,6 +484,7 @@ class SparkAppManager(LoggingMixin):
             app_id: ID of the Spark application
             namespace: Kubernetes namespace to use, defaults to "default"
             pod_owner_uid: UID of the pod to use as owner reference for the service
+            extra_labels: Dictionary of extra labels to add to the service
 
         Returns:
             The created headless service for the Spark application

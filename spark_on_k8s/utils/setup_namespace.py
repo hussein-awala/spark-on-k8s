@@ -83,7 +83,7 @@ class SparkOnK8SNamespaceSetup(LoggingMixin):
                             name="edit",
                         ),
                         subjects=[
-                            k8s.V1Subject(
+                            k8s.RbacV1Subject(
                                 kind="ServiceAccount",
                                 name="spark",
                                 namespace=namespace,

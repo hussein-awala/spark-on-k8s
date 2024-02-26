@@ -223,7 +223,7 @@ class SparkOnK8S(LoggingMixin):
         app_name, app_id = self._parse_app_name_and_id(
             app_name=app_name, app_id_suffix=app_id_suffix, should_print=should_print
         )
-        if secret_values is not NOTSET and secret_values is not None:
+        if secret_values is not NOTSET and secret_values:
             env_from_secrets = [app_id]
         else:
             secret_values = Configuration.SPARK_ON_K8S_SECRET_ENV_VAR

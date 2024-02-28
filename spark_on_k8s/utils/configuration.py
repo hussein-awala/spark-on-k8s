@@ -4,7 +4,6 @@ import json
 from os import getenv
 
 from kubernetes import client as k8s
-from kubernetes_asyncio import client as async_k8s
 
 
 class Configuration:
@@ -58,9 +57,14 @@ class Configuration:
         if getenv("SPARK_ON_K8S_CLIENT_CONFIG", None)
         else None
     )
-    SPARK_ON_K8S_ASYNC_CLIENT_CONFIG = (
-        async_k8s.Configuration(json.loads(getenv("SPARK_ON_K8S_ASYNC_CLIENT_CONFIG")))
-        if getenv("SPARK_ON_K8S_ASYNC_CLIENT_CONFIG", None)
-        else None
-    )
     SPARK_ON_K8S_IN_CLUSTER = bool(getenv("SPARK_ON_K8S_IN_CLUSTER", False))
+    try:
+        from kubernetes_asyncio import client as async_k8s
+
+        SPARK_ON_K8S_ASYNC_CLIENT_CONFIG = (
+            async_k8s.Configuration(json.loads(getenv("SPARK_ON_K8S_ASYNC_CLIENT_CONFIG")))
+            if getenv("SPARK_ON_K8S_ASYNC_CLIENT_CONFIG", None)
+            else None
+        )
+    except ImportError:
+        SPARK_ON_K8S_ASYNC_CLIENT_CONFIG = None

@@ -687,3 +687,67 @@ class TestSparkOnK8s:
             "spark.kubernetes.executor.node.selector.component": "spark",
             "spark.kubernetes.executor.node.selector.role": "executor",
         }
+
+    @mock.patch("spark_on_k8s.k8s.sync_client.KubernetesClientManager.create_client")
+    @mock.patch("kubernetes.client.api.core_v1_api.CoreV1Api.create_namespaced_pod")
+    @mock.patch("kubernetes.client.api.core_v1_api.CoreV1Api.create_namespaced_service")
+    @freeze_time(FAKE_TIME)
+    def test_submit_app_with_labels_and_annotations(
+        self, mock_create_namespaced_service, mock_create_namespaced_pod, mock_create_client
+    ):
+        """Test the method submit_app"""
+
+        spark_client = SparkOnK8S()
+        spark_client.submit_app(
+            image="pyspark-job",
+            app_path="local:///opt/spark/work-dir/job.py",
+            namespace="spark",
+            service_account="spark",
+            app_name="pyspark-job-example",
+            app_arguments=["100000"],
+            app_waiter="no_wait",
+            image_pull_policy="Never",
+            ui_reverse_proxy=True,
+            driver_resources=PodResources(cpu=1, memory=2048, memory_overhead=1024),
+            executor_instances=ExecutorInstances(min=2, max=5, initial=5),
+            driver_labels={"label1": "value1", "label2": "value2"},
+            executor_labels={"label3": "value3", "label4": "value4"},
+            driver_annotations={"annotation1": "value1", "annotation2": "value2"},
+            executor_annotations={"annotation3": "value3", "annotation4": "value4"},
+        )
+
+        created_pod = mock_create_namespaced_pod.call_args[1]["body"]
+        assert created_pod.metadata.labels == {
+            # default labels
+            "spark-app-name": "pyspark-job-example",
+            "spark-app-id": "pyspark-job-example-20240114121231",
+            "spark-role": "driver",
+            # ui reverse proxy label
+            "spark-ui-proxy": "true",
+            # custom labels
+            "label1": "value1",
+            "label2": "value2",
+        }
+        assert created_pod.metadata.annotations == {
+            "annotation1": "value1",
+            "annotation2": "value2",
+        }
+        arguments = created_pod.spec.containers[0].args
+        labels_config = {
+            conf.split("=")[0]: conf.split("=")[1]
+            for conf in arguments
+            if conf.startswith("spark.kubernetes.executor.label.")
+        }
+        annotations_config = {
+            conf.split("=")[0]: conf.split("=")[1]
+            for conf in arguments
+            if conf.startswith("spark.kubernetes.executor.annotation.")
+        }
+        assert labels_config == {
+            "spark.kubernetes.executor.label.label3": "value3",
+            "spark.kubernetes.executor.label.label4": "value4",
+        }
+        assert annotations_config == {
+            "spark.kubernetes.executor.annotation.annotation3": "value3",
+            "spark.kubernetes.executor.annotation.annotation4": "value4",
+        }

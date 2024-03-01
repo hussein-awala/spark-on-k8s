@@ -64,6 +64,12 @@ class Configuration:
     SPARK_ON_K8S_SPARK_EXECUTOR_NODE_SELECTOR = json.loads(
         getenv("SPARK_ON_K8S_SPARK_EXECUTOR_NODE_SELECTOR", "{}")
     )
+    SPARK_ON_K8S_SPARK_DRIVER_LABELS = json.loads(getenv("SPARK_ON_K8S_SPARK_DRIVER_LABELS", "{}"))
+    SPARK_ON_K8S_SPARK_EXECUTOR_LABELS = json.loads(getenv("SPARK_ON_K8S_SPARK_EXECUTOR_LABELS", "{}"))
+    SPARK_ON_K8S_SPARK_DRIVER_ANNOTATIONS = json.loads(getenv("SPARK_ON_K8S_SPARK_DRIVER_ANNOTATIONS", "{}"))
+    SPARK_ON_K8S_SPARK_EXECUTOR_ANNOTATIONS = json.loads(
+        getenv("SPARK_ON_K8S_SPARK_EXECUTOR_ANNOTATIONS", "{}")
+    )
     try:
         from kubernetes_asyncio import client as async_k8s
 

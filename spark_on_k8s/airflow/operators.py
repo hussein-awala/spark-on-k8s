@@ -120,6 +120,10 @@ class SparkOnK8SOperator(BaseOperator):
         executor_volume_mounts: list[k8s.V1VolumeMount] | None = None,
         driver_node_selector: dict[str, str] | None = None,
         executor_node_selector: dict[str, str] | None = None,
+        driver_labels: dict[str, str] | None = None,
+        executor_labels: dict[str, str] | None = None,
+        driver_annotations: dict[str, str] | None = None,
+        executor_annotations: dict[str, str] | None = None,
         kubernetes_conn_id: str = "kubernetes_default",
         poll_interval: int = 10,
         deferrable: bool = False,
@@ -147,6 +151,10 @@ class SparkOnK8SOperator(BaseOperator):
         self.executor_volume_mounts = executor_volume_mounts
         self.driver_node_selector = driver_node_selector
         self.executor_node_selector = executor_node_selector
+        self.driver_labels = driver_labels
+        self.executor_labels = executor_labels
+        self.driver_annotations = driver_annotations
+        self.executor_annotations = executor_annotations
         self.kubernetes_conn_id = kubernetes_conn_id
         self.poll_interval = poll_interval
         self.deferrable = deferrable
@@ -238,6 +246,10 @@ class SparkOnK8SOperator(BaseOperator):
             executor_volume_mounts=self.executor_volume_mounts,
             driver_node_selector=self.driver_node_selector,
             executor_node_selector=self.executor_node_selector,
+            driver_labels=self.driver_labels,
+            executor_labels=self.executor_labels,
+            driver_annotations=self.driver_annotations,
+            executor_annotations=self.executor_annotations,
         )
         if self.app_waiter == "no_wait":
             return

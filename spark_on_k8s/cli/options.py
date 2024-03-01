@@ -218,3 +218,39 @@ executor_node_selector_option = click.Option(
     show_default=True,
     help="Node selector for the executor in key=value format. Can be repeated.",
 )
+driver_labels_option = click.Option(
+    ("--driver-label", "driver_labels"),
+    type=str,
+    multiple=True,
+    callback=validate_dictionary_option,
+    default=Configuration.SPARK_ON_K8S_SPARK_DRIVER_LABELS,
+    show_default=True,
+    help="Labels for the driver in key=value format. Can be repeated.",
+)
+executor_labels_option = click.Option(
+    ("--executor-label", "executor_labels"),
+    type=str,
+    multiple=True,
+    callback=validate_dictionary_option,
+    default=Configuration.SPARK_ON_K8S_SPARK_EXECUTOR_LABELS,
+    show_default=True,
+    help="Labels for the executor in key=value format. Can be repeated.",
+)
+driver_annotations_option = click.Option(
+    ("--driver-annotation", "driver_annotations"),
+    type=str,
+    multiple=True,
+    callback=validate_dictionary_option,
+    default=Configuration.SPARK_ON_K8S_SPARK_DRIVER_ANNOTATIONS,
+    show_default=True,
+    help="Annotations for the driver in key=value format. Can be repeated.",
+)
+executor_annotations_option = click.Option(
+    ("--executor-annotation", "executor_annotations"),
+    type=str,
+    multiple=True,
+    callback=validate_dictionary_option,
+    default=Configuration.SPARK_ON_K8S_SPARK_EXECUTOR_ANNOTATIONS,
+    show_default=True,
+    help="Annotations for the executor in key=value format. Can be repeated.",
+)

@@ -125,6 +125,10 @@ class SparkOnK8S(LoggingMixin):
         executor_volume_mounts: list[k8s.V1VolumeMount] | ArgNotSet = NOTSET,
         driver_node_selector: dict[str, str] | ArgNotSet = NOTSET,
         executor_node_selector: dict[str, str] | ArgNotSet = NOTSET,
+        driver_annotations: dict[str, str] | ArgNotSet = NOTSET,
+        executor_annotations: dict[str, str] | ArgNotSet = NOTSET,
+        driver_labels: dict[str, str] | ArgNotSet = NOTSET,
+        executor_labels: dict[str, str] | ArgNotSet = NOTSET,
     ) -> str:
         """Submit a Spark app to Kubernetes
 
@@ -246,6 +250,14 @@ class SparkOnK8S(LoggingMixin):
             driver_node_selector = {}
         if executor_node_selector is NOTSET or executor_node_selector is None:
             executor_node_selector = {}
+        if driver_annotations is NOTSET or driver_annotations is None:
+            driver_annotations = {}
+        if executor_annotations is NOTSET or executor_annotations is None:
+            executor_annotations = {}
+        if driver_labels is NOTSET or driver_labels is None:
+            driver_labels = {}
+        if executor_labels is NOTSET or executor_labels is None:
+            executor_labels = {}
 
         spark_conf = spark_conf or {}
         main_class_parameters = app_arguments or []
@@ -293,6 +305,10 @@ class SparkOnK8S(LoggingMixin):
             )
         if executor_node_selector:
             basic_conf.update(self._executor_node_selector(node_selector=executor_node_selector))
+        if executor_labels:
+            basic_conf.update(self._executor_labels(labels=executor_labels))
+        if executor_annotations:
+            basic_conf.update(self._executor_annotations(annotations=executor_annotations))
         driver_command_args = ["driver", "--master", "k8s://https://kubernetes.default.svc.cluster.local:443"]
         if class_name:
             driver_command_args.extend(["--class", class_name])
@@ -306,7 +322,8 @@ class SparkOnK8S(LoggingMixin):
             image_pull_policy=image_pull_policy,
             namespace=namespace,
             args=driver_command_args,
-            extra_labels=extra_labels,
+            extra_labels={**extra_labels, **driver_labels},
+            annotations=driver_annotations,
             pod_resources={
                 "requests": {
                     "cpu": f"{driver_resources.cpu}",
@@ -553,3 +570,35 @@ class SparkOnK8S(LoggingMixin):
         return {
             f"spark.kubernetes.executor.node.selector.{key}": value for key, value in node_selector.items()
         }
+
+    @staticmethod
+    def _executor_labels(
+        labels: dict[str, str] | None,
+    ) -> dict[str, str]:
+        """Spark configuration to set labels for the executors
+
+        Args:
+            labels: Labels for the executors
+
+        Returns:
+            Spark configuration dictionary
+        """
+        if not labels:
+            return {}
+        return {f"spark.kubernetes.executor.label.{key}": value for key, value in labels.items()}
+
+    @staticmethod
+    def _executor_annotations(
+        annotations: dict[str, str] | None,
+    ) -> dict[str, str]:
+        """Spark configuration to set annotations for the executors
+
+        Args:
+            annotations: Annotations for the executors
+
+        Returns:
+            Spark configuration dictionary
+        """
+        if not annotations:
+            return {}
+        return {f"spark.kubernetes.executor.annotation.{key}": value for key, value in annotations.items()}

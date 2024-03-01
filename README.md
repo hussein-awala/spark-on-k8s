@@ -182,6 +182,10 @@ and the CLI. Here is a list of the available environment variables:
 | SPARK_ON_K8S_API_LIMIT_CONCURRENCY         | The limit concurrency to use for the API              | 1000         |
 | SPARK_ON_K8S_SPARK_DRIVER_NODE_SELECTOR    | The node selector to use for the driver pod           | {}           |
 | SPARK_ON_K8S_SPARK_EXECUTOR_NODE_SELECTOR  | The node selector to use for the executor pods        | {}           |
+| SPARK_ON_K8S_SPARK_DRIVER_LABELS           | The labels to use for the driver pod                  | {}           |
+| SPARK_ON_K8S_SPARK_EXECUTOR_LABELS         | The labels to use for the executor pods               | {}           |
+| SPARK_ON_K8S_SPARK_DRIVER_ANNOTATIONS      | The annotations to use for the driver pod             | {}           |
+| SPARK_ON_K8S_SPARK_EXECUTOR_ANNOTATIONS    | The annotations to use for the executor pods          | {}           |
 
 
 ## Examples

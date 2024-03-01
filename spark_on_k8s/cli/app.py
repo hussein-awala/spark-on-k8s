@@ -10,13 +10,17 @@ from spark_on_k8s.cli.options import (
     app_path_option,
     class_name_option,
     docker_image_option,
+    driver_annotations_option,
     driver_cpu_option,
     driver_env_vars_from_secrets_option,
+    driver_labels_option,
     driver_memory_option,
     driver_memory_overhead_option,
     driver_node_selector_option,
+    executor_annotations_option,
     executor_cpu_option,
     executor_initial_instances_option,
+    executor_labels_option,
     executor_max_instances_option,
     executor_memory_option,
     executor_memory_overhead_option,
@@ -121,6 +125,10 @@ def wait(app_id: str, namespace: str):
         driver_env_vars_from_secrets_option,
         driver_node_selector_option,
         executor_node_selector_option,
+        driver_labels_option,
+        executor_labels_option,
+        driver_annotations_option,
+        executor_annotations_option,
     ],
     help="Submit a Spark application.",
 )
@@ -151,6 +159,10 @@ def submit(
     driver_env_vars_from_secrets: list[str],
     driver_node_selector: dict[str, str],
     executor_node_selector: dict[str, str],
+    driver_labels: dict[str, str],
+    executor_labels: dict[str, str],
+    driver_annotations: dict[str, str],
+    executor_annotations: dict[str, str],
 ):
     from spark_on_k8s.client import ExecutorInstances, PodResources, SparkOnK8S
 
@@ -187,4 +199,8 @@ def submit(
         driver_env_vars_from_secrets=driver_env_vars_from_secrets,
         driver_node_selector=driver_node_selector,
         executor_node_selector=executor_node_selector,
+        driver_labels=driver_labels,
+        executor_labels=executor_labels,
+        driver_annotations=driver_annotations,
+        executor_annotations=executor_annotations,
     )

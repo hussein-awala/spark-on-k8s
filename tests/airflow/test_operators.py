@@ -30,6 +30,10 @@ class TestSparkOnK8SOperator:
             ui_reverse_proxy=True,
             driver_node_selector={"node-type": "driver"},
             executor_node_selector={"node-type": "executor"},
+            driver_labels={"label1": "value1"},
+            executor_labels={"label2": "value2"},
+            driver_annotations={"annotation1": "value1"},
+            executor_annotations={"annotation2": "value2"},
         )
         spark_app_task.execute(None)
         mock_submit_app.assert_called_once_with(
@@ -53,6 +57,10 @@ class TestSparkOnK8SOperator:
             executor_volume_mounts=None,
             driver_node_selector={"node-type": "driver"},
             executor_node_selector={"node-type": "executor"},
+            driver_labels={"label1": "value1"},
+            executor_labels={"label2": "value2"},
+            driver_annotations={"annotation1": "value1"},
+            executor_annotations={"annotation2": "value2"},
         )
 
     @mock.patch("spark_on_k8s.client.SparkOnK8S.submit_app")
@@ -137,4 +145,8 @@ class TestSparkOnK8SOperator:
             executor_volume_mounts=None,
             driver_node_selector=None,
             executor_node_selector=None,
+            driver_labels=None,
+            executor_labels=None,
+            driver_annotations=None,
+            executor_annotations=None,
         )

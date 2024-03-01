@@ -200,3 +200,21 @@ driver_env_vars_from_secrets_option = click.Option(
     show_default=True,
     help="Secrets to load environment variables from for the driver. Comma-separated list of secret names.",
 )
+driver_node_selector_option = click.Option(
+    ("--driver-node-selector", "driver_node_selector"),
+    type=str,
+    multiple=True,
+    callback=validate_dictionary_option,
+    default=Configuration.SPARK_ON_K8S_SPARK_DRIVER_NODE_SELECTOR,
+    show_default=True,
+    help="Node selector for the driver in key=value format. Can be repeated.",
+)
+executor_node_selector_option = click.Option(
+    ("--executor-node-selector", "executor_node_selector"),
+    type=str,
+    multiple=True,
+    callback=validate_dictionary_option,
+    default=Configuration.SPARK_ON_K8S_SPARK_EXECUTOR_NODE_SELECTOR,
+    show_default=True,
+    help="Node selector for the executor in key=value format. Can be repeated.",
+)

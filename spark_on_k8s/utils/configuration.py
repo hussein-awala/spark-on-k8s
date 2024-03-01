@@ -58,6 +58,12 @@ class Configuration:
         else None
     )
     SPARK_ON_K8S_IN_CLUSTER = bool(getenv("SPARK_ON_K8S_IN_CLUSTER", False))
+    SPARK_ON_K8S_SPARK_DRIVER_NODE_SELECTOR = json.loads(
+        getenv("SPARK_ON_K8S_SPARK_DRIVER_NODE_SELECTOR", "{}")
+    )
+    SPARK_ON_K8S_SPARK_EXECUTOR_NODE_SELECTOR = json.loads(
+        getenv("SPARK_ON_K8S_SPARK_EXECUTOR_NODE_SELECTOR", "{}")
+    )
     try:
         from kubernetes_asyncio import client as async_k8s
 

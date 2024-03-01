@@ -123,6 +123,8 @@ class SparkOnK8S(LoggingMixin):
         volumes: list[k8s.V1Volume] | ArgNotSet = NOTSET,
         driver_volume_mounts: list[k8s.V1VolumeMount] | ArgNotSet = NOTSET,
         executor_volume_mounts: list[k8s.V1VolumeMount] | ArgNotSet = NOTSET,
+        driver_node_selector: dict[str, str] | ArgNotSet = NOTSET,
+        executor_node_selector: dict[str, str] | ArgNotSet = NOTSET,
     ) -> str:
         """Submit a Spark app to Kubernetes
 
@@ -158,6 +160,8 @@ class SparkOnK8S(LoggingMixin):
             volumes: List of volumes to mount to the driver and/or executors
             driver_volume_mounts: List of volume mounts to mount to the driver
             executor_volume_mounts: List of volume mounts to mount to the executors
+            driver_node_selector: Node selector for the driver
+            executor_node_selector: Node selector for the executors
 
         Returns:
             Name of the Spark application pod
@@ -238,6 +242,10 @@ class SparkOnK8S(LoggingMixin):
             driver_volume_mounts = []
         if executor_volume_mounts is NOTSET or executor_volume_mounts is None:
             executor_volume_mounts = []
+        if driver_node_selector is NOTSET or driver_node_selector is None:
+            driver_node_selector = {}
+        if executor_node_selector is NOTSET or executor_node_selector is None:
+            executor_node_selector = {}
 
         spark_conf = spark_conf or {}
         main_class_parameters = app_arguments or []
@@ -283,6 +291,8 @@ class SparkOnK8S(LoggingMixin):
             basic_conf.update(
                 self._executor_volumes_config(volumes=volumes, volume_mounts=executor_volume_mounts)
             )
+        if executor_node_selector:
+            basic_conf.update(self._executor_node_selector(node_selector=executor_node_selector))
         driver_command_args = ["driver", "--master", "k8s://https://kubernetes.default.svc.cluster.local:443"]
         if class_name:
             driver_command_args.extend(["--class", class_name])
@@ -310,6 +320,7 @@ class SparkOnK8S(LoggingMixin):
             env_from_secrets=env_from_secrets,
             volumes=volumes,
             volume_mounts=driver_volume_mounts,
+            node_selector=driver_node_selector,
         )
         with self.k8s_client_manager.client() as client:
             api = k8s.CoreV1Api(client)
@@ -524,3 +535,21 @@ class SparkOnK8S(LoggingMixin):
             if volume_mount.read_only:
                 config[f"{volume_config_prefix}.readOnly"] = True
         return config
+
+    @staticmethod
+    def _executor_node_selector(
+        node_selector: dict[str, str] | None,
+    ) -> dict[str, str]:
+        """Spark configuration to set node selector for the executors
+
+        Args:
+            node_selector: Node selector for the executors
+
+        Returns:
+            Spark configuration dictionary
+        """
+        if not node_selector:
+            return {}
+        return {
+            f"spark.kubernetes.executor.node.selector.{key}": value for key, value in node_selector.items()
+        }

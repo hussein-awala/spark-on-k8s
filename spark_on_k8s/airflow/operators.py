@@ -65,6 +65,8 @@ class SparkOnK8SOperator(BaseOperator):
         volumes: List of volumes to mount to the driver and/or executors.
         driver_volume_mounts: List of volume mounts to mount to the driver.
         executor_volume_mounts: List of volume mounts to mount to the executors.
+        driver_node_selector: Node selector for the driver pod.
+        executor_node_selector: Node selector for the executor pods.
         kubernetes_conn_id (str, optional): Kubernetes connection ID. Defaults to
             "kubernetes_default".
         poll_interval (int, optional): Poll interval for checking the Spark application status.
@@ -116,6 +118,8 @@ class SparkOnK8SOperator(BaseOperator):
         volumes: list[k8s.V1Volume] | None = None,
         driver_volume_mounts: list[k8s.V1VolumeMount] | None = None,
         executor_volume_mounts: list[k8s.V1VolumeMount] | None = None,
+        driver_node_selector: dict[str, str] | None = None,
+        executor_node_selector: dict[str, str] | None = None,
         kubernetes_conn_id: str = "kubernetes_default",
         poll_interval: int = 10,
         deferrable: bool = False,
@@ -141,6 +145,8 @@ class SparkOnK8SOperator(BaseOperator):
         self.volumes = volumes
         self.driver_volume_mounts = driver_volume_mounts
         self.executor_volume_mounts = executor_volume_mounts
+        self.driver_node_selector = driver_node_selector
+        self.executor_node_selector = executor_node_selector
         self.kubernetes_conn_id = kubernetes_conn_id
         self.poll_interval = poll_interval
         self.deferrable = deferrable
@@ -230,6 +236,8 @@ class SparkOnK8SOperator(BaseOperator):
             volumes=self.volumes,
             driver_volume_mounts=self.driver_volume_mounts,
             executor_volume_mounts=self.executor_volume_mounts,
+            driver_node_selector=self.driver_node_selector,
+            executor_node_selector=self.executor_node_selector,
         )
         if self.app_waiter == "no_wait":
             return

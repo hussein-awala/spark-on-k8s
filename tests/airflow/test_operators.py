@@ -28,6 +28,8 @@ class TestSparkOnK8SOperator:
             executor_resources=PodResources(cpu=1, memory=1024, memory_overhead=512),
             executor_instances=ExecutorInstances(min=0, max=5, initial=5),
             ui_reverse_proxy=True,
+            driver_node_selector={"node-type": "driver"},
+            executor_node_selector={"node-type": "executor"},
         )
         spark_app_task.execute(None)
         mock_submit_app.assert_called_once_with(
@@ -49,6 +51,8 @@ class TestSparkOnK8SOperator:
             volumes=None,
             driver_volume_mounts=None,
             executor_volume_mounts=None,
+            driver_node_selector={"node-type": "driver"},
+            executor_node_selector={"node-type": "executor"},
         )
 
     @mock.patch("spark_on_k8s.client.SparkOnK8S.submit_app")
@@ -131,4 +135,6 @@ class TestSparkOnK8SOperator:
             volumes=None,
             driver_volume_mounts=None,
             executor_volume_mounts=None,
+            driver_node_selector=None,
+            executor_node_selector=None,
         )

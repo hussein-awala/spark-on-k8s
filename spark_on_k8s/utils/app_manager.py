@@ -325,6 +325,7 @@ class SparkAppManager(LoggingMixin):
         volumes: list[k8s.V1Volume] | None = None,
         volume_mounts: list[k8s.V1VolumeMount] | None = None,
         node_selector: dict[str, str] | None = None,
+        tolerations: list[k8s.V1Toleration] | None = None,
     ) -> k8s.V1PodTemplateSpec:
         """Create a pod spec for a Spark application
 
@@ -345,6 +346,7 @@ class SparkAppManager(LoggingMixin):
             volumes: List of volumes to mount in the pod
             volume_mounts: List of volume mounts to mount in the container
             node_selector: Node selector to use for the pod
+            tolerations: List of tolerations to use for the pod
 
         Returns:
             Pod template spec for the Spark application
@@ -376,6 +378,7 @@ class SparkAppManager(LoggingMixin):
             ],
             volumes=volumes,
             node_selector=node_selector,
+            tolerations=tolerations,
         )
         template = k8s.V1PodTemplateSpec(
             metadata=pod_metadata,

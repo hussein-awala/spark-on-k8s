@@ -11,8 +11,14 @@ from conftest import PYTHON_312
 class TestSparkOnK8SOperator:
     @mock.patch("spark_on_k8s.client.SparkOnK8S.submit_app")
     def test_execute(self, mock_submit_app):
+        import kubernetes.client as k8s
         from spark_on_k8s.airflow.operators import SparkOnK8SOperator
         from spark_on_k8s.client import ExecutorInstances, PodResources
+
+        test_tolerations = [
+            k8s.V1Toleration(key="key1", operator="Equal", value="value1", effect="NoSchedule"),
+            k8s.V1Toleration(key="key2", operator="Equal", value="value2", effect="NoSchedule"),
+        ]
 
         spark_app_task = SparkOnK8SOperator(
             task_id="spark_application",
@@ -34,6 +40,7 @@ class TestSparkOnK8SOperator:
             executor_labels={"label2": "value2"},
             driver_annotations={"annotation1": "value1"},
             executor_annotations={"annotation2": "value2"},
+            driver_tolerations=test_tolerations,
         )
         spark_app_task.execute(None)
         mock_submit_app.assert_called_once_with(
@@ -61,6 +68,7 @@ class TestSparkOnK8SOperator:
             executor_labels={"label2": "value2"},
             driver_annotations={"annotation1": "value1"},
             executor_annotations={"annotation2": "value2"},
+            driver_tolerations=test_tolerations,
         )
 
     @mock.patch("spark_on_k8s.client.SparkOnK8S.submit_app")
@@ -149,4 +157,5 @@ class TestSparkOnK8SOperator:
             executor_labels=None,
             driver_annotations=None,
             executor_annotations=None,
+            driver_tolerations=None,
         )

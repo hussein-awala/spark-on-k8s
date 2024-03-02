@@ -67,6 +67,7 @@ class SparkOnK8SOperator(BaseOperator):
         executor_volume_mounts: List of volume mounts to mount to the executors.
         driver_node_selector: Node selector for the driver pod.
         executor_node_selector: Node selector for the executor pods.
+        driver_tolerations: Tolerations for the driver pod.
         kubernetes_conn_id (str, optional): Kubernetes connection ID. Defaults to
             "kubernetes_default".
         poll_interval (int, optional): Poll interval for checking the Spark application status.
@@ -124,6 +125,7 @@ class SparkOnK8SOperator(BaseOperator):
         executor_labels: dict[str, str] | None = None,
         driver_annotations: dict[str, str] | None = None,
         executor_annotations: dict[str, str] | None = None,
+        driver_tolerations: list[k8s.V1Toleration] | None = None,
         kubernetes_conn_id: str = "kubernetes_default",
         poll_interval: int = 10,
         deferrable: bool = False,
@@ -155,6 +157,7 @@ class SparkOnK8SOperator(BaseOperator):
         self.executor_labels = executor_labels
         self.driver_annotations = driver_annotations
         self.executor_annotations = executor_annotations
+        self.driver_tolerations = driver_tolerations
         self.kubernetes_conn_id = kubernetes_conn_id
         self.poll_interval = poll_interval
         self.deferrable = deferrable
@@ -250,6 +253,7 @@ class SparkOnK8SOperator(BaseOperator):
             executor_labels=self.executor_labels,
             driver_annotations=self.driver_annotations,
             executor_annotations=self.executor_annotations,
+            driver_tolerations=self.driver_tolerations,
         )
         if self.app_waiter == "no_wait":
             return

@@ -129,6 +129,7 @@ class SparkOnK8S(LoggingMixin):
         executor_annotations: dict[str, str] | ArgNotSet = NOTSET,
         driver_labels: dict[str, str] | ArgNotSet = NOTSET,
         executor_labels: dict[str, str] | ArgNotSet = NOTSET,
+        driver_tolerations: list[k8s.V1Toleration] | ArgNotSet = NOTSET,
     ) -> str:
         """Submit a Spark app to Kubernetes
 
@@ -166,6 +167,7 @@ class SparkOnK8S(LoggingMixin):
             executor_volume_mounts: List of volume mounts to mount to the executors
             driver_node_selector: Node selector for the driver
             executor_node_selector: Node selector for the executors
+            driver_tolerations: List of tolerations for the driver
 
         Returns:
             Name of the Spark application pod
@@ -258,6 +260,8 @@ class SparkOnK8S(LoggingMixin):
             driver_labels = {}
         if executor_labels is NOTSET or executor_labels is None:
             executor_labels = {}
+        if driver_tolerations is NOTSET or driver_tolerations is None:
+            driver_tolerations = []
 
         spark_conf = spark_conf or {}
         main_class_parameters = app_arguments or []
@@ -338,6 +342,7 @@ class SparkOnK8S(LoggingMixin):
             volumes=volumes,
             volume_mounts=driver_volume_mounts,
             node_selector=driver_node_selector,
+            tolerations=driver_tolerations,
         )
         with self.k8s_client_manager.client() as client:
             api = k8s.CoreV1Api(client)

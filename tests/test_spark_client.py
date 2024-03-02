@@ -751,3 +751,55 @@ class TestSparkOnK8s:
             "spark.kubernetes.executor.annotation.annotation3": "value3",
             "spark.kubernetes.executor.annotation.annotation4": "value4",
         }
+
+    @mock.patch("spark_on_k8s.k8s.sync_client.KubernetesClientManager.create_client")
+    @mock.patch("kubernetes.client.api.core_v1_api.CoreV1Api.create_namespaced_pod")
+    @mock.patch("kubernetes.client.api.core_v1_api.CoreV1Api.create_namespaced_service")
+    @freeze_time(FAKE_TIME)
+    def test_submit_app_with_tolerations(
+        self, mock_create_namespaced_service, mock_create_namespaced_pod, mock_create_client
+    ):
+        """Test the method submit_app"""
+
+        spark_client = SparkOnK8S()
+        spark_client.submit_app(
+            image="pyspark-job",
+            app_path="local:///opt/spark/work-dir/job.py",
+            namespace="spark",
+            service_account="spark",
+            app_name="pyspark-job-example",
+            app_arguments=["100000"],
+            app_waiter="no_wait",
+            image_pull_policy="Never",
+            ui_reverse_proxy=True,
+            driver_resources=PodResources(cpu=1, memory=2048, memory_overhead=1024),
+            executor_instances=ExecutorInstances(min=2, max=5, initial=5),
+            driver_tolerations=[
+                k8s.V1Toleration(
+                    key="key1",
+                    operator="Equal",
+                    value="value1",
+                    effect="NoSchedule",
+                ),
+                k8s.V1Toleration(
+                    key="key2",
+                    operator="Exists",
+                    effect="NoExecute",
+                ),
+            ],
+        )
+
+        created_pod = mock_create_namespaced_pod.call_args[1]["body"]
+        assert created_pod.spec.tolerations == [
+            k8s.V1Toleration(
+                key="key1",
+                operator="Equal",
+                value="value1",
+                effect="NoSchedule",
+            ),
+            k8s.V1Toleration(
+                key="key2",
+                operator="Exists",
+                effect="NoExecute",
+            ),
+        ]

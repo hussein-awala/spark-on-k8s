@@ -26,6 +26,7 @@ from spark_on_k8s.cli.options import (
     executor_memory_overhead_option,
     executor_min_instances_option,
     executor_node_selector_option,
+    executor_pod_template_path_option,
     force_option,
     image_pull_policy_option,
     logs_option,
@@ -129,6 +130,7 @@ def wait(app_id: str, namespace: str):
         executor_labels_option,
         driver_annotations_option,
         executor_annotations_option,
+        executor_pod_template_path_option,
     ],
     help="Submit a Spark application.",
 )
@@ -163,6 +165,7 @@ def submit(
     executor_labels: dict[str, str],
     driver_annotations: dict[str, str],
     executor_annotations: dict[str, str],
+    executor_pod_template_path: str,
 ):
     from spark_on_k8s.client import ExecutorInstances, PodResources, SparkOnK8S
 
@@ -203,4 +206,5 @@ def submit(
         executor_labels=executor_labels,
         driver_annotations=driver_annotations,
         executor_annotations=executor_annotations,
+        executor_pod_template_path=executor_pod_template_path,
     )

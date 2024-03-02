@@ -254,3 +254,10 @@ executor_annotations_option = click.Option(
     show_default=True,
     help="Annotations for the executor in key=value format. Can be repeated.",
 )
+executor_pod_template_path_option = click.Option(
+    ("--executor-pod-template-path", "executor_pod_template_path"),
+    type=str,
+    default=Configuration.SPARK_ON_K8S_EXECUTOR_POD_TEMPLATE_PATH,
+    show_default=True,
+    help="The path to the executor pod template file.",
+)

@@ -70,6 +70,7 @@ class Configuration:
     SPARK_ON_K8S_SPARK_EXECUTOR_ANNOTATIONS = json.loads(
         getenv("SPARK_ON_K8S_SPARK_EXECUTOR_ANNOTATIONS", "{}")
     )
+    SPARK_ON_K8S_EXECUTOR_POD_TEMPLATE_PATH = getenv("SPARK_ON_K8S_EXECUTOR_POD_TEMPLATE_PATH", None)
     try:
         from kubernetes_asyncio import client as async_k8s
 

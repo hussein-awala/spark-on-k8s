@@ -126,6 +126,7 @@ class SparkOnK8SOperator(BaseOperator):
         driver_annotations: dict[str, str] | None = None,
         executor_annotations: dict[str, str] | None = None,
         driver_tolerations: list[k8s.V1Toleration] | None = None,
+        executor_pod_template_path: str | None = None,
         kubernetes_conn_id: str = "kubernetes_default",
         poll_interval: int = 10,
         deferrable: bool = False,
@@ -158,6 +159,7 @@ class SparkOnK8SOperator(BaseOperator):
         self.driver_annotations = driver_annotations
         self.executor_annotations = executor_annotations
         self.driver_tolerations = driver_tolerations
+        self.executor_pod_template_path = executor_pod_template_path
         self.kubernetes_conn_id = kubernetes_conn_id
         self.poll_interval = poll_interval
         self.deferrable = deferrable
@@ -254,6 +256,7 @@ class SparkOnK8SOperator(BaseOperator):
             driver_annotations=self.driver_annotations,
             executor_annotations=self.executor_annotations,
             driver_tolerations=self.driver_tolerations,
+            executor_pod_template_path=self.executor_pod_template_path,
         )
         if self.app_waiter == "no_wait":
             return

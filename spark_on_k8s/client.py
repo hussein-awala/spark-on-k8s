@@ -130,6 +130,7 @@ class SparkOnK8S(LoggingMixin):
         driver_labels: dict[str, str] | ArgNotSet = NOTSET,
         executor_labels: dict[str, str] | ArgNotSet = NOTSET,
         driver_tolerations: list[k8s.V1Toleration] | ArgNotSet = NOTSET,
+        executor_pod_template_path: str | ArgNotSet = NOTSET,
     ) -> str:
         """Submit a Spark app to Kubernetes
 
@@ -168,6 +169,7 @@ class SparkOnK8S(LoggingMixin):
             driver_node_selector: Node selector for the driver
             executor_node_selector: Node selector for the executors
             driver_tolerations: List of tolerations for the driver
+            executor_pod_template_path: Path to the executor pod template file
 
         Returns:
             Name of the Spark application pod
@@ -262,6 +264,8 @@ class SparkOnK8S(LoggingMixin):
             executor_labels = {}
         if driver_tolerations is NOTSET or driver_tolerations is None:
             driver_tolerations = []
+        if executor_pod_template_path is NOTSET or executor_pod_template_path is None:
+            executor_pod_template_path = Configuration.SPARK_ON_K8S_EXECUTOR_POD_TEMPLATE_PATH
 
         spark_conf = spark_conf or {}
         main_class_parameters = app_arguments or []
@@ -313,6 +317,8 @@ class SparkOnK8S(LoggingMixin):
             basic_conf.update(self._executor_labels(labels=executor_labels))
         if executor_annotations:
             basic_conf.update(self._executor_annotations(annotations=executor_annotations))
+        if executor_pod_template_path:
+            basic_conf.update(self._executor_pod_template_path(executor_pod_template_path))
         driver_command_args = ["driver", "--master", "k8s://https://kubernetes.default.svc.cluster.local:443"]
         if class_name:
             driver_command_args.extend(["--class", class_name])
@@ -607,3 +613,19 @@ class SparkOnK8S(LoggingMixin):
         if not annotations:
             return {}
         return {f"spark.kubernetes.executor.annotation.{key}": value for key, value in annotations.items()}
+
+    @staticmethod
+    def _executor_pod_template_path(
+        executor_pod_template_path: str | None,
+    ) -> dict[str, str]:
+        """Spark configuration to set the executor pod template file
+
+        Args:
+            executor_pod_template_path: Path to the executor pod template file
+
+        Returns:
+            Spark configuration dictionary
+        """
+        if not executor_pod_template_path:
+            return {}
+        return {"spark.kubernetes.executor.podTemplateFile": executor_pod_template_path}

@@ -41,6 +41,7 @@ class TestSparkOnK8SOperator:
             driver_annotations={"annotation1": "value1"},
             executor_annotations={"annotation2": "value2"},
             driver_tolerations=test_tolerations,
+            executor_pod_template_path="s3a://bucket/executor.yml",
         )
         spark_app_task.execute(None)
         mock_submit_app.assert_called_once_with(
@@ -69,6 +70,7 @@ class TestSparkOnK8SOperator:
             driver_annotations={"annotation1": "value1"},
             executor_annotations={"annotation2": "value2"},
             driver_tolerations=test_tolerations,
+            executor_pod_template_path="s3a://bucket/executor.yml",
         )
 
     @mock.patch("spark_on_k8s.client.SparkOnK8S.submit_app")
@@ -158,4 +160,5 @@ class TestSparkOnK8SOperator:
             driver_annotations=None,
             executor_annotations=None,
             driver_tolerations=None,
+            executor_pod_template_path=None,
         )

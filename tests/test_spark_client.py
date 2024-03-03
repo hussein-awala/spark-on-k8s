@@ -803,3 +803,37 @@ class TestSparkOnK8s:
                 effect="NoExecute",
             ),
         ]
+
+    @mock.patch("spark_on_k8s.k8s.sync_client.KubernetesClientManager.create_client")
+    @mock.patch("kubernetes.client.api.core_v1_api.CoreV1Api.create_namespaced_pod")
+    @mock.patch("kubernetes.client.api.core_v1_api.CoreV1Api.create_namespaced_service")
+    @freeze_time(FAKE_TIME)
+    def test_submit_app_with_executor_pod_template_path(
+        self, mock_create_namespaced_service, mock_create_namespaced_pod, mock_create_client
+    ):
+        """Test the method submit_app"""
+
+        spark_client = SparkOnK8S()
+        spark_client.submit_app(
+            image="pyspark-job",
+            app_path="local:///opt/spark/work-dir/job.py",
+            namespace="spark",
+            service_account="spark",
+            app_name="pyspark-job-example",
+            app_arguments=["100000"],
+            app_waiter="no_wait",
+            image_pull_policy="Never",
+            ui_reverse_proxy=True,
+            driver_resources=PodResources(cpu=1, memory=2048, memory_overhead=1024),
+            executor_instances=ExecutorInstances(min=2, max=5, initial=5),
+            executor_pod_template_path="s3a://bucket/executor.yml",
+        )
+
+        created_pod = mock_create_namespaced_pod.call_args[1]["body"]
+        arguments = created_pod.spec.containers[0].args
+        executor_config = {
+            conf.split("=")[0]: conf.split("=")[1]
+            for conf in arguments
+            if conf.startswith("spark.kubernetes.executor")
+        }
+        assert executor_config.get("spark.kubernetes.executor.podTemplateFile") == "s3a://bucket/executor.yml"

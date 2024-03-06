@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kubernetes Pod Logs Viewer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+            margin: 20px;
+        }
+
+        h1 {
+            color: #428bca;
+            text-align: center;
+        }
+
+        #logs-container {
+            border: 1px solid #ddd;
+            background-color: #fff;
+            padding: 10px;
+            overflow-y: auto;
+            max-height: 600px;
+            margin-top: 20px;
+            min-height: 200px;
+        }
+
+        p {
+            margin: 5px 0;
+        }
+
+        .spark-button {
+            background-color: #5bc0de;
+            color: #fff;
+            border: none;
+            padding: 5px 10px;
+            cursor: pointer;
+            text-decoration: none;
+        }
+
+        .spark-button:hover {
+            background-color: #31b0d5;
+        }
+    </style>
+</head>
+<body>
+    <h1>Kubernetes Pod Logs Viewer</h1>
+    <div id="logs-container"></div>
+
+    <script>
+        const ws = new WebSocket(`ws://127.0.0.1:8000/webserver/ws/logs/{{ namespace }}/{{ app_id }}?tail={{ tail if tail else -1 }}`);
+        ws.onopen = function(event) {
+            console.log("WebSocket connection opened");
+        };
+
+        ws.onmessage = function(event) {
+            const logsDiv = document.getElementById('logs-container');
+            logsDiv.innerHTML += `<p>${event.data}</p>`;
+            logsDiv.scrollTop = logsDiv.scrollHeight;
+        };
+
+        ws.onerror = function(event) {
+            console.error("WebSocket error:", event);
+        };
+
+        ws.onclose = function(event) {
+            console.log("WebSocket connection closed");
+        };
+    </script>
+</body>
+</html>

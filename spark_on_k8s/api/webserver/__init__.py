@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 
 import httpx
-from fastapi import APIRouter
+from fastapi import APIRouter, WebSocket
 from starlette.background import BackgroundTask
 from starlette.requests import Request  # noqa: TCH002
 from starlette.responses import HTMLResponse, StreamingResponse
@@ -12,6 +12,7 @@ from starlette.templating import Jinja2Templates
 from spark_on_k8s.api import AsyncHttpClientSingleton
 from spark_on_k8s.api.apps import list_apps
 from spark_on_k8s.api.configuration import APIConfiguration
+from spark_on_k8s.utils.app_manager import AsyncSparkAppManager
 
 router = APIRouter(
     prefix="/webserver",
@@ -60,5 +61,32 @@ async def apps(request: Request):
             "request": request,
             "apps_list": apps_list,
             "namespace": namespace,
+        },
+    )
+
+
+@router.websocket("/ws/logs/{namespace}/{app_id}")
+async def app_logs_websocket(websocket: WebSocket, namespace: str, app_id: str, tail: int = -1):
+    """Websocket endpoint to stream logs of a spark app."""
+    await websocket.accept()
+    async_spark_app_manager = AsyncSparkAppManager()
+    async for log in async_spark_app_manager.logs_streamer(
+        namespace=namespace, app_id=app_id, tail_lines=tail
+    ):
+        await websocket.send_text(log)
+    await websocket.close()
+
+
+@router.get("/logs/{namespace}/{app_id}", response_class=HTMLResponse)
+async def app_logs(request: Request, namespace: str, app_id: str):
+    """Display logs of a spark app in a web page."""
+    tail = request.query_params.get("tail", -1)
+    return templates.TemplateResponse(
+        "app_logs.html",
+        {
+            "request": request,
+            "namespace": namespace,
+            "app_id": app_id,
+            "tail": tail,
         },
     )

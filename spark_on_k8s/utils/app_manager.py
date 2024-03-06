@@ -620,9 +620,11 @@ class AsyncSparkAppManager(LoggingMixin):
                     name=pod_name,
                 )
             else:
-                _pod = await _client.list_namespaced_pod(
-                    namespace=namespace,
-                    label_selector=f"spark-app-id={app_id}",
+                _pod = (
+                    await _client.list_namespaced_pod(
+                        namespace=namespace,
+                        label_selector=f"spark-app-id={app_id}",
+                    )
                 ).items[0]
             return get_app_status(_pod)
 
@@ -681,3 +683,58 @@ class AsyncSparkAppManager(LoggingMixin):
                 level=logging.INFO,
                 should_print=should_print,
             )
+
+    async def logs_streamer(
+        self,
+        *,
+        namespace: str,
+        pod_name: str | None = None,
+        app_id: str | None = None,
+        tail_lines: int = -1,
+    ):
+        """Stream logs from a Spark app asynchronously.
+
+        Args:
+            namespace (str): Namespace.
+            pod_name (str): Pod name.
+            app_id (str): App ID.
+            tail_lines (int, optional): Number of lines to tail. Defaults to -1.
+        """
+        from kubernetes_asyncio import client as k8s_async, watch
+
+        if pod_name is None and app_id is None:
+            raise ValueError("Either pod_name or app_id must be specified")
+        if pod_name is None:
+            async with self.k8s_client_manager.client() as client:
+                api = k8s_async.CoreV1Api(client)
+                pods = (
+                    await api.list_namespaced_pod(
+                        namespace=namespace,
+                        label_selector=f"spark-app-id={app_id}",
+                    )
+                ).items
+                if len(pods) == 0:
+                    raise ValueError(f"No pods found for app {app_id}")
+                pod_name = pods[0].metadata.name
+
+        async with self.k8s_client_manager.client() as client:
+            api = k8s_async.CoreV1Api(client)
+            while True:
+                pod = await api.read_namespaced_pod(
+                    namespace=namespace,
+                    name=pod_name,
+                )
+                if pod.status.phase != "Pending":
+                    break
+
+            watcher = watch.Watch()
+            log_streamer = watcher.stream(
+                api.read_namespaced_pod_log,
+                namespace=namespace,
+                name=pod_name,
+                tail_lines=tail_lines if tail_lines > 0 else None,
+                follow=True,
+            )
+            async for line in log_streamer:
+                yield line
+            watcher.stop()

@@ -62,7 +62,7 @@
     <tr>
         <th>App ID</th>
         <th>Status</th>
-        <th>Spark UI</th>
+        <th>Links</th>
     </tr>
     {% for app in apps_list %}
     <tr>
@@ -74,6 +74,9 @@
                 <button class="spark-button">Open Spark UI</button>
             </a>
             {% endif %}
+            <a href="/webserver/logs/{{ namespace }}/{{ app.app_id }}?tail=1000" target="_blank">
+                <button class="spark-button">View Driver Logs</button>
+            </a>
         </td>
     </tr>
     {% endfor %}

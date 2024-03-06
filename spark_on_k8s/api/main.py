@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi import FastAPI
+from starlette.staticfiles import StaticFiles
 
 from spark_on_k8s import __version__
 from spark_on_k8s.api import AsyncHttpClientSingleton, KubernetesClientSingleton
@@ -27,6 +30,11 @@ app = FastAPI(
 )
 app.include_router(apps_router)
 app.include_router(webserver_router)
+app.mount(
+    "/static",
+    StaticFiles(directory=Path().parent.absolute() / "webserver/static"),
+    name="static",
+)
 
 
 @app.get("/", include_in_schema=False)

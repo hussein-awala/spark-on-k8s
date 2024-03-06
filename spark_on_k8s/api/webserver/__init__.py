@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import os
+from pathlib import Path
 
 import httpx
 from fastapi import APIRouter, WebSocket
@@ -46,8 +46,8 @@ async def ui_reverse_proxy(request: Request):
     )
 
 
-current_dir = os.path.dirname(os.path.realpath(__file__))
-templates = Jinja2Templates(directory=os.path.join(current_dir, "templates"))
+current_dir = Path(__file__).parent.absolute()
+templates = Jinja2Templates(directory=str(current_dir / "templates"))
 
 
 @router.get("/apps", response_class=HTMLResponse)

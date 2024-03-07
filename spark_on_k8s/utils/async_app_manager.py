@@ -3,8 +3,9 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from kubernetes.client import ApiException
+from kubernetes.stream import stream
 from kubernetes_asyncio import client as k8s_async, watch
+from kubernetes_asyncio.client import ApiException
 
 from spark_on_k8s.k8s.async_client import KubernetesAsyncClientManager
 from spark_on_k8s.utils.logging_mixin import LoggingMixin
@@ -169,3 +170,90 @@ class AsyncSparkAppManager(LoggingMixin):
             async for line in log_streamer:
                 yield line
             watcher.stop()
+
+    async def kill_app(
+        self,
+        namespace: str,
+        pod_name: str | None = None,
+        app_id: str | None = None,
+    ):
+        """Kill an app asynchronously.
+
+        Args:
+            namespace (str): Namespace.
+            pod_name (str): Pod name.
+            app_id (str): App ID.
+        """
+        if pod_name is None and app_id is None:
+            raise ValueError("Either pod_name or app_id must be specified")
+        async with self.k8s_client_manager.client() as client:
+            api = k8s_async.CoreV1Api(client)
+            if pod_name is None:
+                pods = (
+                    await api.list_namespaced_pod(
+                        namespace=namespace,
+                        label_selector=f"spark-app-id={app_id}",
+                    )
+                ).items
+                if len(pods) == 0:
+                    raise ValueError(f"No pods found for app {app_id}")
+                pod = pods[0]
+            else:
+                pod = await api.read_namespaced_pod(
+                    namespace=namespace,
+                    name=pod_name,
+                )
+            container_name = pod.spec.containers[0].name
+            if pod.status.phase != "Running":
+                self.log(
+                    f"App is not running, it is {get_app_status(pod).value}",
+                    level=logging.INFO,
+                )
+                return
+            await stream(
+                api.connect_get_namespaced_pod_exec,
+                pod.metadata.name,
+                namespace,
+                command=["/bin/sh", "-c", "kill 1"],
+                container=container_name,
+                stderr=True,
+                stdin=False,
+                stdout=True,
+                tty=False,
+                _preload_content=False,
+            )
+
+    async def delete_app(
+        self, namespace: str, pod_name: str | None = None, app_id: str | None = None, force: bool = False
+    ):
+        """Delete an app asynchronously.
+
+        Args:
+            namespace (str): Namespace.
+            pod_name (str): Pod name.
+            app_id (str): App ID.
+            force (bool, optional): Whether to force delete the app. Defaults to False.
+        """
+        if pod_name is None and app_id is None:
+            raise ValueError("Either pod_name or app_id must be specified")
+        async with self.k8s_client_manager.client() as client:
+            api = k8s_async.CoreV1Api(client)
+            if app_id:
+                # we don't use `delete_collection_namespaced_pod` to know if the app exists or not
+                pods = (
+                    await api.list_namespaced_pod(
+                        namespace=namespace,
+                        label_selector=f"spark-app-id={app_id}",
+                    )
+                ).items
+                if len(pods) == 0:
+                    raise ValueError(f"No pods found for app {app_id}")
+                pod_name = pods[0].metadata.name
+            await api.delete_namespaced_pod(
+                name=pod_name,
+                namespace=namespace,
+                body=k8s_async.V1DeleteOptions(
+                    grace_period_seconds=0 if force else None,
+                    propagation_policy="Foreground",
+                ),
+            )

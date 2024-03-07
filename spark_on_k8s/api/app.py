@@ -12,7 +12,7 @@ router = APIRouter(
 
 
 @router.patch(
-    "/app/{namespace}/{app_id}",
+    "/{namespace}/{app_id}",
     summary="Kill a spark application",
 )
 async def kill_app(namespace: str, app_id: str):
@@ -32,7 +32,7 @@ async def kill_app(namespace: str, app_id: str):
 
 
 @router.delete(
-    "/app/{namespace}/{app_id}",
+    "/{namespace}/{app_id}",
     summary="Delete a spark application",
 )
 async def delete_app(namespace: str, app_id: str, force: bool = False):

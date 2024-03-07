@@ -6,6 +6,7 @@ import logging
 from kubernetes.stream import stream
 from kubernetes_asyncio import client as k8s_async, watch
 from kubernetes_asyncio.client import ApiException
+from kubernetes_asyncio.stream import WsApiClient
 
 from spark_on_k8s.k8s.async_client import KubernetesAsyncClientManager
 from spark_on_k8s.utils.logging_mixin import LoggingMixin
@@ -205,13 +206,10 @@ class AsyncSparkAppManager(LoggingMixin):
                 )
             container_name = pod.spec.containers[0].name
             if pod.status.phase != "Running":
-                self.log(
-                    f"App is not running, it is {get_app_status(pod).value}",
-                    level=logging.INFO,
-                )
-                return
+                raise ValueError(f"Pod {pod.metadata.name} is not running")
+            v1_ws = k8s_async.CoreV1Api(api_client=WsApiClient())
             await stream(
-                api.connect_get_namespaced_pod_exec,
+                v1_ws.connect_get_namespaced_pod_exec,
                 pod.metadata.name,
                 namespace,
                 command=["/bin/sh", "-c", "kill 1"],
@@ -220,7 +218,7 @@ class AsyncSparkAppManager(LoggingMixin):
                 stdin=False,
                 stdout=True,
                 tty=False,
-                _preload_content=False,
+                _preload_content=True,
             )
 
     async def delete_app(

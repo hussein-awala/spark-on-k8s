@@ -53,7 +53,7 @@ class SparkOnK8STrigger(BaseTrigger):
         )
 
     async def run(self) -> AsyncIterator[TriggerEvent]:
-        from spark_on_k8s.utils.app_manager import AsyncSparkAppManager
+        from spark_on_k8s.utils.async_app_manager import AsyncSparkAppManager
 
         try:
             k8s_client_manager = _AirflowKubernetesAsyncClientManager(

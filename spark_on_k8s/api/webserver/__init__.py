@@ -12,7 +12,7 @@ from starlette.templating import Jinja2Templates
 from spark_on_k8s.api import AsyncHttpClientSingleton
 from spark_on_k8s.api.apps import list_apps
 from spark_on_k8s.api.configuration import APIConfiguration
-from spark_on_k8s.utils.app_manager import AsyncSparkAppManager
+from spark_on_k8s.utils.async_app_manager import AsyncSparkAppManager
 
 router = APIRouter(
     prefix="/webserver",

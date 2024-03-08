@@ -4,6 +4,41 @@
     <title>Spark Apps Status</title>
     <meta http-equiv="refresh" content="10">
     <link href="{{ url_for('static', path='/apps.css') }}" rel="stylesheet">
+    <script>
+        function killApp(namespace, appId) {
+            fetch(`/app/${namespace}/${appId}`, {
+                method: 'PATCH',
+            }).then(response => {
+                if (response.ok) {
+                    setTimeout(() => {
+                        window.location.reload(); // Refresh the page after 2 seconds
+                    }, 2000);
+                } else {
+                    alert('Failed to kill app.');
+                }
+            }).catch(error => {
+                console.error('Error:', error);
+                alert('Failed to kill app.');
+            });
+        }
+
+        function deleteApp(namespace, appId) {
+            fetch(`/app/${namespace}/${appId}`, {
+                method: 'DELETE'
+            }).then(response => {
+                if (response.ok) {
+                    setTimeout(() => {
+                        window.location.reload(); // Refresh the page after 2 seconds
+                    }, 2000);
+                } else {
+                    alert('Failed to delete app.');
+                }
+            }).catch(error => {
+                console.error('Error:', error);
+                alert('Failed to delete app.');
+            });
+        }
+    </script>
 </head>
 <body>
 <!--TODO: Improve the UI-->
@@ -17,7 +52,16 @@
     </tr>
     {% for app in apps_list %}
     <tr>
-        <td>{{ app.app_id }}</td>
+        <td>
+            {{ app.app_id }}
+            <div style="float: right;">
+                {% if app.spark_ui_proxy and app.status.value == 'Running' %}
+                <span class="action" onclick="killApp('{{ namespace }}', '{{ app.app_id }}')">Kill</span>
+                <br>
+                {% endif %}
+                <span class="action" onclick="deleteApp('{{ namespace }}', '{{ app.app_id }}')">Delete</span>
+            </div>
+        </td>
         <td>{{ app.status.value }}</td>
         <td>
             {% if app.spark_ui_proxy and app.status.value == 'Running' %}

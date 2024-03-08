@@ -45,3 +45,11 @@ tr:hover {
 a {
     text-decoration: none;
 }
+
+.action {
+    color: lightgray;
+    font-family: 'Arial', sans-serif;
+    font-size: 14px;
+    text-decoration: none;
+    cursor: pointer;
+}

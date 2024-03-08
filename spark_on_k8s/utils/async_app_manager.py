@@ -220,6 +220,7 @@ class AsyncSparkAppManager(LoggingMixin):
                 tty=False,
                 _preload_content=True,
             )
+            await v1_ws.api_client.close()
 
     async def delete_app(
         self, namespace: str, pod_name: str | None = None, app_id: str | None = None, force: bool = False

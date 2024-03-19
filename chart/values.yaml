@@ -56,3 +56,14 @@ tolerations: []
 affinity: {}
 
 env: []
+
+# List of namespaces to be managed by the Spark-on-K8S service
+# If equal to "*", all namespaces will be managed, then a cluster role binding will
+# be created. Otherwise, you can provide a list of namespaces as a string separated
+# by commas in the form "namespace1,namespace2,namespace3", in this case, a role
+# binding will be created for each namespace
+namespaces: "*"
+
+# If true, the Spark-on-K8S service will be able to read pods, services, pods logs,
+# and if false, it will be able to exec into pods and create/delete pods and services.
+readOnly: true

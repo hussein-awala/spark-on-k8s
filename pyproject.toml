@@ -26,6 +26,7 @@ apache-airflow = {version = ">=2.6.0", python = "<3.12", optional = true}
 apache-airflow-providers-cncf-kubernetes = {version = ">=7.0.0", python = "<3.12", optional = true}
 pendulum = {version = "<3.0.0", python = "<3.12", optional = true}
 aiohttp = {version = ">=3.9.2", optional = true}  # CVE-2024-23829, CVE-2024-23334
+websockets = {version = "^12", optional = true}
 
 [tool.poetry.dev-dependencies]
 mock = "^5.1.0"
@@ -34,7 +35,7 @@ pre-commit = "^3"
 freezegun = "^1.4.0"
 
 [tool.poetry.extras]
-api = ["fastapi", "kubernetes-asyncio", "uvicorn", "httpx", "jinja2"]
+api = ["fastapi", "kubernetes-asyncio", "uvicorn", "httpx", "jinja2", "aiohttp", "websockets"]
 airflow = ["kubernetes-asyncio", "apache-airflow", "apache-airflow-providers-cncf-kubernetes", "pendulum"]
 
 [tool.poetry.scripts]

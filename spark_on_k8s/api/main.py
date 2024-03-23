@@ -34,7 +34,7 @@ app.include_router(apps_router)
 app.include_router(webserver_router)
 app.mount(
     "/static",
-    StaticFiles(directory=Path().parent.absolute() / "webserver/static"),
+    StaticFiles(directory=Path(__file__).resolve().parent.absolute() / "webserver/static"),
     name="static",
 )
 

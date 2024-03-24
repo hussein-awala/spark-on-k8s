@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from functools import wraps
 from pathlib import Path
 
 import httpx
 from fastapi import APIRouter, WebSocket
+from kubernetes_asyncio.client import ApiException
 from starlette.background import BackgroundTask
 from starlette.requests import Request  # noqa: TCH002
 from starlette.responses import HTMLResponse, StreamingResponse
@@ -21,7 +23,28 @@ router = APIRouter(
 )
 
 
+def handle_k8s_errors(func):
+    @wraps(func)
+    async def wrapper(*args, request: Request, **kwargs):
+        try:
+            return await func(*args, request=request, **kwargs)
+        except ApiException as e:
+            title = f"{e.status} {e.reason}"
+            message = e.body
+            return templates.TemplateResponse(
+                "error.html",
+                {
+                    "request": request,
+                    "title": title,
+                    "message": message,
+                },
+            )
+
+    return wrapper
+
+
 @router.get("/ui/{path:path}")
+@handle_k8s_errors
 async def ui_reverse_proxy(request: Request):
     path = request.url.path
     path = path.replace(router.prefix + "/ui", "").lstrip("/")
@@ -51,6 +74,7 @@ templates = Jinja2Templates(directory=str(current_dir / "templates"))
 
 
 @router.get("/apps", response_class=HTMLResponse)
+@handle_k8s_errors
 async def apps(request: Request):
     """List spark apps in a namespace, and display them in a web page."""
     namespace = request.query_params.get("namespace", APIConfiguration.SPARK_ON_K8S_API_DEFAULT_NAMESPACE)
@@ -78,6 +102,7 @@ async def app_logs_websocket(websocket: WebSocket, namespace: str, app_id: str, 
 
 
 @router.get("/logs/{namespace}/{app_id}", response_class=HTMLResponse)
+@handle_k8s_errors
 async def app_logs(request: Request, namespace: str, app_id: str):
     """Display logs of a spark app in a web page."""
     tail = request.query_params.get("tail", -1)

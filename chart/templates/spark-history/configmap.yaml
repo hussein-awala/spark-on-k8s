@@ -1,0 +1,11 @@
+{{- if .Values.sparkHistory.enabled }}
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: {{ include "spark-on-k8s.sparkHistory.fullname" . }}
+data:
+  spark-defaults.conf: |-
+    spark.ui.proxyRedirectUri=/
+    spark.ui.proxyBase=/webserver/ui-history
+    {{- .Values.sparkHistory.configuration | nindent 4 }}
+{{- end }}

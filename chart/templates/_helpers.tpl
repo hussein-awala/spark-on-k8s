@@ -23,6 +23,10 @@ If release name contains chart name it will be used as a full name.
 {{- end }}
 {{- end }}
 
+{{- define "spark-on-k8s.sparkHistory.fullname" -}}
+{{- printf "%s-%s" (include "spark-on-k8s.fullname" .) "history" | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
 {{/*
 Create chart name and version as used by the chart label.
 */}}
@@ -51,6 +55,14 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
+Spark history Selector labels
+*/}}
+{{- define "spark-on-k8s.sparkHistory.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "spark-on-k8s.name" . }}-history
+app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}
+
+{{/*
 Create the name of the service account to use
 */}}
 {{- define "spark-on-k8s.serviceAccountName" -}}
@@ -58,5 +70,16 @@ Create the name of the service account to use
 {{- default (include "spark-on-k8s.fullname" .) .Values.serviceAccount.name }}
 {{- else }}
 {{- default "default" .Values.serviceAccount.name }}
+{{- end }}
+{{- end }}
+
+{{/*
+Create the name of the service account to use for the history server
+*/}}
+{{- define "spark-on-k8s.sparkHistory.serviceAccountName" -}}
+{{- if .Values.sparkHistory.serviceAccount.create }}
+{{- default (include "spark-on-k8s.sparkHistory.fullname" .) .Values.sparkHistory.serviceAccount.name }}
+{{- else }}
+{{- default "default" .Values.sparkHistory.serviceAccount.name }}
 {{- end }}
 {{- end }}

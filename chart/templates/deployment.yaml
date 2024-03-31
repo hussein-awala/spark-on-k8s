@@ -36,9 +36,15 @@ spec:
             {{- toYaml .Values.securityContext | nindent 12 }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          {{- with .Values.env }}
+          {{- if or .Values.sparkHistory.enabled .Values.env }}
           env:
+            {{- with .Values.env }}
             {{- toYaml . | nindent 12 }}
+            {{- end }}
+            {{- if .Values.sparkHistory.enabled }}
+            - name: SPARK_ON_K8S_API_SPARK_HISTORY_HOST
+              value: "{{ include "spark-on-k8s.sparkHistory.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.sparkHistory.service.port }}"
+            {{- end }}
           {{- end }}
           ports:
             - name: http

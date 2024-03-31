@@ -1,0 +1,17 @@
+{{- if .Values.sparkHistory.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "spark-on-k8s.sparkHistory.fullname" . }}
+  labels:
+    {{- include "spark-on-k8s.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.sparkHistory.service.type}}
+  ports:
+    - port: {{ .Values.sparkHistory.service.port}}
+      targetPort: 18080
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "spark-on-k8s.sparkHistory.selectorLabels" . | nindent 4 }}
+{{- end }}

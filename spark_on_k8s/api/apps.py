@@ -19,7 +19,9 @@ class SparkApp(BaseModel):
 
     app_id: str
     status: SparkAppStatus
+    driver_logs: bool = False
     spark_ui_proxy: bool = False
+    spark_history_proxy: bool = False
 
 
 @router.get("/list_apps")
@@ -39,6 +41,7 @@ async def list_apps(namespace: str) -> list[SparkApp]:
         SparkApp(
             app_id=pod.metadata.labels.get("spark-app-id", pod.metadata.name),
             status=get_app_status(pod),
+            driver_logs=True,
             spark_ui_proxy=pod.metadata.labels.get("spark-ui-proxy", False),
         )
         for pod in driver_pods.items

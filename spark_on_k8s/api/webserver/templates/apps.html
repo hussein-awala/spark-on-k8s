@@ -55,7 +55,7 @@
         <td>
             {{ app.app_id }}
             <div style="float: right;">
-                {% if app.spark_ui_proxy and app.status.value == 'Running' %}
+                {% if app.status.value == 'Running' %}
                 <span class="action" onclick="killApp('{{ namespace }}', '{{ app.app_id }}')">Kill</span>
                 <br>
                 {% endif %}
@@ -69,9 +69,16 @@
                 <button class="spark-button">Open Spark UI</button>
             </a>
             {% endif %}
+            {% if app.driver_logs %}
             <a href="/webserver/logs/{{ namespace }}/{{ app.app_id }}?tail=1000" target="_blank">
                 <button class="spark-button">View Driver Logs</button>
             </a>
+            {% endif %}
+            {% if app.spark_history_proxy %}
+            <a href="/webserver/ui-history/history/{{ app.app_id }}" target="_blank">
+                <button class="spark-button">Open Spark History</button>
+            </a>
+            {% endif %}
         </td>
     </tr>
     {% endfor %}

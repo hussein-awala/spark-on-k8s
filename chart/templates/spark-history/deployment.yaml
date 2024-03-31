@@ -1,0 +1,48 @@
+{{- if .Values.sparkHistory.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "spark-on-k8s.sparkHistory.fullname" . }}
+  labels:
+    {{- include "spark-on-k8s.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.sparkHistory.autoscaling.enabled }}
+  replicas: {{ .Values.sparkHistory.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "spark-on-k8s.sparkHistory.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.sparkHistory.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "spark-on-k8s.sparkHistory.selectorLabels" . | nindent 8 }}
+        {{- with .Values.sparkHistory.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "spark-on-k8s.sparkHistory.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.sparkHistory.podSecurityContext | nindent 8 }}
+      containers:
+        - name: spark-history
+          securityContext:
+            {{- toYaml .Values.sparkHistory.securityContext | nindent 12 }}
+          image: "{{ .Values.sparkHistory.image.repository }}:{{ .Values.sparkHistory.image.tag }}"
+          imagePullPolicy: {{ .Values.sparkHistory.image.pullPolicy }}
+          volumeMounts:
+            - name: config-volume
+              mountPath: /opt/spark/conf/spark-defaults.conf
+              subPath: spark-defaults.conf
+      volumes:
+        - name: config-volume
+          configMap:
+            name: {{ include "spark-on-k8s.sparkHistory.fullname" . }}
+{{- end }}

@@ -4,7 +4,7 @@ from functools import wraps
 from pathlib import Path
 
 import httpx
-from fastapi import APIRouter, WebSocket
+from fastapi import APIRouter, HTTPException, WebSocket
 from kubernetes_asyncio.client import ApiException
 from starlette.background import BackgroundTask
 from starlette.requests import Request  # noqa: TCH002
@@ -12,9 +12,10 @@ from starlette.responses import HTMLResponse, StreamingResponse
 from starlette.templating import Jinja2Templates
 
 from spark_on_k8s.api import AsyncHttpClientSingleton
-from spark_on_k8s.api.apps import list_apps
+from spark_on_k8s.api.apps import SparkApp, list_apps
 from spark_on_k8s.api.configuration import APIConfiguration
 from spark_on_k8s.utils.async_app_manager import AsyncSparkAppManager
+from spark_on_k8s.utils.spark_app_status import SparkAppStatus
 
 router = APIRouter(
     prefix="/webserver",
@@ -69,6 +70,45 @@ async def ui_reverse_proxy(request: Request):
     )
 
 
+@router.get("/ui-history/{path:path}")
+@handle_k8s_errors
+async def spark_history_reverse_proxy(request: Request):
+    spark_history_url = APIConfiguration.SPARK_ON_K8S_API_SPARK_HISTORY_HOST
+    if not spark_history_url:
+        return HTTPException(status_code=412, detail="SPARK_ON_K8S_API_SPARK_HISTORY_HOST is not set.")
+    path = request.url.path.replace(router.prefix, "").lstrip("/").replace("ui-history/", "")
+    async_http_client = AsyncHttpClientSingleton.client()
+    spark_history_url = (
+        f"http://{spark_history_url}" if not spark_history_url.startswith("http") else spark_history_url
+    )
+    url = httpx.URL(
+        url=spark_history_url,
+        path=f"/{path}",
+        query=request.url.query.encode("utf-8"),
+    )
+    reverse_proxy_req = async_http_client.build_request(
+        request.method, url=url, headers=request.headers.raw, content=request.stream()
+    )
+    reverse_proxy_resp = await async_http_client.send(reverse_proxy_req, stream=True)
+    response_headers = reverse_proxy_resp.headers
+    response_status_code = reverse_proxy_resp.status_code
+    if response_status_code == 302:
+        # this is a workaround to fix the location header in the response
+        location = response_headers.get("location")
+        if location:
+            response_headers["location"] = (
+                location.replace(path, f"webserver/ui-history/{path}")
+                if "webserver/ui-history" not in location
+                else location
+            )
+    return StreamingResponse(
+        reverse_proxy_resp.aiter_raw(),
+        status_code=response_status_code,
+        headers=response_headers,
+        background=BackgroundTask(reverse_proxy_resp.aclose),
+    )
+
+
 current_dir = Path(__file__).parent.absolute()
 templates = Jinja2Templates(directory=str(current_dir / "templates"))
 
@@ -79,11 +119,37 @@ async def apps(request: Request):
     """List spark apps in a namespace, and display them in a web page."""
     namespace = request.query_params.get("namespace", APIConfiguration.SPARK_ON_K8S_API_DEFAULT_NAMESPACE)
     apps_list = await list_apps(namespace)
+    spark_history_url = APIConfiguration.SPARK_ON_K8S_API_SPARK_HISTORY_HOST
+    if spark_history_url:
+        spark_history_url = (
+            spark_history_url if spark_history_url.startswith("http") else f"http://{spark_history_url}"
+        )
+        async_http_client = AsyncHttpClientSingleton.client()
+        history_apps_list = [
+            SparkApp(
+                app_id=app["id"],
+                status=SparkAppStatus.Unknown,
+                driver_logs=False,
+                spark_ui_proxy=False,
+                spark_history_proxy=True,
+            )
+            for app in (
+                await async_http_client.get(f"{spark_history_url}/api/v1/applications?status=completed")
+            ).json()
+        ]
+    else:
+        history_apps_list = []
+    apps_dict = {app.app_id: app for app in apps_list}
+    for app in history_apps_list:
+        if app.app_id not in apps_dict:
+            apps_dict[app.app_id] = app
+        else:
+            apps_dict[app.app_id].spark_history_proxy = True
     return templates.TemplateResponse(
         "apps.html",
         {
             "request": request,
-            "apps_list": apps_list,
+            "apps_list": apps_dict.values(),
             "namespace": namespace,
         },
     )

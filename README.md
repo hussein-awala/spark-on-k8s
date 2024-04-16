@@ -139,7 +139,9 @@ the API and its Kubernetes client.
 
 To install the helm chart, you can run:
 ```bash
-helm install spark-on-k8s chart --values examples/helm/values.yaml
+helm repo add spark-on-k8s http://hussein.awala.fr/spark-on-k8s-chart
+helm repo update
+helm install spark-on-k8s-release spark-on-k8s/spark-on-k8s --values examples/helm/values.yaml
 ```
 
 ## Configuration

@@ -25,7 +25,7 @@ jobs:
         with:
           token: ${{ secrets.HELM_RELEASE_TOKEN }}
           charts_dir: .
-          repository: helm-charts
+          repository: spark-on-k8s-chart
           branch: gh-pages
           app_version: ${{ github.event.inputs.app_version }}
           chart_version: ${{ github.event.inputs.chart_version }}

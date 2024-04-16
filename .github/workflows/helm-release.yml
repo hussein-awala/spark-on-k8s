@@ -20,17 +20,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Helm
-        uses: azure/setup-helm@v3
-
-      - name: Login to Github registry
-        run: |
-          echo ${{ secrets.GITHUB_TOKEN }} | helm registry login ghcr.io/${{ github.actor }} --username ${{ github.actor }} --password-stdin
-
-      - name: Package Helm chart
-        run: |
-          helm package chart --version ${{ github.event.inputs.chart_version }} --app-version ${{ github.event.inputs.app_version }}
-
-      - name: Push Helm chart
-        run: |
-          helm push ./spark-on-k8s-${{ github.event.inputs.chart_version }}.tgz oci://ghcr.io/${{ github.actor }}
+      - name: Publish Helm chart
+        uses: stefanprodan/helm-gh-pages@89c6698c192e70ed0e495bee7d3d1ca5b477fe82
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          charts_dir: chart
+          repository: helm-charts
+          branch: gh-pages
+          app_version: ${{ github.event.inputs.app_version }}
+          chart_version: ${{ github.event.inputs.chart_version }}

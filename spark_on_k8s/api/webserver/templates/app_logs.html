@@ -11,7 +11,14 @@
     <div id="logs-container"></div>
 
     <script>
-        const ws = new WebSocket(`ws://127.0.0.1:8000/webserver/ws/logs/{{ namespace }}/{{ app_id }}?tail={{ tail if tail else -1 }}`);
+        const protocolPrefix = (window.location.protocol === 'https:') ? 'wss://' : 'ws://';
+        const host = window.location.hostname + (window.location.port ? ':' + window.location.port : '');
+        const namespace = '{{ namespace }}';
+        const appId = '{{ app_id }}';
+        const tail = '{{ tail if tail else -1 }}';
+
+        const ws = new WebSocket(protocolPrefix + host + '/webserver/ws/logs/' + namespace + '/' + appId + '?tail=' + tail);
+
         ws.onopen = function(event) {
             console.log("WebSocket connection opened");
         };

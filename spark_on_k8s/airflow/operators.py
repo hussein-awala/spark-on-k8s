@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 
@@ -16,6 +17,7 @@ if TYPE_CHECKING:
 
     from airflow.utils.context import Context
     from spark_on_k8s.client import ExecutorInstances, PodResources
+    from spark_on_k8s.utils.app_manager import SparkAppManager
 
 
 class _AirflowKubernetesClientManager(KubernetesClientManager):
@@ -79,6 +81,9 @@ class SparkOnK8SOperator(BaseOperator):
             operator is killed. Defaults to "delete".
         **kwargs: Other keyword arguments for BaseOperator.
     """
+
+    _XCOM_DRIVER_POD_NAMESPACE = "driver_pod_namespace"
+    _XCOM_DRIVER_POD_NAME = "driver_pod_name"
 
     _driver_pod_name: str | None = None
 
@@ -197,9 +202,30 @@ class SparkOnK8SOperator(BaseOperator):
 
         super()._render_nested_template_fields(content, context, jinja_env, seen_oids)
 
-    def execute(self, context):
+    def _persist_pod_name(self, context: Context):
+        context["ti"].xcom_push(key=self._XCOM_DRIVER_POD_NAMESPACE, value=self.namespace)
+        context["ti"].xcom_push(key=self._XCOM_DRIVER_POD_NAME, value=self._driver_pod_name)
+
+    def _try_to_adopt_job(self, context: Context, spark_app_manager: SparkAppManager) -> bool:
+        from spark_on_k8s.utils.spark_app_status import SparkAppStatus
+
+        xcom_driver_namespace = context["ti"].xcom_pull(key=self._XCOM_DRIVER_POD_NAMESPACE)
+        if not xcom_driver_namespace or xcom_driver_namespace != self.namespace:
+            return False
+        xcom_driver_pod_name = context["ti"].xcom_pull(key=self._XCOM_DRIVER_POD_NAME)
+        if xcom_driver_pod_name:
+            with contextlib.suppress(Exception):
+                app_status = spark_app_manager.app_status(
+                    namespace=xcom_driver_namespace,
+                    pod_name=xcom_driver_pod_name,
+                )
+                if app_status == SparkAppStatus.Running:
+                    self._driver_pod_name = xcom_driver_pod_name
+                    return True
+        return False
+
+    def _submit_new_job(self, context: Context):
         from spark_on_k8s.client import ExecutorInstances, PodResources, SparkOnK8S
-        from spark_on_k8s.utils.app_manager import SparkAppManager
 
         # post-process template fields
         if self.driver_resources:
@@ -267,6 +293,19 @@ class SparkOnK8SOperator(BaseOperator):
             executor_pod_template_path=self.executor_pod_template_path,
             **submit_app_kwargs,
         )
+
+    def execute(self, context: Context):
+        from spark_on_k8s.utils.app_manager import SparkAppManager
+
+        k8s_client_manager = _AirflowKubernetesClientManager(
+            kubernetes_conn_id=self.kubernetes_conn_id,
+        )
+        spark_app_manager = SparkAppManager(
+            k8s_client_manager=k8s_client_manager,
+        )
+        if not self._try_to_adopt_job(context, spark_app_manager):
+            self._submit_new_job(context)
+            self._persist_pod_name(context)
         if self.app_waiter == "no_wait":
             return
         if self.deferrable:
@@ -279,12 +318,6 @@ class SparkOnK8SOperator(BaseOperator):
                 ),
                 method_name="execute_complete",
             )
-        k8s_client_manager = _AirflowKubernetesClientManager(
-            kubernetes_conn_id=self.kubernetes_conn_id,
-        )
-        spark_app_manager = SparkAppManager(
-            k8s_client_manager=k8s_client_manager,
-        )
         if self.app_waiter == "wait":
             spark_app_manager.wait_for_app(
                 namespace=self.namespace,

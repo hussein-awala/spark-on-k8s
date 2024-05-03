@@ -287,6 +287,12 @@ class SparkOnK8SOperator(BaseOperator):
                 namespace=self.namespace,
                 pod_name=self._driver_pod_name,
             )
+            # wait for termination status
+            spark_app_manager.wait_for_app(
+                namespace=self.namespace,
+                pod_name=self._driver_pod_name,
+                poll_interval=1,
+            )
         app_status = spark_app_manager.app_status(
             namespace=self.namespace,
             pod_name=self._driver_pod_name,

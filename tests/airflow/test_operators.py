@@ -86,6 +86,7 @@ class TestSparkOnK8SOperator:
             app_path="{{ template_app_path }}",
             app_arguments=["{{ template_app_argument }}"],
             app_name="{{ template_app_name }}",
+            app_id_suffix="-{{ template_app_id_suffix }}",
             service_account="{{ template_service_account }}",
             app_waiter="{{ template_app_waiter }}",
             driver_resources=PodResources(
@@ -116,6 +117,7 @@ class TestSparkOnK8SOperator:
                 "template_app_path": "local:///opt/spark/work-dir/job.py",
                 "template_app_argument": "100000",
                 "template_app_name": "pyspark-job-example",
+                "template_app_id_suffix": "suffix",
                 "template_service_account": "spark",
                 "template_app_waiter": "no_wait",
                 "template_driver_resources_cpu": 1,
@@ -128,6 +130,7 @@ class TestSparkOnK8SOperator:
             },
         )
         spark_app_task.execute(None)
+        app_id_suffix_kwarg = mock_submit_app.call_args.kwargs.get("app_id_suffix")
         mock_submit_app.assert_called_once_with(
             namespace="spark",
             image="pyspark-job",
@@ -135,6 +138,7 @@ class TestSparkOnK8SOperator:
             app_path="local:///opt/spark/work-dir/job.py",
             app_arguments=["100000"],
             app_name="pyspark-job-example",
+            app_id_suffix=app_id_suffix_kwarg,
             service_account="spark",
             app_waiter="no_wait",
             driver_resources=PodResources(cpu=1, memory=1024, memory_overhead=512),
@@ -162,3 +166,4 @@ class TestSparkOnK8SOperator:
             driver_tolerations=None,
             executor_pod_template_path=None,
         )
+        assert app_id_suffix_kwarg() == "-suffix"

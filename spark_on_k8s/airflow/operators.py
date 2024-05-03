@@ -48,6 +48,8 @@ class SparkOnK8SOperator(BaseOperator):
         namespace (str, optional): Kubernetes namespace. Defaults to "default".
         service_account (str, optional): Kubernetes service account. Defaults to "spark".
         app_name (str, optional): Spark application name. Defaults to None.
+        app_id_suffix: A suffix for the application ID, defaults to current timestamp in
+            the format %Y%m%d%H%M%S prefixed with a dash.
         spark_conf (dict[str, str], optional): Spark configuration. Defaults to None.
         class_name (str, optional): Spark application class name. Defaults to None.
         app_arguments (list[str], optional): Spark application arguments. Defaults to None.
@@ -86,6 +88,7 @@ class SparkOnK8SOperator(BaseOperator):
         "namespace",
         "service_account",
         "app_name",
+        "app_id_suffix",
         "spark_conf",
         "class_name",
         "app_arguments",
@@ -106,6 +109,7 @@ class SparkOnK8SOperator(BaseOperator):
         namespace: str = "default",
         service_account: str = "spark",
         app_name: str | None = None,
+        app_id_suffix: str = None,
         spark_conf: dict[str, str] | None = None,
         class_name: str | None = None,
         app_arguments: list[str] | None = None,
@@ -139,6 +143,7 @@ class SparkOnK8SOperator(BaseOperator):
         self.namespace = namespace
         self.service_account = service_account
         self.app_name = app_name
+        self.app_id_suffix = app_id_suffix
         self.spark_conf = spark_conf
         self.class_name = class_name
         self.app_arguments = app_arguments
@@ -230,6 +235,9 @@ class SparkOnK8SOperator(BaseOperator):
         spark_client = SparkOnK8S(
             k8s_client_manager=k8s_client_manager,
         )
+        submit_app_kwargs = {}
+        if self.app_id_suffix:
+            submit_app_kwargs["app_id_suffix"] = lambda: self.app_id_suffix
         self._driver_pod_name = spark_client.submit_app(
             image=self.image,
             app_path=self.app_path,
@@ -257,6 +265,7 @@ class SparkOnK8SOperator(BaseOperator):
             executor_annotations=self.executor_annotations,
             driver_tolerations=self.driver_tolerations,
             executor_pod_template_path=self.executor_pod_template_path,
+            **submit_app_kwargs,
         )
         if self.app_waiter == "no_wait":
             return

@@ -1,5 +1,8 @@
 # Spark On Kubernetes
 
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/8883/badge)](https://www.bestpractices.dev/projects/8883)
+![CI workflow](https://github.com/hussein-awala/spark-on-k8s/actions/workflows/ci.yml/badge.svg)
+
 Spark on Kubernetes is a python package that makes it easy to submit and manage spark apps on Kubernetes.
 It provides a Python client that can be used to submit apps in your API or scheduler of choice, and a CLI
 that can be used to submit apps from the command line, instead of  using spark-submit.

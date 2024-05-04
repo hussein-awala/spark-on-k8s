@@ -3,6 +3,7 @@ from __future__ import annotations
 from unittest import mock
 
 import pytest
+from spark_on_k8s.utils.spark_app_status import SparkAppStatus
 
 from conftest import PYTHON_312
 
@@ -43,7 +44,13 @@ class TestSparkOnK8SOperator:
             driver_tolerations=test_tolerations,
             executor_pod_template_path="s3a://bucket/executor.yml",
         )
-        spark_app_task.execute(None)
+        spark_app_task.execute(
+            {
+                "ti": mock.MagicMock(
+                    xcom_pull=mock.MagicMock(return_value=None),
+                )
+            }
+        )
         mock_submit_app.assert_called_once_with(
             namespace="spark",
             image="pyspark-job",
@@ -129,7 +136,13 @@ class TestSparkOnK8SOperator:
                 "template_secret_value": "value from connection",
             },
         )
-        spark_app_task.execute(None)
+        spark_app_task.execute(
+            {
+                "ti": mock.MagicMock(
+                    xcom_pull=mock.MagicMock(return_value=None),
+                )
+            }
+        )
         app_id_suffix_kwarg = mock_submit_app.call_args.kwargs.get("app_id_suffix")
         mock_submit_app.assert_called_once_with(
             namespace="spark",
@@ -167,3 +180,38 @@ class TestSparkOnK8SOperator:
             executor_pod_template_path=None,
         )
         assert app_id_suffix_kwarg() == "-suffix"
+
+    @pytest.mark.parametrize(
+        "job_status, should_submit",
+        [
+            (SparkAppStatus.Running, False),
+            (SparkAppStatus.Succeeded, True),
+            (SparkAppStatus.Failed, True),
+        ],
+    )
+    @mock.patch("spark_on_k8s.utils.app_manager.SparkAppManager.wait_for_app")
+    @mock.patch("spark_on_k8s.utils.app_manager.SparkAppManager.app_status")
+    @mock.patch("spark_on_k8s.client.SparkOnK8S.submit_app")
+    def test_job_adoption(
+        self, mock_submit_app, mock_app_status, mock_wait_for_app, job_status, should_submit
+    ):
+        from spark_on_k8s.airflow.operators import SparkOnK8SOperator
+
+        mock_app_status.side_effect = [job_status, SparkAppStatus.Succeeded]
+        spark_app_task = SparkOnK8SOperator(
+            task_id="spark_application",
+            namespace="test-namespace",
+            image="pyspark-job",
+            app_path="local:///opt/spark/work-dir/job.py",
+        )
+        spark_app_task.execute(
+            {
+                "ti": mock.MagicMock(
+                    xcom_pull=mock.MagicMock(side_effect=["test-namespace", "existing-pod"]),
+                )
+            }
+        )
+        if should_submit:
+            mock_submit_app.assert_called_once()
+        else:
+            mock_submit_app.assert_not_called()

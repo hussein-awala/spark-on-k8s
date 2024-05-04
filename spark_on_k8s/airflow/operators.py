@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 from airflow.exceptions import AirflowException
 from airflow.models import BaseOperator
+from spark_on_k8s.airflow.operator_links import SparkOnK8SOperatorLink
 from spark_on_k8s.airflow.triggers import SparkOnK8STrigger
 from spark_on_k8s.k8s.sync_client import KubernetesClientManager
 
@@ -72,6 +73,7 @@ class SparkOnK8SOperator(BaseOperator):
         driver_node_selector: Node selector for the driver pod.
         executor_node_selector: Node selector for the executor pods.
         driver_tolerations: Tolerations for the driver pod.
+        spark_on_k8s_service_url: URL of the Spark On K8S service. Defaults to None.
         kubernetes_conn_id (str, optional): Kubernetes connection ID. Defaults to
             "kubernetes_default".
         poll_interval (int, optional): Poll interval for checking the Spark application status.
@@ -84,8 +86,11 @@ class SparkOnK8SOperator(BaseOperator):
 
     _XCOM_DRIVER_POD_NAMESPACE = "driver_pod_namespace"
     _XCOM_DRIVER_POD_NAME = "driver_pod_name"
+    XCOM_SPARK_UI_LINK = "spark_ui_link"
 
     _driver_pod_name: str | None = None
+
+    operator_extra_links = (SparkOnK8SOperatorLink(),)
 
     template_fields = (
         "image",
@@ -136,6 +141,7 @@ class SparkOnK8SOperator(BaseOperator):
         executor_annotations: dict[str, str] | None = None,
         driver_tolerations: list[k8s.V1Toleration] | None = None,
         executor_pod_template_path: str | None = None,
+        spark_on_k8s_service_url: str | None = None,
         kubernetes_conn_id: str = "kubernetes_default",
         poll_interval: int = 10,
         deferrable: bool = False,
@@ -170,6 +176,7 @@ class SparkOnK8SOperator(BaseOperator):
         self.executor_annotations = executor_annotations
         self.driver_tolerations = driver_tolerations
         self.executor_pod_template_path = executor_pod_template_path
+        self.spark_on_k8s_service_url = spark_on_k8s_service_url
         self.kubernetes_conn_id = kubernetes_conn_id
         self.poll_interval = poll_interval
         self.deferrable = deferrable
@@ -205,6 +212,25 @@ class SparkOnK8SOperator(BaseOperator):
     def _persist_pod_name(self, context: Context):
         context["ti"].xcom_push(key=self._XCOM_DRIVER_POD_NAMESPACE, value=self.namespace)
         context["ti"].xcom_push(key=self._XCOM_DRIVER_POD_NAME, value=self._driver_pod_name)
+
+    def _persist_spark_ui_link(self, context: Context):
+        if self.spark_on_k8s_service_url:
+            SparkOnK8SOperatorLink.persist_spark_ui_link(
+                context,
+                self,
+                spark_on_k8s_service_url=self.spark_on_k8s_service_url,
+                namespace=self.namespace,
+                spark_app_id=self._driver_pod_name[: -len("-driver")],
+            )
+
+    def _persist_spark_history_ui_link(self, context: Context):
+        if self.spark_on_k8s_service_url:
+            SparkOnK8SOperatorLink.persist_spark_history_ui_link(
+                context,
+                self,
+                spark_on_k8s_service_url=self.spark_on_k8s_service_url,
+                spark_app_id=self._driver_pod_name,
+            )
 
     def _try_to_adopt_job(self, context: Context, spark_app_manager: SparkAppManager) -> bool:
         from spark_on_k8s.utils.spark_app_status import SparkAppStatus
@@ -306,6 +332,7 @@ class SparkOnK8SOperator(BaseOperator):
         if not self._try_to_adopt_job(context, spark_app_manager):
             self._submit_new_job(context)
             self._persist_pod_name(context)
+        self._persist_spark_ui_link(context)
         if self.app_waiter == "no_wait":
             return
         if self.deferrable:
@@ -339,6 +366,7 @@ class SparkOnK8SOperator(BaseOperator):
             namespace=self.namespace,
             pod_name=self._driver_pod_name,
         )
+        self._persist_spark_history_ui_link(context)
         if app_status == "Succeeded":
             return app_status
         raise AirflowException(f"The job finished with status: {app_status}")
@@ -357,6 +385,7 @@ class SparkOnK8SOperator(BaseOperator):
                 namespace=event["namespace"],
                 pod_name=event["pod_name"],
             )
+        self._persist_spark_history_ui_link(context)
         if event["status"] == "Succeeded":
             return event["status"]
         if event["status"] == "error":
@@ -367,6 +396,8 @@ class SparkOnK8SOperator(BaseOperator):
         raise AirflowException(f"The job finished with status: {event['status']}")
 
     def on_kill(self) -> None:
+        from airflow.operators.python import get_current_context
+
         if self.on_kill_action == OnKillAction.KEEP:
             return
         self.log.warning(self._driver_pod_name)
@@ -393,3 +424,5 @@ class SparkOnK8SOperator(BaseOperator):
                 )
             else:
                 raise AirflowException(f"Invalid on_kill_action: {self.on_kill_action}")
+
+            self._persist_spark_history_ui_link(get_current_context())

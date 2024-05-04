@@ -21,6 +21,8 @@ class TestSparkOnK8SOperator:
             k8s.V1Toleration(key="key2", operator="Equal", value="value2", effect="NoSchedule"),
         ]
 
+        mock_submit_app.return_value = "test-app-id-driver"
+
         spark_app_task = SparkOnK8SOperator(
             task_id="spark_application",
             namespace="spark",
@@ -43,14 +45,12 @@ class TestSparkOnK8SOperator:
             executor_annotations={"annotation2": "value2"},
             driver_tolerations=test_tolerations,
             executor_pod_template_path="s3a://bucket/executor.yml",
+            spark_on_k8s_service_url="http://localhost:8000",
         )
-        spark_app_task.execute(
-            {
-                "ti": mock.MagicMock(
-                    xcom_pull=mock.MagicMock(return_value=None),
-                )
-            }
+        ti_mock = mock.MagicMock(
+            xcom_pull=mock.MagicMock(return_value=None),
         )
+        spark_app_task.execute({"ti": ti_mock})
         mock_submit_app.assert_called_once_with(
             namespace="spark",
             image="pyspark-job",
@@ -79,6 +79,21 @@ class TestSparkOnK8SOperator:
             driver_tolerations=test_tolerations,
             executor_pod_template_path="s3a://bucket/executor.yml",
         )
+        assert ti_mock.xcom_push.call_count == 3
+        xcom_push_calls = ti_mock.xcom_push.mock_calls
+        assert xcom_push_calls[0].kwargs == {
+            "key": "driver_pod_namespace",
+            "value": "spark",
+        }
+        assert xcom_push_calls[1].kwargs == {
+            "key": "driver_pod_name",
+            "value": "test-app-id-driver",
+        }
+        assert xcom_push_calls[2].kwargs == {
+            "key": "spark_ui_link",
+            "value": "http://localhost:8000/webserver/ui/spark/test-app-id",
+            "execution_date": None,
+        }
 
     @mock.patch("spark_on_k8s.client.SparkOnK8S.submit_app")
     def test_rendering_templates(self, mock_submit_app):

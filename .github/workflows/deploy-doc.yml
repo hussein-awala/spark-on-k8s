@@ -41,4 +41,5 @@ jobs:
 
       - run: |
           source .venv/bin/activate
+          helm-mkdocs chart -o docs/helm-chart
           mkdocs gh-deploy --force

@@ -39,6 +39,7 @@ mkdocs-material = "^9.5.21"
 mkdocstrings = {version = "^0.25.1", extras = ["python"]}
 mkdocs-gen-files = "^0.5.0"
 mkdocs-literate-nav = "^0.6.1"
+helm-mkdocs = "^0.0.5"
 
 [tool.poetry.extras]
 api = ["fastapi", "kubernetes-asyncio", "uvicorn", "httpx", "jinja2", "aiohttp", "websockets"]

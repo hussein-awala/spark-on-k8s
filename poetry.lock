@@ -2012,6 +2012,20 @@ files = [
 ]
 
 [[package]]
+name = "helm-mkdocs"
+version = "0.0.5"
+description = "Generate mkdocs style documentation for a helm chart."
+optional = false
+python-versions = ">3.7"
+files = [
+    {file = "helm_mkdocs-0.0.5-py3-none-any.whl", hash = "sha256:d519141b664a37d40ec5e3416e94e4e10f9fea94a719c840657af6f622e2271b"},
+    {file = "helm_mkdocs-0.0.5.tar.gz", hash = "sha256:b5f694b593a2f7f0dcf79e29a1480349b80654dc24eb523d1c5bc7f37dfff60d"},
+]
+
+[package.dependencies]
+pyyaml = "*"
+
+[[package]]
 name = "httpcore"
 version = "1.0.2"
 description = "A minimal low-level HTTP client."
@@ -4811,4 +4825,4 @@ api = ["aiohttp", "fastapi", "httpx", "jinja2", "kubernetes-asyncio", "uvicorn",
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.8"
-content-hash = "ba408894774625a70413959f6fb9ac8888aff80393767939f3a9ac4c5d067290"
+content-hash = "c933ed7a8421960387a687f25fbe69fabe23650aef65eac36090de0a8d5986b4"

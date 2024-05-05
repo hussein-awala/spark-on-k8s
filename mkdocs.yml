@@ -68,3 +68,4 @@ nav:
     - Getting Started: user-guide/getting_started.md
     - Examples: user-guide/examples.md
   - Code Reference: reference/
+  - Helm Chart: helm-chart/

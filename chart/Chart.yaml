@@ -1,6 +1,16 @@
 apiVersion: v2
 name: spark-on-k8s
-description: A Helm chart for spark-on-k8s API and Web UI.
+description: |
+  A Helm chart for spark-on-k8s API and Web UI.
+  
+  To deploy the spark-on-k8s API and Web UI, use the following command:
+  
+  ```bash
+  helm repo add spark-on-k8s https://hussein.awala.fr/spark-on-k8s-chart
+  helm repo update
+  helm install <release-name> spark-on-k8s/spark-on-k8s --values <path-to-values-file>
+  ```
+
 type: application
-version: 0.1.0
-appVersion: "0.0.1"
+version: 0.3.0
+appVersion: 0.6.0

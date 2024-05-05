@@ -1,0 +1,70 @@
+site_name: Spark On K8s
+site_url: https://hussein.awala.fr/spark-on-k8s
+site_description: Spark On Kubernetes documentation
+site_author: hussein-awala
+repo_url: https://github.com/hussein-awala/spark-on-k8s
+repo_name: hussein-awala/spark-on-k8s
+edit_uri: edit/main/docs/
+theme:
+  name: material
+  font:
+    text: Fira Sans
+    code: Fira Code
+  icon:
+      repo: fontawesome/brands/github
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to dark mode
+    - scheme: slate
+      primary: black
+      accent: black
+      toggle:
+        icon: material/weather-night
+        name: Switch to light mode
+  features:
+    - content.tooltips
+    - content.code.annotate
+    - navigation.expand
+    - navigation.indexes
+    - navigation.instant
+    - navigation.sections
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.top
+    - navigation.tracking
+plugins:
+  - search
+  - gen-files:
+      scripts:
+        - docs/gen_ref_pages.py
+  - literate-nav:
+      nav_file: SUMMARY.md
+  - mkdocstrings:
+      enabled: !ENV [ ENABLE_MKDOCSTRINGS, true ]
+      default_handler: python
+      handlers:
+        python:
+          options:
+            show_source: true
+      watch:
+        - spark_on_k8s
+markdown_extensions:
+  - pymdownx.magiclink
+  - pymdownx.highlight:
+      use_pygments: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+nav:
+  - index.md
+  - User Guide:
+    - Installation: user-guide/installation.md
+    - Getting Started: user-guide/getting_started.md
+    - Examples: user-guide/examples.md
+  - Code Reference: reference/

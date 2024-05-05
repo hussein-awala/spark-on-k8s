@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 from httpx import AsyncClient
@@ -9,6 +10,8 @@ from spark_on_k8s.utils.configuration import Configuration
 
 if TYPE_CHECKING:
     from kubernetes_asyncio.client import ApiClient
+
+logger = logging.getLogger("spark_on_k8s.api")
 
 
 class KubernetesClientSingleton:

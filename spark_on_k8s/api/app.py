@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Response
 
 from spark_on_k8s.api import KubernetesClientSingleton
+from spark_on_k8s.api.utils import handle_exception
 from spark_on_k8s.utils.async_app_manager import AsyncSparkAppManager
 
 router = APIRouter(
@@ -28,7 +29,7 @@ async def kill_app(namespace: str, app_id: str):
         return Response(status_code=200)
     except Exception as e:
         # TODO: handle exceptions properly and return proper status code
-        return Response(status_code=500, content=str(e))
+        return handle_exception(e, 500)
 
 
 @router.delete(
@@ -49,4 +50,4 @@ async def delete_app(namespace: str, app_id: str, force: bool = False):
         return Response(status_code=200)
     except Exception as e:
         # TODO: handle exceptions properly and return proper status code
-        return Response(status_code=500, content=str(e))
+        return handle_exception(e, 500)

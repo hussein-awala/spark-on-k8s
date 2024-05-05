@@ -1,60 +1,101 @@
+# Number of replicas for the Spark-on-K8S deployment if autoscaling is disabled
 replicaCount: 1
 
+# Docker image configuration for the Spark-on-K8S deployment
 image:
+  # The Docker image repository
   repository: ghcr.io/hussein-awala/spark-on-k8s
+  # The deployment docker image pull policy
   pullPolicy: IfNotPresent
+  # The Docker image tag
   tag: latest
 
+# List of imagePullSecrets to be used
 imagePullSecrets: []
+
+# Override the chart name in the release resources
 nameOverride: ""
+
+# Override the fullname of the release resources
 fullnameOverride: ""
 
+# The service account configuration for the Spark-on-K8S deployment
 serviceAccount:
+  # Specifies whether a service account should be created
   create: true
+  # Specifies whether the service account token should be auto mounted
   automount: true
+  # Annotations to add to the service account
   annotations: {}
+  # The name of the service account to use.
   name: ""
 
+# Annotations to be added to the Spark-on-K8S deployment pods
 podAnnotations: {}
+
+# Labels to be added to the Spark-on-K8S deployment pods
 podLabels: {}
 
+# The pod security context for the Spark-on-K8S deployment
 podSecurityContext: {}
 
+# The security context for the Spark-on-K8S deployment
 securityContext: {}
 
+# The configuration for the Spark-on-K8S service
 service:
+  # The type of service to create
   type: ClusterIP
+  # The port to expose the service on
   port: 8000
 
+# The configuration for the Spark-on-K8S ingress
 ingress:
+  # Specifies whether an ingress should be created
   enabled: false
+  # The ingress class to use
   className: ""
+  # The list of ingress annotations
   annotations: {}
+  # The list of hosts to be added to the ingress
   hosts:
     - host: chart-example.local
       paths:
         - path: /
           pathType: ImplementationSpecific
+  # The list of tls to be added to the ingress
   tls: []
 
+# The resource configuration for the Spark-on-K8S deployment
 resources: {}
 
+# The autoscaling configuration for the Spark-on-K8S deployment
 autoscaling:
+  # Specifies whether autoscaling should be enabled
   enabled: false
+  # The minimum number of replicas
   minReplicas: 1
+  # The maximum number of replicas
   maxReplicas: 100
+  # The target CPU utilization percentage
   targetCPUUtilizationPercentage: 80
 
+# The list of volumes to be added to the Spark-on-K8S deployment pods
 volumes: []
 
+# The list of volume mounts to be added to the Spark-on-K8S deployment pods
 volumeMounts: []
 
+# The node selector for the Spark-on-K8S deployment
 nodeSelector: {}
 
+# The tolerations for the Spark-on-K8S deployment
 tolerations: []
 
+# The affinity for the Spark-on-K8S deployment
 affinity: {}
 
+# A list of environment variables to be added to the Spark-on-K8S deployment
 env: []
 
 # List of namespaces to be managed by the Spark-on-K8S service
@@ -70,31 +111,59 @@ readOnly: true
 
 # Configuration for the Spark History Server
 sparkHistory:
+    # Specifies whether the Spark History Server should be enabled
     enabled: false
+    # The number of replicas for the Spark History Server if autoscaling is disabled
     replicaCount: 1
+    # The autoscaling configuration for the Spark History Server
     autoscaling:
+      # Specifies whether autoscaling should be enabled
       enabled: false
+      # The minimum number of replicas
       minReplicas: 1
+      # The maximum number of replicas
       maxReplicas: 100
+      # The target CPU utilization percentage
       targetCPUUtilizationPercentage: 80
+    # Docker image configuration for the Spark History Server
     image:
+      # The Docker image repository
       repository: ghcr.io/hussein-awala/spark-history
+      # The deployment docker image pull policy
       pullPolicy: IfNotPresent
+      # The Docker image tag
       tag: latest
+    # Annotations to be added to the Spark History Server pods
     env: []
+    # The resource configuration for the Spark History Server
     resources: {}
+    # A list of volume mounts to be added to the Spark History Server pods
     volumeMounts: []
+    # A list of volumes to be added to the Spark History Server pods
     volumes: []
+    # Annotations to be added to the Spark History Server pods
     podAnnotations: {}
+    # Labels to be added to the Spark History Server pods
     podLabels: {}
+    # The pod security context for the Spark History Server
     podSecurityContext: {}
+    # The security context for the Spark History Server
     securityContext: {}
+    # The service account configuration for the Spark History Server
     serviceAccount:
+        # Specifies whether a service account should be created
         create: true
+        # Specifies whether the service account token should be auto mounted
         automount: true
+        # Annotations to add to the service account
         annotations: {}
+        # The name of the service account to use.
         name: ""
+    # The configuration for the Spark History Server service
     service:
+        # The type of service to create
         type: ClusterIP
+        # The port to expose the service on
         port: 18080
+    # The Spark configuration for the Spark History Server
     configuration: ""

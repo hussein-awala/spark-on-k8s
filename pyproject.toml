@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "spark-on-k8s"
-version = "0.0.1"
+version = "0.7.1"
 description = "A Python package to submit and manage Apache Spark applications on Kubernetes."
 authors = ["Hussein Awala <hussein@awala.fr>"]
 readme = "README.md"
@@ -47,6 +47,9 @@ airflow = ["kubernetes-asyncio", "apache-airflow", "apache-airflow-providers-cnc
 
 [tool.poetry.scripts]
 spark-on-k8s = "spark_on_k8s:cli.main"
+
+[tool.poetry.plugins."apache_airflow_provider"]
+provider_info = "spark_on_k8s.airflow.provider_info:get_provider_info"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

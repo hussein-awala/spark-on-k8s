@@ -1,8 +1,13 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import click
 
 from spark_on_k8s.utils.configuration import Configuration
+
+if TYPE_CHECKING:
+    from click.core import Context, Parameter
 
 namespace_option = click.Option(
     ("-n", "--namespace"),
@@ -20,7 +25,7 @@ force_option = click.Option(
 
 
 # Submit options
-def validate_dictionary_option(ctx, param, value):
+def validate_dictionary_option(ctx: Context, param: Parameter, value: list[str]) -> dict[str, str]:
     dict_values = {}
     for conf in value:
         try:
@@ -31,7 +36,7 @@ def validate_dictionary_option(ctx, param, value):
     return dict_values
 
 
-def validate_list_option(ctx, param, value):
+def validate_list_option(ctx: Context, param: Parameter, value: str) -> list[str]:
     list_values = value.split(",") if value else []
     return list_values
 

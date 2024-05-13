@@ -229,7 +229,7 @@ class SparkOnK8SOperator(BaseOperator):
                 context,
                 self,
                 spark_on_k8s_service_url=self.spark_on_k8s_service_url,
-                spark_app_id=self._driver_pod_name,
+                spark_app_id=self._driver_pod_name[: -len("-driver")],
             )
 
     def _try_to_adopt_job(self, context: Context, spark_app_manager: SparkAppManager) -> bool:

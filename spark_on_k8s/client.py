@@ -49,6 +49,7 @@ class PodResources:
     cpu: int = 1
     memory: int = 1024
     memory_overhead: int = 512
+    ephemeral_storage: int = 512
 
 
 @dataclass(**KW_ONLY_DATACLASS)
@@ -213,12 +214,14 @@ class SparkOnK8S(LoggingMixin):
                 cpu=Configuration.SPARK_ON_K8S_DRIVER_CPU,
                 memory=Configuration.SPARK_ON_K8S_DRIVER_MEMORY,
                 memory_overhead=Configuration.SPARK_ON_K8S_DRIVER_MEMORY_OVERHEAD,
+                ephemeral_storage=Configuration.SPARK_ON_K8S_DRIVER_MEMORY_OVERHEAD
             )
         if executor_resources is NOTSET:
             executor_resources = PodResources(
                 cpu=Configuration.SPARK_ON_K8S_EXECUTOR_CPU,
                 memory=Configuration.SPARK_ON_K8S_EXECUTOR_MEMORY,
                 memory_overhead=Configuration.SPARK_ON_K8S_EXECUTOR_MEMORY_OVERHEAD,
+                ephemeral_storage=Configuration.SPARK_ON_K8S_EXECUTOR_MEMORY_OVERHEAD
             )
         if executor_instances is NOTSET:
             executor_instances = ExecutorInstances(
@@ -338,10 +341,12 @@ class SparkOnK8S(LoggingMixin):
                 "requests": {
                     "cpu": f"{driver_resources.cpu}",
                     "memory": f"{driver_resources.memory + driver_resources.memory_overhead}Mi",
+                    "ephemeral-storage": f"{driver_resources.ephemeral_storage}Gi",
                 },
                 "limits": {
                     "cpu": f"{driver_resources.cpu}",
                     "memory": f"{driver_resources.memory + driver_resources.memory_overhead}Mi",
+                    "ephemeral-storage": f"{driver_resources.ephemeral_storage}Gi",
                 },
             },
             env_from_secrets=env_from_secrets,

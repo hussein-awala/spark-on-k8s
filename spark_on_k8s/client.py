@@ -5,7 +5,7 @@ import re
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from typing import Any, Callable, Literal
+from typing import TYPE_CHECKING, Any, Callable, Literal
 
 from kubernetes import client as k8s
 
@@ -14,6 +14,9 @@ from spark_on_k8s.utils.app_manager import SparkAppManager
 from spark_on_k8s.utils.configuration import Configuration
 from spark_on_k8s.utils.logging_mixin import LoggingMixin
 from spark_on_k8s.utils.types import NOTSET, ArgNotSet
+
+if TYPE_CHECKING:
+    from spark_on_k8s.utils.types import ConfigMap
 
 # For Python 3.8 and 3.9 compatibility
 KW_ONLY_DATACLASS = {"kw_only": True} if "kw_only" in dataclass.__kwdefaults__ else {}
@@ -119,6 +122,7 @@ class SparkOnK8S(LoggingMixin):
         executor_instances: ExecutorInstances | ArgNotSet = NOTSET,
         should_print: bool | ArgNotSet = NOTSET,
         secret_values: dict[str, str] | ArgNotSet = NOTSET,
+        driver_ephemeral_configmaps_volumes: list[ConfigMap] | ArgNotSet = NOTSET,
         driver_env_vars_from_secrets: list[str] | ArgNotSet = NOTSET,
         volumes: list[k8s.V1Volume] | ArgNotSet = NOTSET,
         driver_volume_mounts: list[k8s.V1VolumeMount] | ArgNotSet = NOTSET,
@@ -161,6 +165,8 @@ class SparkOnK8S(LoggingMixin):
                 will be the initial number of executors with a default of 0.
             should_print: Whether to print logs instead of logging them, defaults to False
             secret_values: Dictionary of secret values to pass to the application as environment variables
+            driver_ephemeral_configmaps_volumes: List of ephemeral configmaps to create for the application
+                driver
             driver_env_vars_from_secrets: List of secret names to load environment variables from for
                 the driver
             volumes: List of volumes to mount to the driver and/or executors
@@ -240,6 +246,8 @@ class SparkOnK8S(LoggingMixin):
         else:
             secret_values = Configuration.SPARK_ON_K8S_SECRET_ENV_VAR
             env_from_secrets = [app_id] if secret_values else []
+        if driver_ephemeral_configmaps_volumes is NOTSET:
+            driver_ephemeral_configmaps_volumes = []
         if driver_env_vars_from_secrets is NOTSET:
             driver_env_vars_from_secrets = Configuration.SPARK_ON_K8S_DRIVER_ENV_VARS_FROM_SECRET
         if driver_env_vars_from_secrets:
@@ -325,6 +333,30 @@ class SparkOnK8S(LoggingMixin):
         driver_command_args.extend(
             self._spark_config_to_arguments({**basic_conf, **spark_conf}) + [app_path, *main_class_parameters]
         )
+
+        if driver_ephemeral_configmaps_volumes:
+            application_configmaps_volumes = self.app_manager.create_configmap_objects(
+                app_name=app_name,
+                app_id=app_id,
+                configmaps=driver_ephemeral_configmaps_volumes,
+                namespace=namespace,
+            )
+            for ind, configmap in enumerate(application_configmaps_volumes):
+                volumes.append(
+                    k8s.V1Volume(
+                        name=configmap.metadata.name,
+                        config_map=k8s.V1ConfigMapVolumeSource(name=configmap.metadata.name),
+                    )
+                )
+                driver_volume_mounts.append(
+                    k8s.V1VolumeMount(
+                        name=configmap.metadata.name,
+                        mount_path=driver_ephemeral_configmaps_volumes[ind]["mount_path"],
+                    )
+                )
+        else:
+            application_configmaps_volumes = []
+
         pod = SparkAppManager.create_spark_pod_spec(
             app_name=app_name,
             app_id=app_id,
@@ -360,6 +392,8 @@ class SparkOnK8S(LoggingMixin):
                     namespace=namespace,
                 )
                 api.create_namespaced_secret(namespace=namespace, body=application_secret)
+            for configmap in application_configmaps_volumes:
+                api.create_namespaced_config_map(namespace=namespace, body=configmap)
             pod = api.create_namespaced_pod(
                 namespace=namespace,
                 body=pod,
@@ -377,6 +411,20 @@ class SparkOnK8S(LoggingMixin):
                     namespace=namespace,
                     name=application_secret.metadata.name,
                     body=application_secret,
+                )
+            for configmap in application_configmaps_volumes:
+                configmap.metadata.owner_references = [
+                    k8s.V1OwnerReference(
+                        api_version="v1",
+                        kind="Pod",
+                        name=pod.metadata.name,
+                        uid=pod.metadata.uid,
+                    )
+                ]
+                api.patch_namespaced_config_map(
+                    namespace=namespace,
+                    name=configmap.metadata.name,
+                    body=configmap,
                 )
             api.create_namespaced_service(
                 namespace=namespace,

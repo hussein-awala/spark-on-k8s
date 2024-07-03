@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from kubernetes import client as k8s, watch
 from kubernetes.client import ApiException
@@ -11,6 +11,9 @@ from kubernetes.stream import stream
 from spark_on_k8s.k8s.sync_client import KubernetesClientManager
 from spark_on_k8s.utils.logging_mixin import LoggingMixin
 from spark_on_k8s.utils.spark_app_status import SparkAppStatus, get_app_status
+
+if TYPE_CHECKING:
+    from spark_on_k8s.utils.types import ConfigMap, ConfigMapSource
 
 
 class SparkAppManager(LoggingMixin):
@@ -540,3 +543,58 @@ class SparkAppManager(LoggingMixin):
             ),
             string_data=secrets_values,
         )
+
+    @staticmethod
+    def create_configmap_objects(
+        *,
+        app_name: str,
+        app_id: str,
+        configmaps: list[ConfigMap],
+        namespace: str = "default",
+    ) -> list[k8s.V1ConfigMap]:
+        """Create configmaps for a Spark application to mount in the driver
+         and executors containers as volumes
+
+        Args:
+            app_name: Name of the Spark application
+            app_id: ID of the Spark application
+            configmaps: List of configmaps to create
+            namespace: Kubernetes namespace to use, defaults to "default"
+
+        Returns:
+            The created configmaps objects for the Spark application
+        """
+        k8s_configmaps = []
+        configmap_names = set()
+        configmap_mount_paths = set()
+        for index, configmap in enumerate(configmaps):
+            configmap_name = configmap.get("name", f"{app_id}-{index}")
+            if configmap_name in configmap_names:
+                raise ValueError(f"Configmap name {configmap_name} is duplicated")
+            configmap_mount_path = configmap["mount_path"]
+            if configmap_mount_path in configmap_mount_paths:
+                raise ValueError(f"Configmap mount path {configmap_mount_path} is duplicated")
+            configmap_names.add(configmap_name)
+            configmap_mount_paths.add(configmap_mount_path)
+            data = {}
+            source: ConfigMapSource
+            for source in configmap["sources"]:
+                if "text" in source:
+                    data[source["name"]] = source["text"]
+                elif "text_path" in source:
+                    with open(source["text_path"]) as file:
+                        data[source["name"]] = file.read()
+            k8s_configmaps.append(
+                k8s.V1ConfigMap(
+                    metadata=k8s.V1ObjectMeta(
+                        name=configmap_name,
+                        namespace=namespace,
+                        labels=SparkAppManager.spark_app_labels(
+                            app_name=app_name,
+                            app_id=app_id,
+                        ),
+                    ),
+                    data=data,
+                )
+            )
+        return k8s_configmaps

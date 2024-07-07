@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from airflow.utils.context import Context
     from spark_on_k8s.client import ExecutorInstances, PodResources
     from spark_on_k8s.utils.app_manager import SparkAppManager
+    from spark_on_k8s.utils.types import ConfigMap
 
 
 class _AirflowKubernetesClientManager(KubernetesClientManager):
@@ -73,6 +74,7 @@ class SparkOnK8SOperator(BaseOperator):
         driver_node_selector: Node selector for the driver pod.
         executor_node_selector: Node selector for the executor pods.
         driver_tolerations: Tolerations for the driver pod.
+        driver_ephemeral_configmaps_volumes: List of ConfigMaps to mount as ephemeral volumes to the driver.
         spark_on_k8s_service_url: URL of the Spark On K8S service. Defaults to None.
         kubernetes_conn_id (str, optional): Kubernetes connection ID. Defaults to
             "kubernetes_default".
@@ -141,6 +143,7 @@ class SparkOnK8SOperator(BaseOperator):
         executor_annotations: dict[str, str] | None = None,
         driver_tolerations: list[k8s.V1Toleration] | None = None,
         executor_pod_template_path: str | None = None,
+        driver_ephemeral_configmaps_volumes: list[ConfigMap] | None = None,
         spark_on_k8s_service_url: str | None = None,
         kubernetes_conn_id: str = "kubernetes_default",
         poll_interval: int = 10,
@@ -176,6 +179,7 @@ class SparkOnK8SOperator(BaseOperator):
         self.executor_annotations = executor_annotations
         self.driver_tolerations = driver_tolerations
         self.executor_pod_template_path = executor_pod_template_path
+        self.driver_ephemeral_configmaps_volumes = driver_ephemeral_configmaps_volumes
         self.spark_on_k8s_service_url = spark_on_k8s_service_url
         self.kubernetes_conn_id = kubernetes_conn_id
         self.poll_interval = poll_interval
@@ -316,6 +320,7 @@ class SparkOnK8SOperator(BaseOperator):
             driver_annotations=self.driver_annotations,
             executor_annotations=self.executor_annotations,
             driver_tolerations=self.driver_tolerations,
+            driver_ephemeral_configmaps_volumes=self.driver_ephemeral_configmaps_volumes,
             executor_pod_template_path=self.executor_pod_template_path,
             **submit_app_kwargs,
         )

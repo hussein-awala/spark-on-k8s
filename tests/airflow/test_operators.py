@@ -44,6 +44,16 @@ class TestSparkOnK8SOperator:
             driver_annotations={"annotation1": "value1"},
             executor_annotations={"annotation2": "value2"},
             driver_tolerations=test_tolerations,
+            driver_ephemeral_configmaps_volumes=[
+                {
+                    "name": "configmap-volume",
+                    "mount_path": "/etc/config",
+                    "sources": [
+                        {"name": "file1.txt", "text": "config1"},
+                        {"name": "file2.txt", "text_path": "/path/to/some/file.txt"},
+                    ],
+                },
+            ],
             executor_pod_template_path="s3a://bucket/executor.yml",
             spark_on_k8s_service_url="http://localhost:8000",
         )
@@ -77,6 +87,16 @@ class TestSparkOnK8SOperator:
             driver_annotations={"annotation1": "value1"},
             executor_annotations={"annotation2": "value2"},
             driver_tolerations=test_tolerations,
+            driver_ephemeral_configmaps_volumes=[
+                {
+                    "name": "configmap-volume",
+                    "mount_path": "/etc/config",
+                    "sources": [
+                        {"name": "file1.txt", "text": "config1"},
+                        {"name": "file2.txt", "text_path": "/path/to/some/file.txt"},
+                    ],
+                },
+            ],
             executor_pod_template_path="s3a://bucket/executor.yml",
         )
         assert ti_mock.xcom_push.call_count == 3
@@ -193,6 +213,7 @@ class TestSparkOnK8SOperator:
             executor_annotations=None,
             driver_tolerations=None,
             executor_pod_template_path=None,
+            driver_ephemeral_configmaps_volumes=None,
         )
         assert app_id_suffix_kwarg() == "-suffix"
 

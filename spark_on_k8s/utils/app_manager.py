@@ -154,23 +154,30 @@ class SparkAppManager(LoggingMixin):
                 if len(pods) == 0:
                     raise ValueError(f"No pods found for app {app_id}")
                 pod_name = pods[0].metadata.name
-        with self.k8s_client_manager.client() as client:
-            api = k8s.CoreV1Api(client)
-            while True:
-                pod = api.read_namespaced_pod(
+        try:
+            with self.k8s_client_manager.client() as client:
+                api = k8s.CoreV1Api(client)
+                while True:
+                    pod = api.read_namespaced_pod(
+                        namespace=namespace,
+                        name=pod_name,
+                    )
+                    if pod.status.phase != "Pending":
+                        break
+                watcher = watch.Watch()
+                for line in watcher.stream(
+                    api.read_namespaced_pod_log,
                     namespace=namespace,
                     name=pod_name,
+                ):
+                    self.log(msg=line, level=logging.INFO, should_print=should_print)
+                watcher.stop()
+        except ApiException as e:
+            if e.status == 404:
+                self.log(
+                    msg=f"Pod {pod_name} was deleted", level=logging.INFO, should_print=should_print
                 )
-                if pod.status.phase != "Pending":
-                    break
-            watcher = watch.Watch()
-            for line in watcher.stream(
-                api.read_namespaced_pod_log,
-                namespace=namespace,
-                name=pod_name,
-            ):
-                self.log(msg=line, level=logging.INFO, should_print=should_print)
-            watcher.stop()
+                raise ApiException(f"Pod was deleted abruptly")
 
     def list_apps(self, namespace: str) -> list[str]:
         """List apps.

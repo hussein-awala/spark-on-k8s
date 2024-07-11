@@ -403,6 +403,14 @@ class SparkOnK8S(LoggingMixin):
             self.app_manager.wait_for_app(
                 namespace=namespace, pod_name=pod.metadata.name, should_print=should_print
             )
+        try:
+            self.app_manager.app_status(namespace=namespace, pod_name=pod.metadata.name, app_id=app_id, client=api)
+        except k8s.ApiException as e:
+            if e.status == 404:
+                self.log(
+                    msg=f"Pod {pod.metadata.name} was deleted", level=logging.INFO, should_print=should_print
+                )
+                raise k8s.ApiException(f"Pod was deleted abruptly")
         return pod.metadata.name
 
     def _parse_app_name_and_id(

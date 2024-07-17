@@ -165,6 +165,7 @@ and the CLI. Here is a list of the available environment variables:
 | SPARK_ON_K8S_SERVICE_ACCOUNT              | The service account to use                            | spark        |
 | SPARK_ON_K8S_SPARK_CONF                   | The spark configuration to use                        | {}           |
 | SPARK_ON_K8S_CLASS_NAME                   | The class name to use                                 |              |
+| SPARK_ON_K8S_PACKAGES                     | The maven packages list to add to the classpath       |              
 | SPARK_ON_K8S_APP_ARGUMENTS                | The arguments to pass to the app                      | []           |
 | SPARK_ON_K8S_APP_WAITER                   | The waiter to use to wait for the app to finish       | no_wait      |
 | SPARK_ON_K8S_IMAGE_PULL_POLICY            | The image pull policy to use                          | IfNotPresent |

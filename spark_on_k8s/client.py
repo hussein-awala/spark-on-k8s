@@ -112,6 +112,7 @@ class SparkOnK8S(LoggingMixin):
         app_name: str | ArgNotSet = NOTSET,
         spark_conf: dict[str, str] | ArgNotSet = NOTSET,
         class_name: str | ArgNotSet = NOTSET,
+        packages: list[str] | ArgNotSet = NOTSET,
         app_arguments: list[str] | ArgNotSet = NOTSET,
         app_id_suffix: Callable[[], str] | ArgNotSet = NOTSET,
         app_waiter: Literal["no_wait", "wait", "log"] | ArgNotSet = NOTSET,
@@ -148,6 +149,7 @@ class SparkOnK8S(LoggingMixin):
                 `spark-app{app_id_suffix()}`
             spark_conf: Dictionary of spark configuration to pass to the application
             class_name: Name of the class to execute
+            packages: List of maven coordinates of jars to include in the classpath
             app_arguments: List of arguments to pass to the application
             app_id_suffix: Function to generate a suffix for the application ID, defaults to
                 `default_app_id_suffix`
@@ -204,6 +206,10 @@ class SparkOnK8S(LoggingMixin):
             spark_conf = Configuration.SPARK_ON_K8S_SPARK_CONF
         if class_name is NOTSET:
             class_name = Configuration.SPARK_ON_K8S_CLASS_NAME
+        if packages is NOTSET:
+            packages = (
+                Configuration.SPARK_ON_K8S_PACKAGES.split(",") if Configuration.SPARK_ON_K8S_PACKAGES else []
+            )
         if app_arguments is NOTSET:
             app_arguments = Configuration.SPARK_ON_K8S_APP_ARGUMENTS
         if app_id_suffix is NOTSET:
@@ -330,6 +336,8 @@ class SparkOnK8S(LoggingMixin):
         driver_command_args = ["driver", "--master", "k8s://https://kubernetes.default.svc.cluster.local:443"]
         if class_name:
             driver_command_args.extend(["--class", class_name])
+        if packages:
+            driver_command_args.extend(["--packages", ",".join(packages)])
         driver_command_args.extend(
             self._spark_config_to_arguments({**basic_conf, **spark_conf}) + [app_path, *main_class_parameters]
         )

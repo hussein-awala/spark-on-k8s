@@ -56,6 +56,7 @@ class SparkOnK8SOperator(BaseOperator):
             the format %Y%m%d%H%M%S prefixed with a dash.
         spark_conf (dict[str, str], optional): Spark configuration. Defaults to None.
         class_name (str, optional): Spark application class name. Defaults to None.
+        packages: List of maven coordinates of jars to include in the classpath. Defaults to None.
         app_arguments (list[str], optional): Spark application arguments. Defaults to None.
         app_waiter (Literal["no_wait", "wait", "log"], optional): Spark application waiter.
             Defaults to "wait".
@@ -124,6 +125,7 @@ class SparkOnK8SOperator(BaseOperator):
         app_id_suffix: str = None,
         spark_conf: dict[str, str] | None = None,
         class_name: str | None = None,
+        packages: list[str] | None = None,
         app_arguments: list[str] | None = None,
         app_waiter: Literal["no_wait", "wait", "log"] = "wait",
         image_pull_policy: Literal["Always", "Never", "IfNotPresent"] = "IfNotPresent",
@@ -160,6 +162,7 @@ class SparkOnK8SOperator(BaseOperator):
         self.app_id_suffix = app_id_suffix
         self.spark_conf = spark_conf
         self.class_name = class_name
+        self.packages = packages
         self.app_arguments = app_arguments
         self.app_waiter = app_waiter
         self.image_pull_policy = image_pull_policy
@@ -302,6 +305,7 @@ class SparkOnK8SOperator(BaseOperator):
             app_name=self.app_name,
             spark_conf=self.spark_conf,
             class_name=self.class_name,
+            packages=self.packages,
             app_arguments=self.app_arguments,
             app_waiter="no_wait",
             image_pull_policy=self.image_pull_policy,

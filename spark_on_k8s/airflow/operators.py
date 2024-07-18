@@ -242,10 +242,22 @@ class SparkOnK8SOperator(BaseOperator):
     def _try_to_adopt_job(self, context: Context, spark_app_manager: SparkAppManager) -> bool:
         from spark_on_k8s.utils.spark_app_status import SparkAppStatus
 
-        xcom_driver_namespace = context["ti"].xcom_pull(key=self._XCOM_DRIVER_POD_NAMESPACE)
+        xcom_driver_namespace = context["ti"].xcom_pull(
+            dag_id=context["ti"].dag_id,
+            task_ids=context["ti"].task_id,
+            map_indexes=context["ti"].map_index,
+            key=self._XCOM_DRIVER_POD_NAMESPACE,
+            include_prior_dates=True,
+        )
         if not xcom_driver_namespace or xcom_driver_namespace != self.namespace:
             return False
-        xcom_driver_pod_name = context["ti"].xcom_pull(key=self._XCOM_DRIVER_POD_NAME)
+        xcom_driver_pod_name = context["ti"].xcom_pull(
+            dag_id=context["ti"].dag_id,
+            task_ids=context["ti"].task_id,
+            map_indexes=context["ti"].map_index,
+            key=self._XCOM_DRIVER_POD_NAME,
+            include_prior_dates=True,
+        )
         if xcom_driver_pod_name:
             with contextlib.suppress(Exception):
                 app_status = spark_app_manager.app_status(

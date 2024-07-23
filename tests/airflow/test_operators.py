@@ -254,3 +254,55 @@ class TestSparkOnK8SOperator:
             mock_submit_app.assert_called_once()
         else:
             mock_submit_app.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "app_waiter",
+        [
+            pytest.param("log", id="log"),
+            pytest.param("wait", id="wait"),
+        ],
+    )
+    @mock.patch("spark_on_k8s.utils.app_manager.SparkAppManager.stream_logs")
+    @mock.patch("spark_on_k8s.utils.app_manager.SparkAppManager.wait_for_app")
+    @mock.patch("spark_on_k8s.utils.app_manager.SparkAppManager.app_status")
+    @mock.patch("spark_on_k8s.client.SparkOnK8S.submit_app")
+    def test_startup_timeout(
+        self,
+        mock_submit_app,
+        mock_app_status,
+        mock_wait_for_app,
+        mock_stream_logs,
+        app_waiter,
+    ):
+        from spark_on_k8s.airflow.operators import SparkOnK8SOperator
+
+        mock_app_status.return_value = SparkAppStatus.Succeeded
+        mock_submit_app.return_value = "test-pod-name"
+        spark_app_task = SparkOnK8SOperator(
+            task_id="spark_application",
+            namespace="test-namespace",
+            image="pyspark-job",
+            app_path="local:///opt/spark/work-dir/job.py",
+            startup_timeout=10,
+            app_waiter=app_waiter,
+        )
+        spark_app_task.execute(
+            {
+                "ti": mock.MagicMock(
+                    xcom_pull=mock.MagicMock(side_effect=["test-namespace", "existing-pod"]),
+                )
+            }
+        )
+        if app_waiter == "log":
+            mock_stream_logs.assert_called_once_with(
+                namespace="test-namespace",
+                pod_name="test-pod-name",
+                startup_timeout=10,
+            )
+        else:
+            mock_wait_for_app.assert_called_once_with(
+                namespace="test-namespace",
+                pod_name="test-pod-name",
+                poll_interval=10,
+                startup_timeout=10,
+            )

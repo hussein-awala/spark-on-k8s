@@ -91,6 +91,7 @@ class SparkAppManager(LoggingMixin):
         app_id: str | None = None,
         poll_interval: float = 10,
         should_print: bool = False,
+        startup_timeout: float = 0,
     ):
         """Wait for a Spark app to finish.
 
@@ -99,8 +100,11 @@ class SparkAppManager(LoggingMixin):
             pod_name (str): Pod name.
             app_id (str): App ID.
             poll_interval (float, optional): Poll interval in seconds. Defaults to 10.
+            startup_timeout (float, optional): Timeout in seconds to wait for the app to start.
+                Defaults to 0 (no timeout).
             should_print (bool, optional): Whether to print logs instead of logging them.
         """
+        start_time = time.time()
         termination_statuses = {SparkAppStatus.Succeeded, SparkAppStatus.Failed, SparkAppStatus.Unknown}
         with self.k8s_client_manager.client() as client:
             api = k8s.CoreV1Api(client)
@@ -111,6 +115,10 @@ class SparkAppManager(LoggingMixin):
                     )
                     if status in termination_statuses:
                         break
+                    if status == SparkAppStatus.Pending:
+                        if startup_timeout and start_time + startup_timeout < time.time():
+                            raise TimeoutError("App startup timeout")
+
                 except ApiException as e:
                     if e.status == 404:
                         self.log(
@@ -135,6 +143,7 @@ class SparkAppManager(LoggingMixin):
         namespace: str,
         pod_name: str | None = None,
         app_id: str | None = None,
+        startup_timeout: float = 0,
         should_print: bool = False,
     ):
         """Stream logs from a Spark app.
@@ -143,8 +152,11 @@ class SparkAppManager(LoggingMixin):
             namespace (str): Namespace.
             pod_name (str): Pod name.
             app_id (str): App ID.
+            startup_timeout (float, optional): Timeout in seconds to wait for the app to start.
+                Defaults to 0 (no timeout).
             should_print (bool, optional): Whether to print logs instead of logging them.
         """
+        start_time = time.time()
         if pod_name is None and app_id is None:
             raise ValueError("Either pod_name or app_id must be specified")
         if pod_name is None:
@@ -166,6 +178,9 @@ class SparkAppManager(LoggingMixin):
                 )
                 if pod.status.phase != "Pending":
                     break
+                if startup_timeout and start_time + startup_timeout < time.time():
+                    raise TimeoutError("App startup timeout")
+                time.sleep(5)
             watcher = watch.Watch()
             for line in watcher.stream(
                 api.read_namespaced_pod_log,

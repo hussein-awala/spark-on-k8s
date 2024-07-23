@@ -84,6 +84,8 @@ class SparkOnK8SOperator(BaseOperator):
         deferrable (bool, optional): Whether the operator is deferrable. Defaults to False.
         on_kill_action (Literal["keep", "delete", "kill"], optional): Action to take when the
             operator is killed. Defaults to "delete".
+        startup_timeout (int, optional): Timeout for the Spark application to start.
+            Defaults to 0 (no timeout).
         **kwargs: Other keyword arguments for BaseOperator.
     """
 
@@ -151,6 +153,7 @@ class SparkOnK8SOperator(BaseOperator):
         poll_interval: int = 10,
         deferrable: bool = False,
         on_kill_action: Literal["keep", "delete", "kill"] = OnKillAction.DELETE,
+        startup_timeout: int = 0,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -188,6 +191,7 @@ class SparkOnK8SOperator(BaseOperator):
         self.poll_interval = poll_interval
         self.deferrable = deferrable
         self.on_kill_action = on_kill_action
+        self.startup_timeout = startup_timeout
 
     def _render_nested_template_fields(
         self,
@@ -366,23 +370,33 @@ class SparkOnK8SOperator(BaseOperator):
                 ),
                 method_name="execute_complete",
             )
-        if self.app_waiter == "wait":
-            spark_app_manager.wait_for_app(
+        try:
+            if self.app_waiter == "wait":
+                spark_app_manager.wait_for_app(
+                    namespace=self.namespace,
+                    pod_name=self._driver_pod_name,
+                    poll_interval=self.poll_interval,
+                    startup_timeout=self.startup_timeout,
+                )
+            elif self.app_waiter == "log":
+                spark_app_manager.stream_logs(
+                    namespace=self.namespace,
+                    pod_name=self._driver_pod_name,
+                    startup_timeout=self.startup_timeout,
+                )
+                # wait for termination status
+                spark_app_manager.wait_for_app(
+                    namespace=self.namespace,
+                    pod_name=self._driver_pod_name,
+                    poll_interval=1,
+                )
+        except TimeoutError:
+            self.log.info("Deleting Spark application due to startup timeout...")
+            spark_app_manager.delete_app(
                 namespace=self.namespace,
                 pod_name=self._driver_pod_name,
-                poll_interval=self.poll_interval,
             )
-        elif self.app_waiter == "log":
-            spark_app_manager.stream_logs(
-                namespace=self.namespace,
-                pod_name=self._driver_pod_name,
-            )
-            # wait for termination status
-            spark_app_manager.wait_for_app(
-                namespace=self.namespace,
-                pod_name=self._driver_pod_name,
-                poll_interval=1,
-            )
+            raise AirflowException("Spark application startup timeout exceeded") from None
         app_status = spark_app_manager.app_status(
             namespace=self.namespace,
             pod_name=self._driver_pod_name,

@@ -48,6 +48,7 @@ class Configuration:
         if getenv("SPARK_ON_K8S_DRIVER_ENV_VARS_FROM_SECRET")
         else []
     )
+    SPARK_ON_K8S_STARTUP_TIMEOUT = int(getenv("SPARK_ON_K8S_STARTUP_TIMEOUT", 0))
 
     # Kubernetes client configuration
     # K8S client configuration

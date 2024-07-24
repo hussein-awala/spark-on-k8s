@@ -136,6 +136,7 @@ class SparkOnK8S(LoggingMixin):
         executor_labels: dict[str, str] | ArgNotSet = NOTSET,
         driver_tolerations: list[k8s.V1Toleration] | ArgNotSet = NOTSET,
         executor_pod_template_path: str | ArgNotSet = NOTSET,
+        startup_timeout: int | ArgNotSet = NOTSET,
     ) -> str:
         """Submit a Spark app to Kubernetes
 
@@ -178,6 +179,7 @@ class SparkOnK8S(LoggingMixin):
             executor_node_selector: Node selector for the executors
             driver_tolerations: List of tolerations for the driver
             executor_pod_template_path: Path to the executor pod template file
+            startup_timeout: Timeout in seconds to wait for the application to start
 
         Returns:
             Name of the Spark application pod
@@ -280,6 +282,8 @@ class SparkOnK8S(LoggingMixin):
             driver_tolerations = []
         if executor_pod_template_path is NOTSET or executor_pod_template_path is None:
             executor_pod_template_path = Configuration.SPARK_ON_K8S_EXECUTOR_POD_TEMPLATE_PATH
+        if startup_timeout is NOTSET:
+            startup_timeout = Configuration.SPARK_ON_K8S_STARTUP_TIMEOUT
 
         spark_conf = spark_conf or {}
         main_class_parameters = app_arguments or []
@@ -449,11 +453,16 @@ class SparkOnK8S(LoggingMixin):
             self.app_manager.stream_logs(
                 namespace=namespace,
                 pod_name=pod.metadata.name,
+                startup_timeout=startup_timeout,
                 should_print=should_print,
             )
         elif app_waiter == SparkAppWait.WAIT:
             self.app_manager.wait_for_app(
-                namespace=namespace, pod_name=pod.metadata.name, should_print=should_print
+                namespace=namespace,
+                pod_name=pod.metadata.name,
+                poll_interval=5,
+                startup_timeout=startup_timeout,
+                should_print=should_print,
             )
         return pod.metadata.name
 

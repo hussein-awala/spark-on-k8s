@@ -198,6 +198,7 @@ class TestSparkOnK8s:
         assert created_pod.metadata.labels["spark-app-id"] == expected_app_id
         assert created_pod.metadata.labels["spark-role"] == "driver"
         assert created_pod.spec.containers[0].image == "pyspark-job"
+        assert created_pod.spec.service_account_name == "spark"
         assert created_pod.spec.containers[0].args == [
             "driver",
             "--master",
@@ -296,6 +297,7 @@ class TestSparkOnK8s:
 
         created_pod = mock_create_namespaced_pod.call_args[1]["body"]
         assert created_pod.spec.containers[0].image == "test-spark-on-k8s-docker-image"
+        assert created_pod.spec.service_account_name == "test-service-account"
         assert created_pod.spec.containers[0].args == [
             "driver",
             "--master",

@@ -371,6 +371,7 @@ class SparkOnK8S(LoggingMixin):
             image=image,
             image_pull_policy=image_pull_policy,
             namespace=namespace,
+            service_account=service_account,
             args=driver_command_args,
             extra_labels={**extra_labels, **driver_labels},
             annotations=driver_annotations,

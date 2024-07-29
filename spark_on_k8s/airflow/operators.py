@@ -407,6 +407,8 @@ class SparkOnK8SOperator(BaseOperator):
         raise AirflowException(f"The job finished with status: {app_status}")
 
     def execute_complete(self, context: Context, event: dict, **kwargs):
+        self.namespace = event["namespace"]
+        self._driver_pod_name = event["pod_name"]
         if self.app_waiter == "log":
             from spark_on_k8s.utils.app_manager import SparkAppManager
 

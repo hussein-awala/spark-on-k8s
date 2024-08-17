@@ -3,6 +3,7 @@ from __future__ import annotations
 import random
 import sys
 
+from my_modules.pi import is_point_in_the_unit_circle
 from pyspark.sql import SparkSession
 
 if __name__ == "__main__":
@@ -23,7 +24,7 @@ if __name__ == "__main__":
     )
 
     # Count points within the unit circle
-    inside_circle = points.filter(lambda point: point[0] ** 2 + point[1] ** 2 <= 1)
+    inside_circle = points.filter(is_point_in_the_unit_circle)
 
     # Estimate Pi
     pi_estimate = 4 * inside_circle.count() / num_points

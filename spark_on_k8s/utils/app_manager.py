@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from kubernetes import client as k8s, watch
 from kubernetes.client import ApiException
@@ -11,6 +11,9 @@ from kubernetes.stream import stream
 from spark_on_k8s.k8s.sync_client import KubernetesClientManager
 from spark_on_k8s.utils.logging_mixin import LoggingMixin
 from spark_on_k8s.utils.spark_app_status import SparkAppStatus, get_app_status
+
+if TYPE_CHECKING:
+    from spark_on_k8s.utils.types import ConfigMap, ConfigMapSource
 
 
 class SparkAppManager(LoggingMixin):
@@ -88,6 +91,7 @@ class SparkAppManager(LoggingMixin):
         app_id: str | None = None,
         poll_interval: float = 10,
         should_print: bool = False,
+        startup_timeout: float = 0,
     ):
         """Wait for a Spark app to finish.
 
@@ -96,8 +100,11 @@ class SparkAppManager(LoggingMixin):
             pod_name (str): Pod name.
             app_id (str): App ID.
             poll_interval (float, optional): Poll interval in seconds. Defaults to 10.
+            startup_timeout (float, optional): Timeout in seconds to wait for the app to start.
+                Defaults to 0 (no timeout).
             should_print (bool, optional): Whether to print logs instead of logging them.
         """
+        start_time = time.time()
         termination_statuses = {SparkAppStatus.Succeeded, SparkAppStatus.Failed, SparkAppStatus.Unknown}
         with self.k8s_client_manager.client() as client:
             api = k8s.CoreV1Api(client)
@@ -108,6 +115,10 @@ class SparkAppManager(LoggingMixin):
                     )
                     if status in termination_statuses:
                         break
+                    if status == SparkAppStatus.Pending:
+                        if startup_timeout and start_time + startup_timeout < time.time():
+                            raise TimeoutError("App startup timeout")
+
                 except ApiException as e:
                     if e.status == 404:
                         self.log(
@@ -132,6 +143,7 @@ class SparkAppManager(LoggingMixin):
         namespace: str,
         pod_name: str | None = None,
         app_id: str | None = None,
+        startup_timeout: float = 0,
         should_print: bool = False,
     ):
         """Stream logs from a Spark app.
@@ -140,8 +152,11 @@ class SparkAppManager(LoggingMixin):
             namespace (str): Namespace.
             pod_name (str): Pod name.
             app_id (str): App ID.
+            startup_timeout (float, optional): Timeout in seconds to wait for the app to start.
+                Defaults to 0 (no timeout).
             should_print (bool, optional): Whether to print logs instead of logging them.
         """
+        start_time = time.time()
         if pod_name is None and app_id is None:
             raise ValueError("Either pod_name or app_id must be specified")
         if pod_name is None:
@@ -163,6 +178,9 @@ class SparkAppManager(LoggingMixin):
                 )
                 if pod.status.phase != "Pending":
                     break
+                if startup_timeout and start_time + startup_timeout < time.time():
+                    raise TimeoutError("App startup timeout")
+                time.sleep(5)
             watcher = watch.Watch()
             for line in watcher.stream(
                 api.read_namespaced_pod_log,
@@ -540,3 +558,58 @@ class SparkAppManager(LoggingMixin):
             ),
             string_data=secrets_values,
         )
+
+    @staticmethod
+    def create_configmap_objects(
+        *,
+        app_name: str,
+        app_id: str,
+        configmaps: list[ConfigMap],
+        namespace: str = "default",
+    ) -> list[k8s.V1ConfigMap]:
+        """Create configmaps for a Spark application to mount in the driver
+         and executors containers as volumes
+
+        Args:
+            app_name: Name of the Spark application
+            app_id: ID of the Spark application
+            configmaps: List of configmaps to create
+            namespace: Kubernetes namespace to use, defaults to "default"
+
+        Returns:
+            The created configmaps objects for the Spark application
+        """
+        k8s_configmaps = []
+        configmap_names = set()
+        configmap_mount_paths = set()
+        for index, configmap in enumerate(configmaps):
+            configmap_name = configmap.get("name", f"{app_id}-{index}")
+            if configmap_name in configmap_names:
+                raise ValueError(f"Configmap name {configmap_name} is duplicated")
+            configmap_mount_path = configmap["mount_path"]
+            if configmap_mount_path in configmap_mount_paths:
+                raise ValueError(f"Configmap mount path {configmap_mount_path} is duplicated")
+            configmap_names.add(configmap_name)
+            configmap_mount_paths.add(configmap_mount_path)
+            data = {}
+            source: ConfigMapSource
+            for source in configmap["sources"]:
+                if "text" in source:
+                    data[source["name"]] = source["text"]
+                elif "text_path" in source:
+                    with open(source["text_path"]) as file:
+                        data[source["name"]] = file.read()
+            k8s_configmaps.append(
+                k8s.V1ConfigMap(
+                    metadata=k8s.V1ObjectMeta(
+                        name=configmap_name,
+                        namespace=namespace,
+                        labels=SparkAppManager.spark_app_labels(
+                            app_name=app_name,
+                            app_id=app_id,
+                        ),
+                    ),
+                    data=data,
+                )
+            )
+        return k8s_configmaps

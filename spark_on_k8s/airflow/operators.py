@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from airflow.utils.context import Context
     from spark_on_k8s.client import ExecutorInstances, PodResources
     from spark_on_k8s.utils.app_manager import SparkAppManager
+    from spark_on_k8s.utils.types import ConfigMap
 
 
 class _AirflowKubernetesClientManager(KubernetesClientManager):
@@ -55,6 +56,7 @@ class SparkOnK8SOperator(BaseOperator):
             the format %Y%m%d%H%M%S prefixed with a dash.
         spark_conf (dict[str, str], optional): Spark configuration. Defaults to None.
         class_name (str, optional): Spark application class name. Defaults to None.
+        packages: List of maven coordinates of jars to include in the classpath. Defaults to None.
         app_arguments (list[str], optional): Spark application arguments. Defaults to None.
         app_waiter (Literal["no_wait", "wait", "log"], optional): Spark application waiter.
             Defaults to "wait".
@@ -73,6 +75,7 @@ class SparkOnK8SOperator(BaseOperator):
         driver_node_selector: Node selector for the driver pod.
         executor_node_selector: Node selector for the executor pods.
         driver_tolerations: Tolerations for the driver pod.
+        driver_ephemeral_configmaps_volumes: List of ConfigMaps to mount as ephemeral volumes to the driver.
         spark_on_k8s_service_url: URL of the Spark On K8S service. Defaults to None.
         kubernetes_conn_id (str, optional): Kubernetes connection ID. Defaults to
             "kubernetes_default".
@@ -81,6 +84,8 @@ class SparkOnK8SOperator(BaseOperator):
         deferrable (bool, optional): Whether the operator is deferrable. Defaults to False.
         on_kill_action (Literal["keep", "delete", "kill"], optional): Action to take when the
             operator is killed. Defaults to "delete".
+        startup_timeout (int, optional): Timeout for the Spark application to start.
+            Defaults to 0 (no timeout).
         **kwargs: Other keyword arguments for BaseOperator.
     """
 
@@ -122,6 +127,7 @@ class SparkOnK8SOperator(BaseOperator):
         app_id_suffix: str = None,
         spark_conf: dict[str, str] | None = None,
         class_name: str | None = None,
+        packages: list[str] | None = None,
         app_arguments: list[str] | None = None,
         app_waiter: Literal["no_wait", "wait", "log"] = "wait",
         image_pull_policy: Literal["Always", "Never", "IfNotPresent"] = "IfNotPresent",
@@ -141,11 +147,13 @@ class SparkOnK8SOperator(BaseOperator):
         executor_annotations: dict[str, str] | None = None,
         driver_tolerations: list[k8s.V1Toleration] | None = None,
         executor_pod_template_path: str | None = None,
+        driver_ephemeral_configmaps_volumes: list[ConfigMap] | None = None,
         spark_on_k8s_service_url: str | None = None,
         kubernetes_conn_id: str = "kubernetes_default",
         poll_interval: int = 10,
         deferrable: bool = False,
         on_kill_action: Literal["keep", "delete", "kill"] = OnKillAction.DELETE,
+        startup_timeout: int = 0,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -157,6 +165,7 @@ class SparkOnK8SOperator(BaseOperator):
         self.app_id_suffix = app_id_suffix
         self.spark_conf = spark_conf
         self.class_name = class_name
+        self.packages = packages
         self.app_arguments = app_arguments
         self.app_waiter = app_waiter
         self.image_pull_policy = image_pull_policy
@@ -176,11 +185,13 @@ class SparkOnK8SOperator(BaseOperator):
         self.executor_annotations = executor_annotations
         self.driver_tolerations = driver_tolerations
         self.executor_pod_template_path = executor_pod_template_path
+        self.driver_ephemeral_configmaps_volumes = driver_ephemeral_configmaps_volumes
         self.spark_on_k8s_service_url = spark_on_k8s_service_url
         self.kubernetes_conn_id = kubernetes_conn_id
         self.poll_interval = poll_interval
         self.deferrable = deferrable
         self.on_kill_action = on_kill_action
+        self.startup_timeout = startup_timeout
 
     def _render_nested_template_fields(
         self,
@@ -235,10 +246,22 @@ class SparkOnK8SOperator(BaseOperator):
     def _try_to_adopt_job(self, context: Context, spark_app_manager: SparkAppManager) -> bool:
         from spark_on_k8s.utils.spark_app_status import SparkAppStatus
 
-        xcom_driver_namespace = context["ti"].xcom_pull(key=self._XCOM_DRIVER_POD_NAMESPACE)
+        xcom_driver_namespace = context["ti"].xcom_pull(
+            dag_id=context["ti"].dag_id,
+            task_ids=context["ti"].task_id,
+            map_indexes=context["ti"].map_index,
+            key=self._XCOM_DRIVER_POD_NAMESPACE,
+            include_prior_dates=True,
+        )
         if not xcom_driver_namespace or xcom_driver_namespace != self.namespace:
             return False
-        xcom_driver_pod_name = context["ti"].xcom_pull(key=self._XCOM_DRIVER_POD_NAME)
+        xcom_driver_pod_name = context["ti"].xcom_pull(
+            dag_id=context["ti"].dag_id,
+            task_ids=context["ti"].task_id,
+            map_indexes=context["ti"].map_index,
+            key=self._XCOM_DRIVER_POD_NAME,
+            include_prior_dates=True,
+        )
         if xcom_driver_pod_name:
             with contextlib.suppress(Exception):
                 app_status = spark_app_manager.app_status(
@@ -298,6 +321,7 @@ class SparkOnK8SOperator(BaseOperator):
             app_name=self.app_name,
             spark_conf=self.spark_conf,
             class_name=self.class_name,
+            packages=self.packages,
             app_arguments=self.app_arguments,
             app_waiter="no_wait",
             image_pull_policy=self.image_pull_policy,
@@ -316,6 +340,7 @@ class SparkOnK8SOperator(BaseOperator):
             driver_annotations=self.driver_annotations,
             executor_annotations=self.executor_annotations,
             driver_tolerations=self.driver_tolerations,
+            driver_ephemeral_configmaps_volumes=self.driver_ephemeral_configmaps_volumes,
             executor_pod_template_path=self.executor_pod_template_path,
             **submit_app_kwargs,
         )
@@ -345,23 +370,33 @@ class SparkOnK8SOperator(BaseOperator):
                 ),
                 method_name="execute_complete",
             )
-        if self.app_waiter == "wait":
-            spark_app_manager.wait_for_app(
+        try:
+            if self.app_waiter == "wait":
+                spark_app_manager.wait_for_app(
+                    namespace=self.namespace,
+                    pod_name=self._driver_pod_name,
+                    poll_interval=self.poll_interval,
+                    startup_timeout=self.startup_timeout,
+                )
+            elif self.app_waiter == "log":
+                spark_app_manager.stream_logs(
+                    namespace=self.namespace,
+                    pod_name=self._driver_pod_name,
+                    startup_timeout=self.startup_timeout,
+                )
+                # wait for termination status
+                spark_app_manager.wait_for_app(
+                    namespace=self.namespace,
+                    pod_name=self._driver_pod_name,
+                    poll_interval=1,
+                )
+        except TimeoutError:
+            self.log.info("Deleting Spark application due to startup timeout...")
+            spark_app_manager.delete_app(
                 namespace=self.namespace,
                 pod_name=self._driver_pod_name,
-                poll_interval=self.poll_interval,
             )
-        elif self.app_waiter == "log":
-            spark_app_manager.stream_logs(
-                namespace=self.namespace,
-                pod_name=self._driver_pod_name,
-            )
-            # wait for termination status
-            spark_app_manager.wait_for_app(
-                namespace=self.namespace,
-                pod_name=self._driver_pod_name,
-                poll_interval=1,
-            )
+            raise AirflowException("Spark application startup timeout exceeded") from None
         app_status = spark_app_manager.app_status(
             namespace=self.namespace,
             pod_name=self._driver_pod_name,
@@ -372,6 +407,8 @@ class SparkOnK8SOperator(BaseOperator):
         raise AirflowException(f"The job finished with status: {app_status}")
 
     def execute_complete(self, context: Context, event: dict, **kwargs):
+        self.namespace = event["namespace"]
+        self._driver_pod_name = event["pod_name"]
         if self.app_waiter == "log":
             from spark_on_k8s.utils.app_manager import SparkAppManager
 

@@ -32,6 +32,7 @@ class TestSparkOnK8SOperator:
             app_arguments=["100000"],
             app_name="pyspark-job-example",
             service_account="spark",
+            packages=["some-package"],
             app_waiter="no_wait",
             driver_resources=PodResources(cpu=1, memory=1024, memory_overhead=512),
             executor_resources=PodResources(cpu=1, memory=1024, memory_overhead=512),
@@ -44,6 +45,16 @@ class TestSparkOnK8SOperator:
             driver_annotations={"annotation1": "value1"},
             executor_annotations={"annotation2": "value2"},
             driver_tolerations=test_tolerations,
+            driver_ephemeral_configmaps_volumes=[
+                {
+                    "name": "configmap-volume",
+                    "mount_path": "/etc/config",
+                    "sources": [
+                        {"name": "file1.txt", "text": "config1"},
+                        {"name": "file2.txt", "text_path": "/path/to/some/file.txt"},
+                    ],
+                },
+            ],
             executor_pod_template_path="s3a://bucket/executor.yml",
             spark_on_k8s_service_url="http://localhost:8000",
         )
@@ -66,6 +77,7 @@ class TestSparkOnK8SOperator:
             ui_reverse_proxy=True,
             spark_conf=None,
             class_name=None,
+            packages=["some-package"],
             secret_values=None,
             volumes=None,
             driver_volume_mounts=None,
@@ -77,6 +89,16 @@ class TestSparkOnK8SOperator:
             driver_annotations={"annotation1": "value1"},
             executor_annotations={"annotation2": "value2"},
             driver_tolerations=test_tolerations,
+            driver_ephemeral_configmaps_volumes=[
+                {
+                    "name": "configmap-volume",
+                    "mount_path": "/etc/config",
+                    "sources": [
+                        {"name": "file1.txt", "text": "config1"},
+                        {"name": "file2.txt", "text_path": "/path/to/some/file.txt"},
+                    ],
+                },
+            ],
             executor_pod_template_path="s3a://bucket/executor.yml",
         )
         assert ti_mock.xcom_push.call_count == 3
@@ -182,6 +204,7 @@ class TestSparkOnK8SOperator:
                 "KEY2": "value from connection",
             },
             class_name=None,
+            packages=None,
             volumes=None,
             driver_volume_mounts=None,
             executor_volume_mounts=None,
@@ -193,6 +216,7 @@ class TestSparkOnK8SOperator:
             executor_annotations=None,
             driver_tolerations=None,
             executor_pod_template_path=None,
+            driver_ephemeral_configmaps_volumes=None,
         )
         assert app_id_suffix_kwarg() == "-suffix"
 
@@ -230,3 +254,55 @@ class TestSparkOnK8SOperator:
             mock_submit_app.assert_called_once()
         else:
             mock_submit_app.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "app_waiter",
+        [
+            pytest.param("log", id="log"),
+            pytest.param("wait", id="wait"),
+        ],
+    )
+    @mock.patch("spark_on_k8s.utils.app_manager.SparkAppManager.stream_logs")
+    @mock.patch("spark_on_k8s.utils.app_manager.SparkAppManager.wait_for_app")
+    @mock.patch("spark_on_k8s.utils.app_manager.SparkAppManager.app_status")
+    @mock.patch("spark_on_k8s.client.SparkOnK8S.submit_app")
+    def test_startup_timeout(
+        self,
+        mock_submit_app,
+        mock_app_status,
+        mock_wait_for_app,
+        mock_stream_logs,
+        app_waiter,
+    ):
+        from spark_on_k8s.airflow.operators import SparkOnK8SOperator
+
+        mock_app_status.return_value = SparkAppStatus.Succeeded
+        mock_submit_app.return_value = "test-pod-name"
+        spark_app_task = SparkOnK8SOperator(
+            task_id="spark_application",
+            namespace="test-namespace",
+            image="pyspark-job",
+            app_path="local:///opt/spark/work-dir/job.py",
+            startup_timeout=10,
+            app_waiter=app_waiter,
+        )
+        spark_app_task.execute(
+            {
+                "ti": mock.MagicMock(
+                    xcom_pull=mock.MagicMock(side_effect=["test-namespace", "existing-pod"]),
+                )
+            }
+        )
+        if app_waiter == "log":
+            mock_stream_logs.assert_called_once_with(
+                namespace="test-namespace",
+                pod_name="test-pod-name",
+                startup_timeout=10,
+            )
+        else:
+            mock_wait_for_app.assert_called_once_with(
+                namespace="test-namespace",
+                pod_name="test-pod-name",
+                poll_interval=10,
+                startup_timeout=10,
+            )

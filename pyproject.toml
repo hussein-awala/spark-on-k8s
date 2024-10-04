@@ -33,6 +33,7 @@ multidict = [
     # Standard version for Python 3.10 and above
     {version = "^6.0.5", markers = "python_version >= '3.10'", optional = true},
 ]
+werkzeug = {version = "^3", optional = true}
 [tool.poetry.dev-dependencies]
 mock = "^5.1.0"
 pytest = "^7.4.3"

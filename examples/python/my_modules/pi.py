@@ -2,6 +2,7 @@
 This is an example module that contains a class definition
 used in the job submission example.
 """
+
 from __future__ import annotations
 
 

@@ -322,9 +322,9 @@ class SparkOnK8S(LoggingMixin):
                 basic_conf["spark.dynamicAllocation.maxExecutors"] = f"{executor_instances.max}"
             basic_conf["spark.dynamicAllocation.initialExecutors"] = f"{executor_instances.initial or 0}"
         else:
-            basic_conf[
-                "spark.executor.instances"
-            ] = f"{executor_instances.initial if executor_instances.initial is not None else 2}"
+            basic_conf["spark.executor.instances"] = (
+                f"{executor_instances.initial if executor_instances.initial is not None else 2}"
+            )
         if executor_volume_mounts:
             basic_conf.update(
                 self._executor_volumes_config(volumes=volumes, volume_mounts=executor_volume_mounts)

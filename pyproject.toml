@@ -65,6 +65,7 @@ target-version = "py38"
 line-length = 110
 indent-width = 4
 src = ["spark_on_k8s", "tests"]
+[tool.ruff.lint]
 fixable = ["ALL"]
 ignore = ["E712"]
 select = [
@@ -79,12 +80,12 @@ select = [
     "TCH", # flake8-type-checking
 ]
 
-[tool.ruff.format]
-docstring-code-format = true
-
-[tool.ruff.isort]
+[tool.ruff.lint.isort]
 required-imports = ["from __future__ import annotations"]
 combine-as-imports = true
+
+[tool.ruff.format]
+docstring-code-format = true
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"

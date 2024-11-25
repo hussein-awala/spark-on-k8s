@@ -4,10 +4,10 @@ from unittest import mock
 
 import pytest
 
-from conftest import PYTHON_312_OR_ABOVE
+from conftest import PYTHON_313_OR_ABOVE
 
 
-@pytest.mark.skipif(PYTHON_312_OR_ABOVE, reason="Python 3.12+ is not supported by Airflow")
+@pytest.mark.skipif(PYTHON_313_OR_ABOVE, reason="Python 3.13+ is not supported by Airflow")
 class TestSparkOnK8SOperatorLink:
     def test_persist_spark_ui_link(self):
         from spark_on_k8s.airflow.operator_links import SparkOnK8SOperatorLink

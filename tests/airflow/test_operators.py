@@ -5,10 +5,10 @@ from unittest import mock
 import pytest
 from spark_on_k8s.utils.spark_app_status import SparkAppStatus
 
-from conftest import PYTHON_312
+from conftest import PYTHON_312_OR_ABOVE
 
 
-@pytest.mark.skipif(PYTHON_312, reason="Python 3.12 is not supported by Airflow")
+@pytest.mark.skipif(PYTHON_312_OR_ABOVE, reason="Python 3.12+ is not supported by Airflow")
 class TestSparkOnK8SOperator:
     @mock.patch("spark_on_k8s.client.SparkOnK8S.submit_app")
     def test_execute(self, mock_submit_app):

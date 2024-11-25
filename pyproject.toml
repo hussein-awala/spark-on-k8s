@@ -14,7 +14,7 @@ packages = [{include = "spark_on_k8s"}]
 "Documentation" = "https://github.com/hussein-awala/spark-on-k8s/blob/main/README.md"
 
 [tool.poetry.dependencies]
-python = "^3.8"
+python = "^3.9"
 kubernetes = ">=26.1.0"
 click = "^8.0.1"
 fastapi = {version = "^0.109.1", optional = true}
@@ -29,10 +29,11 @@ aiohttp = {version = ">=3.10.2", optional = true}  # CVE-2024-23829, CVE-2024-23
 websockets = {version = "^12", optional = true}
 multidict = [
     # Specific workaround for Python 3.9 with exclusion of version 6.0.5
-    {version = "^6.0.4,!=6.0.5", markers = "python_version <= '3.9'", optional = true},
+    {version = "^6.0.4,!=6.0.5", markers = "python_version == '3.9'", optional = true},
     # Standard version for Python 3.10 and above
     {version = "^6.0.5", markers = "python_version >= '3.10'", optional = true},
 ]
+eval-type-backport = [{version = "^0.2.0", markers = "python_version == '3.9'"}]
 [tool.poetry.dev-dependencies]
 mock = "^5.1.0"
 pytest = "^7.4.3"
@@ -61,7 +62,7 @@ requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.ruff]
-target-version = "py38"
+target-version = "py39"
 line-length = 110
 indent-width = 4
 src = ["spark_on_k8s", "tests"]

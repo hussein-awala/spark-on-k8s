@@ -18,7 +18,7 @@ from spark_on_k8s.utils.types import NOTSET, ArgNotSet
 if TYPE_CHECKING:
     from spark_on_k8s.utils.types import ConfigMap
 
-# For Python 3.8 and 3.9 compatibility
+# For Python 3.9 compatibility
 KW_ONLY_DATACLASS = {"kw_only": True} if "kw_only" in dataclass.__kwdefaults__ else {}
 
 

@@ -246,6 +246,12 @@ class TestSparkOnK8s:
             "spark.dynamicAllocation.maxExecutors=5",
             "--conf",
             "spark.dynamicAllocation.initialExecutors=5",
+            "--conf",
+            "spark.dynamicAllocation.executorAllocationRatio=1.0",
+            "--conf",
+            "spark.dynamicAllocation.schedulerBacklogTimeout=1s",
+            "--conf",
+            "spark.dynamicAllocation.sustainedSchedulerBacklogTimeout=1s",
             "local:///opt/spark/work-dir/job.py",
             "100000",
         ]
@@ -281,6 +287,9 @@ class TestSparkOnK8s:
         os.environ["SPARK_ON_K8S_EXECUTOR_MIN_INSTANCES"] = "2"
         os.environ["SPARK_ON_K8S_EXECUTOR_MAX_INSTANCES"] = "5"
         os.environ["SPARK_ON_K8S_EXECUTOR_INITIAL_INSTANCES"] = "5"
+        os.environ["SPARK_ON_K8S_EXECUTOR_ALLOCATION_RATIO"] = "0.5"
+        os.environ["SPARK_ON_K8S_SCHEDULER_BACKLOG_TIMEOUT"] = "10s"
+        os.environ["SPARK_ON_K8S_SUSTAINED_SCHEDULER_BACKLOG_TIMEOUT"] = "20s"
         os.environ["SPARK_ON_K8S_SPARK_CONF"] = json.dumps(
             {"spark.conf1.key": "spark.conf1.value", "spark.conf2.key": "spark.conf2.value"}
         )
@@ -349,6 +358,12 @@ class TestSparkOnK8s:
             "spark.dynamicAllocation.maxExecutors=5",
             "--conf",
             "spark.dynamicAllocation.initialExecutors=5",
+            "--conf",
+            "spark.dynamicAllocation.executorAllocationRatio=0.5",
+            "--conf",
+            "spark.dynamicAllocation.schedulerBacklogTimeout=10s",
+            "--conf",
+            "spark.dynamicAllocation.sustainedSchedulerBacklogTimeout=20s",
             "--conf",
             "spark.conf1.key=spark.conf1.value",
             "--conf",

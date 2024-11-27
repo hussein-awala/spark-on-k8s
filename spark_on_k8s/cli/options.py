@@ -188,6 +188,42 @@ executor_initial_instances_option = click.Option(
         "will be the initial number of executors with a default of 0."
     ),
 )
+executor_allocation_ratio_option = click.Option(
+    ("--executor-allocation-ratio",),
+    type=int,
+    default=Configuration.SPARK_ON_K8S_EXECUTOR_ALLOCATION_RATIO,
+    show_default=True,
+    help=(
+        "By default, the dynamic allocation will request enough executors to maximize the parallelism "
+        "according to the number of tasks to process. While this minimizes the latency of the job, "
+        "with small tasks this setting can waste a lot of resources due to executor allocation overhead, "
+        "as some executor might not even do any work. This setting allows to set a ratio that will be "
+        "used to reduce the number of executors w.r.t. full parallelism. Defaults to 1.0 to give "
+        "maximum parallelism. 0.5 will divide the target number of executors by 2 The target number "
+        "of executors computed by the dynamicAllocation can still be overridden by the "
+        "spark.dynamicAllocation.minExecutors and spark.dynamicAllocation.maxExecutors settings."
+    ),
+)
+scheduler_backlog_timeout_option = click.Option(
+    ("--scheduler-backlog-timeout",),
+    type=str,
+    default=Configuration.SPARK_ON_K8S_SCHEDULER_BACKLOG_TIMEOUT,
+    show_default=True,
+    help=(
+        "If dynamic allocation is enabled and there have been pending tasks backlogged for more than "
+        "this duration, new executors will be requested."
+    ),
+)
+sustained_scheduler_backlog_timeout_option = click.Option(
+    ("--sustained-scheduler-backlog-timeout",),
+    type=str,
+    default=Configuration.SPARK_ON_K8S_SUSTAINED_SCHEDULER_BACKLOG_TIMEOUT,
+    show_default=True,
+    help=(
+        "Same as spark.dynamicAllocation.schedulerBacklogTimeout, but used only for subsequent "
+        "executor requests."
+    ),
+)
 secret_env_var_option = click.Option(
     ("--secret-env-var",),
     type=str,

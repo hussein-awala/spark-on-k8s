@@ -157,48 +157,51 @@ The Python client and the CLI can be configured with environment variables to av
 time if you have a common configuration for all your apps. The environment variables are the same for both the client
 and the CLI. Here is a list of the available environment variables:
 
-| Environment Variable                      | Description                                           | Default        |
-|-------------------------------------------|-------------------------------------------------------|----------------|
-| SPARK_ON_K8S_DOCKER_IMAGE                 | The docker image to use for the spark pods            |                |
-| SPARK_ON_K8S_APP_PATH                     | The path to the app file                              |                |
-| SPARK_ON_K8S_NAMESPACE                    | The namespace to use                                  | default        |
-| SPARK_ON_K8S_SERVICE_ACCOUNT              | The service account to use                            | spark          |
-| SPARK_ON_K8S_SPARK_CONF                   | The spark configuration to use                        | {}             |
-| SPARK_ON_K8S_CLASS_NAME                   | The class name to use                                 |                |
-| SPARK_ON_K8S_PACKAGES                     | The maven packages list to add to the classpath       |              
-| SPARK_ON_K8S_APP_ARGUMENTS                | The arguments to pass to the app                      | []             |
-| SPARK_ON_K8S_APP_WAITER                   | The waiter to use to wait for the app to finish       | no_wait        |
-| SPARK_ON_K8S_IMAGE_PULL_POLICY            | The image pull policy to use                          | IfNotPresent   |
-| SPARK_ON_K8S_UI_REVERSE_PROXY             | Whether to use a reverse proxy to access the spark UI | false          |
-| SPARK_ON_K8S_DRIVER_CPU                   | The driver CPU                                        | 1              |
-| SPARK_ON_K8S_DRIVER_MEMORY                | The driver memory                                     | 1024           |
-| SPARK_ON_K8S_DRIVER_MEMORY_OVERHEAD       | The driver memory overhead                            | 512            |
-| SPARK_ON_K8S_EXECUTOR_CPU                 | The executor CPU                                      | 1              |
-| SPARK_ON_K8S_EXECUTOR_MEMORY              | The executor memory                                   | 1024           |
-| SPARK_ON_K8S_EXECUTOR_MEMORY_OVERHEAD     | The executor memory overhead                          | 512            |
-| SPARK_ON_K8S_EXECUTOR_MIN_INSTANCES       | The minimum number of executor instances              |                |
-| SPARK_ON_K8S_EXECUTOR_MAX_INSTANCES       | The maximum number of executor instances              |                |
-| SPARK_ON_K8S_EXECUTOR_INITIAL_INSTANCES   | The initial number of executor instances              |                |
-| SPARK_ON_K8S_CONFIG_FILE                  | The path to the config file                           |                |
-| SPARK_ON_K8S_CONTEXT                      | The context to use                                    |                |
-| SPARK_ON_K8S_CLIENT_CONFIG                | The sync Kubernetes client configuration to use       |                |
-| SPARK_ON_K8S_ASYNC_CLIENT_CONFIG          | The async Kubernetes client configuration to use      |                |
-| SPARK_ON_K8S_IN_CLUSTER                   | Whether to use the in cluster Kubernetes config       | false          |
-| SPARK_ON_K8S_API_DEFAULT_NAMESPACE        | The default namespace to use for the API              | default        |
-| SPARK_ON_K8S_API_HOST                     | The host to use for the API                           | 127.0.0.1      |
-| SPARK_ON_K8S_API_PORT                     | The port to use for the API                           | 8000           |
-| SPARK_ON_K8S_API_WORKERS                  | The number of workers to use for the API              | 4              |
-| SPARK_ON_K8S_API_LOG_LEVEL                | The log level to use for the API                      | info           |
-| SPARK_ON_K8S_API_LIMIT_CONCURRENCY        | The limit concurrency to use for the API              | 1000           |
-| SPARK_ON_K8S_API_SPARK_HISTORY_HOST       | The host to use for the spark history server          |                |
-| SPARK_ON_K8S_SPARK_DRIVER_NODE_SELECTOR   | The node selector to use for the driver pod           | {}             |
-| SPARK_ON_K8S_SPARK_EXECUTOR_NODE_SELECTOR | The node selector to use for the executor pods        | {}             |
-| SPARK_ON_K8S_SPARK_DRIVER_LABELS          | The labels to use for the driver pod                  | {}             |
-| SPARK_ON_K8S_SPARK_EXECUTOR_LABELS        | The labels to use for the executor pods               | {}             |
-| SPARK_ON_K8S_SPARK_DRIVER_ANNOTATIONS     | The annotations to use for the driver pod             | {}             |
-| SPARK_ON_K8S_SPARK_EXECUTOR_ANNOTATIONS   | The annotations to use for the executor pods          | {}             |
-| SPARK_ON_K8S_EXECUTOR_POD_TEMPLATE_PATH   | The path to the executor pod template                 |                |
-| SPARK_ON_K8S_STARTUP_TIMEOUT              | The timeout to wait for the app to start in seconds   | 0 (no timeout) |
+| Environment Variable                              | Description                                                     | Default                                |
+|---------------------------------------------------|-----------------------------------------------------------------|----------------------------------------|
+| SPARK_ON_K8S_DOCKER_IMAGE                         | The docker image to use for the spark pods                      |                                        |
+| SPARK_ON_K8S_APP_PATH                             | The path to the app file                                        |                                        |
+| SPARK_ON_K8S_NAMESPACE                            | The namespace to use                                            | default                                |
+| SPARK_ON_K8S_SERVICE_ACCOUNT                      | The service account to use                                      | spark                                  |
+| SPARK_ON_K8S_SPARK_CONF                           | The spark configuration to use                                  | {}                                     |
+| SPARK_ON_K8S_CLASS_NAME                           | The class name to use                                           |                                        |
+| SPARK_ON_K8S_PACKAGES                             | The maven packages list to add to the classpath                 |              
+| SPARK_ON_K8S_APP_ARGUMENTS                        | The arguments to pass to the app                                | []                                     |
+| SPARK_ON_K8S_APP_WAITER                           | The waiter to use to wait for the app to finish                 | no_wait                                |
+| SPARK_ON_K8S_IMAGE_PULL_POLICY                    | The image pull policy to use                                    | IfNotPresent                           |
+| SPARK_ON_K8S_UI_REVERSE_PROXY                     | Whether to use a reverse proxy to access the spark UI           | false                                  |
+| SPARK_ON_K8S_DRIVER_CPU                           | The driver CPU                                                  | 1                                      |
+| SPARK_ON_K8S_DRIVER_MEMORY                        | The driver memory                                               | 1024                                   |
+| SPARK_ON_K8S_DRIVER_MEMORY_OVERHEAD               | The driver memory overhead                                      | 512                                    |
+| SPARK_ON_K8S_EXECUTOR_CPU                         | The executor CPU                                                | 1                                      |
+| SPARK_ON_K8S_EXECUTOR_MEMORY                      | The executor memory                                             | 1024                                   |
+| SPARK_ON_K8S_EXECUTOR_MEMORY_OVERHEAD             | The executor memory overhead                                    | 512                                    |
+| SPARK_ON_K8S_EXECUTOR_MIN_INSTANCES               | The minimum number of executor instances                        |                                        |
+| SPARK_ON_K8S_EXECUTOR_MAX_INSTANCES               | The maximum number of executor instances                        |                                        |
+| SPARK_ON_K8S_EXECUTOR_INITIAL_INSTANCES           | The initial number of executor instances                        |                                        |
+| SPARK_ON_K8S_EXECUTOR_ALLOCATION_RATIO            | The executor allocation ratio                                   | 1                                      |
+| SPARK_ON_K8S_SCHEDULER_BACKLOG_TIMEOUT            | The scheduler backlog timeout for dynamic allocation            | 1s                                     |
+| SPARK_ON_K8S_SUSTAINED_SCHEDULER_BACKLOG_TIMEOUT  | The sustained scheduler backlog timeout for dynamic allocation  | SPARK_ON_K8S_SCHEDULER_BACKLOG_TIMEOUT |
+| SPARK_ON_K8S_CONFIG_FILE                          | The path to the config file                                     |                                        |
+| SPARK_ON_K8S_CONTEXT                              | The context to use                                              |                                        |
+| SPARK_ON_K8S_CLIENT_CONFIG                        | The sync Kubernetes client configuration to use                 |                                        |
+| SPARK_ON_K8S_ASYNC_CLIENT_CONFIG                  | The async Kubernetes client configuration to use                |                                        |
+| SPARK_ON_K8S_IN_CLUSTER                           | Whether to use the in cluster Kubernetes config                 | false                                  |
+| SPARK_ON_K8S_API_DEFAULT_NAMESPACE                | The default namespace to use for the API                        | default                                |
+| SPARK_ON_K8S_API_HOST                             | The host to use for the API                                     | 127.0.0.1                              |
+| SPARK_ON_K8S_API_PORT                             | The port to use for the API                                     | 8000                                   |
+| SPARK_ON_K8S_API_WORKERS                          | The number of workers to use for the API                        | 4                                      |
+| SPARK_ON_K8S_API_LOG_LEVEL                        | The log level to use for the API                                | info                                   |
+| SPARK_ON_K8S_API_LIMIT_CONCURRENCY                | The limit concurrency to use for the API                        | 1000                                   |
+| SPARK_ON_K8S_API_SPARK_HISTORY_HOST               | The host to use for the spark history server                    |                                        |
+| SPARK_ON_K8S_SPARK_DRIVER_NODE_SELECTOR           | The node selector to use for the driver pod                     | {}                                     |
+| SPARK_ON_K8S_SPARK_EXECUTOR_NODE_SELECTOR         | The node selector to use for the executor pods                  | {}                                     |
+| SPARK_ON_K8S_SPARK_DRIVER_LABELS                  | The labels to use for the driver pod                            | {}                                     |
+| SPARK_ON_K8S_SPARK_EXECUTOR_LABELS                | The labels to use for the executor pods                         | {}                                     |
+| SPARK_ON_K8S_SPARK_DRIVER_ANNOTATIONS             | The annotations to use for the driver pod                       | {}                                     |
+| SPARK_ON_K8S_SPARK_EXECUTOR_ANNOTATIONS           | The annotations to use for the executor pods                    | {}                                     |
+| SPARK_ON_K8S_EXECUTOR_POD_TEMPLATE_PATH           | The path to the executor pod template                           |                                        |
+| SPARK_ON_K8S_STARTUP_TIMEOUT                      | The timeout to wait for the app to start in seconds             | 0 (no timeout)                         |
 
 ## Examples
 

@@ -63,11 +63,21 @@ class ExecutorInstances:
         max: Maximum number of executors. If provided, dynamic allocation is enabled
         initial: Initial number of executors. If max and min are not provided, defaults to 2,
             dynamic allocation will be disabled and the number of executors will be fixed.
+        executor_allocation_ratio: Executor allocation ratio to use for dynamic allocation.
+            Defaults to 1.0
+        scheduler_backlog_timeout: Scheduler backlog timeout to use for dynamic allocation.
+            Defaults to "1s"
+        sustained_scheduler_backlog_timeout: Sustained scheduler backlog timeout to use for
+            dynamic allocation. Defaults to sustained_scheduler_backlog_timeout.
+
     """
 
     min: int | None = None
     max: int | None = None
     initial: int | None = None
+    executor_allocation_ratio: float = 1.0
+    scheduler_backlog_timeout: str = "1s"
+    sustained_scheduler_backlog_timeout: str | None = None
 
 
 class SparkOnK8S(LoggingMixin):
@@ -239,6 +249,9 @@ class SparkOnK8S(LoggingMixin):
                 min=Configuration.SPARK_ON_K8S_EXECUTOR_MIN_INSTANCES,
                 max=Configuration.SPARK_ON_K8S_EXECUTOR_MAX_INSTANCES,
                 initial=Configuration.SPARK_ON_K8S_EXECUTOR_INITIAL_INSTANCES,
+                executor_allocation_ratio=Configuration.SPARK_ON_K8S_EXECUTOR_ALLOCATION_RATIO,
+                scheduler_backlog_timeout=Configuration.SPARK_ON_K8S_SCHEDULER_BACKLOG_TIMEOUT,
+                sustained_scheduler_backlog_timeout=Configuration.SPARK_ON_K8S_SUSTAINED_SCHEDULER_BACKLOG_TIMEOUT,
             )
             if (
                 executor_instances.min is None
@@ -321,6 +334,16 @@ class SparkOnK8S(LoggingMixin):
             if executor_instances.max is not None:
                 basic_conf["spark.dynamicAllocation.maxExecutors"] = f"{executor_instances.max}"
             basic_conf["spark.dynamicAllocation.initialExecutors"] = f"{executor_instances.initial or 0}"
+            basic_conf["spark.dynamicAllocation.executorAllocationRatio"] = str(
+                executor_instances.executor_allocation_ratio
+            )
+            basic_conf["spark.dynamicAllocation.schedulerBacklogTimeout"] = (
+                executor_instances.scheduler_backlog_timeout
+            )
+            basic_conf["spark.dynamicAllocation.sustainedSchedulerBacklogTimeout"] = (
+                executor_instances.sustained_scheduler_backlog_timeout
+                or executor_instances.scheduler_backlog_timeout
+            )
         else:
             basic_conf["spark.executor.instances"] = (
                 f"{executor_instances.initial if executor_instances.initial is not None else 2}"

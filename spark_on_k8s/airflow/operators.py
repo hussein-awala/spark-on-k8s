@@ -50,6 +50,12 @@ class OnKillAction(str, Enum):
     KILL = "kill"
 
 
+class AppWaiter(str, Enum):
+    NO_WAIT = "no_wait"
+    WAIT = "wait"
+    LOG = "log"
+
+
 class SparkOnK8SOperator(BaseOperator):
     """Submit a Spark application on Kubernetes.
 
@@ -65,7 +71,7 @@ class SparkOnK8SOperator(BaseOperator):
         class_name (str, optional): Spark application class name. Defaults to None.
         packages: List of maven coordinates of jars to include in the classpath. Defaults to None.
         app_arguments (list[str], optional): Spark application arguments. Defaults to None.
-        app_waiter (Literal["no_wait", "wait", "log"], optional): Spark application waiter.
+        app_waiter (AppWaiter, optional): Spark application waiter.
             Defaults to "wait".
         image_pull_policy (Literal["Always", "Never", "IfNotPresent"], optional): Image pull policy.
             Defaults to "IfNotPresent".
@@ -138,7 +144,7 @@ class SparkOnK8SOperator(BaseOperator):
         class_name: str | None = None,
         packages: list[str] | None = None,
         app_arguments: list[str] | None = None,
-        app_waiter: Literal["no_wait", "wait", "log"] = "wait",
+        app_waiter: AppWaiter = AppWaiter.WAIT,
         image_pull_policy: Literal["Always", "Never", "IfNotPresent"] = "IfNotPresent",
         ui_reverse_proxy: bool = False,
         driver_resources: PodResources | None = None,
@@ -386,7 +392,7 @@ class SparkOnK8SOperator(BaseOperator):
             self._submit_new_job(context)
             self._persist_pod_name(context)
         self._persist_spark_ui_link(context)
-        if self.app_waiter == "no_wait":
+        if self.app_waiter == AppWaiter.NO_WAIT:
             return
         if self.deferrable:
             self.defer(
@@ -399,14 +405,14 @@ class SparkOnK8SOperator(BaseOperator):
                 method_name="execute_complete",
             )
         try:
-            if self.app_waiter == "wait":
+            if self.app_waiter == AppWaiter.WAIT:
                 spark_app_manager.wait_for_app(
                     namespace=self.namespace,
                     pod_name=self._driver_pod_name,
                     poll_interval=self.poll_interval,
                     startup_timeout=self.startup_timeout,
                 )
-            elif self.app_waiter == "log":
+            elif self.app_waiter == AppWaiter.LOG:
                 spark_app_manager.stream_logs(
                     namespace=self.namespace,
                     pod_name=self._driver_pod_name,
@@ -444,7 +450,7 @@ class SparkOnK8SOperator(BaseOperator):
         spark_app_manager = SparkAppManager(
             k8s_client_manager=k8s_client_manager,
         )
-        if self.app_waiter == "log":
+        if self.app_waiter == AppWaiter.LOG:
             spark_app_manager.stream_logs(
                 namespace=event["namespace"],
                 pod_name=event["pod_name"],

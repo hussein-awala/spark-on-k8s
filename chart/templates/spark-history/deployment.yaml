@@ -37,12 +37,30 @@ spec:
             {{- toYaml .Values.sparkHistory.securityContext | nindent 12 }}
           image: "{{ .Values.sparkHistory.image.repository }}:{{ .Values.sparkHistory.image.tag }}"
           imagePullPolicy: {{ .Values.sparkHistory.image.pullPolicy }}
+          {{- with .Values.sparkHistory.env }}
+          env:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           volumeMounts:
             - name: config-volume
               mountPath: /opt/spark/conf/spark-defaults.conf
               subPath: spark-defaults.conf
+          {{- with .Values.sparkHistory.volumeMounts }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.sparkHistory.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
       volumes:
         - name: config-volume
           configMap:
             name: {{ include "spark-on-k8s.sparkHistory.fullname" . }}
+      {{- with .Values.sparkHistory.volumes }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.sparkHistory.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
 {{- end }}

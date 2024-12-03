@@ -1,14 +1,18 @@
 from __future__ import annotations
 
-from enum import Enum
 from typing import TYPE_CHECKING
+
+try:
+    from enum import StrEnum
+except ImportError:
+    from strenum import StrEnum
 
 if TYPE_CHECKING:
     import kubernetes.client as k8s
     import kubernetes_asyncio.client as k8s_async
 
 
-class SparkAppStatus(str, Enum):
+class SparkAppStatus(StrEnum):
     """Spark app status."""
 
     Pending = "Pending"

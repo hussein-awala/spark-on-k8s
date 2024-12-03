@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import contextlib
-from enum import Enum
 from typing import TYPE_CHECKING, Any
 
 from airflow.exceptions import AirflowException
@@ -11,6 +10,11 @@ from spark_on_k8s.airflow.triggers import SparkOnK8STrigger
 from spark_on_k8s.k8s.sync_client import KubernetesClientManager
 from spark_on_k8s.utils.app_manager import SparkAppManager
 from spark_on_k8s.utils.spark_app_status import SparkAppStatus
+
+try:
+    from enum import StrEnum
+except ImportError:
+    from strenum import StrEnum
 
 if TYPE_CHECKING:
     from typing import Literal
@@ -38,19 +42,19 @@ class _AirflowKubernetesClientManager(KubernetesClientManager):
         return k8s_hook.get_conn()
 
 
-class OnFinishAction(str, Enum):
+class OnFinishAction(StrEnum):
     KEEP = "keep"
     DELETE = "delete"
     KEEP_IF_FAILED = "keep_if_failed"
 
 
-class OnKillAction(str, Enum):
+class OnKillAction(StrEnum):
     KEEP = "keep"
     DELETE = "delete"
     KILL = "kill"
 
 
-class AppWaiter(str, Enum):
+class AppWaiter(StrEnum):
     NO_WAIT = "no_wait"
     WAIT = "wait"
     LOG = "log"

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import contextlib
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from airflow.exceptions import AirflowException
 from airflow.models import BaseOperator
+from airflow.utils.template import literal
 from spark_on_k8s.airflow.operator_links import SparkOnK8SOperatorLink
 from spark_on_k8s.airflow.triggers import SparkOnK8STrigger
 from spark_on_k8s.k8s.sync_client import KubernetesClientManager
@@ -501,3 +503,50 @@ class SparkOnK8SOperator(BaseOperator):
                 raise AirflowException(f"Invalid on_kill_action: {self.on_kill_action}")
 
             self._persist_spark_history_ui_link(get_current_context())
+
+
+class SparkSqlOnK8SOperator(SparkOnK8SOperator):
+    """Execute Spark SQL commands on Kubernetes.
+
+    This operator passes the SQL commands to a Python script that runs them on Spark,
+    that's why it requires a PySpark docker image.
+
+    Args:
+        sql (str): SQL commands to execute.
+        **kwargs: Other keyword arguments for SparkOnK8SOperator.
+    """
+
+    template_fields = (
+        "sql",
+        *SparkOnK8SOperator.template_fields,
+    )
+    template_ext = (".sql",)
+    template_fields_renderers = {
+        "sql": "sql",
+    }
+
+    def __init__(self, sql: str, **kwargs):
+        super().__init__(
+            app_path="/configmap/spark_sql.py",
+            app_arguments=literal(["/configmap/queries.sql"]),
+            **kwargs,
+        )
+        self.sql = sql
+
+    def execute(self, context: Context):
+        self.driver_ephemeral_configmaps_volumes = [
+            {
+                "mount_path": "/configmap",
+                "sources": [
+                    {
+                        "name": "spark_sql.py",
+                        "text_path": f"{Path(__file__).parent}/scripts/spark_sql.py",
+                    },
+                    {
+                        "name": "queries.sql",
+                        "text": self.sql,
+                    },
+                ],
+            }
+        ]
+        return super().execute(context)

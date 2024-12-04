@@ -107,7 +107,6 @@ class SparkOnK8SOperator(BaseOperator):
             Defaults to "delete".
         startup_timeout (int, optional): Timeout for the Spark application to start.
             Defaults to 0 (no timeout).
-        **kwargs: Other keyword arguments for BaseOperator.
     """
 
     _XCOM_DRIVER_POD_NAMESPACE = "driver_pod_namespace"
@@ -513,7 +512,6 @@ class SparkSqlOnK8SOperator(SparkOnK8SOperator):
 
     Args:
         sql (str): SQL commands to execute.
-        **kwargs: Other keyword arguments for SparkOnK8SOperator.
     """
 
     template_fields = (

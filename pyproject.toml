@@ -46,6 +46,7 @@ mkdocstrings = {version = "^0.25.1", extras = ["python"]}
 mkdocs-gen-files = "^0.5.0"
 mkdocs-literate-nav = "^0.6.1"
 helm-mkdocs = "^0.0.5"
+sqlfluff = "^3.2.5"
 
 [tool.poetry.extras]
 api = ["fastapi", "kubernetes-asyncio", "uvicorn", "httpx", "jinja2", "aiohttp", "websockets"]
@@ -90,3 +91,17 @@ docstring-code-format = true
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
+
+[tool.sqlfluff.core]
+dialect = "sparksql"
+sql_file_exts = ".sql"
+ignore = "templating"
+exclude_rules="AL01"
+
+[tool.sqlfluff.indentation]
+indented_joins = false
+indented_using_on = true
+template_blocks_indent = false
+
+[tool.sqlfluff.rules.capitalisation.keywords]
+capitalisation_policy = "upper"

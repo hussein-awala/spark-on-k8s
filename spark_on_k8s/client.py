@@ -313,7 +313,7 @@ class SparkOnK8S(LoggingMixin):
             "spark.kubernetes.container.image": image,
             "spark.driver.host": app_id,
             "spark.driver.port": "7077",
-            "spark.kubernetes.driver.pod.name": f"{app_id}-driver",
+            "spark.kubernetes.driver.pod.name": SparkAppManager._get_pod_name(app_id=app_id),
             "spark.kubernetes.executor.podNamePrefix": app_id,
             "spark.kubernetes.container.image.pullPolicy": image_pull_policy,
             "spark.driver.memory": f"{driver_resources.memory}m",
@@ -522,8 +522,9 @@ class SparkOnK8S(LoggingMixin):
             # All to lowercase
             app_name = app_name.lower()
             app_id_suffix_str = app_id_suffix()
-            if len(app_name) > (63 - len(app_id_suffix_str) + 1):
-                app_name = app_name[: (63 - len(app_id_suffix_str)) + 1]
+            # Maximum length for pod labels and service names is 63 characters
+            if len(app_name) > (63 - len(app_id_suffix_str)):
+                app_name = app_name[: (63 - len(app_id_suffix_str))]
             # Replace all non-alphanumeric characters with dashes
             app_name = re.sub(r"[^0-9a-zA-Z]+", "-", app_name)
             # Remove leading non-alphabetic characters

@@ -11,6 +11,7 @@ from kubernetes.stream import stream
 from spark_on_k8s.k8s.sync_client import KubernetesClientManager
 from spark_on_k8s.utils.logging_mixin import LoggingMixin
 from spark_on_k8s.utils.spark_app_status import SparkAppStatus, get_app_status
+from spark_on_k8s.utils.warnings import LongAppNameWarning, WarningCache
 
 if TYPE_CHECKING:
     from spark_on_k8s.utils.types import ConfigMap, ConfigMapSource
@@ -41,6 +42,18 @@ class SparkAppManager(LoggingMixin):
     ):
         super().__init__(logger_name=logger_name or "SparkAppManager")
         self.k8s_client_manager = k8s_client_manager or KubernetesClientManager()
+
+    @staticmethod
+    def _get_pod_name(*, app_id: str) -> str:
+        if len(app_id) > 56:
+            WarningCache.warn(
+                message="The used app name or app id suffix is too long,"
+                " pod name will be truncated and may not be unique",
+                category=LongAppNameWarning,
+                stacklevel=2,
+                warning_id=app_id,
+            )
+        return f"{app_id[:56]}-driver"
 
     def app_status(
         self,
@@ -341,7 +354,7 @@ class SparkAppManager(LoggingMixin):
             Pod template spec for the Spark application
         """
         pod_metadata = k8s.V1ObjectMeta(
-            name=f"{app_id}-driver",
+            name=SparkAppManager._get_pod_name(app_id=app_id),
             namespace=namespace,
             labels=SparkAppManager.spark_app_labels(
                 app_name=app_name,
@@ -497,7 +510,7 @@ class SparkAppManager(LoggingMixin):
                 k8s.V1OwnerReference(
                     api_version="v1",
                     kind="Pod",
-                    name=f"{app_id}-driver",
+                    name=SparkAppManager._get_pod_name(app_id=app_id),
                     uid=pod_owner_uid,
                 )
             ]

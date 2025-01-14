@@ -35,8 +35,9 @@ async def _list_apps(namespace: str, max_per_page: int, continue_from: str) -> t
     search_params = {
         "namespace": namespace,
         "label_selector": "spark-role=driver",
-        "limit": max_per_page,
     }
+    if max_per_page > 0:
+        search_params["limit"] = max_per_page
     if continue_from:
         search_params["_continue"] = continue_from
     driver_pods = await core_client.list_namespaced_pod(**search_params)

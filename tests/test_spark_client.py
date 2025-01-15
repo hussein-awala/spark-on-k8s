@@ -199,6 +199,12 @@ class TestSparkOnK8s:
                     args=["init-arg"],
                 )
             ],
+            driver_host_aliases=[
+                k8s.V1HostAlias(
+                    hostnames=["foo.local", "bar.local"],
+                    ip="127.0.0.1",
+                )
+            ],
         )
 
         expected_app_name = "pyspark-job-example"
@@ -216,6 +222,9 @@ class TestSparkOnK8s:
         assert created_pod.spec.init_containers[0].image == "init-container-image"
         assert created_pod.spec.init_containers[0].command == ["init-command"]
         assert created_pod.spec.init_containers[0].args == ["init-arg"]
+        assert len(created_pod.spec.host_aliases) == 1
+        assert created_pod.spec.host_aliases[0].hostnames == ["foo.local", "bar.local"]
+        assert created_pod.spec.host_aliases[0].ip == "127.0.0.1"
         assert created_pod.spec.containers[0].args == [
             "driver",
             "--master",

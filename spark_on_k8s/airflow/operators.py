@@ -95,6 +95,7 @@ class SparkOnK8SOperator(BaseOperator):
         executor_node_selector: Node selector for the executor pods.
         driver_tolerations: Tolerations for the driver pod.
         driver_ephemeral_configmaps_volumes: List of ConfigMaps to mount as ephemeral volumes to the driver.
+        driver_init_containers: List of init containers for the driver pod.
         spark_on_k8s_service_url: URL of the Spark On K8S service. Defaults to None.
         kubernetes_conn_id (str, optional): Kubernetes connection ID. Defaults to
             "kubernetes_default".
@@ -168,6 +169,7 @@ class SparkOnK8SOperator(BaseOperator):
         driver_tolerations: list[k8s.V1Toleration] | None = None,
         executor_pod_template_path: str | None = None,
         driver_ephemeral_configmaps_volumes: list[ConfigMap] | None = None,
+        driver_init_containers: list[k8s.V1Container] | None = None,
         spark_on_k8s_service_url: str | None = None,
         kubernetes_conn_id: str = "kubernetes_default",
         poll_interval: int = 10,
@@ -208,6 +210,7 @@ class SparkOnK8SOperator(BaseOperator):
         self.driver_tolerations = driver_tolerations
         self.executor_pod_template_path = executor_pod_template_path
         self.driver_ephemeral_configmaps_volumes = driver_ephemeral_configmaps_volumes
+        self.driver_init_containers = driver_init_containers
         self.spark_on_k8s_service_url = spark_on_k8s_service_url
         self.kubernetes_conn_id = kubernetes_conn_id
         self.poll_interval = poll_interval
@@ -334,6 +337,8 @@ class SparkOnK8SOperator(BaseOperator):
         submit_app_kwargs = {}
         if self.app_id_suffix:
             submit_app_kwargs["app_id_suffix"] = lambda: self.app_id_suffix
+        if self.driver_init_containers is not None:
+            submit_app_kwargs["driver_init_containers"] = self.driver_init_containers
         self._driver_pod_name = spark_client.submit_app(
             image=self.image,
             app_path=self.app_path,

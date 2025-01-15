@@ -191,6 +191,14 @@ class TestSparkOnK8s:
             ui_reverse_proxy=True,
             driver_resources=PodResources(cpu=1, memory=2048, memory_overhead=1024),
             executor_instances=ExecutorInstances(min=2, max=5, initial=5),
+            driver_init_containers=[
+                k8s.V1Container(
+                    name="init-container",
+                    image="init-container-image",
+                    command=["init-command"],
+                    args=["init-arg"],
+                )
+            ],
         )
 
         expected_app_name = "pyspark-job-example"
@@ -203,6 +211,11 @@ class TestSparkOnK8s:
         assert created_pod.metadata.labels["spark-role"] == "driver"
         assert created_pod.spec.containers[0].image == "pyspark-job"
         assert created_pod.spec.service_account_name == "spark"
+        assert len(created_pod.spec.init_containers) == 1
+        assert created_pod.spec.init_containers[0].name == "init-container"
+        assert created_pod.spec.init_containers[0].image == "init-container-image"
+        assert created_pod.spec.init_containers[0].command == ["init-command"]
+        assert created_pod.spec.init_containers[0].args == ["init-arg"]
         assert created_pod.spec.containers[0].args == [
             "driver",
             "--master",

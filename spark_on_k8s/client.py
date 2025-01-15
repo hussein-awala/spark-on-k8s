@@ -147,6 +147,7 @@ class SparkOnK8S(LoggingMixin):
         driver_tolerations: list[k8s.V1Toleration] | ArgNotSet = NOTSET,
         executor_pod_template_path: str | ArgNotSet = NOTSET,
         startup_timeout: int | ArgNotSet = NOTSET,
+        driver_init_containers: list[k8s.V1Container] | ArgNotSet = NOTSET,
     ) -> str:
         """Submit a Spark app to Kubernetes
 
@@ -190,6 +191,7 @@ class SparkOnK8S(LoggingMixin):
             driver_tolerations: List of tolerations for the driver
             executor_pod_template_path: Path to the executor pod template file
             startup_timeout: Timeout in seconds to wait for the application to start
+            driver_init_containers: List of init containers to run before the driver starts
 
         Returns:
             Name of the Spark application pod
@@ -297,6 +299,8 @@ class SparkOnK8S(LoggingMixin):
             executor_pod_template_path = Configuration.SPARK_ON_K8S_EXECUTOR_POD_TEMPLATE_PATH
         if startup_timeout is NOTSET:
             startup_timeout = Configuration.SPARK_ON_K8S_STARTUP_TIMEOUT
+        if driver_init_containers is NOTSET:
+            driver_init_containers = []
 
         spark_conf = spark_conf or {}
         main_class_parameters = app_arguments or []
@@ -417,6 +421,7 @@ class SparkOnK8S(LoggingMixin):
             volume_mounts=driver_volume_mounts,
             node_selector=driver_node_selector,
             tolerations=driver_tolerations,
+            init_containers=driver_init_containers,
         )
         with self.k8s_client_manager.client() as client:
             api = k8s.CoreV1Api(client)

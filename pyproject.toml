@@ -32,6 +32,7 @@ multidict = [
     # Standard version for Python 3.10 and above
     {version = "^6.0.5", markers = "python_version >= '3.10'", optional = true},
 ]
+werkzeug = {version = "^3", optional = true}
 eval-type-backport = [{version = "^0.2.0", markers = "python_version == '3.9'"}]
 StrEnum = {version = "^0.4.15", markers = "python_version < '3.11'"}
 [tool.poetry.dev-dependencies]

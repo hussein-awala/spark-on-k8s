@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException, WebSocket
 from kubernetes_asyncio.client import ApiException
 from starlette.background import BackgroundTask
 from starlette.requests import Request  # noqa: TCH002
-from starlette.responses import HTMLResponse, StreamingResponse
+from starlette.responses import HTMLResponse, Response, StreamingResponse
 from starlette.templating import Jinja2Templates
 
 from spark_on_k8s.api import AsyncHttpClientSingleton
@@ -115,10 +115,11 @@ templates = Jinja2Templates(directory=str(current_dir / "templates"))
 
 @router.get("/apps", response_class=HTMLResponse)
 @handle_k8s_errors
-async def apps(request: Request):
+async def apps(response: Response, request: Request):
     """List spark apps in a namespace, and display them in a web page."""
     namespace = request.query_params.get("namespace", APIConfiguration.SPARK_ON_K8S_API_DEFAULT_NAMESPACE)
-    apps_list = await list_apps(namespace)
+    # TODO: implement pagination for the list of apps
+    apps_list = await list_apps(response=response, namespace=namespace, max_per_page=-1)
     spark_history_url = APIConfiguration.SPARK_ON_K8S_API_SPARK_HISTORY_HOST
     if spark_history_url:
         spark_history_url = (

@@ -5,10 +5,10 @@ from unittest import mock
 import pytest
 from spark_on_k8s.utils.spark_app_status import SparkAppStatus
 
-from conftest import PYTHON_312
+from conftest import PYTHON_313_OR_ABOVE
 
 
-@pytest.mark.skipif(PYTHON_312, reason="Python 3.12 is not supported by Airflow")
+@pytest.mark.skipif(PYTHON_313_OR_ABOVE, reason="Python 3.13+ is not supported by Airflow")
 class TestSparkOnK8SOperator:
     @mock.patch("spark_on_k8s.client.SparkOnK8S.submit_app")
     def test_execute(self, mock_submit_app):
@@ -306,3 +306,74 @@ class TestSparkOnK8SOperator:
                 poll_interval=10,
                 startup_timeout=10,
             )
+
+
+@pytest.mark.skipif(PYTHON_313_OR_ABOVE, reason="Python 3.13+ is not supported by Airflow")
+class TestSparkSqlOnK8SOperator:
+    @mock.patch("spark_on_k8s.client.SparkOnK8S.submit_app")
+    def test_rendering_templates(self, mock_submit_app, root_path):
+        from spark_on_k8s.airflow.operators import SparkSqlOnK8SOperator
+
+        spark_app_task = SparkSqlOnK8SOperator(
+            task_id="spark_sql_application",
+            image="{{ template_image }}",
+            sql="SELECT * FROM {{ template_table }}",
+            app_waiter="no_wait",
+        )
+        spark_app_task.render_template_fields(
+            context={
+                "template_image": "pyspark-job",
+                "template_table": "test_table",
+            },
+        )
+        spark_app_task.execute(
+            {
+                "ti": mock.MagicMock(
+                    xcom_pull=mock.MagicMock(return_value=None),
+                )
+            }
+        )
+        mock_submit_app.assert_called_once_with(
+            image="pyspark-job",
+            app_path="/configmap/spark_sql.py",
+            driver_ephemeral_configmaps_volumes=[
+                {
+                    "mount_path": "/configmap",
+                    "sources": [
+                        {
+                            "name": "spark_sql.py",
+                            "text_path": f"{root_path}/spark_on_k8s/airflow/scripts/spark_sql.py",
+                        },
+                        {
+                            "name": "queries.sql",
+                            "text": "SELECT * FROM test_table",
+                        },
+                    ],
+                }
+            ],
+            namespace="default",
+            service_account="spark",
+            app_arguments=["/configmap/queries.sql"],
+            app_waiter="no_wait",
+            image_pull_policy="IfNotPresent",
+            app_name=None,
+            spark_conf=None,
+            class_name=None,
+            packages=None,
+            ui_reverse_proxy=False,
+            driver_resources=None,
+            executor_resources=None,
+            executor_instances=None,
+            secret_values=None,
+            volumes=None,
+            driver_volume_mounts=None,
+            executor_volume_mounts=None,
+            driver_node_selector=None,
+            executor_node_selector=None,
+            driver_labels=None,
+            executor_labels=None,
+            driver_annotations=None,
+            executor_annotations=None,
+            driver_tolerations=None,
+            executor_pod_template_path=None,
+        )

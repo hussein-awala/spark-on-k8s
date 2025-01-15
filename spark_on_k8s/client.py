@@ -18,7 +18,7 @@ from spark_on_k8s.utils.types import NOTSET, ArgNotSet
 if TYPE_CHECKING:
     from spark_on_k8s.utils.types import ConfigMap
 
-# For Python 3.8 and 3.9 compatibility
+# For Python 3.9 compatibility
 KW_ONLY_DATACLASS = {"kw_only": True} if "kw_only" in dataclass.__kwdefaults__ else {}
 
 
@@ -63,11 +63,21 @@ class ExecutorInstances:
         max: Maximum number of executors. If provided, dynamic allocation is enabled
         initial: Initial number of executors. If max and min are not provided, defaults to 2,
             dynamic allocation will be disabled and the number of executors will be fixed.
+        executor_allocation_ratio: Executor allocation ratio to use for dynamic allocation.
+            Defaults to 1.0
+        scheduler_backlog_timeout: Scheduler backlog timeout to use for dynamic allocation.
+            Defaults to "1s"
+        sustained_scheduler_backlog_timeout: Sustained scheduler backlog timeout to use for
+            dynamic allocation. Defaults to sustained_scheduler_backlog_timeout.
+
     """
 
     min: int | None = None
     max: int | None = None
     initial: int | None = None
+    executor_allocation_ratio: float = 1.0
+    scheduler_backlog_timeout: str = "1s"
+    sustained_scheduler_backlog_timeout: str | None = None
 
 
 class SparkOnK8S(LoggingMixin):
@@ -239,6 +249,9 @@ class SparkOnK8S(LoggingMixin):
                 min=Configuration.SPARK_ON_K8S_EXECUTOR_MIN_INSTANCES,
                 max=Configuration.SPARK_ON_K8S_EXECUTOR_MAX_INSTANCES,
                 initial=Configuration.SPARK_ON_K8S_EXECUTOR_INITIAL_INSTANCES,
+                executor_allocation_ratio=Configuration.SPARK_ON_K8S_EXECUTOR_ALLOCATION_RATIO,
+                scheduler_backlog_timeout=Configuration.SPARK_ON_K8S_SCHEDULER_BACKLOG_TIMEOUT,
+                sustained_scheduler_backlog_timeout=Configuration.SPARK_ON_K8S_SUSTAINED_SCHEDULER_BACKLOG_TIMEOUT,
             )
             if (
                 executor_instances.min is None
@@ -300,7 +313,7 @@ class SparkOnK8S(LoggingMixin):
             "spark.kubernetes.container.image": image,
             "spark.driver.host": app_id,
             "spark.driver.port": "7077",
-            "spark.kubernetes.driver.pod.name": f"{app_id}-driver",
+            "spark.kubernetes.driver.pod.name": SparkAppManager._get_pod_name(app_id=app_id),
             "spark.kubernetes.executor.podNamePrefix": app_id,
             "spark.kubernetes.container.image.pullPolicy": image_pull_policy,
             "spark.driver.memory": f"{driver_resources.memory}m",
@@ -321,10 +334,20 @@ class SparkOnK8S(LoggingMixin):
             if executor_instances.max is not None:
                 basic_conf["spark.dynamicAllocation.maxExecutors"] = f"{executor_instances.max}"
             basic_conf["spark.dynamicAllocation.initialExecutors"] = f"{executor_instances.initial or 0}"
+            basic_conf["spark.dynamicAllocation.executorAllocationRatio"] = str(
+                executor_instances.executor_allocation_ratio
+            )
+            basic_conf["spark.dynamicAllocation.schedulerBacklogTimeout"] = (
+                executor_instances.scheduler_backlog_timeout
+            )
+            basic_conf["spark.dynamicAllocation.sustainedSchedulerBacklogTimeout"] = (
+                executor_instances.sustained_scheduler_backlog_timeout
+                or executor_instances.scheduler_backlog_timeout
+            )
         else:
-            basic_conf[
-                "spark.executor.instances"
-            ] = f"{executor_instances.initial if executor_instances.initial is not None else 2}"
+            basic_conf["spark.executor.instances"] = (
+                f"{executor_instances.initial if executor_instances.initial is not None else 2}"
+            )
         if executor_volume_mounts:
             basic_conf.update(
                 self._executor_volumes_config(volumes=volumes, volume_mounts=executor_volume_mounts)
@@ -499,8 +522,9 @@ class SparkOnK8S(LoggingMixin):
             # All to lowercase
             app_name = app_name.lower()
             app_id_suffix_str = app_id_suffix()
-            if len(app_name) > (63 - len(app_id_suffix_str) + 1):
-                app_name = app_name[: (63 - len(app_id_suffix_str)) + 1]
+            # Maximum length for pod labels and service names is 63 characters
+            if len(app_name) > (63 - len(app_id_suffix_str)):
+                app_name = app_name[: (63 - len(app_id_suffix_str))]
             # Replace all non-alphanumeric characters with dashes
             app_name = re.sub(r"[^0-9a-zA-Z]+", "-", app_name)
             # Remove leading non-alphabetic characters

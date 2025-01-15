@@ -36,6 +36,8 @@ theme:
     - navigation.tabs.sticky
     - navigation.top
     - navigation.tracking
+watch:
+  - spark_on_k8s
 plugins:
   - search
   - gen-files:
@@ -50,8 +52,6 @@ plugins:
         python:
           options:
             show_source: true
-      watch:
-        - spark_on_k8s
 markdown_extensions:
   - pymdownx.magiclink
   - pymdownx.highlight:

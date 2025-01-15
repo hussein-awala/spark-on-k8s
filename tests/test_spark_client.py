@@ -14,6 +14,7 @@ from mock.mock import MagicMock
 from spark_on_k8s import client as client_module
 from spark_on_k8s.client import ExecutorInstances, PodResources, SparkOnK8S, default_app_id_suffix
 from spark_on_k8s.utils import configuration as configuration_module
+from spark_on_k8s.utils.warnings import LongAppNameWarning
 
 FAKE_TIME = datetime.datetime(2024, 1, 14, 12, 12, 31)
 
@@ -50,8 +51,8 @@ class TestSparkOnK8s:
             pytest.param(
                 "some-very-long-name-which-is-not-allowed-by-k8s-which-is-why-we-need-to-truncate-it",
                 default_app_id_suffix,
-                "some-very-long-name-which-is-not-allowed-by-k8s-w",
-                "some-very-long-name-which-is-not-allowed-by-k8s-w-20240114121231",
+                "some-very-long-name-which-is-not-allowed-by-k8s",
+                "some-very-long-name-which-is-not-allowed-by-k8s-20240114121231",
                 id="app_name_with_suffix_long",
             ),
             pytest.param(
@@ -161,6 +162,8 @@ class TestSparkOnK8s:
         """
         Test the method _parse_app_name_and_id
         """
+        assert len(expected_app_name) <= 63, "The expected app name is too long"
+        assert len(expected_app_id) <= 63, "The expected app id is too long"
         spark_client = SparkOnK8S()
         actual_app_name, actual_app_id = spark_client._parse_app_name_and_id(
             app_name=app_name, app_id_suffix=app_id_suffix
@@ -220,6 +223,104 @@ class TestSparkOnK8s:
             "spark.driver.port=7077",
             "--conf",
             f"spark.kubernetes.driver.pod.name={expected_app_id}-driver",
+            "--conf",
+            f"spark.kubernetes.executor.podNamePrefix={expected_app_id}",
+            "--conf",
+            "spark.kubernetes.container.image.pullPolicy=Never",
+            "--conf",
+            "spark.driver.memory=2048m",
+            "--conf",
+            "spark.executor.cores=1",
+            "--conf",
+            "spark.executor.memory=1024m",
+            "--conf",
+            "spark.executor.memoryOverhead=512m",
+            "--conf",
+            f"spark.ui.proxyBase=/webserver/ui/spark/{expected_app_id}",
+            "--conf",
+            "spark.ui.proxyRedirectUri=/",
+            "--conf",
+            "spark.dynamicAllocation.enabled=true",
+            "--conf",
+            "spark.dynamicAllocation.shuffleTracking.enabled=true",
+            "--conf",
+            "spark.dynamicAllocation.minExecutors=2",
+            "--conf",
+            "spark.dynamicAllocation.maxExecutors=5",
+            "--conf",
+            "spark.dynamicAllocation.initialExecutors=5",
+            "--conf",
+            "spark.dynamicAllocation.executorAllocationRatio=1.0",
+            "--conf",
+            "spark.dynamicAllocation.schedulerBacklogTimeout=1s",
+            "--conf",
+            "spark.dynamicAllocation.sustainedSchedulerBacklogTimeout=1s",
+            "local:///opt/spark/work-dir/job.py",
+            "100000",
+        ]
+
+    @mock.patch("spark_on_k8s.k8s.sync_client.KubernetesClientManager.create_client")
+    @mock.patch("kubernetes.client.api.core_v1_api.CoreV1Api.create_namespaced_pod")
+    @mock.patch("kubernetes.client.api.core_v1_api.CoreV1Api.create_namespaced_service")
+    @freeze_time(FAKE_TIME)
+    def test_submit_app_with_long_app_name(
+        self, mock_create_namespaced_service, mock_create_namespaced_pod, mock_create_client
+    ):
+        """Test the method submit_app"""
+
+        expected_app_name = "just-a-very-long-application-name-that-needs-to"
+        expected_app_id = f"{expected_app_name}-20240114121231"
+        # A part of the app name is truncated to fit the 63 characters limit
+        # and a `LongAppNameWarning` warning should be issued
+        expected_pod_name = "just-a-very-long-application-name-that-needs-to-20240114-driver"
+
+        spark_client = SparkOnK8S()
+        with pytest.warns(
+            LongAppNameWarning,
+            match="The used app name or app id suffix is too long,"
+            " pod name will be truncated and may not be unique",
+        ):
+            spark_client.submit_app(
+                image="pyspark-job",
+                app_path="local:///opt/spark/work-dir/job.py",
+                namespace="spark",
+                service_account="spark",
+                app_name="just-a-very-long-application-name-that-needs-to-be-truncated",
+                app_arguments=["100000"],
+                app_waiter="no_wait",
+                image_pull_policy="Never",
+                ui_reverse_proxy=True,
+                driver_resources=PodResources(cpu=1, memory=2048, memory_overhead=1024),
+                executor_instances=ExecutorInstances(min=2, max=5, initial=5),
+            )
+
+        created_pod = mock_create_namespaced_pod.call_args[1]["body"]
+        assert created_pod.metadata.name == expected_pod_name
+        assert created_pod.metadata.labels["spark-app-name"] == expected_app_name
+        assert created_pod.metadata.labels["spark-app-id"] == expected_app_id
+        assert created_pod.metadata.labels["spark-role"] == "driver"
+        assert created_pod.spec.containers[0].image == "pyspark-job"
+        assert created_pod.spec.service_account_name == "spark"
+        assert created_pod.spec.containers[0].args == [
+            "driver",
+            "--master",
+            "k8s://https://kubernetes.default.svc.cluster.local:443",
+            "--conf",
+            f"spark.app.name={expected_app_name}",
+            "--conf",
+            f"spark.app.id={expected_app_id}",
+            "--conf",
+            "spark.kubernetes.namespace=spark",
+            "--conf",
+            "spark.kubernetes.authenticate.driver.serviceAccountName=spark",
+            "--conf",
+            "spark.kubernetes.container.image=pyspark-job",
+            "--conf",
+            f"spark.driver.host={expected_app_id}",
+            "--conf",
+            "spark.driver.port=7077",
+            "--conf",
+            f"spark.kubernetes.driver.pod.name={expected_pod_name}",
             "--conf",
             f"spark.kubernetes.executor.podNamePrefix={expected_app_id}",
             "--conf",

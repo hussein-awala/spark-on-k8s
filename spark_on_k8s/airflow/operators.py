@@ -278,7 +278,7 @@ class SparkOnK8SOperator(BaseOperator):
             task_ids=context["ti"].task_id,
             map_indexes=context["ti"].map_index,
             key=self._XCOM_DRIVER_POD_NAMESPACE,
-            include_prior_dates=True,
+            include_prior_dates=False,
         )
         if not xcom_driver_namespace or xcom_driver_namespace != self.namespace:
             return False
@@ -287,7 +287,7 @@ class SparkOnK8SOperator(BaseOperator):
             task_ids=context["ti"].task_id,
             map_indexes=context["ti"].map_index,
             key=self._XCOM_DRIVER_POD_NAME,
-            include_prior_dates=True,
+            include_prior_dates=False,
         )
         if xcom_driver_pod_name:
             with contextlib.suppress(Exception):

@@ -152,6 +152,8 @@ async def apps(response: Response, request: Request):
             "request": request,
             "apps_list": apps_dict.values(),
             "namespace": namespace,
+            "kill_button": APIConfiguration.SPARK_ON_K8S_API_WEBSERVER_APPS_KILL_BUTTON,
+            "delete_button": APIConfiguration.SPARK_ON_K8S_API_WEBSERVER_APPS_DELETE_BUTTON,
         },
     )
 

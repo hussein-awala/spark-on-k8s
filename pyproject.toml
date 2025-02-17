@@ -11,7 +11,7 @@ packages = [{include = "spark_on_k8s"}]
 
 [tool.poetry.urls]
 "Bug Tracker" = "https://github.com/hussein-awala/spark-on-k8s/issues"
-"Documentation" = "https://github.com/hussein-awala/spark-on-k8s/blob/main/README.md"
+"Documentation" = "https://hussein.awala.fr/spark-on-k8s/"
 
 [tool.poetry.dependencies]
 python = "^3.9"

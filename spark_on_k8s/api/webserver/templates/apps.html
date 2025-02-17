@@ -2,7 +2,9 @@
 <html>
 <head>
     <title>Spark Apps Status</title>
-    <meta http-equiv="refresh" content="10">
+    {% if refresh_interval > 0 %}
+    <meta http-equiv="refresh" content="{{ refresh_interval }}">
+    {% endif %}
     <link href="{{ url_for('static', path='/apps.css') }}" rel="stylesheet">
     <script>
         {% if kill_button %}

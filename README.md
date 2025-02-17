@@ -196,6 +196,7 @@ and the CLI. Here is a list of the available environment variables:
 | SPARK_ON_K8S_API_SPARK_HISTORY_HOST               | The host to use for the spark history server                     |                                        |
 | SPARK_ON_K8S_API_WEBSERVER_APPS_KILL_BUTTON       | Whether to show the kill button in the apps page in the web UI   | true                                   |
 | SPARK_ON_K8S_API_WEBSERVER_APPS_DELETE_BUTTON     | Whether to show the delete button in the apps page in the web UI | true                                   |
+| SPARK_ON_K8S_API_WEBSERVER_APPS_REFRESH_INTERVAL  | The interval to refresh the apps list (provide < 0 to disable)   | 10s                                    |
 | SPARK_ON_K8S_SPARK_DRIVER_NODE_SELECTOR           | The node selector to use for the driver pod                      | {}                                     |
 | SPARK_ON_K8S_SPARK_EXECUTOR_NODE_SELECTOR         | The node selector to use for the executor pods                   | {}                                     |
 | SPARK_ON_K8S_SPARK_DRIVER_LABELS                  | The labels to use for the driver pod                             | {}                                     |

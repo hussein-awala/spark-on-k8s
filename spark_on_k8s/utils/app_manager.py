@@ -195,12 +195,32 @@ class SparkAppManager(LoggingMixin):
                     raise TimeoutError("App startup timeout")
                 time.sleep(5)
             watcher = watch.Watch()
-            for line in watcher.stream(
-                api.read_namespaced_pod_log,
-                namespace=namespace,
-                name=pod_name,
-            ):
-                self.log(msg=line, level=logging.INFO, should_print=should_print)
+            # Retry to connect to the pod log stream in case of ApiException
+            # (e.g. TLS handshake error while communicating with kubeapi)
+            # retry only if no logs were received yet
+            nb_retries = 3
+            retry_delay = 5
+            first_attempt = True
+            while True:
+                try:
+                    for line in watcher.stream(
+                        api.read_namespaced_pod_log,
+                        namespace=namespace,
+                        name=pod_name,
+                    ):
+                        self.log(msg=line, level=logging.INFO, should_print=should_print)
+                        first_attempt = False
+                    break
+                except ApiException as e:
+                    if not first_attempt or nb_retries == 0:
+                        raise e
+                    self.log(
+                        msg=f"Failed to connect to the pod log stream: {e}. Retrying in {retry_delay}s",
+                        level=logging.WARNING,
+                        should_print=should_print,
+                    )
+                    nb_retries -= 1
+                    time.sleep(retry_delay)
             watcher.stop()
 
     def list_apps(self, namespace: str) -> list[str]:

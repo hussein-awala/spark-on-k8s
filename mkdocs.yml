@@ -7,6 +7,7 @@ repo_name: hussein-awala/spark-on-k8s
 edit_uri: edit/main/docs/
 theme:
   name: material
+  custom_dir: overrides
   font:
     text: Fira Sans
     code: Fira Code
@@ -77,3 +78,9 @@ nav:
       - Examples: user-guide/examples.md
   - Code Reference: reference/
   - Helm Chart: helm-chart/
+extra:
+  version:
+    provider: mike
+    default:
+      - latest
+      - develop

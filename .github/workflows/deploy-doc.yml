@@ -41,6 +41,10 @@ jobs:
           restore-keys: |
             mkdocs-material-
 
+      - name: Fetch gh-pages branch
+        run: |
+          git fetch origin gh-pages:gh-pages
+
       - name: Build Helm Docs
         run: |
           source .venv/bin/activate

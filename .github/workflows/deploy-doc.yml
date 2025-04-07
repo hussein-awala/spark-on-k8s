@@ -3,6 +3,8 @@ on:
   push:
     branches:
       - main
+    tags:
+      - '*'
 permissions:
   contents: write
 jobs:
@@ -39,7 +41,22 @@ jobs:
           restore-keys: |
             mkdocs-material-
 
-      - run: |
+      - name: Build Helm Docs
+        run: |
           source .venv/bin/activate
           helm-mkdocs chart -o docs/helm-chart
-          mkdocs gh-deploy --force
+
+      - name: Deploy Docs
+        run: |
+          source .venv/bin/activate
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "Deploying main docs"
+            mike deploy --push develop
+          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/}
+            echo "Deploying version $VERSION"
+            mike deploy --push --update-aliases $VERSION latest
+          else
+            echo "Not a deployable ref"
+            exit 1
+          fi

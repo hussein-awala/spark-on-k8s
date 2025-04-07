@@ -48,6 +48,7 @@ mkdocs-literate-nav = "^0.6.2"
 mkdocs-git-revision-date-localized-plugin = "^1.4.5"
 helm-mkdocs = "^0.0.5"
 sqlfluff = "^3.2.5"
+mike = "^2.1.3"
 
 [tool.poetry.extras]
 api = ["fastapi", "kubernetes-asyncio", "uvicorn", "httpx", "jinja2", "aiohttp", "websockets"]

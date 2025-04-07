@@ -11,7 +11,7 @@ theme:
     text: Fira Sans
     code: Fira Code
   icon:
-      repo: fontawesome/brands/github
+    repo: fontawesome/brands/github
   palette:
     - scheme: default
       primary: indigo
@@ -46,12 +46,12 @@ plugins:
   - literate-nav:
       nav_file: SUMMARY.md
   - mkdocstrings:
-      enabled: !ENV [ ENABLE_MKDOCSTRINGS, true ]
-      default_handler: python
       handlers:
         python:
           options:
             show_source: true
+  - git-revision-date-localized:
+      fallback_to_build_date: true
 markdown_extensions:
   - pymdownx.magiclink
   - pymdownx.highlight:
@@ -64,8 +64,8 @@ markdown_extensions:
 nav:
   - index.md
   - User Guide:
-    - Installation: user-guide/installation.md
-    - Getting Started: user-guide/getting_started.md
-    - Examples: user-guide/examples.md
+      - Installation: user-guide/installation.md
+      - Getting Started: user-guide/getting_started.md
+      - Examples: user-guide/examples.md
   - Code Reference: reference/
   - Helm Chart: helm-chart/

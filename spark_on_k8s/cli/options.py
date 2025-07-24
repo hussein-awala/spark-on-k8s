@@ -302,3 +302,10 @@ executor_pod_template_path_option = click.Option(
     show_default=True,
     help="The path to the executor pod template file.",
 )
+executor_template_option = click.Option(
+    ("--executor-template", "executor_template"),
+    type=str,
+    default=Configuration.SPARK_ON_K8S_EXECUTOR_TEMPLATE,
+    show_default=True,
+    help="Executor pod template content as string or local file path.",
+)

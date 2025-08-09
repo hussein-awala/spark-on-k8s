@@ -979,6 +979,116 @@ class TestSparkOnK8s:
         }
         assert executor_config.get("spark.kubernetes.executor.podTemplateFile") == "s3a://bucket/executor.yml"
 
+    @mock.patch("spark_on_k8s.k8s.sync_client.KubernetesClientManager.create_client")
+    @mock.patch("kubernetes.client.api.core_v1_api.CoreV1Api.create_namespaced_pod")
+    @mock.patch("kubernetes.client.api.core_v1_api.CoreV1Api.create_namespaced_config_map")
+    @mock.patch("kubernetes.client.api.core_v1_api.CoreV1Api.patch_namespaced_config_map")
+    @mock.patch("kubernetes.client.api.core_v1_api.CoreV1Api.create_namespaced_service")
+    @freeze_time(FAKE_TIME)
+    def test_submit_app_with_executor_template_string(
+        self, 
+        mock_create_namespaced_service, 
+        mock_patch_namespaced_config_map,
+        mock_create_namespaced_config_map, 
+        mock_create_namespaced_pod, 
+        mock_create_client
+    ):
+        """Test the method submit_app with executor template as string content"""
+        
+        template_content = """
+apiVersion: v1
+kind: Pod
+spec:
+  containers:
+  - name: executor
+    resources:
+      requests:
+        memory: "2Gi"
+"""
+
+        spark_client = SparkOnK8S()
+        spark_client.submit_app(
+            image="pyspark-job",
+            app_path="local:///opt/spark/work-dir/job.py",
+            namespace="spark",
+            service_account="spark",
+            app_name="pyspark-job-example",
+            app_arguments=["100000"],
+            app_waiter="no_wait",
+            executor_template=template_content,
+        )
+
+        # Check that ConfigMap was created
+        assert mock_create_namespaced_config_map.called
+        created_configmap = mock_create_namespaced_config_map.call_args[1]["body"]
+        assert created_configmap.metadata.name == "pyspark-job-example-20240114225118-executor-template"
+        assert "executor-template.yaml" in created_configmap.data
+        assert template_content.strip() in created_configmap.data["executor-template.yaml"]
+
+        # Check that pod was created with correct Spark configuration
+        created_pod = mock_create_namespaced_pod.call_args[1]["body"]
+        arguments = created_pod.spec.containers[0].args
+        executor_config = {
+            conf.split("=")[0]: conf.split("=")[1]
+            for conf in arguments
+            if conf.startswith("spark.kubernetes.executor")
+        }
+        assert executor_config.get("spark.kubernetes.executor.podTemplateFile") == "/opt/spark/conf/executor-template.yaml"
+
+        # Check that volume and volume mount were created
+        volumes = created_pod.spec.volumes
+        volume_names = [v.name for v in volumes]
+        assert "pyspark-job-example-20240114225118-executor-template" in volume_names
+
+        driver_volume_mounts = created_pod.spec.containers[0].volume_mounts
+        driver_mount_names = [vm.name for vm in driver_volume_mounts] if driver_volume_mounts else []
+        assert "pyspark-job-example-20240114225118-executor-template" in driver_mount_names
+
+    @mock.patch("spark_on_k8s.k8s.sync_client.KubernetesClientManager.create_client")
+    @mock.patch("kubernetes.client.api.core_v1_api.CoreV1Api.create_namespaced_pod")
+    @mock.patch("kubernetes.client.api.core_v1_api.CoreV1Api.create_namespaced_config_map")
+    @mock.patch("kubernetes.client.api.core_v1_api.CoreV1Api.patch_namespaced_config_map")
+    @mock.patch("kubernetes.client.api.core_v1_api.CoreV1Api.create_namespaced_service")
+    @mock.patch("builtins.open", mock.mock_open(read_data="apiVersion: v1\nkind: Pod\nspec:\n  containers:\n  - name: executor"))
+    @freeze_time(FAKE_TIME)
+    def test_submit_app_with_executor_template_file_path(
+        self, 
+        mock_create_namespaced_service, 
+        mock_patch_namespaced_config_map,
+        mock_create_namespaced_config_map, 
+        mock_create_namespaced_pod, 
+        mock_create_client
+    ):
+        """Test the method submit_app with executor template as local file path"""
+
+        spark_client = SparkOnK8S()
+        spark_client.submit_app(
+            image="pyspark-job",
+            app_path="local:///opt/spark/work-dir/job.py",
+            namespace="spark",
+            service_account="spark",
+            app_name="pyspark-job-example",
+            app_arguments=["100000"],
+            app_waiter="no_wait",
+            executor_template="./executor-template.yaml",
+        )
+
+        # Check that ConfigMap was created
+        assert mock_create_namespaced_config_map.called
+        created_configmap = mock_create_namespaced_config_map.call_args[1]["body"]
+        assert created_configmap.metadata.name == "pyspark-job-example-20240114225118-executor-template"
+        assert "executor-template.yaml" in created_configmap.data
+
+        # Check that pod was created with correct Spark configuration
+        created_pod = mock_create_namespaced_pod.call_args[1]["body"]
+        arguments = created_pod.spec.containers[0].args
+        executor_config = {
+            conf.split("=")[0]: conf.split("=")[1]
+            for conf in arguments
+            if conf.startswith("spark.kubernetes.executor")
+        }
+        assert executor_config.get("spark.kubernetes.executor.podTemplateFile") == "/opt/spark/conf/executor-template.yaml"
+
     @pytest.mark.parametrize(
         "app_waiter",
         [

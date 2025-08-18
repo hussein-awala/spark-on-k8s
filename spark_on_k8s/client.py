@@ -405,14 +405,6 @@ class SparkOnK8S(LoggingMixin):
                 }]
             }
             
-            # Automatically add the volume mount to driver (driver needs to read template to create executors)
-            driver_volume_mounts.append(
-                k8s.V1VolumeMount(
-                    name=f"{app_id}-executor-template",
-                    mount_path="/opt/spark/executor-template",
-                )
-            )
-            
             # Set Spark configuration to use the mounted template
             basic_conf["spark.kubernetes.executor.podTemplateFile"] = "/opt/spark/executor-template/executor-template.yaml"
         elif executor_pod_template_path:
@@ -459,23 +451,12 @@ class SparkOnK8S(LoggingMixin):
                 
                 configmap_mount_path = all_configmaps[ind]["mount_path"]
                 
-                # If this is the executor template ConfigMap, only add it to executor volume mounts 
-                # (driver mount was already added earlier when processing executor_template)
-                if executor_template_configmap and configmap.metadata.name == f"{app_id}-executor-template":
-                    executor_volume_mounts.append(
-                        k8s.V1VolumeMount(
-                            name=configmap.metadata.name,
-                            mount_path=configmap_mount_path,
-                        )
+                driver_volume_mounts.append(
+                    k8s.V1VolumeMount(
+                        name=configmap.metadata.name,
+                        mount_path=configmap_mount_path,
                     )
-                else:
-                    # Mount to driver for other ConfigMaps (like driver_ephemeral_configmaps_volumes)
-                    driver_volume_mounts.append(
-                        k8s.V1VolumeMount(
-                            name=configmap.metadata.name,
-                            mount_path=configmap_mount_path,
-                        )
-                    )
+                )
         else:
             application_configmaps_volumes = []
 

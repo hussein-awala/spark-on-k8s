@@ -391,7 +391,13 @@ class SparkOnK8S(LoggingMixin):
             basic_conf.update(self._executor_annotations(annotations=executor_annotations))
         # Handle executor template (either string content or local file path)
         executor_template_configmap = None
-        if executor_template and not executor_pod_template_path:
+        if executor_template and executor_pod_template_path:
+            raise ValueError(
+                "Both executor_template and executor_pod_template_path are provided. "
+                "Please provide only one of them."
+            )
+
+        if executor_template:
             # Process the template (read from file if it's a path, otherwise use as content)
             template_content = self._process_executor_template(executor_template)
             
@@ -406,7 +412,8 @@ class SparkOnK8S(LoggingMixin):
             }
             
             # Set Spark configuration to use the mounted template
-            basic_conf["spark.kubernetes.executor.podTemplateFile"] = "/opt/spark/executor-template/executor-template.yaml"
+            basic_conf.update(self._executor_pod_template_path("/opt/spark/executor-template/executor-template.yaml"))
+
         elif executor_pod_template_path:
             # Handle external executor pod template path (S3, GCS, etc.)
             basic_conf.update(self._executor_pod_template_path(executor_pod_template_path))
@@ -450,7 +457,6 @@ class SparkOnK8S(LoggingMixin):
                 )
                 
                 configmap_mount_path = all_configmaps[ind]["mount_path"]
-                
                 driver_volume_mounts.append(
                     k8s.V1VolumeMount(
                         name=configmap.metadata.name,

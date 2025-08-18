@@ -1015,7 +1015,7 @@ spec:
             app_name="pyspark-job-example",
             app_arguments=["100000"],
             app_waiter="no_wait",
-            executor_template=template_content,
+            executor_pod_template=template_content,
         )
 
         # Check that ConfigMap was created
@@ -1071,7 +1071,7 @@ spec:
             app_name="pyspark-job-example",
             app_arguments=["100000"],
             app_waiter="no_wait",
-            executor_template="./executor-template.yaml",
+            executor_pod_template="./executor-template.yaml",
         )
 
         # Check that ConfigMap was created

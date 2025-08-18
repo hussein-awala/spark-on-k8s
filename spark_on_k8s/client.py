@@ -3,9 +3,11 @@ from __future__ import annotations
 import logging
 import os
 import re
+import yaml
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Literal
 
 from kubernetes import client as k8s
@@ -121,17 +123,32 @@ class SparkOnK8S(LoggingMixin):
             
         Returns:
             Template content as string
+            
+        Raises:
+            ValueError: If the resulting content is not valid YAML
         """
-        # Check if it looks like a file path
-        if (executor_template.startswith(('.', '/', '~')) or 
-            executor_template.endswith(('.yaml', '.yml')) or
-            os.path.exists(executor_template)):
-            # Read from file
-            with open(os.path.expanduser(executor_template), 'r') as f:
-                return f.read()
-        else:
-            # Treat as template content
-            return executor_template
+        # Try to read from file first, if that fails use the string as-is
+        try:
+            template_path = Path(executor_template).expanduser()
+            content = template_path.read_text(encoding='utf-8')
+        except (OSError, PermissionError):
+            # Not a valid file path, use as content
+            content = executor_template
+        
+        # Validate that the content is valid YAML and expected Kubernetes resource
+        try:
+            parsed = yaml.safe_load(content)
+        except yaml.YAMLError as e:
+            raise ValueError(f"Executor template contains invalid YAML: {e}") from e
+        
+        # Check if it's a proper Kubernetes resource structure
+        if not isinstance(parsed, dict):
+            raise ValueError("Executor template must be a Kubernetes resource (YAML object)")
+        
+        if parsed.get('kind') != 'Pod':
+            raise ValueError("Executor template must be a Kubernetes Pod resource (kind: Pod)")
+            
+        return content
 
     def submit_app(
         self,

@@ -1049,10 +1049,11 @@ spec:
     @mock.patch("kubernetes.client.api.core_v1_api.CoreV1Api.create_namespaced_config_map")
     @mock.patch("kubernetes.client.api.core_v1_api.CoreV1Api.patch_namespaced_config_map")
     @mock.patch("kubernetes.client.api.core_v1_api.CoreV1Api.create_namespaced_service")
-    @mock.patch("builtins.open", mock.mock_open(read_data="apiVersion: v1\nkind: Pod\nspec:\n  containers:\n  - name: executor"))
+    @mock.patch("pathlib.Path.read_text", return_value="apiVersion: v1\nkind: Pod\nspec:\n  containers:\n  - name: executor")
     @freeze_time(FAKE_TIME)
     def test_submit_app_with_executor_template_file_path(
-        self, 
+        self,
+        mock_read_text,
         mock_create_namespaced_service, 
         mock_patch_namespaced_config_map,
         mock_create_namespaced_config_map, 
@@ -1088,6 +1089,53 @@ spec:
             if conf.startswith("spark.kubernetes.executor")
         }
         assert executor_config.get("spark.kubernetes.executor.podTemplateFile") == "/opt/spark/executor-template/executor-template.yaml"
+
+    def test_process_executor_template_valid_yaml_content(self):
+        """Test _process_executor_template with valid YAML content"""
+        spark_client = SparkOnK8S()
+        yaml_content = "apiVersion: v1\nkind: Pod\nspec:\n  containers:\n  - name: executor"
+        
+        result = spark_client._process_executor_template(yaml_content)
+        assert result == yaml_content
+
+    def test_process_executor_template_invalid_yaml_content(self):
+        """Test _process_executor_template with invalid YAML content"""
+        spark_client = SparkOnK8S()
+        invalid_yaml = "invalid: yaml: content: ["
+        
+        with pytest.raises(ValueError, match="Executor template contains invalid YAML"):
+            spark_client._process_executor_template(invalid_yaml)
+
+    @mock.patch("pathlib.Path.read_text", return_value="apiVersion: v1\nkind: Pod\nspec:\n  containers:\n  - name: executor")
+    def test_process_executor_template_valid_file(self, mock_read_text):
+        """Test _process_executor_template with valid file"""
+        spark_client = SparkOnK8S()
+        
+        result = spark_client._process_executor_template("./template.yaml")
+        assert "apiVersion: v1" in result
+        mock_read_text.assert_called_once()
+
+    @mock.patch("pathlib.Path.read_text", side_effect=OSError("File not found"))
+    def test_process_executor_template_file_not_found_not_k8s_resource(self, mock_read_text):
+        """Test _process_executor_template with non-existent file that's not a Kubernetes resource"""
+        spark_client = SparkOnK8S()
+        
+        # "/nonexistent/file.yaml" is valid YAML (string) but not a Kubernetes Pod resource
+        with pytest.raises(ValueError, match="Executor template must be a Kubernetes resource"):
+            spark_client._process_executor_template("/nonexistent/file.yaml")
+    
+    def test_process_executor_template_not_pod_resource(self):
+        """Test _process_executor_template with valid YAML but not a Pod resource"""
+        spark_client = SparkOnK8S()
+        
+        # Valid YAML but wrong kind
+        configmap_yaml = """apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: test"""
+        
+        with pytest.raises(ValueError, match="Executor template must be a Kubernetes Pod resource"):
+            spark_client._process_executor_template(configmap_yaml)
 
     @pytest.mark.parametrize(
         "app_waiter",

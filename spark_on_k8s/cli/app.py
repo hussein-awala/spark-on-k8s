@@ -177,7 +177,7 @@ def submit(
     driver_annotations: dict[str, str],
     executor_annotations: dict[str, str],
     executor_pod_template_path: str,
-    executor_template: str,
+    executor_pod_template: str,
 ):
     from spark_on_k8s.client import ExecutorInstances, PodResources, SparkOnK8S
 
@@ -222,5 +222,5 @@ def submit(
         driver_annotations=driver_annotations,
         executor_annotations=executor_annotations,
         executor_pod_template_path=executor_pod_template_path,
-        executor_template=executor_template,
+        executor_template=executor_pod_template,
     )

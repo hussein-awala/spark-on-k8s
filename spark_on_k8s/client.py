@@ -184,7 +184,7 @@ class SparkOnK8S(LoggingMixin):
         executor_labels: dict[str, str] | ArgNotSet = NOTSET,
         driver_tolerations: list[k8s.V1Toleration] | ArgNotSet = NOTSET,
         executor_pod_template_path: str | ArgNotSet = NOTSET,
-        executor_template: str | ArgNotSet = NOTSET,
+        executor_pod_template: str | ArgNotSet = NOTSET,
         startup_timeout: int | ArgNotSet = NOTSET,
         driver_init_containers: list[k8s.V1Container] | ArgNotSet = NOTSET,
         driver_host_aliases: list[k8s.V1HostAlias] | ArgNotSet = NOTSET,
@@ -230,7 +230,7 @@ class SparkOnK8S(LoggingMixin):
             executor_node_selector: Node selector for the executors
             driver_tolerations: List of tolerations for the driver
             executor_pod_template_path: Path to the executor pod template file
-            executor_template: Executor pod template content as string or local file path. If provided,
+            executor_pod_template: Executor pod template content as string or local file path. If provided,
                 a ConfigMap will be created and mounted automatically
             startup_timeout: Timeout in seconds to wait for the application to start
             driver_init_containers: List of init containers to run before the driver starts
@@ -340,8 +340,9 @@ class SparkOnK8S(LoggingMixin):
             driver_tolerations = []
         if executor_pod_template_path is NOTSET or executor_pod_template_path is None:
             executor_pod_template_path = Configuration.SPARK_ON_K8S_EXECUTOR_POD_TEMPLATE_PATH
-        if executor_template is NOTSET or executor_template is None:
-            executor_template = Configuration.SPARK_ON_K8S_EXECUTOR_TEMPLATE
+        if executor_pod_template is NOTSET or executor_pod_template is None:
+            
+            executor_pod_template = Configuration.SPARK_ON_K8S_EXECUTOR_TEMPLATE
         if startup_timeout is NOTSET:
             startup_timeout = Configuration.SPARK_ON_K8S_STARTUP_TIMEOUT
         if driver_init_containers is NOTSET:
@@ -408,15 +409,15 @@ class SparkOnK8S(LoggingMixin):
             basic_conf.update(self._executor_annotations(annotations=executor_annotations))
         # Handle executor template (either string content or local file path)
         executor_template_configmap = None
-        if executor_template and executor_pod_template_path:
+        if executor_pod_template and executor_pod_template_path:
             raise ValueError(
                 "Both executor_template and executor_pod_template_path are provided. "
                 "Please provide only one of them."
             )
 
-        if executor_template:
+        if executor_pod_template:
             # Process the template (read from file if it's a path, otherwise use as content)
-            template_content = self._process_executor_template(executor_template)
+            template_content = self._process_executor_template(executor_pod_template)
             
             # Create a ConfigMap for the executor template
             executor_template_configmap = {

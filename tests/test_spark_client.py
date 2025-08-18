@@ -1021,7 +1021,7 @@ spec:
         # Check that ConfigMap was created
         assert mock_create_namespaced_config_map.called
         created_configmap = mock_create_namespaced_config_map.call_args[1]["body"]
-        assert created_configmap.metadata.name == "pyspark-job-example-20240114225118-executor-template"
+        assert created_configmap.metadata.name == "pyspark-job-example-20240114121231-executor-template"
         assert "executor-template.yaml" in created_configmap.data
         assert template_content.strip() in created_configmap.data["executor-template.yaml"]
 
@@ -1033,16 +1033,16 @@ spec:
             for conf in arguments
             if conf.startswith("spark.kubernetes.executor")
         }
-        assert executor_config.get("spark.kubernetes.executor.podTemplateFile") == "/opt/spark/conf/executor-template.yaml"
+        assert executor_config.get("spark.kubernetes.executor.podTemplateFile") == "/opt/spark/executor-template/executor-template.yaml"
 
         # Check that volume and volume mount were created
         volumes = created_pod.spec.volumes
         volume_names = [v.name for v in volumes]
-        assert "pyspark-job-example-20240114225118-executor-template" in volume_names
+        assert "pyspark-job-example-20240114121231-executor-template" in volume_names
 
         driver_volume_mounts = created_pod.spec.containers[0].volume_mounts
         driver_mount_names = [vm.name for vm in driver_volume_mounts] if driver_volume_mounts else []
-        assert "pyspark-job-example-20240114225118-executor-template" in driver_mount_names
+        assert "pyspark-job-example-20240114121231-executor-template" in driver_mount_names
 
     @mock.patch("spark_on_k8s.k8s.sync_client.KubernetesClientManager.create_client")
     @mock.patch("kubernetes.client.api.core_v1_api.CoreV1Api.create_namespaced_pod")
@@ -1076,7 +1076,7 @@ spec:
         # Check that ConfigMap was created
         assert mock_create_namespaced_config_map.called
         created_configmap = mock_create_namespaced_config_map.call_args[1]["body"]
-        assert created_configmap.metadata.name == "pyspark-job-example-20240114225118-executor-template"
+        assert created_configmap.metadata.name == "pyspark-job-example-20240114121231-executor-template"
         assert "executor-template.yaml" in created_configmap.data
 
         # Check that pod was created with correct Spark configuration
@@ -1087,7 +1087,7 @@ spec:
             for conf in arguments
             if conf.startswith("spark.kubernetes.executor")
         }
-        assert executor_config.get("spark.kubernetes.executor.podTemplateFile") == "/opt/spark/conf/executor-template.yaml"
+        assert executor_config.get("spark.kubernetes.executor.podTemplateFile") == "/opt/spark/executor-template/executor-template.yaml"
 
     @pytest.mark.parametrize(
         "app_waiter",

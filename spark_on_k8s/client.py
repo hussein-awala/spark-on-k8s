@@ -419,6 +419,12 @@ class SparkOnK8S(LoggingMixin):
             # Handle external executor pod template path (S3, GCS, etc.)
             basic_conf.update(self._executor_pod_template_path(executor_pod_template_path))
         
+        # Process executor volume mounts before building driver command args
+        if executor_volume_mounts:
+            basic_conf.update(
+                self._executor_volumes_config(volumes=volumes, volume_mounts=executor_volume_mounts)
+            )
+        
         driver_command_args = ["driver", "--master", "k8s://https://kubernetes.default.svc.cluster.local:443"]
         if class_name:
             driver_command_args.extend(["--class", class_name])
@@ -473,11 +479,6 @@ class SparkOnK8S(LoggingMixin):
         else:
             application_configmaps_volumes = []
 
-        # Process executor volume mounts now that all volumes are created
-        if executor_volume_mounts:
-            basic_conf.update(
-                self._executor_volumes_config(volumes=volumes, volume_mounts=executor_volume_mounts)
-            )
 
         pod = SparkAppManager.create_spark_pod_spec(
             app_name=app_name,

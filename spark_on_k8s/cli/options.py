@@ -306,6 +306,6 @@ executor_template_option = click.Option(
     ("--executor-template", "executor_template"),
     type=str,
     default=Configuration.SPARK_ON_K8S_EXECUTOR_TEMPLATE,
-    show_default=True,
+    show_default=False,
     help="Executor pod template content as string or local file path.",
 )

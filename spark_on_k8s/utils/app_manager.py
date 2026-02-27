@@ -84,10 +84,13 @@ class SparkAppManager(LoggingMixin):
                     name=pod_name,
                 )
             else:
-                _pod = _client.list_namespaced_pod(
+                pods = _client.list_namespaced_pod(
                     namespace=namespace,
                     label_selector=f"spark-app-id={app_id}",
-                ).items[0]
+                ).items
+                if not pods:
+                    raise ValueError(f"No pods found for app {app_id}")
+                _pod = pods[0]
             return get_app_status(_pod)
 
         if client is None:

@@ -92,6 +92,7 @@ class AsyncSparkAppManager(LoggingMixin):
             should_print (bool, optional): Whether to print logs instead of logging them.
         """
         termination_statuses = {SparkAppStatus.Succeeded, SparkAppStatus.Failed, SparkAppStatus.Unknown}
+        status = SparkAppStatus.Unknown
         async with self.k8s_client_manager.client() as client:
             api = k8s_async.CoreV1Api(client)
             while True:

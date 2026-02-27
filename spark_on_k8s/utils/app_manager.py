@@ -119,6 +119,7 @@ class SparkAppManager(LoggingMixin):
         """
         start_time = time.time()
         termination_statuses = {SparkAppStatus.Succeeded, SparkAppStatus.Failed, SparkAppStatus.Unknown}
+        status = SparkAppStatus.Unknown
         with self.k8s_client_manager.client() as client:
             api = k8s.CoreV1Api(client)
             while True:

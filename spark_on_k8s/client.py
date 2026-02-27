@@ -201,14 +201,14 @@ class SparkOnK8S(LoggingMixin):
         if image is NOTSET:
             if Configuration.SPARK_ON_K8S_DOCKER_IMAGE is None:
                 raise ValueError(
-                    "Docker image is not set."
+                    "Docker image is not set. "
                     "Please set the image argument or the environment variable SPARK_ON_K8S_DOCKER_IMAGE"
                 )
             image = Configuration.SPARK_ON_K8S_DOCKER_IMAGE
         if app_path is NOTSET:
             if Configuration.SPARK_ON_K8S_APP_PATH is None:
                 raise ValueError(
-                    "Application path is not set."
+                    "Application path is not set. "
                     "Please set the app_path argument or the environment variable SPARK_ON_K8S_APP_PATH"
                 )
             app_path = Configuration.SPARK_ON_K8S_APP_PATH

@@ -546,8 +546,8 @@ class SparkOnK8S(LoggingMixin):
             if app_name != original_app_name:
                 self.log(
                     msg=(
-                        f"Application name {original_app_name} is too long"
-                        f" and will be truncated to {app_name}"
+                        f"Application name {original_app_name!r} has been sanitized"
+                        f" to {app_name!r} to comply with Kubernetes naming conventions"
                     ),
                     level=logging.WARNING,
                     should_print=should_print,

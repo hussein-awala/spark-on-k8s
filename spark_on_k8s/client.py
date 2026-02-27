@@ -539,8 +539,7 @@ class SparkOnK8S(LoggingMixin):
             app_name = re.sub(r"[^0-9a-zA-Z]+", "-", app_name)
             # Remove leading non-alphabetic characters
             app_name = re.sub(r"^[^a-zA-Z]*", "", app_name)
-            # Remove leading and trailing dashes
-            app_name = re.sub(r"^-*", "", app_name)
+            # Remove trailing dashes
             app_name = re.sub(r"-*$", "", app_name)
             app_id = app_name + app_id_suffix_str
             if app_name != original_app_name:

@@ -190,7 +190,7 @@ executor_initial_instances_option = click.Option(
 )
 executor_allocation_ratio_option = click.Option(
     ("--executor-allocation-ratio",),
-    type=int,
+    type=float,
     default=Configuration.SPARK_ON_K8S_EXECUTOR_ALLOCATION_RATIO,
     show_default=True,
     help=(

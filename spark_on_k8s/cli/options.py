@@ -100,7 +100,7 @@ logs_option = click.Option(
     ("--logs",),
     type=bool,
     is_flag=True,
-    default=Configuration.SPARK_ON_K8S_APP_WAITER == "logs",
+    default=Configuration.SPARK_ON_K8S_APP_WAITER == "log",
     show_default=True,
     help="Print the app logs.",
 )

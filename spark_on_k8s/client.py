@@ -299,6 +299,8 @@ class SparkOnK8S(LoggingMixin):
             driver_tolerations = []
         if executor_pod_template_path is NOTSET or executor_pod_template_path is None:
             executor_pod_template_path = Configuration.SPARK_ON_K8S_EXECUTOR_POD_TEMPLATE_PATH
+        if should_print is NOTSET:
+            should_print = False
         if startup_timeout is NOTSET:
             startup_timeout = Configuration.SPARK_ON_K8S_STARTUP_TIMEOUT
         if driver_init_containers is NOTSET:

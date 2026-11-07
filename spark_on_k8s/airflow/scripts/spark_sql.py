@@ -27,6 +27,7 @@ def execute_sql_commands(spark_session: SparkSession, commands):
             spark_session.sql(command).show(truncate=False)
         except Exception:
             logger.exception(f"Error executing SQL command: {command}")
+            raise
 
 
 if __name__ == "__main__":
@@ -40,11 +41,8 @@ if __name__ == "__main__":
 
     _spark_session = SparkSession.builder.getOrCreate()
 
-    # Read SQL commands from file
-    sql_commands = read_sql_file(sql_file_path)
-
-    # Execute each SQL command
-    execute_sql_commands(_spark_session, sql_commands)
-
-    # Stop SparkSession
-    _spark_session.stop()
+    try:
+        sql_commands = read_sql_file(sql_file_path)
+        execute_sql_commands(_spark_session, sql_commands)
+    finally:
+        _spark_session.stop()

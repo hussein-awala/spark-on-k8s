@@ -75,6 +75,7 @@ nav:
   - User Guide:
       - Installation: user-guide/installation.md
       - Getting Started: user-guide/getting_started.md
+      - Spark Connect: user-guide/spark_connect.md
       - Job Files: user-guide/jobs.md
       - Examples: user-guide/examples.md
       - Automation: user-guide/automation.md

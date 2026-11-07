@@ -1,0 +1,82 @@
+name: Spark Connect compatibility
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "spark_on_k8s/connect.py"
+      - "spark_on_k8s/cli/connect.py"
+      - "tests/test_connect.py"
+      - "tests/integration/connect/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/spark-connect.yml"
+  push:
+    branches: [main]
+    paths:
+      - "spark_on_k8s/connect.py"
+      - "spark_on_k8s/cli/connect.py"
+      - "tests/integration/connect/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/spark-connect.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: spark-connect-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  connect:
+    name: Spark Connect 4.3 / Python ${{ matrix.python }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.14"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.7"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Install the client wheel and a separate server runtime
+        env:
+          CLIENT_PYTHON: ${{ matrix.python }}
+        run: |
+          unset CONDA_DEFAULT_ENV CONDA_PREFIX VIRTUAL_ENV
+          uv python install "$CLIENT_PYTHON" 3.11
+          uv venv --python "$(uv python find --managed-python "$CLIENT_PYTHON")" .venv
+          .venv/bin/python -I - <<'PY'
+          import sys
+          from pathlib import Path
+          assert sys.prefix != sys.base_prefix
+          assert Path(sys.prefix).resolve() == Path('.venv').resolve()
+          PY
+          UV_PROJECT_ENVIRONMENT="$GITHUB_WORKSPACE/.venv" uv sync --locked --extra connect --group test
+          uv build --wheel --out-dir "$RUNNER_TEMP/wheel"
+          uv pip install --python .venv/bin/python --no-deps --reinstall "$RUNNER_TEMP"/wheel/*.whl
+          uv venv --python "$(uv python find --managed-python 3.11)" "$RUNNER_TEMP/server"
+          uv pip install --python "$RUNNER_TEMP/server/bin/python" 'pyspark==4.3.0'
+          uv pip check --python .venv/bin/python
+      - name: Test installed profiles and real client/server execution
+        run: |
+          .venv/bin/python -I tests/run_installed_tests.py tests/test_connect.py
+          server_home=$("$RUNNER_TEMP/server/bin/python" -I -c 'import pathlib,pyspark; print(pathlib.Path(pyspark.__file__).parent)')
+          .venv/bin/python -I tests/integration/connect/run.py --spark-home "$server_home" \
+            --java-home "$JAVA_HOME" --artifacts "$RUNNER_TEMP/connect-results"
+      - name: Upload execution evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: spark-connect-python-${{ matrix.python }}
+          path: ${{ runner.temp }}/connect-results/
+          retention-days: 7

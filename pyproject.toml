@@ -29,6 +29,12 @@ Documentation = "https://hussein.awala.fr/spark-on-k8s/"
 
 [project.optional-dependencies]
 sql = ["sqlparse>=0.6.1,<0.7"]
+# Thin client only; a JVM and Spark server are supplied by the existing endpoint.
+connect = [
+    "pyspark-client>=4.0.5,<5; python_version < '3.15'",
+    # Spark Connect does not yet fully support pandas 3; pandas 2 has no Python 3.15 wheels.
+    "pandas>=2.2,<3; python_version < '3.15'",
+]
 api = [
     "fastapi>=0.162.1,<0.163",
     "starlette>=1.10.0,<2",

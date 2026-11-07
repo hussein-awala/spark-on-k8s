@@ -240,3 +240,17 @@ def test_runs_page_uses_packaged_console_and_is_separate_from_spark_history_serv
     assert client.get("/webserver/runs", params={"namespace": "outside"}).status_code == 400
     monkeypatch.setattr(webserver, "get_history_settings", HistorySettings)
     assert client.get("/webserver/runs").status_code == 404
+
+
+def test_readiness_remains_public_under_a_deployment_prefix_but_metrics_do_not(api, monkeypatch):
+    monkeypatch.setattr(
+        remote_auth, "get_submission_settings", lambda: SubmissionSettings(True, b"operator-token")
+    )
+    app = FastAPI(root_path="/platform/spark")
+    app.add_middleware(RemoteAccessMiddleware)
+    app.include_router(run_history.router)
+    client = TestClient(app)
+    assert client.get("/platform/spark/ready").status_code == 200
+    assert client.head("/platform/spark/ready").status_code == 200
+    assert client.get("/platform/spark/metrics").status_code == 401
+    assert client.get("/platform/spark-extra/ready").status_code == 401

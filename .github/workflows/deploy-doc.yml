@@ -1,65 +1,78 @@
 name: Deploy the documentation
 on:
   push:
-    branches:
-      - main
-    tags:
-      - '*'
+    branches: [main]
+    tags: ['*']
+
 permissions:
   contents: write
+
+concurrency:
+  group: documentation-gh-pages
+  cancel-in-progress: false
+  queue: max
+
+env:
+  POETRY_VERSION: "2.5.1"
+  POETRY_VIRTUALENVS_IN_PROJECT: "true"
+  POETRY_NO_INTERACTION: "1"
+
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
       - name: Configure Git Credentials
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-
-      - uses: actions/setup-python@v5
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
-          python-version: 3.11
-
-      - name: Install Poetry
-        uses: snok/install-poetry@v1
+          version: "0.13.7"
+          enable-cache: true
+          cache-dependency-glob: poetry.lock
+      - name: Create documentation environment
+        run: |
+          unset CONDA_DEFAULT_ENV CONDA_PREFIX VIRTUAL_ENV
+          uv python install 3.12
+          python_path="$(uv python find --managed-python 3.12)"
+          uv tool install --python "$python_path" "poetry==$POETRY_VERSION"
+          echo "$(uv tool dir --bin)" >> "$GITHUB_PATH"
+          uv venv --python "$python_path" .venv
+          .venv/bin/python - <<'PYTHON'
+          import sys
+          from pathlib import Path
+          assert sys.prefix != sys.base_prefix, "Expected an isolated virtual environment"
+          assert Path(sys.prefix).resolve() == Path(".venv").resolve(), sys.prefix
+          PYTHON
+          echo "CONDA_DEFAULT_ENV=" >> "$GITHUB_ENV"
+          echo "CONDA_PREFIX=" >> "$GITHUB_ENV"
+          echo "VIRTUAL_ENV=$GITHUB_WORKSPACE/.venv" >> "$GITHUB_ENV"
+          echo "POETRY_CACHE_DIR=$RUNNER_TEMP/poetry-cache" >> "$GITHUB_ENV"
+          echo "AIRFLOW_HOME=$RUNNER_TEMP/airflow" >> "$GITHUB_ENV"
+      - name: Install documentation dependencies
+        run: |
+          test "$(poetry env info --path)" = "$GITHUB_WORKSPACE/.venv"
+          poetry check --lock --strict
+          poetry sync --only main,docs --all-extras
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          virtualenvs-create: true
-          virtualenvs-in-project: true
-
-      - name: Install dependencies
-        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction --no-root --all-extras
-
-      - run: echo "cache_id=$(date --utc '+%V')" >> $GITHUB_ENV
-
-      - uses: actions/cache@v4
-        with:
-          key: mkdocs-material-${{ env.cache_id }}
+          key: mkdocs-${{ runner.os }}-${{ hashFiles('poetry.lock', 'mkdocs.yml') }}
           path: .cache
-          restore-keys: |
-            mkdocs-material-
-
       - name: Fetch gh-pages branch
-        run: |
-          git fetch origin gh-pages:gh-pages
-
+        run: git fetch origin gh-pages:gh-pages
       - name: Build Helm Docs
-        run: |
-          source .venv/bin/activate
-          helm-mkdocs chart -o docs/helm-chart
-
+        run: poetry run helm-mkdocs chart -o docs/helm-chart
       - name: Deploy Docs
         run: |
-          source .venv/bin/activate
-          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-            echo "Deploying main docs"
-            mike deploy --push develop
-          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
-            VERSION=${GITHUB_REF#refs/tags/}
-            echo "Deploying version $VERSION"
-            mike deploy --push --update-aliases $VERSION latest
+          if [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
+            poetry run mike deploy --push develop
+          elif [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            version="${GITHUB_REF#refs/tags/}"
+            poetry run mike deploy --push --update-aliases "$version" latest
           else
             echo "Not a deployable ref"
             exit 1

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Spark change checks"
+  short_description: "Run focused checks and prepare pre-PR evidence"
+  default_prompt: "Use $spark-change-checks for this spark-on-k8s task."

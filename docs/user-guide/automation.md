@@ -30,7 +30,8 @@ A successful waiting submission has this shape:
   "run": {
     "namespace": "spark",
     "app_id": "daily-report-20261107120000",
-    "driver_pod": "daily-report-20261107120000-driver"
+    "driver_pod": "daily-report-20261107120000-driver",
+    "driver_uid": "5bdceeb0-7fa8-4f72-823b-80f26e6195c4"
   },
   "status": "Succeeded"
 }
@@ -40,8 +41,12 @@ Without `--wait` or `--logs`, exit code 0 means the application resources were
 submitted, and `status` is `null`. It does not mean the workload succeeded.
 The receipt identifies the actual generated application ID and driver pod.
 It is retained in runtime error output if submission succeeded before waiting
-failed, timed out, or was interrupted. An error during resource creation can
-leave partial resources; the receipt is not populated until submission finishes.
+failed, timed out, or was interrupted. An error during resource creation can leave partial resources. The client records
+a confirmed driver UID immediately after receiving its creation response. Results
+include `submission_phase` (`preparing`, `creating_resources`, `driver_created`,
+`resources_created`) so a later owner-reference or Service failure can still return
+the known driver identity. If creation itself has an ambiguous transport result,
+no confirmed receipt is invented. Inspect the cluster before retrying.
 
 `--timeout` takes positive, finite seconds and requires a wait or log waiter on
 submission. It limits observation after submission, including a running job and
@@ -141,3 +146,71 @@ For SDK submission with `app_waiter="wait"` or `"log"`, the optional
 accept `timeout` on `wait_for_app` and `stream_logs`; expiration raises
 `TimeoutError`. `submit_run` does not support dry runs. A handle contains no
 credentials, clients, or automatic reattachment behavior.
+
+## Save identity before waiting
+
+Add `--receipt-file run.json` to `app submit`, `job submit`, or `sql submit`.
+The parent directory must exist and the destination must be new. A private file
+(mode 0600) is published atomically after submission, before log streaming or
+waiting. A timeout, interruption, or observer crash does not remove it. Existing
+receipts are never overwritten. Stdout still contains a single final result.
+
+```bash
+spark-on-k8s job submit job.yaml --profile production \
+  --receipt-file run.json --output json > result.json
+```
+
+The file contains `schema_version: 1` and `run` with namespace, application ID,
+driver name and Kubernetes UID. Use its namespace and application ID with
+`app wait` to resume observation from another process using the same cluster.
+Receipts contain no credentials, kubeconfig or cluster endpoint. Select the
+correct cluster explicitly; a receipt is an identity, not authorization.
+
+A known driver receipt is also saved when a later resource-creation step fails.
+If receipt persistence fails too, the original submission failure remains primary
+and `receipt_error` describes the storage failure. A receipt cannot recover an
+unknown submission response or make data writes
+idempotent. If local publication fails after submission, the command fails and
+its final JSON still contains the known run. Investigate that run before retrying.
+
+## Cancel the recorded run
+
+```bash
+spark-on-k8s app cancel --receipt run.json --output json
+```
+
+Cancellation reads the current pod, verifies its UID, application label and
+driver role, then sends a Kubernetes UID precondition with the deletion request.
+A stale receipt cannot delete a replacement pod with the same name. Older
+receipts without a UID cannot use this command. `accepted: true` means the API
+accepted deletion; it does not establish that executors, volumes or finalizers
+have finished cleanup. `--force` requests zero grace period and still preserves
+the identity checks. No timeout automatically invokes cancellation.
+
+## Contract coverage and lifecycle ownership
+
+| Command family | Structured success | Structured runtime failures | Completion meaning |
+| --- | --- | --- | --- |
+| app submit/wait, job submit, sql submit | `--output json` | Versioned result after CLI parsing | Inspect terminal `status`; detached submit means accepted |
+| app status, apps list, app cancel | `--output json` | Versioned result | Query/deletion request succeeded, not data correctness |
+| job validate | `--output json`, per-profile results | Validation failures in result | Offline validation only |
+| job plan | `--output json` | Load/build errors remain Click text | Redacted preview, no reservation |
+| connect check | `--output json` | Bounded check result | Tiny query succeeded on existing server |
+| legacy kill/delete/log commands | Text | Text | Signal/deletion request or log observation |
+
+CLI usage errors still follow Click's text/exit-code contract. Do not assume every
+JSON-capable command serializes every failure.
+
+`SparkJob` is loaded by a client; it is not a Kubernetes custom resource or a
+reconciled controller. The caller submits and decides whether to observe or retry.
+Kubernetes runs the created workload after the client exits. Airflow owns scheduling
+and task retry policy when its operator is used. SDK/CLI observation timeouts retain
+the application; Airflow startup timeouts deliberately delete it. A kill signal is
+a termination request, not evidence of a completed streaming drain or checkpoint.
+
+Disable caching for workflow submission steps. Reusing a cached receipt does not
+establish that this workflow executed the data job. Observe the same run before
+starting downstream consumers; retrying observation and resubmitting are different
+actions. Use one active submission per `SparkOnK8S` instance: the compatibility
+`last_submitted_*` attributes are mutable and shared-instance concurrent submission
+is not supported. Persist the returned immutable run handle per operation.

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Spark release"
+  short_description: "Prepare and qualify a Spark-on-K8s release"
+  default_prompt: "Use $spark-release for this spark-on-k8s task."

@@ -57,13 +57,18 @@ from spark_on_k8s.connect import ConnectProfile
 
 profile = ConnectProfile.from_file("connect.toml", profile="production")
 with profile.session() as spark:
-    summary = spark.read.parquet("s3a://warehouse/events/").groupBy("country").count()
-    summary.show()
+    assert spark.range(100).count() == 100
+    spark.range(5).show()
 ```
 
-Every context opens a separate Connect session and closes it on exit, even when
-user code raises an exception. It does not reuse or stop another notebook session.
-Files and data paths are interpreted on the server. Cluster-wide state and static
+Every context opens a separate Connect session and attempts to release it on exit,
+even when user code raises an exception. If both application code and release fail,
+the original application exception is preserved with a cleanup note. A release-only
+failure raises `ConnectError`; server-side session expiry remains the fallback. It does not reuse or stop another notebook session.
+After the generated-data example works, try your warehouse data (for example
+`spark.read.parquet("s3a://warehouse/events/")`) only after verifying the server
+has the required connector, storage permissions and data. Files and data paths
+are interpreted on the server. Cluster-wide state and static
 Spark configuration belong to the server; classic RDD/SparkContext APIs are not
 available through Connect. Authenticate and authorize the server with your existing
 gRPC gateway and identity system: profiles do not provide server-side isolation.

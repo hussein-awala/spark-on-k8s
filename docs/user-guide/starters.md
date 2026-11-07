@@ -139,3 +139,31 @@ checks and CI container checks validate Spark computation and data results;
 shared-storage provisioning and Kubernetes execution of these particular starter
 jobs still depend on the target cluster. The separate compatibility workflow
 also exercises actual Kubernetes submission and driver-owned resource cleanup.
+
+## Adaptation contracts
+
+The ETL example records the first matching rejection reason. When a row violates
+multiple rules, later reasons are not retained. Keep that precedence in mind when
+diagnosing upstream input; a production extension should use stable rule IDs and
+explicitly decide whether multiple reasons or raw records may be retained.
+
+Latest-event deduplication is not point-in-time feature reconstruction. For
+example, a change received after a prediction timestamp must be excluded from
+that prediction's training features even when it is the latest update today.
+Replay determinism does not establish historical feature correctness.
+
+For CDC adaptation, define an authoritative source sequence and deletion policy.
+Equal event timestamps, backfills and delete-then-reinsert events cannot be
+ordered safely by timestamp alone. This starter is a batch demonstration, not a
+database CDC connector contract.
+
+Lakehouse `before_snapshot`/`after_snapshot` values are observed table state.
+They do not independently prove which writer committed a snapshot. Keep the
+single-writer restriction when interpreting the example as execution evidence.
+
+To adapt an Iceberg example to Delta or Hudi, begin with a complete, reviewed
+connector configuration. Job profiles recursively merge maps: adding a Delta
+setting does not remove inherited Iceberg catalog keys. Inspect the effective
+plan before submission and qualify the chosen Spark/Scala/connector combination.
+A shared 1Gi demo PVC is a dataset/output mount, not a recommended Spark shuffle
+layout, production storage capacity baseline or data retention policy.

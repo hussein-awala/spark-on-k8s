@@ -37,7 +37,7 @@ only the main file while WAL writes are active can omit committed records. Keep 
 to the API process and back up the database according to your operational needs.
 
 The store initializes schema version 1 transactionally and refuses an unknown future version.
-Configuration and credentials are not stored in the database. A missing/unwritable directory or an
+Configuration objects and credential source fields are not collected into the database. A missing/unwritable directory or an
 invalid configuration prevents recorder startup; the API does not silently fall back to ephemeral
 storage.
 
@@ -50,8 +50,9 @@ separate record instead of overwriting the old run. Retained fields are:
 - driver image, Spark version and Kubernetes creation time;
 - first and last observation times, last observed pod phase, and the time the pod was first absent.
 
-Raw pod specifications, annotations, arguments, environment variables, SQL, credentials and logs are
-never stored. The collector selects the designated driver container when a pod also has sidecars.
+Raw pod specifications, annotations, arguments, environment variables, SQL and logs are
+not selected for storage. Names, image references and other retained identifiers are workload-controlled
+and can themselves contain sensitive data; the fixed field list is not a content redaction guarantee. The collector selects the designated driver container when a pod also has sidecars.
 
 Disappearance is independent of status. A running pod that disappears remains recorded as last seen
 `Running`, with a disappearance time; disappearance does **not** imply failure or success. Previously
@@ -64,6 +65,10 @@ expired/repeated cursors, page limits, malformed metadata, cancellation or timeo
 pods missing and do not publish partial results. Other namespaces can still be collected while time
 remains in the overall budget. The starting namespace rotates between cycles so one slow namespace
 cannot continually prevent later namespaces from being collected.
+
+Observation intervals are not execution duration or utilization. Retained status counts include
+missing runs and are affected by polling and retention; they are not a success-rate denominator,
+a cost report, lineage completion or a compliance audit trail.
 
 ## Bounds and retention
 
@@ -84,7 +89,8 @@ poll interval and a safety margin. No new namespace scan starts after the collec
 Retention is enforced after both successful collections and recorded failures. The oldest records by
 last observation are removed first when the row limit is exceeded; a small limit can discard useful
 history, including records for still-present pods. SQLite reuses freed pages, so deleting rows need not
-shrink the database file immediately.
+shrink the database file immediately. Logical retention is not physical erasure and does not expire
+independent backups. Define backup access and expiry separately.
 
 Restart API workers to change these settings. Increasing page limits may increase memory use and cluster
 API traffic; use namespaces and quotas that match the deployment's scale.

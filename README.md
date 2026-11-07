@@ -15,6 +15,8 @@ It also provides an optional REST API with a web UI that can be used to list and
 spark UI through the reverse proxy. The optional Airflow 3.4+ task tab reuses the
 same React console components inside Airflow; see the [Airflow guide](docs/user-guide/airflow.md).
 
+Choose your route in the [start-here guide](https://hussein.awala.fr/spark-on-k8s/develop/user-guide/start-here/) and check the [support boundaries](https://hussein.awala.fr/spark-on-k8s/develop/user-guide/support/) before adopting a new integration.
+
 ## Installation
 
 ### Published releases
@@ -266,10 +268,12 @@ not Kubernetes authorization. The API has no built-in user authentication, and
 access-controlled networking or an authenticating proxy.
 
 The source chart supplies in-cluster Kubernetes configuration and the API bind
-address and port. Its default API image tag is `latest`; using a local chart does
+address and port. Its default API image tag is `latest` for development; using a local chart does
 not build or install the Python source into that image. Set `image.repository`
-and `image.tag` to the API image version you intend to deploy, independently of
-the Spark application images passed to `submit_app`.
+and `image.digest` to a verified production image digest (`image.tag` remains available
+for named releases), independently of Spark application images passed to `submit_app`.
+Digest selection takes precedence over the tag. See [chart deployment guidance](docs/user-guide/chart-deployments.md)
+for scoped permissions, externally owned identities and release qualification.
 
 ## Configuration
 

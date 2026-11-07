@@ -110,3 +110,50 @@ run = SparkOnK8SOperator(
 For Airflow, use a job without a `kubernetes` section: the operator connection owns
 credentials. Set `app_waiter` to `wait` or `log` when downstream tasks depend on
 completion, and use the operator's existing deferrable option when appropriate.
+
+## Validate every environment
+
+```bash
+spark-on-k8s job validate job.yaml --all-profiles --output json
+```
+
+This validates the base definition and every named profile, including relative
+pod-template files, without connecting to Kubernetes. The result lists each
+profile and returns a nonzero exit code if any fails. `--profile` and
+`--all-profiles` are mutually exclusive. Run this in your configuration CI;
+validating only a development profile does not validate production overrides.
+
+## Review CPU and memory requests
+
+Plans include a `capacity` summary derived from the generated driver requests
+and effective Spark configuration. It shows executor heap, explicit overhead,
+off-heap and PySpark allocations, executor counts and minimum/initial/maximum
+CPU and memory requests. Memory is reported in MiB and CPU in cores.
+
+```bash
+spark-on-k8s job plan job.yaml --profile production --output json \
+  --max-cpu 12 --max-memory-mib 32768
+```
+
+Optional budgets fail when a requested maximum exceeds the limit **or cannot be
+calculated**. Executor templates, driver sidecars/init containers, invalid
+resource settings and unbounded dynamic allocation are called out instead of
+being silently estimated. The manifest remains the source for detailed review.
+Admission mutation, quota availability, scheduling placement, storage, GPUs and
+runtime-created resource profiles are outside this estimate. This is a request
+budget check, not a pricing estimate or an admission controller.
+
+For promotion, select the cluster as well as the namespace:
+
+```yaml
+profiles:
+  production:
+    kubernetes:
+      context: production-cluster
+    spec:
+      namespace: analytics-production
+```
+
+The context name is a reference to externally managed credentials, not a secret
+payload. Namespace selection alone does not select a cluster. For Airflow, omit
+this Kubernetes section and use the reviewed Airflow connection instead.

@@ -179,3 +179,13 @@ Authentication failures return 401, admission denials 403, disabled routes 404, 
 idempotency or invalid JSON 400, oversized bodies 413, unsupported content types 415, and invalid
 job schemas 422. Kubernetes conflicts return 409; other Kubernetes failures return 502. Errors
 contain a stable code and a human-readable message, never the Kubernetes response body.
+
+Admission limits apply to each submitted job. They do not reserve shared capacity
+or account for concurrent accepted jobs. Enforce aggregate resources with
+Kubernetes ResourceQuota or your external admission system. A policy rejection,
+a quota rejection and a scheduler wait are different outcomes.
+
+Namespace allowlists constrain the shared operator deployment. Every bearer
+holder retains management access within that deployment's exposed surface; the
+allowlist does not establish individual user or tenant identity. Use separate
+trust boundaries where independent authorization is required.

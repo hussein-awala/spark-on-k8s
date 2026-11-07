@@ -179,3 +179,62 @@ def test_history_redirect_with_deployment_prefix_is_idempotent(monkeypatch, suff
         assert response.headers["location"] == location
     finally:
         asyncio.run(http_client.aclose())
+
+
+@pytest.mark.parametrize("path", ["/webserver/ui/analytics/app-1/jobs/", "/webserver/ui-history/jobs/"])
+@pytest.mark.parametrize("remote_mode", [True, False])
+def test_remote_proxy_never_forwards_operator_or_gateway_credentials(monkeypatch, path, remote_mode):
+    from spark_on_k8s.api import remote_auth
+    from spark_on_k8s.api.remote_auth import RemoteAccessMiddleware
+    from spark_on_k8s.api.submission_policy import SubmissionSettings
+
+    token = "dummy-operator-bearer-with-more-than-32-characters"
+    monkeypatch.setattr(
+        remote_auth, "get_submission_settings", lambda: SubmissionSettings(remote_mode, token.encode())
+    )
+    monkeypatch.setattr(APIConfiguration, "SPARK_ON_K8S_API_SPARK_HISTORY_HOST", "history:18080")
+    seen = []
+
+    def upstream(request):
+        seen.append(request)
+        body = UpstreamBody()
+        body.chunks = [b"range"]
+        return httpx.Response(206, stream=body, headers={"content-range": "bytes 0-4/5"})
+
+    transport = httpx.AsyncClient(transport=httpx.MockTransport(upstream))
+    app = FastAPI()
+    app.add_middleware(RemoteAccessMiddleware)
+    app.include_router(router)
+    sensitive = {
+        "Authorization": "Bearer " + token,
+        "Cookie": "gateway-session=private-cookie",
+        "Proxy-Authorization": "Basic private-proxy",
+        "X-Auth-Request-Access-Token": "private-gateway-token",
+        "X-Forwarded-Access-Token": "private-forwarded-token",
+        "X-Custom-Identity": "private-vendor-identity",
+    }
+    functional = {
+        "Accept": "text/html",
+        "Accept-Language": "en",
+        "Range": "bytes=0-4",
+        "If-None-Match": '"etag"',
+    }
+    try:
+        with mock.patch("spark_on_k8s.api.webserver.AsyncHttpClientSingleton.client", return_value=transport):
+            response = TestClient(app).get(path + "?stage=1", headers={**sensitive, **functional})
+        assert response.status_code == 206
+        assert response.content == b"range"
+        assert response.headers["content-range"] == "bytes 0-4/5"
+        assert len(seen) == 1
+        assert seen[0].url.query == b"stage=1"
+        for key, value in functional.items():
+            assert seen[0].headers[key] == value
+        for key, value in sensitive.items():
+            if remote_mode:
+                assert key not in seen[0].headers
+            else:
+                assert seen[0].headers[key] == value
+        if remote_mode:
+            assert token not in str(seen[0].headers)
+    finally:
+        asyncio.run(transport.aclose())

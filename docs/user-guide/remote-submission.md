@@ -37,6 +37,10 @@ HTTP and WebSocket request. Ordinary browser WebSockets cannot attach a custom a
 header themselves. The application does not accept query-string tokens or bearer cookies and
 does not place a token in the dashboard bootstrap. The gateway must remove client-supplied
 identity headers before injecting its own and keep the backend unreachable directly.
+In remote mode, the Spark UI and History Server proxies forward only content-negotiation,
+range and conditional-cache request headers. Bearer tokens, cookies, gateway identity headers
+and other credentials are not sent to application services. Log WebSockets use the server's
+Kubernetes client and do not forward browser authorization headers to pods.
 Standalone mode with remote submission disabled keeps its existing UI behavior.
 
 Apply least-privilege Kubernetes RBAC, Pod Security admission, namespace ResourceQuotas and

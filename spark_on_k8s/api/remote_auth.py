@@ -38,4 +38,5 @@ class RemoteAccessMiddleware:
                     )
                     await response(scope, receive, send)
                 return
+            scope["spark_on_k8s.remote_authenticated"] = True
         await self.app(scope, receive, send)

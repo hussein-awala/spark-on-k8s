@@ -10,15 +10,35 @@ import type {
   ConsoleTransport,
 } from "./types";
 
-export function SparkConsole({
-  config,
-  transport: suppliedTransport,
-  namespaceEditable = config.namespaceEditable ?? true,
-}: {
+interface SparkConsoleProps {
   config: ConsoleConfig;
   transport?: ConsoleTransport;
   namespaceEditable?: boolean;
-}) {
+}
+
+export function SparkConsole(props: SparkConsoleProps) {
+  try {
+    consolePath(props.config.basePath, "/");
+  } catch {
+    return (
+      <div className="spark-console console-embedded">
+        <div className="console-content">
+          <p role="alert">
+            The console base path is invalid. Check the deployment
+            configuration.
+          </p>
+        </div>
+      </div>
+    );
+  }
+  return <ConsoleContent {...props} />;
+}
+
+function ConsoleContent({
+  config,
+  transport: suppliedTransport,
+  namespaceEditable = config.namespaceEditable ?? true,
+}: SparkConsoleProps) {
   const transport = useMemo(
     () =>
       suppliedTransport ??

@@ -7,8 +7,44 @@ import type {
   RunPage,
 } from "./types";
 
+function pathSegments(path: string, prefix: boolean): string[] {
+  if (
+    !path.startsWith("/") ||
+    path.startsWith("//") ||
+    /[\\\u0000-\u001f\u007f?#]/u.test(path)
+  )
+    throw new Error("Invalid console path");
+  const pathname = prefix ? path.replace(/\/+$/, "") : path;
+  if (!pathname || pathname === "/") return [];
+  return pathname
+    .slice(1)
+    .split("/")
+    .map((segment) => {
+      const decoded = decodeURIComponent(segment);
+      if (
+        (prefix && !segment) ||
+        decoded === "." ||
+        decoded === ".." ||
+        /[\u0000-\u001f\u007f]/u.test(decoded) ||
+        (prefix && /[/\\]/u.test(decoded))
+      )
+        throw new Error("Invalid console path");
+      return encodeURIComponent(decoded);
+    });
+}
+
 export function consolePath(basePath: string, path: string): string {
-  return `${basePath.replace(/\/+$/, "")}${path}`;
+  const queryStart = path.indexOf("?");
+  const pathname = queryStart < 0 ? path : path.slice(0, queryStart);
+  const query = queryStart < 0 ? "" : path.slice(queryStart);
+  if (/[#\u0000-\u001f\u007f]/u.test(query))
+    throw new Error("Invalid console query");
+  const prefix = basePath ? pathSegments(basePath, true) : [];
+  const route = pathSegments(pathname, false);
+  // Encode each component before adding separators: a normalized prefix must
+  // never become a scheme or a network-path reference such as //other-host.
+  const trailingSlash = pathname === "/" && prefix.length ? "/" : "";
+  return `/${[...prefix, ...route].join("/")}${trailingSlash}${query}`;
 }
 
 export function appLogsPath(

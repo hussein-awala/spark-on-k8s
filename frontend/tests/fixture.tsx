@@ -64,6 +64,13 @@ if (params.get("authorizedLinks") === "true") {
   transport.sparkUiUrl = () => "/authorized/spark-ui?task=aggregate";
   transport.historyUrl = () => "/authorized/history?task=aggregate";
 }
-createRoot(document.getElementById("root")!).render(
-  <SparkConsole config={config} transport={transport} />,
-);
+const root = createRoot(document.getElementById("root")!);
+function renderConfig(updates: Partial<ConsoleConfig> = {}) {
+  root.render(
+    <SparkConsole config={{ ...config, ...updates }} transport={transport} />,
+  );
+}
+(
+  globalThis as unknown as { updateConsoleConfig: typeof renderConfig }
+).updateConsoleConfig = renderConfig;
+renderConfig();

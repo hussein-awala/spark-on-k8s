@@ -225,3 +225,80 @@ def test_api_error_json_does_not_expose_kubernetes_response_body(cluster):
     assert result.exit_code == 1
     assert json.loads(result.stdout)["items"] is None
     assert "do-not-print-this" not in result.stdout + result.stderr
+
+
+@pytest.mark.parametrize("output", ["json", "text"])
+def test_unexpected_cluster_errors_are_reported_without_false_success(cluster, output):
+    cluster.api.list_namespaced_pod.side_effect = RuntimeError("Cluster transport unavailable")
+    result = CliRunner().invoke(
+        app_cli, ["status", "--namespace", "spark", "--app-id", "existing", "--output", output]
+    )
+    assert result.exit_code == 1
+    if output == "json":
+        payload = json.loads(result.stdout)
+        assert payload["error"] == {"code": "operation_error", "message": "Cluster transport unavailable"}
+        assert payload["status"] is None
+        assert result.stderr == ""
+    else:
+        assert result.stdout == ""
+        assert result.stderr == "Error: Cluster transport unavailable\n"
+
+
+def test_submission_timeout_requires_observation_before_any_write():
+    import click
+    from spark_on_k8s.cli.automation import execute_submission
+
+    spark = Mock()
+    with pytest.raises(click.UsageError, match="requires a wait or log waiter"):
+        execute_submission(spark, {"app_waiter": "no_wait"}, timeout=1)
+    spark.submit_app.assert_not_called()
+
+
+@pytest.mark.parametrize("timeout", [0, -1, float("nan"), float("inf")])
+def test_shared_submission_helper_rejects_invalid_deadlines_before_any_write(timeout):
+    import click
+    from spark_on_k8s.cli.automation import execute_submission
+
+    spark = Mock()
+    # Job submission integrations call this helper directly, bypassing Click's option validation.
+    with pytest.raises(click.BadParameter, match="positive finite"):
+        execute_submission(spark, {"app_waiter": "wait"}, timeout=timeout)
+    spark.submit_app.assert_not_called()
+
+
+def test_cli_does_not_claim_acceptance_without_a_run_receipt(cluster, monkeypatch):
+    submit = Mock(return_value="untracked-driver")
+    monkeypatch.setattr(client.SparkOnK8S, "submit_app", submit)
+    result = CliRunner().invoke(app_cli, submit_args("--output", "json"))
+    assert result.exit_code == 1
+    payload = json.loads(result.stdout)
+    assert payload["run"] is None
+    assert payload["status"] is None
+    assert payload["error"] == {
+        "code": "operation_error",
+        "message": "Submission completed without a run identity",
+    }
+    assert "Submitted" not in result.stderr
+    submit.assert_called_once()
+    cluster.api.create_namespaced_pod.assert_not_called()
+
+
+def test_sdk_does_not_return_a_handle_when_custom_submission_omits_the_receipt(cluster, monkeypatch):
+    spark = client.SparkOnK8S()
+    submit = Mock(return_value="untracked-driver")
+    monkeypatch.setattr(spark, "submit_app", submit)
+    with pytest.raises(RuntimeError, match="without a run identity"):
+        spark.submit_run(image="spark:test", app_path="local:///app.py")
+    assert spark.last_submitted_run is None
+    submit.assert_called_once_with(image="spark:test", app_path="local:///app.py")
+    cluster.api.create_namespaced_pod.assert_not_called()
+
+
+def test_text_waiting_submission_reports_identity_and_success(cluster):
+    result = CliRunner().invoke(app_cli, submit_args("--wait"))
+    assert result.exit_code == 0, result.output
+    actual = cluster.api.create_namespaced_pod.call_args.kwargs["body"]
+    app_id = actual.metadata.labels["spark-app-id"]
+    assert f"Submitted {app_id} in spark (driver {actual.metadata.name})" in result.stdout
+    assert f"App {app_id} has terminated with status Succeeded" in result.stdout
+    assert result.stderr == ""

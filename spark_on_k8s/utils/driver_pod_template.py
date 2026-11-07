@@ -127,10 +127,13 @@ def _validate_template(pod: Any, *, allow_ownership: bool = False) -> None:
         entries = _mapping(metadata.get(field, {}), f"metadata.{field}")
         if any(not isinstance(key, str) or not isinstance(value, str) for key, value in entries.items()):
             raise ValueError(f"Driver pod template metadata.{field} must contain string keys and values")
-    if not allow_ownership and any(
-        key.startswith("spark-on-k8s.io/") for key in metadata.get("annotations", {})
-    ):
-        raise ValueError("Driver pod template cannot set reserved spark-on-k8s.io/ ownership annotations")
+    if not allow_ownership:
+        for key in metadata.get("annotations", {}):
+            namespace, separator, _ = key.partition("/")
+            if namespace == "spark-on-k8s.io" and separator:
+                raise ValueError(
+                    "Driver pod template cannot set reserved spark-on-k8s.io/ ownership annotations"
+                )
     spec = _mapping(pod.get("spec"), "spec")
     containers = _items(spec.get("containers"), "spec.containers")
     if not containers:

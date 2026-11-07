@@ -410,3 +410,25 @@ def test_explicit_tolerations_extend_template_without_duplicates_or_input_mutati
         {"key": "dedicated", "operator": "Equal", "value": "spark", "effect": "NoSchedule"},
     ]
     assert template == before
+
+
+@pytest.mark.parametrize(
+    ("annotation", "reserved"),
+    [
+        ("other.spark-on-k8s.io/task", False),
+        ("spark-on-k8s.io.example/task", False),
+        ("example.org/spark-on-k8s.io", False),
+        ("spark-on-k8s.io", False),
+        ("spark-on-k8s.io/airflow-task", True),
+        ("spark-on-k8s.io/custom", True),
+        ("spark-on-k8s.io/", True),
+    ],
+)
+def test_reserved_annotation_namespace_is_an_exact_qualified_name(template, annotation, reserved):
+    template["metadata"]["annotations"][annotation] = "example"
+    if reserved:
+        with pytest.raises(ValueError, match="reserved spark-on-k8s.io/"):
+            load_driver_pod_template(template)
+    else:
+        loaded = load_driver_pod_template(template)
+        assert loaded["metadata"]["annotations"][annotation] == "example"

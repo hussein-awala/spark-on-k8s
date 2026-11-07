@@ -474,7 +474,7 @@ class SparkOnK8SOperator(BaseOperator):
                 pod_name=self._driver_pod_name,
             )
             raise AirflowException("Spark application startup timeout exceeded")
-        if self.app_waiter == AppWaiter.LOG:
+        if self.app_waiter == AppWaiter.LOG and event["status"] != "error":
             spark_app_manager.stream_logs(
                 namespace=event["namespace"],
                 pod_name=event["pod_name"],

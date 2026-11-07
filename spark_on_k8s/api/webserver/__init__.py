@@ -29,6 +29,29 @@ router = APIRouter(
 _DNS_LABEL = re.compile(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?")
 
 
+_REMOTE_PROXY_HEADERS = {
+    b"accept",
+    b"accept-encoding",
+    b"accept-language",
+    b"cache-control",
+    b"content-type",
+    b"if-match",
+    b"if-modified-since",
+    b"if-none-match",
+    b"if-range",
+    b"if-unmodified-since",
+    b"range",
+}
+
+
+def _proxy_headers(request: Request) -> list[tuple[bytes, bytes]]:
+    if not request.scope.get("spark_on_k8s.remote_authenticated"):
+        return request.headers.raw
+    # The API/gateway identity is never a credential for application or history services.
+    # An allowlist also excludes vendor-specific gateway token/identity headers.
+    return [(key, value) for key, value in request.headers.raw if key.lower() in _REMOTE_PROXY_HEADERS]
+
+
 def handle_k8s_errors(func):
     @wraps(func)
     async def wrapper(*args, request: Request, **kwargs):
@@ -67,7 +90,7 @@ async def ui_reverse_proxy(request: Request, path: str):
         query=request.url.query.encode("utf-8"),
     )
     reverse_proxy_req = async_http_client.build_request(
-        request.method, url=url, headers=request.headers.raw, content=request.stream()
+        request.method, url=url, headers=_proxy_headers(request), content=request.stream()
     )
     reverse_proxy_resp = await async_http_client.send(reverse_proxy_req, stream=True)
     return StreamingResponse(
@@ -94,7 +117,7 @@ async def spark_history_reverse_proxy(request: Request, path: str):
         query=request.url.query.encode("utf-8"),
     )
     reverse_proxy_req = async_http_client.build_request(
-        request.method, url=url, headers=request.headers.raw, content=request.stream()
+        request.method, url=url, headers=_proxy_headers(request), content=request.stream()
     )
     reverse_proxy_resp = await async_http_client.send(reverse_proxy_req, stream=True)
     response_headers = reverse_proxy_resp.headers

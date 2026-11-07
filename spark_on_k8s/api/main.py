@@ -57,5 +57,6 @@ async def root():
 
 
 @app.get("/health")
+@app.head("/health", include_in_schema=False)
 async def health():
     return {"status": "ok"}

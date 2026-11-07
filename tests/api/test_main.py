@@ -26,6 +26,8 @@ def test_real_application_lifecycle_routes_and_assets(monkeypatch):
         with TestClient(app) as client:
             assert client.get("/").json() == {"message": "Welcome to Spark on Kubernetes!"}
             assert client.get("/health").json() == {"status": "ok"}
+            assert client.head("/health").status_code == 200
+            assert client.head("/health").content == b""
             schema = client.get("/openapi.json").json()
             assert schema["info"]["version"] == version("spark-on-k8s")
             assert "/app/{namespace}/{app_id}" in schema["paths"]

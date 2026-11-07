@@ -9054,7 +9054,7 @@ async function h(e) {
 	let t = `The request failed (${e.status}). Please try again.`, n = await e.text();
 	try {
 		let e = JSON.parse(n);
-		t = (typeof e.detail == "string" ? e.detail : e.detail?.message) || e.message || t;
+		t = (typeof e.detail == "string" ? e.detail : e.detail?.message) || e.message || e.error?.message || t;
 	} catch {
 		n && !n.trimStart().startsWith("<") && (t = n.slice(0, 500));
 	}

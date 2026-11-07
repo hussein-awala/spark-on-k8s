@@ -126,7 +126,8 @@ async def _check_ready():
             raise RuntimeError("Run history is not fresh")
 
 
-@router.api_route("/ready", methods=["GET", "HEAD"])
+@router.get("/ready")
+@router.head("/ready", include_in_schema=False)
 async def ready():
     try:
         await asyncio.wait_for(_check_ready(), timeout=READY_TIMEOUT)

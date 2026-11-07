@@ -55,10 +55,11 @@ export async function checkResponse(response: Response): Promise<Response> {
     const data = JSON.parse(body) as {
       detail?: string | { message?: string };
       message?: string;
+      error?: { message?: string };
     };
     const detail =
       typeof data.detail === "string" ? data.detail : data.detail?.message;
-    message = detail || data.message || message;
+    message = detail || data.message || data.error?.message || message;
   } catch {
     if (body && !body.trimStart().startsWith("<")) message = body.slice(0, 500);
   }

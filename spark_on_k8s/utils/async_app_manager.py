@@ -230,20 +230,20 @@ class AsyncSparkAppManager(LoggingMixin):
             container_name = pod.spec.containers[0].name
             if pod.status.phase != "Running":
                 raise ValueError(f"Pod {pod.metadata.name} is not running")
-            v1_ws = k8s_async.CoreV1Api(api_client=WsApiClient())
-            await stream(
-                v1_ws.connect_get_namespaced_pod_exec,
-                pod.metadata.name,
-                namespace,
-                command=["/bin/sh", "-c", "kill 1"],
-                container=container_name,
-                stderr=True,
-                stdin=False,
-                stdout=True,
-                tty=False,
-                _preload_content=True,
-            )
-            await v1_ws.api_client.close()
+            async with WsApiClient() as websocket_client:
+                v1_ws = k8s_async.CoreV1Api(api_client=websocket_client)
+                await stream(
+                    v1_ws.connect_get_namespaced_pod_exec,
+                    pod.metadata.name,
+                    namespace,
+                    command=["/bin/sh", "-c", "kill 1"],
+                    container=container_name,
+                    stderr=True,
+                    stdin=False,
+                    stdout=True,
+                    tty=False,
+                    _preload_content=True,
+                )
 
     async def delete_app(
         self, namespace: str, pod_name: str | None = None, app_id: str | None = None, force: bool = False

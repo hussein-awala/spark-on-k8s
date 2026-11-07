@@ -25,7 +25,7 @@ from spark_on_k8s.airflow.ui.task_binding import (
     task_reference,
 )
 from spark_on_k8s.airflow.ui_config import UISettings, normalize_service_url
-from spark_on_k8s.utils.console_models import ConsoleApplication, ConsoleHistory
+from spark_on_k8s.utils.console_models import ConsoleApplication, ConsoleDiagnostics, ConsoleHistory
 from spark_on_k8s.utils.spark_app_status import SparkAppStatus
 
 ReferenceDep = Annotated[TaskReference, Depends(task_reference)]
@@ -227,6 +227,42 @@ def create_ui_app(settings: UISettings | None = None) -> FastAPI:
         await authorize(request, user, reference, DagAccessEntity.TASK_INSTANCE)
         binding = await binding_for(request, reference)
         return await application_for(request, binding)
+
+    @app.get("/api/diagnostics", response_model=ConsoleDiagnostics)
+    async def diagnostics(request: Request, reference: ReferenceDep, user: GetUserDep):
+        await authorize(request, user, reference, DagAccessEntity.TASK_INSTANCE)
+        binding = await binding_for(request, reference)
+        response = await upstream(
+            request,
+            "GET",
+            f"webserver/api/apps/{quote(binding.namespace, safe='')}/pods/"
+            f"{quote(binding.driver_pod, safe='')}/diagnostics",
+        )
+        try:
+            result = ConsoleDiagnostics.model_validate(response.json())
+        except ValueError as error:
+            raise failure(
+                "invalid_response", "The Spark service returned invalid diagnostics.", 502
+            ) from error
+        application, report = result.application, result.diagnosis
+        if (
+            application.namespace != binding.namespace
+            or application.driver_pod != binding.driver_pod
+            or (binding.app_id and application.app_id != binding.app_id)
+            or report.namespace != binding.namespace
+            or report.driver_pod != binding.driver_pod
+            or report.app_id != application.app_id
+        ):
+            raise failure(
+                "binding_mismatch", "The Spark service returned diagnostics for another application.", 409
+            )
+        if application.source != "kubernetes" or not owns_task(binding, application):
+            raise failure(
+                "task_ownership_mismatch",
+                "These diagnostics are not bound to the selected Airflow task.",
+                409,
+            )
+        return result
 
     @app.get("/api/capabilities")
     async def capabilities(request: Request, reference: ReferenceDep, user: GetUserDep):

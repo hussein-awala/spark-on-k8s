@@ -35,7 +35,30 @@ export interface ApplicationPage {
   next_cursor: string | null;
 }
 
+export interface Diagnosis {
+  schema_version: number;
+  namespace: string;
+  app_id: string;
+  driver_pod: string;
+  incomplete: boolean;
+  inspected_pods: number;
+  inspected_events: number;
+  findings: {
+    code: string;
+    severity: "info" | "warning" | "error";
+    resource: string;
+    container: string | null;
+    summary: string;
+    evidence: string;
+    remediation: string;
+  }[];
+}
+
 export interface ConsoleTransport {
+  diagnoseApp?(
+    app: ConsoleApplication,
+    signal?: AbortSignal,
+  ): Promise<Diagnosis>;
   listApps(options: {
     namespace: string;
     limit: number;

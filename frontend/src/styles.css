@@ -1353,3 +1353,22 @@
     transition: none;
   }
 }
+
+.spark-console .diagnostics {
+  margin-top: 24px;
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+}
+.spark-console .diagnostic-finding {
+  margin: 16px 0;
+  padding: 12px;
+  border-left: 3px solid #d3a043;
+  background: rgba(127, 127, 127, 0.06);
+  overflow-wrap: anywhere;
+}
+.spark-console .diagnostic-finding h4 {
+  margin: 0 0 8px;
+}
+.spark-console .diagnostic-finding p {
+  margin: 8px 0;
+}

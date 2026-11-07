@@ -52,25 +52,25 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 	}
 	function ee(e) {
 		if (h = !1, b(e), !m) {
-			if (n(c) !== null) m = !0, x || (x = !0, ie());
+			if (n(c) !== null) m = !0, te || (te = !0, ie());
 			else {
 				var t = n(l);
 				t !== null && oe(ee, t.startTime - e);
 			}
 		}
 	}
-	var x = !1, te = -1, ne = 5, S = -1;
+	var te = !1, x = -1, ne = 5, S = -1;
 	function re() {
 		return g ? !0 : !(e.unstable_now() - S < ne);
 	}
 	function C() {
-		if (g = !1, x) {
+		if (g = !1, te) {
 			var t = e.unstable_now();
 			S = t;
 			var i = !0;
 			try {
 				a: {
-					m = !1, h && (h = !1, v(te), te = -1), p = !0;
+					m = !1, h && (h = !1, v(x), x = -1), p = !0;
 					var a = f;
 					try {
 						b: {
@@ -100,7 +100,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 					i = void 0;
 				}
 			} finally {
-				i ? ie() : x = !1;
+				i ? ie() : te = !1;
 			}
 		}
 	}
@@ -117,7 +117,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 		_(C, 0);
 	};
 	function oe(t, n) {
-		te = _(function() {
+		x = _(function() {
 			t(e.unstable_now());
 		}, n);
 	}
@@ -185,7 +185,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 			startTime: a,
 			expirationTime: s,
 			sortIndex: -1
-		}, a > o ? (r.sortIndex = a, t(l, r), n(c) === null && r === n(l) && (h ? (v(te), te = -1) : h = !0, oe(ee, a - o))) : (r.sortIndex = s, t(c, r), m || p || (m = !0, x || (x = !0, ie()))), r;
+		}, a > o ? (r.sortIndex = a, t(l, r), n(c) === null && r === n(l) && (h ? (v(x), x = -1) : h = !0, oe(ee, a - o))) : (r.sortIndex = s, t(c, r), m || p || (m = !0, te || (te = !0, ie()))), r;
 	}, e.unstable_shouldYield = re, e.unstable_wrapCallback = function(e) {
 		var t = f;
 		return function() {
@@ -227,9 +227,9 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 	function ee(e, t, n) {
 		this.props = e, this.context = t, this.refs = v, this.updater = n || g;
 	}
-	var x = ee.prototype = new b();
-	x.constructor = ee, _(x, y.prototype), x.isPureReactComponent = !0;
-	var te = Array.isArray;
+	var te = ee.prototype = new b();
+	te.constructor = ee, _(te, y.prototype), te.isPureReactComponent = !0;
+	var x = Array.isArray;
 	function ne() {}
 	var S = {
 		H: null,
@@ -300,12 +300,12 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 				case d: return c = e._init, le(c(e._payload), r, i, a, o);
 			}
 		}
-		if (c) return o = o(e), c = a === "" ? "." + se(e, 0) : a, te(o) ? (i = "", c != null && (i = c.replace(oe, "$&/") + "/"), le(o, r, i, "", function(e) {
+		if (c) return o = o(e), c = a === "" ? "." + se(e, 0) : a, x(o) ? (i = "", c != null && (i = c.replace(oe, "$&/") + "/"), le(o, r, i, "", function(e) {
 			return e;
 		})) : o != null && (ae(o) && (o = ie(o, i + (o.key == null || e && e.key === o.key ? "" : ("" + o.key).replace(oe, "$&/") + "/") + c)), r.push(o)), 1;
 		c = 0;
 		var l = a === "" ? "." : a + ":";
-		if (te(e)) for (var u = 0; u < e.length; u++) a = e[u], s = l + se(a, u), c += le(a, r, i, s, o);
+		if (x(e)) for (var u = 0; u < e.length; u++) a = e[u], s = l + se(a, u), c += le(a, r, i, s, o);
 		else if (u = h(e), typeof u == "function") for (e = u.call(e), u = 0; !(a = e.next()).done;) a = a.value, s = l + se(a, u++), c += le(a, r, i, s, o);
 		else if (s === "object") {
 			if (typeof e.then == "function") return le(ce(e), r, i, a, o);
@@ -779,12 +779,12 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 			default: throw Error(s(559));
 		}
 	}
-	var ee = null, x = null;
-	function te(e, t, n) {
+	var ee = null, te = null;
+	function x(e, t, n) {
 		return e === n || e === t && (ee = e, !0);
 	}
 	function ne(e, t, n) {
-		return e === n ? (x = e, !1) : e === t && (x !== null && (ee = e), !0);
+		return e === n ? (te = e, !1) : e === t && (te !== null && (ee = e), !0);
 	}
 	function S(e) {
 		if (e === null) return null;
@@ -874,10 +874,10 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 		}
 		O(ke), k(ke, e);
 	}
-	function A() {
+	function Pe() {
 		O(ke), O(Ae), O(je);
 	}
-	function Pe(e) {
+	function A(e) {
 		var t = e.memoizedState;
 		t !== null && (sh._currentValue = t.memoizedState, k(Me, e)), t = ke.current;
 		var n = dp(t, e.type);
@@ -4333,7 +4333,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 				break;
 			case 27:
 			case 5:
-				Pe(t);
+				A(t);
 				break;
 			case 4:
 				Ne(t, t.stateNode.containerInfo);
@@ -4440,8 +4440,8 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 				}
 				return t;
 			case 26: return qc(e, t), e === null ? (n = Nm(t.type, null, t.pendingProps, null)) ? t.memoizedState = n : N || (t.stateNode = fp(t.type, t.pendingProps, je.current, t)) : t.memoizedState = Nm(t.type, e.memoizedProps, t.pendingProps, e.memoizedState), null;
-			case 27: return Pe(t), e === null && N && (r = t.stateNode = hm(t.type, t.pendingProps, je.current), da = t, pa = !0, i = M, Sp(t.type) ? (um = i, M = lm(r.firstChild)) : M = i), Lc(e, t, t.pendingProps.children, n), qc(e, t), e === null && (t.flags |= 4194304), t.child;
-			case 5: return e === null && N && ((i = r = M) && (r = rm(r, t.type, t.pendingProps, pa), r === null ? i = !1 : (t.stateNode = r, da = t, M = lm(r.firstChild), pa = !1, i = !0)), i || ha(t)), Pe(t), i = t.type, a = t.pendingProps, o = e === null ? null : e.memoizedProps, r = a.children, pp(i, a) ? r = null : o !== null && pp(i, o) && (t.flags |= 32), t.memoizedState !== null && (i = rs(e, t, os, null, null, n), sh._currentValue = i), qc(e, t), Lc(e, t, r, n), t.child;
+			case 27: return A(t), e === null && N && (r = t.stateNode = hm(t.type, t.pendingProps, je.current), da = t, pa = !0, i = M, Sp(t.type) ? (um = i, M = lm(r.firstChild)) : M = i), Lc(e, t, t.pendingProps.children, n), qc(e, t), e === null && (t.flags |= 4194304), t.child;
+			case 5: return e === null && N && ((i = r = M) && (r = rm(r, t.type, t.pendingProps, pa), r === null ? i = !1 : (t.stateNode = r, da = t, M = lm(r.firstChild), pa = !1, i = !0)), i || ha(t)), A(t), i = t.type, a = t.pendingProps, o = e === null ? null : e.memoizedProps, r = a.children, pp(i, a) ? r = null : o !== null && pp(i, o) && (t.flags |= 32), t.memoizedState !== null && (i = rs(e, t, os, null, null, n), sh._currentValue = i), qc(e, t), Lc(e, t, r, n), t.child;
 			case 6: return e === null && N && ((e = n = M) && (n = im(n, t.pendingProps, pa), n === null ? e = !1 : (t.stateNode = n, da = t, M = null, e = !0)), e || ha(t)), null;
 			case 13: return tl(e, t, n);
 			case 4: return Ne(t, t.stateNode.containerInfo), r = t.pendingProps, e === null ? t.child = vo(t, null, r, n) : Lc(e, t, r, n), t.child;
@@ -4527,7 +4527,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 			case 9:
 			case 14: return V(t), null;
 			case 1: return V(t), null;
-			case 3: return n = t.stateNode, r = null, e !== null && (r = e.memoizedState.cache), t.memoizedState.cache !== r && (t.flags |= 2048), Ea(P), A(), n.pendingContext && (n.context = n.pendingContext, n.pendingContext = null), (e === null || e.child === null) && (va(t) ? gl(t) : e === null || e.memoizedState.isDehydrated && !(t.flags & 256) || (t.flags |= 1024, ba())), V(t), null;
+			case 3: return n = t.stateNode, r = null, e !== null && (r = e.memoizedState.cache), t.memoizedState.cache !== r && (t.flags |= 2048), Ea(P), Pe(), n.pendingContext && (n.context = n.pendingContext, n.pendingContext = null), (e === null || e.child === null) && (va(t) ? gl(t) : e === null || e.memoizedState.isDehydrated && !(t.flags & 256) || (t.flags |= 1024, ba())), V(t), null;
 			case 26:
 				var i = t.type, a = t.memoizedState;
 				return e === null ? (gl(t), a === null ? (V(t), _l(t, i, null, r, n)) : (V(t), vl(t, a))) : a ? a === e.memoizedState ? (V(t), t.flags &= -16777217) : (gl(t), V(t), vl(t, a)) : (e = e.memoizedProps, e !== r && gl(t), V(t), _l(t, i, e, r, n)), null;
@@ -4645,7 +4645,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 					if (!i) return t.flags & 256 ? (Uo(t), t) : (Uo(t), null);
 				}
 				return Uo(t), t.flags & 128 ? (t.lanes = n, t) : (n = r !== null, e = e !== null && e.memoizedState !== null, n && (r = t.child, i = null, r.alternate !== null && r.alternate.memoizedState !== null && r.alternate.memoizedState.cachePool !== null && (i = r.alternate.memoizedState.cachePool.pool), a = null, r.memoizedState !== null && r.memoizedState.cachePool !== null && (a = r.memoizedState.cachePool.pool), a !== i && (r.flags |= 2048)), n !== e && n && (t.child.flags |= 8192), yl(t, t.updateQueue), V(t), null);
-			case 4: return A(), e === null && Wf(t.stateNode.containerInfo), t.flags |= 67108864, V(t), null;
+			case 4: return Pe(), e === null && Wf(t.stateNode.containerInfo), t.flags |= 67108864, V(t), null;
 			case 10: return Ea(t.type), V(t), null;
 			case 19:
 				if (Ko(t), r = t.memoizedState, r === null) return V(t), null;
@@ -4695,7 +4695,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 	function Sl(e, t) {
 		switch (la(t), t.tag) {
 			case 1: return e = t.flags, e & 65536 ? (t.flags = e & -65537 | 128, t) : null;
-			case 3: return Ea(P), A(), e = t.flags, e & 65536 && !(e & 128) ? (t.flags = e & -65537 | 128, t) : null;
+			case 3: return Ea(P), Pe(), e = t.flags, e & 65536 && !(e & 128) ? (t.flags = e & -65537 | 128, t) : null;
 			case 26:
 			case 27:
 			case 5: return Fe(t), null;
@@ -4712,7 +4712,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 				}
 				return e = t.flags, e & 65536 ? (t.flags = e & -65537 | 128, t) : null;
 			case 19: return Ko(t), e = t.flags, e & 65536 ? (t.flags = e & -65537 | 128, e = t.memoizedState, e !== null && (e.rendering = null, e.tail = null), t.flags |= 4, t) : null;
-			case 4: return A(), null;
+			case 4: return Pe(), null;
 			case 10: return Ea(t.type), null;
 			case 22:
 			case 23: return Uo(t), Io(), e !== null && O(Za), e = t.flags, e & 65536 ? (t.flags = e & -65537 | 128, t) : null;
@@ -4724,7 +4724,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 	function Cl(e, t) {
 		switch (la(t), t.tag) {
 			case 3:
-				Ea(P), A();
+				Ea(P), Pe();
 				break;
 			case 26:
 			case 27:
@@ -4732,7 +4732,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 				Fe(t);
 				break;
 			case 4:
-				A();
+				Pe();
 				break;
 			case 31:
 				t.memoizedState !== null && Uo(t);
@@ -7950,7 +7950,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 			}
 			return a;
 		}
-		return e & Node.DOCUMENT_POSITION_PRECEDING ? ((t = !!a) && !(t = a === n) && (t = re(n, a, S), t === null ? t = !1 : (h(t, !0, te, a, n), a = ee, ee = null, t = a !== null)), t) : e & Node.DOCUMENT_POSITION_FOLLOWING ? ((t = !!a) && !(t = a === r) && (t = re(r, a, S), t === null ? t = !1 : (h(t, !0, ne, a, r), a = ee, x = ee = null, t = a !== null)), t) : !1;
+		return e & Node.DOCUMENT_POSITION_PRECEDING ? ((t = !!a) && !(t = a === n) && (t = re(n, a, S), t === null ? t = !1 : (h(t, !0, x, a, n), a = ee, ee = null, t = a !== null)), t) : e & Node.DOCUMENT_POSITION_FOLLOWING ? ((t = !!a) && !(t = a === r) && (t = re(r, a, S), t === null ? t = !1 : (h(t, !0, ne, a, r), a = ee, te = ee = null, t = a !== null)), t) : !1;
 	}
 	function Zp(e, t) {
 		var n = e.ownerDocument.createRange();
@@ -9063,6 +9063,12 @@ async function h(e) {
 function g(e) {
 	let t = (t) => u(e.basePath, t);
 	return {
+		async diagnoseApp(e, n) {
+			return (await (await h(await fetch(t(`/webserver/api/apps/${encodeURIComponent(e.namespace ?? "")}/pods/${encodeURIComponent(e.driver_pod ?? "")}/diagnostics`), {
+				signal: n,
+				credentials: "same-origin"
+			}))).json()).diagnosis;
+		},
 		async listApps({ namespace: e, limit: n, cursor: r, signal: i }) {
 			let a = new URLSearchParams({
 				namespace: e,
@@ -9135,7 +9141,84 @@ var y = /* @__PURE__ */ e(((e) => {
 	e.Fragment = n, e.jsx = r, e.jsxs = r;
 })), b = (/* @__PURE__ */ e(((e, t) => {
 	t.exports = y();
-})))(), ee = {
+})))();
+function ee({ app: e, transport: t }) {
+	let [n, r] = (0, l.useState)(null), [i, a] = (0, l.useState)(null), [o, s] = (0, l.useState)(0), c = e.source === "kubernetes" && !!e.driver_pod && !!e.namespace && !!t.diagnoseApp;
+	return (0, l.useEffect)(() => {
+		let n = new AbortController();
+		return r(null), a(null), c && t.diagnoseApp(e, n.signal).then((e) => {
+			n.signal.aborted || r(e);
+		}, (e) => {
+			n.signal.aborted || a(m(e));
+		}), () => n.abort();
+	}, [
+		e.app_id,
+		e.driver_pod,
+		e.namespace,
+		c,
+		t,
+		o
+	]), c ? /* @__PURE__ */ (0, b.jsxs)("section", {
+		className: "diagnostics",
+		"aria-label": "Application diagnostics",
+		children: [
+			/* @__PURE__ */ (0, b.jsx)("h3", { children: "Diagnostics" }),
+			!n && !i && /* @__PURE__ */ (0, b.jsx)("p", {
+				role: "status",
+				children: "Checking pod states and events…"
+			}),
+			i && /* @__PURE__ */ (0, b.jsxs)("div", {
+				className: "notice notice-error",
+				role: "alert",
+				children: [/* @__PURE__ */ (0, b.jsx)("p", { children: i }), /* @__PURE__ */ (0, b.jsx)("button", {
+					className: "button button-secondary",
+					onClick: () => s((e) => e + 1),
+					children: "Retry diagnostics"
+				})]
+			}),
+			n && /* @__PURE__ */ (0, b.jsxs)(b.Fragment, { children: [
+				/* @__PURE__ */ (0, b.jsxs)("p", {
+					className: "muted",
+					children: [
+						n.inspected_pods,
+						" pods · ",
+						n.inspected_events,
+						" events inspected"
+					]
+				}),
+				n.incomplete && /* @__PURE__ */ (0, b.jsx)("p", {
+					className: "notice",
+					role: "status",
+					children: "Some evidence was unavailable or exceeded collection limits."
+				}),
+				n.findings.length === 0 && /* @__PURE__ */ (0, b.jsx)("p", { children: "No specific problems observed in this snapshot." }),
+				n.findings.map((e, t) => /* @__PURE__ */ (0, b.jsxs)("article", {
+					className: "diagnostic-finding",
+					children: [
+						/* @__PURE__ */ (0, b.jsx)("h4", { children: e.summary }),
+						/* @__PURE__ */ (0, b.jsxs)("p", {
+							className: "muted",
+							children: [
+								e.severity,
+								" · ",
+								e.resource,
+								e.container && ` / ${e.container}`
+							]
+						}),
+						/* @__PURE__ */ (0, b.jsx)("p", { children: e.evidence }),
+						/* @__PURE__ */ (0, b.jsxs)("p", { children: [
+							/* @__PURE__ */ (0, b.jsx)("strong", { children: "Next step:" }),
+							" ",
+							e.remediation
+						] })
+					]
+				}, `${e.code}-${e.resource}-${e.container ?? ""}-${t}`))
+			] })
+		]
+	}) : null;
+}
+// src/icons.tsx
+var te = {
 	grid: "M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z",
 	search: "M21 21l-5-5 M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0",
 	refresh: "M20 7v5h-5 M4 17v-5h5 M5.5 7a7 7 0 0 1 11.6-2L20 8 M4 16l2.9 3A7 7 0 0 0 18.5 17",
@@ -9169,10 +9252,10 @@ function x({ name: e, className: t, style: n }) {
 		strokeWidth: "1.7",
 		strokeLinecap: "round",
 		strokeLinejoin: "round",
-		children: /* @__PURE__ */ (0, b.jsx)("path", { d: ee[e] })
+		children: /* @__PURE__ */ (0, b.jsx)("path", { d: te[e] })
 	});
 }
-function te() {
+function ne() {
 	return /* @__PURE__ */ (0, b.jsx)("svg", {
 		"aria-hidden": "true",
 		width: "30",
@@ -9186,7 +9269,7 @@ function te() {
 	});
 }
 // src/Dialog.tsx
-function ne({ title: e, onClose: t, children: n, className: r = "" }) {
+function S({ title: e, onClose: t, children: n, className: r = "" }) {
 	let i = (0, l.useRef)(null), a = (0, l.useId)();
 	return (0, l.useEffect)(() => {
 		let e = i.current, t = document.activeElement;
@@ -9217,21 +9300,21 @@ function ne({ title: e, onClose: t, children: n, className: r = "" }) {
 	});
 }
 // src/Applications.tsx
-var S = 50, re = [
+var re = 50, C = [
 	"Running",
 	"Pending",
 	"Succeeded",
 	"Failed",
 	"Unknown"
 ];
-function C({ status: e }) {
-	let t = re.includes(e) ? e.toLowerCase() : "unknown";
+function ie({ status: e }) {
+	let t = C.includes(e) ? e.toLowerCase() : "unknown";
 	return /* @__PURE__ */ (0, b.jsxs)("span", {
 		className: `status-badge status-${t}`,
 		children: [/* @__PURE__ */ (0, b.jsx)("span", { className: "status-dot" }), e || "Unknown"]
 	});
 }
-function ie(e) {
+function ae(e) {
 	if (!e) return "—";
 	let t = new Date(e);
 	return Number.isNaN(t.getTime()) ? "—" : t.toLocaleString(void 0, {
@@ -9241,7 +9324,7 @@ function ie(e) {
 		minute: "2-digit"
 	});
 }
-function ae({ app: e, config: t, transport: n, onOpenLogs: r }) {
+function w({ app: e, config: t, transport: n, onOpenLogs: r }) {
 	let i = n.sparkUiUrl ? n.sparkUiUrl(e) : f(t, e), a = n.historyUrl ? n.historyUrl(e) : p(t, e);
 	return /* @__PURE__ */ (0, b.jsxs)("div", {
 		className: "app-links",
@@ -9276,17 +9359,17 @@ function ae({ app: e, config: t, transport: n, onOpenLogs: r }) {
 		]
 	});
 }
-function w({ config: e, transport: t, namespaceEditable: n, onOpenLogs: r, onNamespaceChange: i }) {
-	let a = e.namespace, [o, s] = (0, l.useState)(e.namespace), [c, u] = (0, l.useState)([]), [d, f] = (0, l.useState)([]), [p, h] = (0, l.useState)(null), [g, y] = (0, l.useState)(!0), [ee, te] = (0, l.useState)(!1), [w, oe] = (0, l.useState)(!1), [se, ce] = (0, l.useState)(e.historyEnabled), [le, T] = (0, l.useState)(null), [ue, de] = (0, l.useState)(null), [fe, pe] = (0, l.useState)(""), [me, he] = (0, l.useState)("all"), [ge, _e] = (0, l.useState)(Math.max(0, e.refreshInterval)), [ve, ye] = (0, l.useState)(null), [be, xe] = (0, l.useState)(null), [Se, Ce] = (0, l.useState)(null), [we, E] = (0, l.useState)(!1), [D, Te] = (0, l.useState)(null), [Ee, De] = (0, l.useState)(null), Oe = (0, l.useRef)(null), O = (0, l.useRef)(null), k = (0, l.useRef)(0), ke = (0, l.useRef)(!1), Ae = (0, l.useCallback)(async (e = !1, n) => {
-		Oe.current?.abort();
+function oe({ config: e, transport: t, namespaceEditable: n, onOpenLogs: r, onNamespaceChange: i }) {
+	let a = e.namespace, [o, s] = (0, l.useState)(e.namespace), [c, u] = (0, l.useState)([]), [d, f] = (0, l.useState)([]), [p, h] = (0, l.useState)(null), [g, y] = (0, l.useState)(!0), [te, ne] = (0, l.useState)(!1), [oe, se] = (0, l.useState)(!1), [ce, le] = (0, l.useState)(e.historyEnabled), [T, ue] = (0, l.useState)(null), [de, fe] = (0, l.useState)(null), [pe, me] = (0, l.useState)(""), [he, ge] = (0, l.useState)("all"), [_e, ve] = (0, l.useState)(Math.max(0, e.refreshInterval)), [ye, be] = (0, l.useState)(null), [xe, Se] = (0, l.useState)(null), [Ce, we] = (0, l.useState)(null), [E, D] = (0, l.useState)(!1), [Te, Ee] = (0, l.useState)(null), [De, Oe] = (0, l.useState)(null), O = (0, l.useRef)(null), k = (0, l.useRef)(null), ke = (0, l.useRef)(0), Ae = (0, l.useRef)(!1), je = (0, l.useCallback)(async (e = !1, n) => {
+		O.current?.abort();
 		let r = new AbortController();
-		Oe.current = r, ke.current = !0, e ? oe(!0) : te(!0), T(null);
+		O.current = r, Ae.current = !0, e ? se(!0) : ne(!0), ue(null);
 		try {
-			let i = [], o = n, s = e ? S : Math.max(S, k.current), c = /* @__PURE__ */ new Set(), l = null;
+			let i = [], o = n, s = e ? re : Math.max(re, ke.current), c = /* @__PURE__ */ new Set(), l = null;
 			do {
 				let n = await t.listApps({
 					namespace: a,
-					limit: S,
+					limit: re,
 					cursor: o,
 					signal: r.signal
 				});
@@ -9297,79 +9380,79 @@ function w({ config: e, transport: t, namespaceEditable: n, onOpenLogs: r, onNam
 			if (r.signal.aborted) return;
 			u((t) => {
 				let n = [...new Map((e ? [...t, ...i] : i).map((e) => [e.app_id, e])).values()];
-				return k.current = n.length, n;
-			}), h(l), ye(/* @__PURE__ */ new Date());
+				return ke.current = n.length, n;
+			}), h(l), be(/* @__PURE__ */ new Date());
 		} catch (e) {
-			r.signal.aborted || T(m(e));
+			r.signal.aborted || ue(m(e));
 		} finally {
-			Oe.current === r && !r.signal.aborted && (ke.current = !1, y(!1), te(!1), oe(!1));
+			O.current === r && !r.signal.aborted && (Ae.current = !1, y(!1), ne(!1), se(!1));
 		}
-	}, [a, t]), je = (0, l.useCallback)(async () => {
-		if (O.current?.abort(), !e.historyEnabled) {
-			f([]), ce(!1);
+	}, [a, t]), Me = (0, l.useCallback)(async () => {
+		if (k.current?.abort(), !e.historyEnabled) {
+			f([]), le(!1);
 			return;
 		}
 		let n = new AbortController();
-		O.current = n, ce(!0), de(null);
+		k.current = n, le(!0), fe(null);
 		try {
 			let e = await t.listHistory({ signal: n.signal });
 			n.signal.aborted || f(e);
 		} catch (e) {
-			n.signal.aborted || de(m(e));
+			n.signal.aborted || fe(m(e));
 		} finally {
-			n.signal.aborted || ce(!1);
+			n.signal.aborted || le(!1);
 		}
 	}, [e.historyEnabled, t]);
 	(0, l.useEffect)(() => {
 		s(e.namespace);
-	}, [e.namespace]), (0, l.useEffect)(() => (k.current = 0, u([]), h(null), xe(null), ye(null), y(!0), Ae(), () => Oe.current?.abort()), [Ae]), (0, l.useEffect)(() => (je(), () => O.current?.abort()), [je]), (0, l.useEffect)(() => {
-		if (!ge || be || Se) return;
+	}, [e.namespace]), (0, l.useEffect)(() => (ke.current = 0, u([]), h(null), Se(null), be(null), y(!0), je(), () => O.current?.abort()), [je]), (0, l.useEffect)(() => (Me(), () => k.current?.abort()), [Me]), (0, l.useEffect)(() => {
+		if (!_e || xe || Ce) return;
 		let e = window.setInterval(() => {
-			!document.hidden && !ke.current && (Ae(), je());
-		}, ge * 1e3);
+			!document.hidden && !Ae.current && (je(), Me());
+		}, _e * 1e3);
 		return () => window.clearInterval(e);
 	}, [
-		ge,
-		Ae,
+		_e,
 		je,
-		be,
-		Se
+		Me,
+		xe,
+		Ce
 	]);
-	let Me = (0, l.useMemo)(() => _(c, d), [c, d]), Ne = (0, l.useMemo)(() => {
-		let e = fe.trim().toLowerCase();
-		return Me.filter((t) => (me === "all" || t.status === me) && (!e || [
+	let Ne = (0, l.useMemo)(() => _(c, d), [c, d]), Pe = (0, l.useMemo)(() => {
+		let e = pe.trim().toLowerCase();
+		return Ne.filter((t) => (he === "all" || t.status === he) && (!e || [
 			t.app_id,
 			t.name,
 			t.driver_pod,
 			t.image
 		].some((t) => t?.toLowerCase().includes(e))));
 	}, [
-		Me,
-		fe,
-		me
-	]), A = Me.find((e) => e.app_id === be), Pe = Me.filter((e) => e.status === "Running").length, Fe = Me.filter((e) => e.status === "Pending").length, Ie = Me.filter((e) => e.status === "Failed").length, Le = [.../* @__PURE__ */ new Set([
+		Ne,
+		pe,
+		he
+	]), A = Ne.find((e) => e.app_id === xe), Fe = Ne.filter((e) => e.status === "Running").length, Ie = Ne.filter((e) => e.status === "Pending").length, Le = Ne.filter((e) => e.status === "Failed").length, Re = [.../* @__PURE__ */ new Set([
 		0,
 		5,
 		10,
 		30,
 		60,
-		ge
+		_e
 	])].sort((e, t) => e - t);
-	async function Re() {
-		if (Se?.app.namespace && v(Se.app)) {
-			E(!0), Te(null);
+	async function ze() {
+		if (Ce?.app.namespace && v(Ce.app)) {
+			D(!0), Ee(null);
 			try {
-				let { app: e, action: n } = Se;
-				n === "kill" ? await t.killApp(e.namespace, e.app_id) : await t.deleteApp(e.namespace, e.app_id), De(n === "kill" ? `Stop requested for ${e.name || e.app_id}.` : `${e.name || e.app_id} was deleted.`), Ce(null), n === "delete" && xe(null), Ae();
+				let { app: e, action: n } = Ce;
+				n === "kill" ? await t.killApp(e.namespace, e.app_id) : await t.deleteApp(e.namespace, e.app_id), Oe(n === "kill" ? `Stop requested for ${e.name || e.app_id}.` : `${e.name || e.app_id} was deleted.`), we(null), n === "delete" && Se(null), je();
 			} catch (e) {
-				Te(m(e));
+				Ee(m(e));
 			} finally {
-				E(!1);
+				D(!1);
 			}
 		}
 	}
-	function ze(e, t) {
-		Te(null), Ce({
+	function Be(e, t) {
+		Ee(null), we({
 			app: e,
 			action: t
 		});
@@ -9393,14 +9476,14 @@ function w({ config: e, transport: t, namespaceEditable: n, onOpenLogs: r, onNam
 			] }), /* @__PURE__ */ (0, b.jsxs)("button", {
 				type: "button",
 				className: "button button-secondary refresh-button",
-				disabled: ee || w,
+				disabled: te || oe,
 				onClick: () => {
-					Ae(), je();
+					je(), Me();
 				},
 				children: [/* @__PURE__ */ (0, b.jsx)(x, {
 					name: "refresh",
-					className: ee ? "spinning" : ""
-				}), ee && !g ? "Refreshing…" : "Refresh"]
+					className: te ? "spinning" : ""
+				}), te && !g ? "Refreshing…" : "Refresh"]
 			})]
 		}),
 		/* @__PURE__ */ (0, b.jsxs)("div", {
@@ -9447,9 +9530,9 @@ function w({ config: e, transport: t, namespaceEditable: n, onOpenLogs: r, onNam
 					children: "Auto-refresh"
 				}), /* @__PURE__ */ (0, b.jsx)("select", {
 					id: "console-refresh",
-					value: ge,
-					onChange: (e) => _e(Number(e.target.value)),
-					children: Le.map((e) => /* @__PURE__ */ (0, b.jsx)("option", {
+					value: _e,
+					onChange: (e) => ve(Number(e.target.value)),
+					children: Re.map((e) => /* @__PURE__ */ (0, b.jsx)("option", {
 						value: e,
 						children: e ? `Every ${e}s` : "Off"
 					}, e))
@@ -9467,7 +9550,7 @@ function w({ config: e, transport: t, namespaceEditable: n, onOpenLogs: r, onNam
 							className: "stat-label",
 							children: ["Loaded applications", /* @__PURE__ */ (0, b.jsx)(x, { name: "layers" })]
 						}),
-						/* @__PURE__ */ (0, b.jsx)("strong", { children: g ? "—" : Me.length }),
+						/* @__PURE__ */ (0, b.jsx)("strong", { children: g ? "—" : Ne.length }),
 						/* @__PURE__ */ (0, b.jsxs)("span", {
 							className: "stat-note",
 							children: ["Across loaded pages", e.historyEnabled ? " and history" : ""]
@@ -9481,7 +9564,7 @@ function w({ config: e, transport: t, namespaceEditable: n, onOpenLogs: r, onNam
 							className: "stat-label",
 							children: ["Running", /* @__PURE__ */ (0, b.jsx)("span", { className: "stat-marker marker-running" })]
 						}),
-						/* @__PURE__ */ (0, b.jsx)("strong", { children: g ? "—" : Pe }),
+						/* @__PURE__ */ (0, b.jsx)("strong", { children: g ? "—" : Fe }),
 						/* @__PURE__ */ (0, b.jsx)("span", {
 							className: "stat-note",
 							children: "Currently processing"
@@ -9495,7 +9578,7 @@ function w({ config: e, transport: t, namespaceEditable: n, onOpenLogs: r, onNam
 							className: "stat-label",
 							children: ["Pending", /* @__PURE__ */ (0, b.jsx)("span", { className: "stat-marker marker-pending" })]
 						}),
-						/* @__PURE__ */ (0, b.jsx)("strong", { children: g ? "—" : Fe }),
+						/* @__PURE__ */ (0, b.jsx)("strong", { children: g ? "—" : Ie }),
 						/* @__PURE__ */ (0, b.jsx)("span", {
 							className: "stat-note",
 							children: "Waiting to start"
@@ -9509,7 +9592,7 @@ function w({ config: e, transport: t, namespaceEditable: n, onOpenLogs: r, onNam
 							className: "stat-label",
 							children: ["Failed", /* @__PURE__ */ (0, b.jsx)("span", { className: "stat-marker marker-failed" })]
 						}),
-						/* @__PURE__ */ (0, b.jsx)("strong", { children: g ? "—" : Ie }),
+						/* @__PURE__ */ (0, b.jsx)("strong", { children: g ? "—" : Le }),
 						/* @__PURE__ */ (0, b.jsx)("span", {
 							className: "stat-note",
 							children: "May need your attention"
@@ -9518,21 +9601,21 @@ function w({ config: e, transport: t, namespaceEditable: n, onOpenLogs: r, onNam
 				})
 			]
 		}),
-		Ee && /* @__PURE__ */ (0, b.jsxs)("div", {
+		De && /* @__PURE__ */ (0, b.jsxs)("div", {
 			className: "notice notice-success",
 			role: "status",
 			children: [
 				/* @__PURE__ */ (0, b.jsx)(x, { name: "check" }),
-				/* @__PURE__ */ (0, b.jsx)("span", { children: Ee }),
+				/* @__PURE__ */ (0, b.jsx)("span", { children: De }),
 				/* @__PURE__ */ (0, b.jsx)("button", {
 					className: "icon-button",
 					"aria-label": "Dismiss notification",
-					onClick: () => De(null),
+					onClick: () => Oe(null),
 					children: /* @__PURE__ */ (0, b.jsx)(x, { name: "close" })
 				})
 			]
 		}),
-		le && /* @__PURE__ */ (0, b.jsxs)("div", {
+		T && /* @__PURE__ */ (0, b.jsxs)("div", {
 			className: "notice notice-error",
 			role: "alert",
 			children: [
@@ -9540,16 +9623,16 @@ function w({ config: e, transport: t, namespaceEditable: n, onOpenLogs: r, onNam
 				/* @__PURE__ */ (0, b.jsxs)("span", { children: [
 					/* @__PURE__ */ (0, b.jsx)("strong", { children: "Applications could not be refreshed." }),
 					" ",
-					le
+					T
 				] }),
 				/* @__PURE__ */ (0, b.jsx)("button", {
 					className: "text-link",
-					onClick: () => void Ae(),
+					onClick: () => void je(),
 					children: "Try again"
 				})
 			]
 		}),
-		ue && /* @__PURE__ */ (0, b.jsxs)("div", {
+		de && /* @__PURE__ */ (0, b.jsxs)("div", {
 			className: "notice notice-warning",
 			role: "status",
 			children: [
@@ -9557,11 +9640,11 @@ function w({ config: e, transport: t, namespaceEditable: n, onOpenLogs: r, onNam
 				/* @__PURE__ */ (0, b.jsxs)("span", { children: [
 					/* @__PURE__ */ (0, b.jsx)("strong", { children: "History is unavailable." }),
 					" Live applications are still shown. ",
-					ue
+					de
 				] }),
 				/* @__PURE__ */ (0, b.jsx)("button", {
 					className: "text-link",
-					onClick: () => void je(),
+					onClick: () => void Me(),
 					children: "Retry history"
 				})
 			]
@@ -9576,7 +9659,7 @@ function w({ config: e, transport: t, namespaceEditable: n, onOpenLogs: r, onNam
 						className: "section-title",
 						children: [/* @__PURE__ */ (0, b.jsx)("h2", { children: "Workloads" }), /* @__PURE__ */ (0, b.jsxs)("span", {
 							className: "count-pill",
-							children: [Me.length, " loaded"]
+							children: [Ne.length, " loaded"]
 						})]
 					}), /* @__PURE__ */ (0, b.jsxs)("div", {
 						className: "table-filters",
@@ -9591,8 +9674,8 @@ function w({ config: e, transport: t, namespaceEditable: n, onOpenLogs: r, onNam
 								/* @__PURE__ */ (0, b.jsx)("input", {
 									type: "search",
 									placeholder: "Search applications…",
-									value: fe,
-									onChange: (e) => pe(e.target.value)
+									value: pe,
+									onChange: (e) => me(e.target.value)
 								})
 							]
 						}), /* @__PURE__ */ (0, b.jsxs)("label", {
@@ -9601,12 +9684,12 @@ function w({ config: e, transport: t, namespaceEditable: n, onOpenLogs: r, onNam
 								className: "sr-only",
 								children: "Filter by status"
 							}), /* @__PURE__ */ (0, b.jsxs)("select", {
-								value: me,
-								onChange: (e) => he(e.target.value),
+								value: he,
+								onChange: (e) => ge(e.target.value),
 								children: [/* @__PURE__ */ (0, b.jsx)("option", {
 									value: "all",
 									children: "All statuses"
-								}), re.map((e) => /* @__PURE__ */ (0, b.jsx)("option", {
+								}), C.map((e) => /* @__PURE__ */ (0, b.jsx)("option", {
 									value: e,
 									children: e
 								}, e))]
@@ -9626,19 +9709,19 @@ function w({ config: e, transport: t, namespaceEditable: n, onOpenLogs: r, onNam
 							"."
 						] })
 					]
-				}) : Ne.length === 0 ? /* @__PURE__ */ (0, b.jsxs)("div", {
+				}) : Pe.length === 0 ? /* @__PURE__ */ (0, b.jsxs)("div", {
 					className: "empty-state",
 					children: [
 						/* @__PURE__ */ (0, b.jsx)("div", {
 							className: "empty-icon",
-							children: /* @__PURE__ */ (0, b.jsx)(x, { name: fe || me !== "all" ? "search" : "layers" })
+							children: /* @__PURE__ */ (0, b.jsx)(x, { name: pe || he !== "all" ? "search" : "layers" })
 						}),
-						/* @__PURE__ */ (0, b.jsx)("h3", { children: fe || me !== "all" ? "No matching applications" : le ? "Applications are unavailable" : "A little quiet here" }),
-						/* @__PURE__ */ (0, b.jsx)("p", { children: fe || me !== "all" ? "Try a different search or status. Filters apply to loaded applications." : le ? "Try refreshing the list when the connection is available." : `No applications have been found in ${a}${e.historyEnabled ? " or the loaded history" : ""}.` }),
-						(fe || me !== "all") && /* @__PURE__ */ (0, b.jsx)("button", {
+						/* @__PURE__ */ (0, b.jsx)("h3", { children: pe || he !== "all" ? "No matching applications" : T ? "Applications are unavailable" : "A little quiet here" }),
+						/* @__PURE__ */ (0, b.jsx)("p", { children: pe || he !== "all" ? "Try a different search or status. Filters apply to loaded applications." : T ? "Try refreshing the list when the connection is available." : `No applications have been found in ${a}${e.historyEnabled ? " or the loaded history" : ""}.` }),
+						(pe || he !== "all") && /* @__PURE__ */ (0, b.jsx)("button", {
 							className: "button button-secondary",
 							onClick: () => {
-								pe(""), he("all");
+								me(""), ge("all");
 							},
 							children: "Clear filters"
 						})
@@ -9687,10 +9770,10 @@ function w({ config: e, transport: t, namespaceEditable: n, onOpenLogs: r, onNam
 									})
 								})
 							] }) }),
-							/* @__PURE__ */ (0, b.jsx)("tbody", { children: Ne.map((n) => /* @__PURE__ */ (0, b.jsxs)("tr", { children: [
+							/* @__PURE__ */ (0, b.jsx)("tbody", { children: Pe.map((n) => /* @__PURE__ */ (0, b.jsxs)("tr", { children: [
 								/* @__PURE__ */ (0, b.jsxs)("td", { children: [/* @__PURE__ */ (0, b.jsx)("button", {
 									className: "application-name",
-									onClick: () => xe(n.app_id),
+									onClick: () => Se(n.app_id),
 									children: n.name || n.app_id
 								}), /* @__PURE__ */ (0, b.jsxs)("div", {
 									className: "application-meta",
@@ -9703,13 +9786,13 @@ function w({ config: e, transport: t, namespaceEditable: n, onOpenLogs: r, onNam
 										children: e.embedded ? "Driver removed · task reference" : "Archived · namespace unknown"
 									})]
 								})] }),
-								/* @__PURE__ */ (0, b.jsx)("td", { children: /* @__PURE__ */ (0, b.jsx)(C, { status: n.status }) }),
+								/* @__PURE__ */ (0, b.jsx)("td", { children: /* @__PURE__ */ (0, b.jsx)(ie, { status: n.status }) }),
 								/* @__PURE__ */ (0, b.jsx)("td", {
 									className: "column-created",
 									children: /* @__PURE__ */ (0, b.jsx)("time", {
 										dateTime: n.created_at || void 0,
 										title: n.created_at || void 0,
-										children: ie(n.created_at)
+										children: ae(n.created_at)
 									})
 								}),
 								/* @__PURE__ */ (0, b.jsxs)("td", {
@@ -9723,7 +9806,7 @@ function w({ config: e, transport: t, namespaceEditable: n, onOpenLogs: r, onNam
 										children: n.spark_version ? `Spark ${n.spark_version}` : n.source === "history" ? e.embedded ? "Task reference" : "History server" : "Kubernetes"
 									})]
 								}),
-								/* @__PURE__ */ (0, b.jsx)("td", { children: /* @__PURE__ */ (0, b.jsx)(ae, {
+								/* @__PURE__ */ (0, b.jsx)("td", { children: /* @__PURE__ */ (0, b.jsx)(w, {
 									app: n,
 									config: e,
 									transport: t,
@@ -9732,7 +9815,7 @@ function w({ config: e, transport: t, namespaceEditable: n, onOpenLogs: r, onNam
 								/* @__PURE__ */ (0, b.jsx)("td", { children: /* @__PURE__ */ (0, b.jsx)("button", {
 									className: "icon-button",
 									"aria-label": `View details for ${n.name || n.app_id}`,
-									onClick: () => xe(n.app_id),
+									onClick: () => Se(n.app_id),
 									children: /* @__PURE__ */ (0, b.jsx)(x, { name: "arrow" })
 								}) })
 							] }, n.app_id)) })
@@ -9741,30 +9824,30 @@ function w({ config: e, transport: t, namespaceEditable: n, onOpenLogs: r, onNam
 				}),
 				/* @__PURE__ */ (0, b.jsxs)("div", {
 					className: "table-footer",
-					children: [/* @__PURE__ */ (0, b.jsxs)("span", { children: [g ? "Loading…" : `Showing ${Ne.length} of ${Me.length} loaded applications`, se && !g ? " · Loading history…" : ""] }), p && /* @__PURE__ */ (0, b.jsxs)("button", {
+					children: [/* @__PURE__ */ (0, b.jsxs)("span", { children: [g ? "Loading…" : `Showing ${Pe.length} of ${Ne.length} loaded applications`, ce && !g ? " · Loading history…" : ""] }), p && /* @__PURE__ */ (0, b.jsxs)("button", {
 						className: "button button-secondary button-small",
-						disabled: w || ee,
-						onClick: () => void Ae(!0, p),
-						children: [w ? "Loading…" : "Load more", /* @__PURE__ */ (0, b.jsx)(x, { name: "arrow" })]
+						disabled: oe || te,
+						onClick: () => void je(!0, p),
+						children: [oe ? "Loading…" : "Load more", /* @__PURE__ */ (0, b.jsx)(x, { name: "arrow" })]
 					})]
 				})
 			]
 		}),
 		/* @__PURE__ */ (0, b.jsxs)("div", {
 			className: "page-footnote",
-			children: [/* @__PURE__ */ (0, b.jsxs)("span", { children: [/* @__PURE__ */ (0, b.jsx)(x, { name: "clock" }), ve ? `Updated ${ve.toLocaleTimeString(void 0, {
+			children: [/* @__PURE__ */ (0, b.jsxs)("span", { children: [/* @__PURE__ */ (0, b.jsx)(x, { name: "clock" }), ye ? `Updated ${ye.toLocaleTimeString(void 0, {
 				hour: "2-digit",
 				minute: "2-digit",
 				second: "2-digit"
 			})}` : "Waiting for the first update"] }), /* @__PURE__ */ (0, b.jsx)("span", { children: "Counts reflect loaded applications, not the entire cluster." })]
 		}),
-		A && !Se && /* @__PURE__ */ (0, b.jsxs)(ne, {
+		A && !Ce && /* @__PURE__ */ (0, b.jsxs)(S, {
 			title: A.name || A.app_id,
-			onClose: () => xe(null),
+			onClose: () => Se(null),
 			children: [
 				/* @__PURE__ */ (0, b.jsxs)("div", {
 					className: "detail-summary",
-					children: [/* @__PURE__ */ (0, b.jsx)(C, { status: A.status }), /* @__PURE__ */ (0, b.jsx)("span", {
+					children: [/* @__PURE__ */ (0, b.jsx)(ie, { status: A.status }), /* @__PURE__ */ (0, b.jsx)("span", {
 						className: "source-label",
 						children: A.source === "history" ? e.embedded ? "Driver removed · task reference" : "Archived application" : "Kubernetes application"
 					})]
@@ -9774,7 +9857,7 @@ function w({ config: e, transport: t, namespaceEditable: n, onOpenLogs: r, onNam
 					children: [
 						["Application ID", A.app_id],
 						["Namespace", A.namespace || "Unknown · archived application"],
-						["Created", ie(A.created_at)],
+						["Created", ae(A.created_at)],
 						["Driver pod", A.driver_pod],
 						["Image", A.image],
 						["Spark version", A.spark_version],
@@ -9783,65 +9866,69 @@ function w({ config: e, transport: t, namespaceEditable: n, onOpenLogs: r, onNam
 				}),
 				/* @__PURE__ */ (0, b.jsx)("div", {
 					className: "detail-links",
-					children: /* @__PURE__ */ (0, b.jsx)(ae, {
+					children: /* @__PURE__ */ (0, b.jsx)(w, {
 						app: A,
 						config: e,
 						transport: t,
 						onOpenLogs: r
 					})
 				}),
+				/* @__PURE__ */ (0, b.jsx)(ee, {
+					app: A,
+					transport: t
+				}),
 				v(A) && (e.allowKill && A.status === "Running" || e.allowDelete) && /* @__PURE__ */ (0, b.jsxs)("div", {
 					className: "dialog-actions destructive-actions",
 					children: [e.allowKill && A.status === "Running" && /* @__PURE__ */ (0, b.jsxs)("button", {
 						className: "button button-secondary",
-						onClick: () => ze(A, "kill"),
+						onClick: () => Be(A, "kill"),
 						children: [/* @__PURE__ */ (0, b.jsx)(x, { name: "stop" }), "Stop application"]
 					}), e.allowDelete && /* @__PURE__ */ (0, b.jsxs)("button", {
 						className: "button button-danger-outline",
-						onClick: () => ze(A, "delete"),
+						onClick: () => Be(A, "delete"),
 						children: [/* @__PURE__ */ (0, b.jsx)(x, { name: "trash" }), "Delete application"]
 					})]
 				})
 			]
 		}),
-		Se && /* @__PURE__ */ (0, b.jsxs)(ne, {
-			title: Se.action === "kill" ? "Stop this application?" : "Delete this application?",
+		Ce && /* @__PURE__ */ (0, b.jsxs)(S, {
+			title: Ce.action === "kill" ? "Stop this application?" : "Delete this application?",
 			onClose: () => {
-				we || Ce(null);
+				E || we(null);
 			},
 			className: "confirmation-dialog",
 			children: [
 				/* @__PURE__ */ (0, b.jsx)("div", {
 					className: "confirmation-icon",
-					children: /* @__PURE__ */ (0, b.jsx)(x, { name: Se.action === "kill" ? "stop" : "trash" })
+					children: /* @__PURE__ */ (0, b.jsx)(x, { name: Ce.action === "kill" ? "stop" : "trash" })
 				}),
 				/* @__PURE__ */ (0, b.jsxs)("p", { children: [
-					/* @__PURE__ */ (0, b.jsx)("strong", { children: Se.app.name || Se.app.app_id }),
+					/* @__PURE__ */ (0, b.jsx)("strong", { children: Ce.app.name || Ce.app.app_id }),
 					" ",
 					"in ",
-					/* @__PURE__ */ (0, b.jsx)("strong", { children: Se.app.namespace })
+					/* @__PURE__ */ (0, b.jsx)("strong", { children: Ce.app.namespace })
 				] }),
 				/* @__PURE__ */ (0, b.jsx)("p", {
 					className: "muted",
-					children: Se.action === "kill" ? "This stops the running driver. The application will stop processing, and its existing resources remain available for inspection." : "This removes the driver pod and its dependent resources. This action cannot be undone."
+					children: Ce.action === "kill" ? "This stops the running driver. The application will stop processing, and its existing resources remain available for inspection." : "This removes the driver pod and its dependent resources. This action cannot be undone."
 				}),
-				D && /* @__PURE__ */ (0, b.jsx)("div", {
+				Te && /* @__PURE__ */ (0, b.jsx)("div", {
 					className: "notice notice-error",
 					role: "alert",
-					children: D
+					children: Te
 				}),
 				/* @__PURE__ */ (0, b.jsxs)("div", {
 					className: "dialog-actions",
 					children: [/* @__PURE__ */ (0, b.jsx)("button", {
 						className: "button button-secondary",
-						disabled: we,
-						onClick: () => Ce(null),
+						disabled: E,
+						onClick: () => we(null),
 						children: "Cancel"
 					}), /* @__PURE__ */ (0, b.jsx)("button", {
 						className: "button button-danger",
-						disabled: we,
-						onClick: () => void Re(),
-						children: we ? "Working…" : Se.action === "kill" ? "Stop application" : "Delete application"
+						disabled: E,
+						onClick: () => void ze(),
+						children: E ? "Working…" : Ce.action === "kill" ? "Stop application" : "Delete application"
 					})]
 				})
 			]
@@ -9849,11 +9936,11 @@ function w({ config: e, transport: t, namespaceEditable: n, onOpenLogs: r, onNam
 	] });
 }
 // src/Logs.tsx
-var oe = 1e4;
-function se({ config: e, transport: t, onBack: n }) {
-	let [r, i] = (0, l.useState)([]), [a, o] = (0, l.useState)(e.tail ?? 1e3), [s, c] = (0, l.useState)(""), [d, f] = (0, l.useState)(!0), [p, h] = (0, l.useState)(!1), [g, _] = (0, l.useState)("connecting"), [v, y] = (0, l.useState)(""), [ee, te] = (0, l.useState)(0), [ne, S] = (0, l.useState)(0), [re, C] = (0, l.useState)(null), ie = (0, l.useRef)([]), ae = (0, l.useRef)(0), w = (0, l.useRef)(null), se = (0, l.useRef)(1), ce = (0, l.useRef)(null), le = (0, l.useRef)([]), T = e.appId || "";
+var se = 1e4;
+function ce({ config: e, transport: t, onBack: n }) {
+	let [r, i] = (0, l.useState)([]), [a, o] = (0, l.useState)(e.tail ?? 1e3), [s, c] = (0, l.useState)(""), [d, f] = (0, l.useState)(!0), [p, h] = (0, l.useState)(!1), [g, _] = (0, l.useState)("connecting"), [v, y] = (0, l.useState)(""), [ee, te] = (0, l.useState)(0), [ne, S] = (0, l.useState)(0), [re, C] = (0, l.useState)(null), ie = (0, l.useRef)([]), ae = (0, l.useRef)(0), w = (0, l.useRef)(null), oe = (0, l.useRef)(1), ce = (0, l.useRef)(null), le = (0, l.useRef)([]), T = e.appId || "";
 	function ue() {
-		w.current !== null && cancelAnimationFrame(w.current), w.current = null, ie.current = [], ae.current = 0, se.current = 1, le.current = [], i([]), S(0);
+		w.current !== null && cancelAnimationFrame(w.current), w.current = null, ie.current = [], ae.current = 0, oe.current = 1, le.current = [], i([]), S(0);
 	}
 	(0, l.useEffect)(() => {
 		if (ue(), _("connecting"), y(""), C(null), !T || !e.namespace) {
@@ -9863,13 +9950,13 @@ function se({ config: e, transport: t, onBack: n }) {
 		let n = !0, r = !1, o;
 		function s() {
 			if (w.current = null, !n) return;
-			se.current += ae.current;
+			oe.current += ae.current;
 			let e = ie.current.map((e) => ({
-				number: se.current++,
+				number: oe.current++,
 				text: e
 			}));
 			ie.current = [];
-			let t = [...le.current, ...e], r = ae.current + Math.max(0, t.length - oe);
+			let t = [...le.current, ...e], r = ae.current + Math.max(0, t.length - se);
 			ae.current = 0;
 			let a = t.slice(-1e4);
 			le.current = a, r && S((e) => e + r), i(a);
@@ -9880,7 +9967,7 @@ function se({ config: e, transport: t, onBack: n }) {
 		function l(e) {
 			if (!n) return;
 			let t = (typeof e.data == "string" ? e.data : String(e.data)).split(/\r?\n/), r = [...ie.current, ...t];
-			r.length > 1e4 && (ae.current += r.length - oe), ie.current = r.slice(-1e4), w.current === null && (w.current = requestAnimationFrame(s));
+			r.length > 1e4 && (ae.current += r.length - se), ie.current = r.slice(-1e4), w.current === null && (w.current = requestAnimationFrame(s));
 		}
 		function u() {
 			n && (r = !0, _("error"), y("The log connection failed. Check your connection and try reconnecting."));
@@ -9926,7 +10013,7 @@ function se({ config: e, transport: t, onBack: n }) {
 		100,
 		1e3,
 		5e3,
-		oe,
+		se,
 		-1,
 		a
 	])], ge = u(e.basePath, `/webserver/apps?namespace=${encodeURIComponent(e.namespace)}`);
@@ -10126,7 +10213,7 @@ function se({ config: e, transport: t, onBack: n }) {
 						d ? "Following output" : "Auto-scroll paused",
 						" · Buffer limit",
 						" ",
-						oe.toLocaleString()
+						se.toLocaleString()
 					] })]
 				})
 			]
@@ -10138,7 +10225,7 @@ function se({ config: e, transport: t, onBack: n }) {
 	] });
 }
 // src/SparkConsole.tsx
-function ce({ config: e, transport: t, namespaceEditable: n = e.namespaceEditable ?? !0 }) {
+function le({ config: e, transport: t, namespaceEditable: n = e.namespaceEditable ?? !0 }) {
 	let r = (0, l.useMemo)(() => t ?? g({ basePath: e.basePath }), [t, e.basePath]), [i, a] = (0, l.useState)({
 		view: e.view,
 		namespace: e.namespace,
@@ -10191,7 +10278,7 @@ function ce({ config: e, transport: t, namespaceEditable: n = e.namespaceEditabl
 				/* @__PURE__ */ (0, b.jsxs)("a", {
 					className: "brand",
 					href: u(e.basePath, `/webserver/apps?namespace=${encodeURIComponent(i.namespace)}`),
-					children: [/* @__PURE__ */ (0, b.jsx)(te, {}), /* @__PURE__ */ (0, b.jsxs)("span", { children: ["spark", /* @__PURE__ */ (0, b.jsx)("span", {
+					children: [/* @__PURE__ */ (0, b.jsx)(ne, {}), /* @__PURE__ */ (0, b.jsxs)("span", { children: ["spark", /* @__PURE__ */ (0, b.jsx)("span", {
 						className: "brand-subtitle",
 						children: "ON KUBERNETES"
 					})] })]
@@ -10225,11 +10312,11 @@ function ce({ config: e, transport: t, namespaceEditable: n = e.namespaceEditabl
 			className: "console-main",
 			children: [/* @__PURE__ */ (0, b.jsx)("div", {
 				className: "console-content",
-				children: i.view === "logs" ? /* @__PURE__ */ (0, b.jsx)(se, {
+				children: i.view === "logs" ? /* @__PURE__ */ (0, b.jsx)(ce, {
 					config: o,
 					transport: r,
 					onBack: c
-				}) : /* @__PURE__ */ (0, b.jsx)(w, {
+				}) : /* @__PURE__ */ (0, b.jsx)(oe, {
 					config: o,
 					transport: r,
 					namespaceEditable: n,
@@ -10249,8 +10336,8 @@ function ce({ config: e, transport: t, namespaceEditable: n = e.namespaceEditabl
 	});
 }
 // src/standalone.tsx
-var le = document.getElementById("spark-console-root"), T = document.getElementById("spark-console-config");
-if (le && T) {
-	let e = JSON.parse(T.textContent || "{}");
-	(0, c.createRoot)(le).render(/* @__PURE__ */ (0, b.jsx)(ce, { config: e }));
+var T = document.getElementById("spark-console-root"), ue = document.getElementById("spark-console-config");
+if (T && ue) {
+	let e = JSON.parse(ue.textContent || "{}");
+	(0, c.createRoot)(T).render(/* @__PURE__ */ (0, b.jsx)(le, { config: e }));
 }

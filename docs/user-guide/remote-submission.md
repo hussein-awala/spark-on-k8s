@@ -43,6 +43,14 @@ and other credentials are not sent to application services. Log WebSockets use t
 Kubernetes client and do not forward browser authorization headers to pods.
 Standalone mode with remote submission disabled keeps its existing UI behavior.
 
+The Airflow task UI also makes server-to-server console requests. It does not have a bearer-token
+configuration option. When the Spark API uses remote mode, set
+`SPARK_ON_K8S_AIRFLOW_SERVICE_URL` to an administrator-controlled gateway that authenticates the
+Airflow service and injects the operator credential, or use a separate internal API deployment
+with remote mode disabled and access restricted to trusted services. Browser gateway injection
+alone does not authenticate the Airflow backend's requests. Never put the operator token in
+browser configuration, task arguments or the service URL.
+
 Apply least-privilege Kubernetes RBAC, Pod Security admission, namespace ResourceQuotas and
 network policy independently of this feature. Approved code and images must be trusted: this
 API does not sandbox the application's code or prevent that code from using its service account.

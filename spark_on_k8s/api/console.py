@@ -15,6 +15,7 @@ from spark_on_k8s.utils.console_models import (
     AirflowTaskContext,
     ConsoleApplication,
     ConsoleApplicationsPage,
+    ConsoleDiagnostics,
     ConsoleHistory,
 )
 from spark_on_k8s.utils.spark_app_status import SparkAppStatus, get_app_status
@@ -183,3 +184,50 @@ async def get_application_by_pod(namespace: str, driver_pod: str) -> ConsoleAppl
             detail={"code": "application_not_found", "message": "The Spark driver was not found."},
         )
     return _application_from_pod(pod, namespace)
+
+
+@router.get("/apps/{namespace}/pods/{driver_pod}/diagnostics", response_model=ConsoleDiagnostics)
+async def diagnose_application(
+    namespace: str,
+    driver_pod: str,
+    pod_limit: Annotated[int, Query(ge=1, le=50)] = 20,
+    event_limit: Annotated[int, Query(ge=1, le=200)] = 100,
+) -> ConsoleDiagnostics:
+    from spark_on_k8s.diagnostics import collect_diagnosis_async, validate_target
+
+    try:
+        validate_target(namespace, driver_pod)
+    except ValueError as error:
+        raise HTTPException(400, detail={"code": "invalid_target", "message": str(error)}) from error
+    try:
+        client = k8s.CoreV1Api(await KubernetesClientSingleton.client())
+        pod = await client.read_namespaced_pod(namespace=namespace, name=driver_pod, _request_timeout=5)
+        if (pod.metadata.labels or {}).get("spark-role") != "driver":
+            raise HTTPException(
+                404, detail={"code": "application_not_found", "message": "The Spark driver was not found."}
+            )
+        report = await collect_diagnosis_async(
+            client,
+            pod,
+            namespace=namespace,
+            pod_limit=pod_limit,
+            event_limit=event_limit,
+        )
+    except k8s.ApiException as error:
+        raise _kubernetes_error(error) from error
+    except ValueError as error:
+        raise HTTPException(
+            409,
+            detail={
+                "code": "identity_unavailable",
+                "message": "The driver has no usable Spark application identity.",
+            },
+        ) from error
+    except HTTPException:
+        raise
+    except Exception as error:
+        raise HTTPException(
+            502,
+            detail={"code": "diagnostics_unavailable", "message": "Kubernetes diagnostics are unavailable."},
+        ) from error
+    return ConsoleDiagnostics(application=_application_from_pod(pod, namespace), diagnosis=report)

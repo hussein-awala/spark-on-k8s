@@ -78,6 +78,7 @@ nav:
       - Spark Connect: user-guide/spark_connect.md
       - Job Files: user-guide/jobs.md
       - Examples: user-guide/examples.md
+      - Diagnostics: user-guide/diagnostics.md
       - Automation: user-guide/automation.md
       - Remote submission: user-guide/remote-submission.md
       - Driver pod templates: user-guide/driver_pod_templates.md

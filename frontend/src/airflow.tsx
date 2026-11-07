@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { SparkConsole } from "./SparkConsole";
 import { checkResponse, errorMessage } from "./client";
-import type { ConsoleApplication, ConsoleTransport } from "./types";
+import type { ConsoleApplication, ConsoleTransport, Diagnosis } from "./types";
 import "./styles.css";
 
 interface AirflowProps {
@@ -91,6 +91,10 @@ function TaskConsole({ query, label }: { query: string; label: string }) {
       return next;
     }
     const transport: ConsoleTransport = {
+      async diagnoseApp(_app, signal) {
+        const response = await request("diagnostics", { signal });
+        return ((await response.json()) as { diagnosis: Diagnosis }).diagnosis;
+      },
       async listApps({ signal }) {
         const [response] = await Promise.all([
           request("application", { signal }),

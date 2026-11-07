@@ -506,3 +506,63 @@ test("a removed driver preserves task namespace and history without exposing liv
     dialog.getByRole("link", { name: "History", exact: true }),
   ).toHaveAttribute("href", capabilities.spark_history_url);
 });
+
+test("native task details use the shared diagnostics view with task coordinates", async ({
+  page,
+}) => {
+  const requests = await api(page, {
+    handle: async (route) => {
+      if (!new URL(route.request().url()).pathname.endsWith("/diagnostics"))
+        return false;
+      await route.fulfill({
+        json: {
+          diagnosis: {
+            schema_version: 1,
+            namespace: "analytics",
+            app_id: "report-1",
+            driver_pod: "report-1-driver",
+            inspected_pods: 1,
+            inspected_events: 1,
+            incomplete: false,
+            findings: [
+              {
+                code: "oom_killed",
+                severity: "error",
+                resource: "report-1-driver",
+                container: "driver",
+                summary: "Container was OOMKilled",
+                evidence: "Observed OOMKilled",
+                remediation: "Inspect memory usage.",
+              },
+            ],
+          },
+        },
+      });
+      return true;
+    },
+  });
+  await page.goto(
+    "/tests/airflow-fixture.html?base=/airflow/&dagId=dag&runId=run&taskId=task&mapIndex=2&tryNumber=1",
+  );
+  await page
+    .getByRole("button", { name: "Daily revenue report", exact: true })
+    .click();
+  await expect(
+    page
+      .getByRole("region", { name: "Application diagnostics" })
+      .getByText("Container was OOMKilled"),
+  ).toBeVisible();
+  const request = requests.find((request) =>
+    new URL(request.url()).pathname.endsWith("/diagnostics"),
+  )!;
+  expect(new URL(request.url()).pathname).toBe(
+    "/airflow/spark-on-k8s/api/diagnostics",
+  );
+  expect(queryOf(request)).toEqual({
+    dag_id: "dag",
+    run_id: "run",
+    task_id: "task",
+    map_index: "2",
+    try_number: "1",
+  });
+});

@@ -59,3 +59,31 @@ def test_explicit_environment_overrides_are_not_duplicated():
     assert env["SPARK_ON_K8S_IN_CLUSTER"]["valueFrom"] == {
         "configMapKeyRef": {"name": "auth-mode", "key": "in-cluster"}
     }
+
+
+@pytest.mark.parametrize("read_only", ["true", "false"])
+def test_namespace_role_can_read_diagnostic_events_without_mutating_them(read_only):
+    result = subprocess.run(
+        [
+            HELM,
+            "template",
+            "test",
+            str(CHART),
+            "--show-only",
+            "templates/serviceaccount.yaml",
+            "--set",
+            "namespaces=analytics",
+            "--set",
+            f"readOnly={read_only}",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    documents = list(yaml.safe_load_all(result.stdout))
+    role = next(document for document in documents if document["kind"] == "Role")
+    assert role["metadata"]["namespace"] == "analytics"
+    assert [rule for rule in role["rules"] if "events" in rule["resources"]] == [
+        {"apiGroups": [""], "resources": ["events"], "verbs": ["list"]}
+    ]
+    assert not any(document["kind"].startswith("Cluster") for document in documents)

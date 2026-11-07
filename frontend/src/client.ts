@@ -3,6 +3,7 @@ import type {
   ConsoleApplication,
   ConsoleConfig,
   ConsoleTransport,
+  Diagnosis,
 } from "./types";
 
 export function consolePath(basePath: string, path: string): string {
@@ -68,6 +69,17 @@ export function createConsoleTransport(
 ): ConsoleTransport {
   const url = (path: string) => consolePath(config.basePath, path);
   return {
+    async diagnoseApp(app, signal): Promise<Diagnosis> {
+      const response = await checkResponse(
+        await fetch(
+          url(
+            `/webserver/api/apps/${encodeURIComponent(app.namespace ?? "")}/pods/${encodeURIComponent(app.driver_pod ?? "")}/diagnostics`,
+          ),
+          { signal, credentials: "same-origin" },
+        ),
+      );
+      return ((await response.json()) as { diagnosis: Diagnosis }).diagnosis;
+    },
     async listApps({
       namespace,
       limit,

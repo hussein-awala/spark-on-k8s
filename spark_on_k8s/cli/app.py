@@ -261,3 +261,27 @@ def submit(
         "driver_container_name": driver_container_name,
     }
     execute_submission(SparkOnK8S(), kwargs, output=output, timeout=timeout)
+
+
+@app_cli.command(
+    cls=SparkAppCommand, help="Diagnose a Spark application using pod states and Kubernetes events."
+)
+@output_option
+@click.option("--pod-limit", type=click.IntRange(1, 50), default=20, show_default=True)
+@click.option("--event-limit", type=click.IntRange(1, 200), default=100, show_default=True)
+def diagnose(app_id: str, namespace: str, output: str, pod_limit: int, event_limit: int):
+    from spark_on_k8s.cli.diagnostics import display_report
+    from spark_on_k8s.client import SparkOnK8S
+
+    try:
+        report = SparkOnK8S().diagnose_app(
+            namespace=namespace,
+            app_id=app_id,
+            pod_limit=pod_limit,
+            event_limit=event_limit,
+        )
+    except Exception as error:
+        raise click.ClickException(
+            "Unable to collect diagnostics; check the target and Kubernetes read access."
+        ) from error
+    display_report(report, output)

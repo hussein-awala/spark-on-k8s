@@ -7,6 +7,7 @@ import {
   errorMessage,
   mergeApplications,
 } from "./client";
+import { Diagnostics } from "./Diagnostics";
 import { Dialog } from "./Dialog";
 import { Icon } from "./icons";
 import type {
@@ -715,6 +716,7 @@ export function Applications({
               onOpenLogs={onOpenLogs}
             />
           </div>
+          <Diagnostics app={selected} transport={transport} />
           {canManage(selected) &&
             ((config.allowKill && selected.status === "Running") ||
               config.allowDelete) && (

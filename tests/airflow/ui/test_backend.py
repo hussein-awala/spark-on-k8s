@@ -653,3 +653,63 @@ def test_log_source_completion_and_failure_close_browser_stream(harness, monkeyp
             assert ended.value.code == close_code
             assert "private" not in str(ended.value)
         assert closed.wait(1)
+
+
+@pytest.mark.parametrize("mutation,status", [(None, 200), ("ownership", 409), ("identity", 409)])
+def test_diagnostics_requires_current_task_ownership(harness, mutation, status):
+    import httpx
+
+    payload = {
+        "application": {**APPLICATION},
+        "diagnosis": {
+            "namespace": "spark",
+            "app_id": APP_ID,
+            "driver_pod": POD,
+            "findings": [],
+            "inspected_pods": 1,
+            "inspected_events": 0,
+            "incomplete": False,
+        },
+    }
+    if mutation == "ownership":
+        payload["application"]["task_context"] = {**QUERY, "map_index": 99}
+    elif mutation == "identity":
+        payload["diagnosis"]["app_id"] = "another-application"
+    with harness() as h:
+        h.responses[f"/service/webserver/api/apps/spark/pods/{POD}/diagnostics"] = httpx.Response(
+            200, json=payload
+        )
+        response = h.client.get("/api/diagnostics", params={**QUERY, "namespace": "foreign"})
+        assert response.status_code == status
+        h.authorized.assert_awaited_once()
+        assert h.requests[0].url.path == f"/service/webserver/api/apps/spark/pods/{POD}/diagnostics"
+        assert "namespace" not in h.requests[0].url.params
+
+
+def test_anonymous_diagnostics_never_resolves_task_or_calls_service(harness):
+    with harness(authenticated=False) as h:
+        assert h.client.get("/api/diagnostics", params=QUERY).status_code in {401, 403}
+        h.loaded.assert_not_called()
+        assert h.requests == []
+
+
+def test_missing_pod_diagnostics_never_falls_back_to_history(harness):
+    import httpx
+
+    with harness() as h:
+        h.responses[f"/service/webserver/api/apps/spark/pods/{POD}/diagnostics"] = httpx.Response(404)
+        assert h.client.get("/api/diagnostics", params=QUERY).status_code == 404
+        assert len(h.requests) == 1
+
+
+def test_invalid_upstream_diagnostics_is_not_exposed_to_task(harness):
+    import httpx
+
+    with harness() as h:
+        h.responses[f"/service/webserver/api/apps/spark/pods/{POD}/diagnostics"] = httpx.Response(
+            200, json={"application": APPLICATION, "diagnosis": {"private": "internal trace"}}
+        )
+        response = h.client.get("/api/diagnostics", params=QUERY)
+        assert response.status_code == 502
+        assert response.json()["detail"]["code"] == "invalid_response"
+        assert "internal trace" not in response.text

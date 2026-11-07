@@ -390,3 +390,84 @@ def test_driver_lookup_returns_only_validated_task_identity(console_client):
     assert response.status_code == 200
     assert response.json()["task_context"] == identity.model_dump(mode="json")
     assert "do-not-expose" not in response.text
+
+
+def test_diagnostics_reports_bounded_events_without_environment_values(console_client):
+    client, api, _ = console_client
+    driver = driver_pod(phase="Pending")
+    driver.metadata.uid = "driver-uid"
+    api.read_namespaced_pod.return_value = driver
+    api.list_namespaced_pod.return_value = k8s.V1PodList(items=[], metadata=k8s.V1ListMeta())
+    api.list_namespaced_event = AsyncMock(
+        return_value=k8s.CoreV1EventList(
+            items=[
+                k8s.CoreV1Event(
+                    metadata=k8s.V1ObjectMeta(name="scheduling"),
+                    involved_object=k8s.V1ObjectReference(uid="driver-uid"),
+                    reason="FailedScheduling",
+                    message="Insufficient memory",
+                )
+            ],
+            metadata=k8s.V1ListMeta(),
+        )
+    )
+    response = client.get(
+        "/webserver/api/apps/analytics/pods/report-driver/diagnostics?pod_limit=1&event_limit=2"
+    )
+    assert response.status_code == 200
+    assert response.json()["application"]["app_id"] == "report-123"
+    report = response.json()["diagnosis"]
+    assert {f["code"] for f in report["findings"]} == {"unschedulable", "insufficient_resources"}
+    assert "do-not-expose" not in response.text
+    assert api.list_namespaced_pod.await_args.kwargs["limit"] == 1
+    assert api.list_namespaced_event.await_args.kwargs["limit"] == 2
+    assert api.list_namespaced_event.await_args.kwargs["field_selector"] == "involvedObject.uid=driver-uid"
+
+
+@pytest.mark.parametrize(
+    "path,status",
+    [
+        ("/webserver/api/apps/BAD/pods/driver/diagnostics", 400),
+        ("/webserver/api/apps/spark/pods/driver/diagnostics?pod_limit=51", 422),
+        ("/webserver/api/apps/spark/pods/driver/diagnostics?event_limit=0", 422),
+    ],
+)
+def test_diagnostics_rejects_invalid_targets_before_kubernetes(console_client, path, status):
+    client, api, acquire = console_client
+    assert client.get(path).status_code == status
+    acquire.assert_not_called()
+    api.read_namespaced_pod.assert_not_called()
+
+
+def test_diagnostics_does_not_read_events_for_non_driver(console_client):
+    client, api, _ = console_client
+    driver = driver_pod()
+    driver.metadata.labels["spark-role"] = "executor"
+    api.read_namespaced_pod.return_value = driver
+    assert client.get("/webserver/api/apps/spark/pods/driver/diagnostics").status_code == 404
+    api.list_namespaced_pod.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "failure,status,code",
+    [
+        (k8s.ApiException(status=404), 404, "kubernetes_error"),
+        (RuntimeError("private token"), 502, "diagnostics_unavailable"),
+    ],
+)
+def test_diagnostics_lookup_failure_has_stable_safe_error(console_client, failure, status, code):
+    client, api, _ = console_client
+    api.read_namespaced_pod.side_effect = failure
+    response = client.get("/webserver/api/apps/spark/pods/driver/diagnostics")
+    assert response.status_code == status
+    assert response.json()["detail"]["code"] == code
+    assert "private token" not in response.text
+
+
+def test_diagnostics_missing_identity_does_not_scan_other_applications(console_client):
+    client, api, _ = console_client
+    api.read_namespaced_pod.return_value = driver_pod(app_id=None)
+    response = client.get("/webserver/api/apps/spark/pods/driver/diagnostics")
+    assert response.status_code == 409
+    assert response.json()["detail"]["code"] == "identity_unavailable"
+    api.list_namespaced_pod.assert_not_called()

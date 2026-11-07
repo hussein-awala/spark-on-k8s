@@ -116,9 +116,9 @@ setting override the client's configured default. Input mappings are not modifie
 
 Lists with duplicate merge keys are rejected rather than resolved by position.
 Server-assigned metadata, owner references, `generateName`, and `status` are not
-accepted. Templates cannot supply the reserved `spark-on-k8s.io/` ownership
-annotations used by the Airflow integration. The operator supplies its own task
-identity after templating.
+accepted. Templates cannot supply annotations in the reserved `spark-on-k8s.io/`
+namespace. Keep that namespace available for project-managed ownership metadata;
+use your own annotation prefix for application metadata.
 
 Loading, container selection and merge validation finish before any Kubernetes
 Secret, ConfigMap, Pod or Service is created. This is not a complete Kubernetes

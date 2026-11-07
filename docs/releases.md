@@ -118,6 +118,31 @@ failed tag conservatively prevents lower-version promotion; resolve that state
 explicitly instead of automatically moving channels backward. GHCR's destination
 uses the repository owner, independently of the person rerunning the workflow.
 
+### Documentation publication
+
+The docs workflow adds its isolated environment to `PATH` because `mike` launches
+its documentation builder as a child command. `mike deploy` builds once using the
+strict configuration, updates only the local `gh-pages` branch, and records the
+source SHA and channel in `versions.json`. The generated HTML must pass the local
+link, anchor and asset check before that branch is pushed. The checked site is
+retained as the `documentation-site` workflow artifact.
+
+Every newly built page labels its channel: `develop` is unreleased main-branch
+content; a prerelease names its candidate version; a release names its exact tag.
+The source link identifies the immutable commit used for that build. Local builds
+without publication metadata say **Local documentation preview**. Existing archived
+versions are preserved and may predate these labels. The version selector and
+`latest` alias describe documentation versions, not the package installed in a
+reader's environment. Page revision dates describe source edits, not the last
+successful deployment.
+
+After a docs deployment, verify the public `develop/` or versioned homepage, its
+source link and `versions.json` against the workflow commit. Check `latest/` only
+when the release is eligible to advance that alias. A failed publishing run can
+leave older pages publicly available; a successful local build alone does not
+prove the public site has updated. Diagnose the failed run before retrying, and
+never treat an old page's content or timestamp as evidence for the new commit.
+
 ### 1. Establish the candidate
 
 Record the intended version, full commit SHA, previous published tag and intended

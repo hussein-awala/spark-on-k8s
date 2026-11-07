@@ -1,15 +1,44 @@
+# Getting started
+
 This guide describes the current source. Follow the [installation guide](installation.md)
 to choose between a published release and a source checkout. Example file paths
 below are relative to the repository root.
 
-### Set up the Kubernetes namespace
+## Before submitting
+
+Install the core package using the [installation guide](installation.md), and use
+that same Python environment for these commands. Choose either the Python or CLI
+example below; they submit the same kind of application.
+
+Have these inputs ready:
+
+- Kubernetes credentials for the intended cluster and namespace. By default the
+  client loads your kubeconfig's current context. Use `SPARK_ON_K8S_CONFIG_FILE`
+  and `SPARK_ON_K8S_CONTEXT` to select them explicitly, or `SPARK_ON_K8S_IN_CLUSTER=true`
+  when running with an in-cluster service account.
+- A namespace and driver service account with the permissions described below.
+  The submitting client's credentials and the driver's service account are separate.
+- A Spark application image accessible to every node that may run a driver or
+  executor, with the application file and its dependencies included. A `local:///`
+  application path names a file **inside that image**, not on your laptop.
+- Data and storage access for both driver and executors.
+
+The submitter does not need Spark or Java installed locally. The application image
+must have compatible Spark, Java and application runtimes; use the
+[Spark compatibility guide](spark_compatibility.md) when choosing it. If you do not
+yet have an image, follow the [Python or Java examples](examples.md) first.
+
+## Set up the Kubernetes namespace
 
 The client creates the Spark driver pod. The driver uses its Kubernetes service
 account to create and manage executor pods. The following examples use namespace
 `spark` and service account `spark`; the submitting client also needs permission
 to create the application resources in that namespace.
 
-The setup helper creates the namespace if needed, a service account named `spark`,
+If your administrator has already provided that namespace and service account,
+skip the setup helper and use their names in the submission examples.
+
+The optional setup helper creates the namespace if needed, a service account named `spark`,
 and a **ClusterRoleBinding to the built-in `edit` ClusterRole**. This grants that
 service account edit access across all namespaces. It is broader than a
 namespace-scoped Spark driver role. On a shared cluster, ask the cluster
@@ -36,17 +65,17 @@ With the CLI:
 spark-on-k8s namespace setup -n spark
 ```
 
-### Python client
+## Python client
 
 Replace the image and application path with an image accessible to your cluster
-and an application file included in that image:
+and an application file included in that image. The values below are placeholders:
 
 ```python
 from spark_on_k8s.client import SparkOnK8S
 
 client = SparkOnK8S()
 driver_pod_name = client.submit_app(
-    image="my-registry/my-image:latest",
+    image="registry.example.com/team/my-app:1.0",
     app_path="local:///opt/spark/work-dir/my-app.py",
     app_arguments=["arg1", "arg2"],
     app_name="my-app",
@@ -54,7 +83,6 @@ driver_pod_name = client.submit_app(
     service_account="spark",
     app_waiter="log",
     image_pull_policy="IfNotPresent",
-    ui_reverse_proxy=True,
 )
 ```
 
@@ -62,23 +90,28 @@ driver_pod_name = client.submit_app(
 application name with a timestamp suffix and is available in the application list.
 For a private registry, configure image-pull credentials for the pods in your cluster.
 
-### CLI
+## CLI
 
 The CLI can submit applications and manage applications created by either the CLI
 or the Python client. Submit an application and stream its logs:
 
 ```bash
 spark-on-k8s app submit \
-  --image my-registry/my-image:latest \
+  --image registry.example.com/team/my-app:1.0 \
   --path local:///opt/spark/work-dir/my-app.py \
   --namespace spark \
   --service-account spark \
   --name my-app \
   --image-pull-policy IfNotPresent \
-  --ui-reverse-proxy \
-  --logs \
+  --logs --timeout 300 \
   param1 param2
 ```
+
+The CLI example waits up to 300 seconds after submission and reports the final
+status. A timeout stops observation; it does not cancel the application. Confirm
+`Succeeded` and check the application's expected output before treating the run
+as successful. For JSON output, saved receipts and safe cancellation, follow
+[Automation and run identities](automation.md).
 
 List applications to find their generated IDs:
 
@@ -102,7 +135,7 @@ spark-on-k8s app --help
 spark-on-k8s apps --help
 ```
 
-### REST API
+## REST API
 
 Install the `api` extra before starting the REST API and web UI. For local access:
 
@@ -124,25 +157,33 @@ curl 'http://127.0.0.1:8080/apps/list_apps/spark' \
 
 The console provides a searchable application list, status filters, namespace selection,
 application details, and confirmed stop/delete actions. It refreshes in the background
-without resetting your filters. Counts and filters describe the applications loaded so far;
+without resetting your filters. The last successful fetch age and polling state help
+you recognize stale data. Counts and filters describe the applications loaded so far;
 use **Load more** when additional pages are available. Completed applications from the
 configured history server appear as archive entries without live-driver actions.
 
-The driver-log view supports search, copying, download, a configurable tail, and pausing
-auto-scroll. It keeps the most recent 10,000 lines in the browser. Connection failures
-are shown separately from log text, and a history-server outage leaves live applications
-available. JavaScript and CSS are packaged with the Python distribution; no CDN is needed.
+The driver-log view supports search, a configurable tail and frozen reading while
+new lines arrive. Its live buffer retains the most recent 10,000 lines. Download
+exports that buffered text; it is not a complete historical log archive. The excerpt
+preview lets you review and edit bounded text before copying or sharing it.
+Connection failures appear separately from log text, and a history-server outage
+leaves live applications available. JavaScript and CSS are packaged with the Python
+distribution; no CDN is needed.
 
 Open `http://127.0.0.1:8080/webserver/apps?namespace=spark` and use **Open Spark UI**
-for an application submitted with UI reverse proxy enabled. Its direct URL is
+for an application submitted with `ui_reverse_proxy=True` in Python or
+`--ui-reverse-proxy` in the CLI. Its direct URL is
 `http://127.0.0.1:8080/webserver/ui/spark/APP_ID`; replace `APP_ID` with the actual
 application ID. The API process must be able to reach the driver's service.
+When placing the console behind a gateway, configure the
+[browser and proxy boundaries](../security-boundaries.md), including the public
+WebSocket origin when needed.
 
 Use `--host 0.0.0.0` to listen on all network interfaces when deploying behind an
 appropriate service or proxy. Client URLs should use the server's reachable host
 or address, not the wildcard bind address `0.0.0.0`.
 
-### Deploy the API with Helm
+## Deploy the API with Helm
 
 The chart deploys the API, its Service and RBAC resources. Ingress and the optional
 Spark History Server are controlled by chart values. The chart's `env` list sets
@@ -183,8 +224,11 @@ access-controlled networking or an authenticating proxy.
 The source chart supplies in-cluster Kubernetes configuration and the API bind
 address and port. Its default API image tag is `latest`; using a local chart does
 not build or install the Python source into that image. Set `image.repository`
-and `image.tag` to the API image version you intend to deploy, independently of
-the Spark application images passed to `submit_app`.
+and `image.tag` to the API image version you intend to deploy, or use
+`image.digest` to select verified image contents; the digest takes precedence over
+the tag. This is independent of the Spark application image passed to `submit_app`.
+Follow [Chart deployment boundaries](chart-deployments.md) for scoped access,
+image selection and existing-release upgrades.
 
 ## Configuration
 

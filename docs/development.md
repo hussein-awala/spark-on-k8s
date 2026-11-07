@@ -124,13 +124,16 @@ uv lock --check
 uv build
 .venv-quality/bin/helm-mkdocs chart -o docs/helm-chart
 .venv-quality/bin/mkdocs build --strict
+.venv-quality/bin/python scripts/check_docs.py site
 ```
 
-For prose-only edits, the last two commands are sufficient once the documentation
+For prose-only edits, the last three commands are sufficient once the documentation
 environment exists. The full site generates Python API reference pages, so its
 build environment needs the documented extras even when the prose itself does not
 exercise them. Generated chart docs and `site/` are ignored outputs; do not commit
-them. Keep instructions canonical and link them from the README rather than
+them. The offline link check also validates generated HTML anchors and local assets;
+external sites and version-switcher destinations need a published-site review.
+Keep instructions canonical and link them from the README rather than
 maintaining additional command copies.
 
 Repository skills are small Markdown packages. If the installed skill-creator

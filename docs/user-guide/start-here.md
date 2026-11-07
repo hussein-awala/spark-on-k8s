@@ -4,13 +4,22 @@ Choose the outcome you need. The API and Airflow are optional: neither is requir
 to submit a job from Python or the CLI. These routes describe the current source;
 first choose [a published release or a source checkout](installation.md).
 
+If you already have a Spark application image and Kubernetes access, follow
+[Installation](installation.md), then [Getting started](getting_started.md).
+If you want to try the included data example before arranging cluster access,
+start with the local ETL route below. It runs Spark and Java inside Docker.
+
 | Your goal | Prerequisites and owner | Install/profile | First observable success | Next guide |
 | --- | --- | --- | --- | --- |
 | See a real ETL result locally | Application author: source checkout, Docker and capacity for the documented 2 GiB container; no cluster | Starter application image; no API/Airflow | `SPARK_STARTER_OK` after Parquet output and replay checks | [ETL starter](starters.md#order-events-to-parquet) |
 | Submit an existing Python/JVM application | Administrator supplies namespace, scoped service account and cluster access; author supplies a compatible image and reachable data | Core package; `sql` extra for SQL | Recorded driver identity, then terminal success and application output | [Getting started](getting_started.md), [job files](jobs.md), [automation](automation.md) |
 | Explore an existing Spark Connect service | Platform owner supplies endpoint, trust/credentials and permitted data; author uses a compatible client | `connect` extra on its supported Python versions | Bounded check succeeds against that endpoint | [Spark Connect](spark_connect.md) |
-| Observe jobs in a browser | Operator supplies API deployment, scoped Kubernetes access and access-controlled networking | `api` extra or a selected API image/chart | Console lists the expected namespace and opens a known run | [Getting started](getting_started.md), [diagnostics](diagnostics.md) |
+| Observe jobs in a browser | Operator supplies API deployment, scoped Kubernetes access and access-controlled networking | `api` extra or a selected API image/chart | Console lists the expected namespace and opens a known run | [Local console](getting_started.md#rest-api), [chart deployment](chart-deployments.md) |
 | Run a scheduled Airflow task | Airflow owner supplies a supported installation, connection and worker/triggerer access; author supplies the job image | `airflow`; `airflow-ui` for native Airflow 3 task tab | Task runs an application and reaches its documented outcome | [Airflow](airflow.md) |
+
+The Python version used to submit a job is separate from the runtimes inside its
+application image. Use the [Spark compatibility guide](spark_compatibility.md) for
+Spark, Java, Scala and application-Python choices; the base client needs no local JVM.
 
 A local ETL check proves computation on its fixture, not cluster networking or
 storage permissions. For shared clusters, ask the administrator for namespace-scoped

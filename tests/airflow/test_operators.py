@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from unittest import mock
 
 import pytest
@@ -318,7 +319,8 @@ class TestSparkOnK8SOperator:
 
 class TestSparkSqlOnK8SOperator:
     @mock.patch("spark_on_k8s.client.SparkOnK8S.submit_app")
-    def test_rendering_templates(self, mock_submit_app, root_path):
+    def test_rendering_templates(self, mock_submit_app):
+        from spark_on_k8s.airflow import scripts
         from spark_on_k8s.airflow.operators import SparkSqlOnK8SOperator
 
         spark_app_task = SparkSqlOnK8SOperator(
@@ -349,7 +351,7 @@ class TestSparkSqlOnK8SOperator:
                     "sources": [
                         {
                             "name": "spark_sql.py",
-                            "text_path": f"{root_path}/spark_on_k8s/airflow/scripts/spark_sql.py",
+                            "text_path": str(Path(scripts.__file__).with_name("spark_sql.py")),
                         },
                         {
                             "name": "queries.json",

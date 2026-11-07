@@ -9,11 +9,40 @@ To install the package, you can check [this documentation](README.md#installatio
 
 ## Testing
 
-We use `pytest` for testing. To run the tests, you can use the following command:
+Use Python 3.11+ and Poetry 2.5.1. The lockfile separates test, lint, and documentation
+dependencies so contributors and CI can install the tools they need.
+
+For the core client and API tests:
 
 ```bash
-pytest
+poetry sync --only main,test -E api
+poetry run pytest --ignore=tests/airflow
 ```
+
+For the complete suite, use Python 3.11–3.14 and install both extras:
+
+```bash
+poetry sync --only main,test --all-extras
+poetry run pytest
+```
+
+Install Helm and Node.js to run the chart-rendering and browser-log regression tests.
+Airflow-specific CI jobs reject skipped tests so missing dependencies cannot
+silently reduce coverage.
+
+To run code checks and build documentation:
+
+```bash
+poetry sync --with lint,docs --all-extras
+poetry run ruff check .
+poetry run ruff format --check .
+poetry run helm-mkdocs chart -o docs/helm-chart
+poetry run mkdocs build --strict
+poetry build
+```
+
+The Airflow compatibility workflow runs separate checks for Airflow 3.4.0 and
+Airflow 2.11.2. Both checks require collected tests and reject skipped tests.
 
 ## Reporting a bug
 

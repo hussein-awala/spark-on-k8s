@@ -38,10 +38,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Python 3.9 has no Ubuntu 26.04 build; use stable runner versions
-        # and Intel macOS to retain the latest available Python 3.9 patch.
+        # The package requires Python 3.11 or newer.
         os: [ "ubuntu-24.04", "macos-15-intel" ]
-        python-version: [ "3.9", "3.10", "3.11", "3.12", "3.13" ]
+        python-version: [ "3.11", "3.12", "3.13" ]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Check out repository

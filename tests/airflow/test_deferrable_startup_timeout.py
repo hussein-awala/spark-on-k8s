@@ -13,9 +13,8 @@ pytestmark = pytest.mark.skipif(not AIRFLOW_INSTALLED, reason="Airflow extra is 
 
 @pytest.mark.parametrize("startup_timeout,deadline", [(0, None), (10, 1010)])
 def test_operator_passes_absolute_startup_deadline(startup_timeout, deadline):
-    from spark_on_k8s.airflow.operators import SparkOnK8SOperator
-
     from airflow.exceptions import TaskDeferred
+    from spark_on_k8s.airflow.operators import SparkOnK8SOperator
 
     operator = SparkOnK8SOperator(
         task_id="startup_deadline",
@@ -70,9 +69,8 @@ def test_expired_deadline_survives_trigger_serialization_and_restart():
 
 
 def test_timeout_completion_cleans_up_before_attempting_logs():
-    from spark_on_k8s.airflow.operators import SparkOnK8SOperator
-
     from airflow.exceptions import AirflowException
+    from spark_on_k8s.airflow.operators import SparkOnK8SOperator
 
     operator = SparkOnK8SOperator(
         task_id="startup_cleanup",

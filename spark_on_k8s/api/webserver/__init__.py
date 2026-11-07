@@ -33,9 +33,9 @@ def handle_k8s_errors(func):
             title = f"{e.status} {e.reason}"
             message = e.body
             return templates.TemplateResponse(
-                "error.html",
-                {
-                    "request": request,
+                request=request,
+                name="error.html",
+                context={
                     "title": title,
                     "message": message,
                 },
@@ -148,9 +148,9 @@ async def apps(response: Response, request: Request):
         else:
             apps_dict[app.app_id].spark_history_proxy = True
     return templates.TemplateResponse(
-        "apps.html",
-        {
-            "request": request,
+        request=request,
+        name="apps.html",
+        context={
             "apps_list": apps_dict.values(),
             "namespace": namespace,
             "kill_button": APIConfiguration.SPARK_ON_K8S_API_WEBSERVER_APPS_KILL_BUTTON,
@@ -178,9 +178,9 @@ async def app_logs(request: Request, namespace: str, app_id: str):
     """Display logs of a spark app in a web page."""
     tail = request.query_params.get("tail", -1)
     return templates.TemplateResponse(
-        "app_logs.html",
-        {
-            "request": request,
+        request=request,
+        name="app_logs.html",
+        context={
             "namespace": namespace,
             "app_id": app_id,
             "tail": tail,

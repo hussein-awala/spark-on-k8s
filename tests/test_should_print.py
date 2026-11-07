@@ -26,6 +26,8 @@ def test_submit_app_output_destination(
     monkeypatch.setattr(client_module.Configuration, "SPARK_ON_K8S_EXECUTOR_TEMPLATE", None)
     monkeypatch.setattr(client_module.Configuration, "SPARK_ON_K8S_EXECUTOR_POD_TEMPLATE_PATH", None)
     caplog.set_level(logging.INFO)
+    # Host frameworks may log to stdout; isolate logging from direct print assertions.
+    monkeypatch.setattr(logging.getLogger(), "handlers", [caplog.handler])
     original_name = "spark-app-" + "x" * 63
     normalized_name = original_name[:63]
     expected_messages = [

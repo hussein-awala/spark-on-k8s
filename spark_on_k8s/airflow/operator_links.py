@@ -6,6 +6,7 @@ from spark_on_k8s.airflow._compat import BaseOperatorLink, XCom
 
 if TYPE_CHECKING:
     from airflow.models.taskinstancekey import TaskInstanceKey
+
     from spark_on_k8s.airflow._compat import BaseOperator, Context
 
 

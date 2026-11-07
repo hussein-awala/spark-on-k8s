@@ -183,11 +183,19 @@ def test_idle_websocket_cleans_up_without_waiting_for_another_log_line(terminati
         (["http://user@testserver"], "", False),
         (["http://testserver?"], "", False),
         (["http://testserver#"], "", False),
+        ([""], "", False),
+        ([" http://testserver"], "", False),
+        (["http://testserver\\foreign"], "", False),
+        (["http://testserver:invalid"], "", False),
+        (["http://testserver:65536"], "", False),
+        (["http://[broken"], "", False),
         (["https://console.example"], "https://console.example", True),
         (["https://console.example:443"], "https://console.example", True),
         (["http://testserver"], "https://console.example", False),
         (["https://console.example"], "https://console.example/path", False),
         (["https://console.example"], "https://console.example,invalid", False),
+        (["https://console.example"], "https://console.example,", False),
+        (["https://console.example"], "https://console.example:invalid", False),
         ([], "https://console.example", True),
     ],
 )
@@ -236,7 +244,15 @@ def test_log_websocket_origin_contract(monkeypatch, root_path, origins, configur
         asyncio.run(manager.return_value.logs_streamer.return_value.aclose())
 
 
-@pytest.mark.parametrize("origin,allowed", [("https://testserver", True), ("http://testserver", False)])
+@pytest.mark.parametrize(
+    "origin,allowed",
+    [
+        ("https://testserver", True),
+        ("https://testserver:443", True),
+        ("http://testserver", False),
+        ("https://testserver:8443", False),
+    ],
+)
 def test_secure_direct_websocket_uses_https_origin(monkeypatch, origin, allowed):
     from spark_on_k8s.api.configuration import APIConfiguration
 
@@ -263,3 +279,29 @@ def test_secure_direct_websocket_uses_https_origin(monkeypatch, origin, allowed)
                         pytest.fail("HTTP origin accepted for secure direct endpoint")
                 manager.assert_not_called()
         asyncio.run(manager.return_value.logs_streamer.return_value.aclose())
+
+
+@pytest.mark.parametrize("hosts", [[], [b"testserver", b"other.example"]])
+def test_browser_socket_without_unique_authority_is_rejected_before_collection(monkeypatch, hosts):
+    from fastapi import WebSocket
+    from spark_on_k8s.api.configuration import APIConfiguration
+
+    monkeypatch.setattr(APIConfiguration, "SPARK_ON_K8S_API_WEBSOCKET_ALLOWED_ORIGINS", "")
+    # An ASGI request with no unique Host cannot establish the direct browser origin.
+    send = mock.AsyncMock()
+    websocket = WebSocket(
+        {
+            "type": "websocket",
+            "scheme": "ws",
+            "path": "/webserver/ws/logs/spark/app",
+            "headers": [(b"origin", b"http://testserver"), *[(b"host", host) for host in hosts]],
+        },
+        receive=mock.AsyncMock(),
+        send=send,
+    )
+    with mock.patch("spark_on_k8s.api.webserver.AsyncSparkAppManager") as manager:
+        asyncio.run(app_logs_websocket(websocket, "spark", "app", tail=100))
+    manager.assert_not_called()
+    assert send.await_count == 1
+    assert send.call_args.args[0]["type"] == "websocket.close"
+    assert send.call_args.args[0]["code"] == 1008

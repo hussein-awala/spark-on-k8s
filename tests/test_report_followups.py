@@ -376,3 +376,66 @@ def test_sql_source_metadata_excludes_parent_paths_and_control_characters():
     locations = json.loads(next(item["text"] for item in sources if item["name"] == "locations.json"))
     assert locations["source"] == "query_name.sql"
     assert "private" not in json.dumps(locations)
+
+
+def test_all_profiles_and_one_profile_are_mutually_exclusive_before_planning(tmp_path):
+    path = tmp_path / "job.yaml"
+    path.write_text(yaml.safe_dump(job_document()))
+    with patch.object(JobSpec, "from_file") as load, patch.object(JobSpec, "validate_profiles") as matrix:
+        result = CliRunner().invoke(job_cli, ["validate", str(path), "--all-profiles", "--profile", "prod"])
+    assert result.exit_code == 2
+    assert "Choose --profile or --all-profiles, not both" in result.stderr
+    load.assert_not_called()
+    matrix.assert_not_called()
+
+
+@pytest.mark.parametrize("quantity", [float("nan"), float("inf"), -1])
+def test_nonfinite_or_negative_driver_request_does_not_produce_passing_capacity(quantity):
+    from spark_on_k8s.client import PodResources
+
+    envelope = plan(driver_resources=PodResources(cpu=quantity))
+    assert envelope["driver_requests"] is None
+    assert envelope["total_requests"]["maximum"] is None
+    assert not check_budget(envelope, max_cpu=100)["passed"]
+    json.dumps(envelope, allow_nan=False)
+
+
+def test_conflicting_effective_executor_bounds_cannot_pass_budget():
+    envelope = plan(
+        spark_conf={
+            "spark.dynamicAllocation.enabled": "true",
+            "spark.dynamicAllocation.minExecutors": "4",
+            "spark.dynamicAllocation.maxExecutors": "3",
+        }
+    )
+    assert envelope["executor_counts"] is None
+    assert envelope["total_requests"]["maximum"] is None
+    assert not check_budget(envelope, max_cpu=100, max_memory_mib=100_000)["passed"]
+
+
+@pytest.mark.parametrize("extra", ["sidecar", "init", "overhead"])
+def test_unaccounted_driver_template_resources_fail_closed_for_budget(extra):
+    spec = {"containers": [{"name": "driver"}]}
+    companion = {
+        "name": "metrics",
+        "image": "metrics:test",
+        "resources": {"requests": {"cpu": "250m", "memory": "64Mi"}},
+    }
+    if extra == "sidecar":
+        spec["containers"].append(companion)
+    elif extra == "init":
+        spec["initContainers"] = [companion]
+    else:
+        spec["overhead"] = {"cpu": "250m", "memory": "64Mi"}
+    envelope = plan(driver_pod_template={"apiVersion": "v1", "kind": "Pod", "spec": spec})
+    assert envelope["driver_requests"] is not None
+    assert envelope["total_requests"]["maximum"] is None
+    assert not check_budget(envelope, max_cpu=100)["passed"]
+    assert any("separate capacity review" in message for message in envelope["unknown"])
+
+
+@pytest.mark.parametrize("limit", [0, -1, float("nan"), float("inf")])
+def test_invalid_budget_is_rejected_instead_of_becoming_a_pass(limit):
+    envelope = plan()
+    with pytest.raises(ValueError):
+        check_budget(envelope, max_cpu=limit)

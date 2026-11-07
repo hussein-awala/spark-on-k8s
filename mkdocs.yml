@@ -1,6 +1,11 @@
-site_name: Spark On K8s
-site_url: https://hussein.awala.fr/spark-on-k8s
-site_description: Spark On Kubernetes documentation
+site_name: Spark on Kubernetes
+site_url: https://hussein.awala.fr/spark-on-k8s/
+strict: true
+validation:
+  links:
+    anchors: warn
+    unrecognized_links: warn
+site_description: Submit, observe and troubleshoot Spark jobs on Kubernetes with Python, the CLI and Airflow.
 site_author: hussein-awala
 repo_url: https://github.com/hussein-awala/spark-on-k8s
 repo_name: hussein-awala/spark-on-k8s
@@ -29,7 +34,9 @@ theme:
   features:
     - content.tooltips
     - content.code.annotate
-    - navigation.expand
+    - content.code.copy
+    - search.highlight
+    - search.suggest
     - navigation.indexes
     - navigation.instant
     - navigation.sections
@@ -62,6 +69,9 @@ plugins:
       css_dir: css
       javascript_dir: js
 markdown_extensions:
+  - admonition
+  - toc:
+      permalink: true
   - pymdownx.magiclink
   - pymdownx.highlight:
       use_pygments: true
@@ -71,34 +81,43 @@ markdown_extensions:
   - pymdownx.tabbed:
       alternate_style: true
 nav:
-  - index.md
-  - User Guide:
-      - Start here: user-guide/start-here.md
-      - Installation: user-guide/installation.md
-      - Getting Started: user-guide/getting_started.md
-      - Spark Connect: user-guide/spark_connect.md
-      - Job Files: user-guide/jobs.md
-      - Examples: user-guide/examples.md
-      - Diagnostics: user-guide/diagnostics.md
-      - Automation: user-guide/automation.md
-      - Remote submission: user-guide/remote-submission.md
+  - Home: index.md
+  - Get started:
+      - Choose your path: user-guide/start-here.md
+      - Install: user-guide/installation.md
+      - Your first Kubernetes job: user-guide/getting_started.md
+      - Supported Spark runtimes: user-guide/spark_compatibility.md
+  - Guides:
+      - Run applications:
+          - Portable job files: user-guide/jobs.md
+          - SQL jobs: user-guide/sql.md
+          - Driver pod templates: user-guide/driver_pod_templates.md
+          - Application examples: user-guide/examples.md
+          - ETL and lakehouse starters: user-guide/starters.md
+      - Integrate and automate:
+          - CLI automation and recovery: user-guide/automation.md
+          - Spark Connect: user-guide/spark_connect.md
+          - Airflow: user-guide/airflow.md
+          - Remote submission: user-guide/remote-submission.md
+  - Operate:
+      - Diagnose failures: user-guide/diagnostics.md
       - Run history and health: user-guide/run-history.md
-      - Driver pod templates: user-guide/driver_pod_templates.md
-      - Spark Compatibility: user-guide/spark_compatibility.md
-      - ETL and Lakehouse Starters: user-guide/starters.md
-      - SQL Jobs: user-guide/sql.md
-      - Airflow: user-guide/airflow.md
-      - Support and compatibility: user-guide/support.md
+      - Deploy the chart: user-guide/chart-deployments.md
       - Browser and gateway boundaries: security-boundaries.md
       - Operational boundaries: user-guide/operations.md
-      - Chart deployments: user-guide/chart-deployments.md
+      - Support and compatibility: user-guide/support.md
+  - Reference:
+      - Python API: reference/
+      - Helm values: helm-chart/
   - Contributing:
       - Development and testing: development.md
       - Releases: releases.md
       - Review decisions: review-decisions.md
-  - Code Reference: reference/
-  - Helm Chart: helm-chart/
 extra:
+  documentation:
+    channel: !ENV [DOCS_CHANNEL, local]
+    version: !ENV [DOCS_VERSION, local]
+    source_sha: !ENV [DOCS_SOURCE_SHA, ""]
   version:
     provider: mike
     default:

@@ -55,6 +55,7 @@ jobs:
           echo "CONDA_DEFAULT_ENV=" >> "$GITHUB_ENV"
           echo "CONDA_PREFIX=" >> "$GITHUB_ENV"
           echo "VIRTUAL_ENV=$GITHUB_WORKSPACE/.venv" >> "$GITHUB_ENV"
+          echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
           echo "UV_PROJECT_ENVIRONMENT=$GITHUB_WORKSPACE/.venv" >> "$GITHUB_ENV"
           echo "AIRFLOW_HOME=$RUNNER_TEMP/airflow" >> "$GITHUB_ENV"
       - name: Install documentation dependencies
@@ -69,20 +70,43 @@ jobs:
         run: git fetch origin gh-pages:gh-pages
       - name: Build Helm Docs
         run: .venv/bin/helm-mkdocs chart -o docs/helm-chart
-      - name: Deploy Docs
+      - name: Build versioned documentation locally
         env:
           PROMOTE_LATEST: ${{ steps.tag_eligibility.outputs.promote_latest }}
+          IS_PRERELEASE: ${{ steps.tag_eligibility.outputs.prerelease }}
         run: |
+          export DOCS_SOURCE_SHA="$(git rev-parse HEAD)"
+          aliases=()
+          options=()
           if [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
-            .venv/bin/mike deploy --push develop
+            export DOCS_VERSION=develop DOCS_CHANNEL=develop
+            title="Development (unreleased)"
           elif [[ "$GITHUB_REF" == refs/tags/* ]]; then
-            version="${GITHUB_REF#refs/tags/}"
-            if [[ "$PROMOTE_LATEST" == "true" ]]; then
-              .venv/bin/mike deploy --push --update-aliases "$version" latest
-            else
-              .venv/bin/mike deploy --push "$version"
+            export DOCS_VERSION="$GITHUB_REF_NAME" DOCS_CHANNEL=release
+            title="$DOCS_VERSION"
+            if [[ "$IS_PRERELEASE" == "true" ]]; then
+              export DOCS_CHANNEL=prerelease
+              title="$DOCS_VERSION (prerelease)"
+            elif [[ "$PROMOTE_LATEST" == "true" ]]; then
+              options=(--update-aliases)
+              aliases=(latest)
             fi
           else
             echo "Not a deployable ref"
             exit 1
           fi
+          # mkdocs.yml makes mike's single inner build strict. Do not push yet.
+          .venv/bin/mike deploy --title "$title" \
+            --prop-set-string "source_sha=$DOCS_SOURCE_SHA" \
+            --prop-set-string "channel=$DOCS_CHANNEL" \
+            "${options[@]}" "$DOCS_VERSION" "${aliases[@]}"
+      - name: Check the generated pages before publication
+        run: .venv/bin/python scripts/check_docs.py site
+      - name: Preserve the checked documentation
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: documentation-site
+          path: site/
+          if-no-files-found: error
+      - name: Publish checked documentation
+        run: git push origin gh-pages:gh-pages

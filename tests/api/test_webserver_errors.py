@@ -16,8 +16,9 @@ def test_webserver_preserves_kubernetes_error_status(status, expected_status):
     app.include_router(router)
     app.add_route("/static/{path:path}", lambda request: Response(), name="static")
     error = ApiException(status=status, reason="Kubernetes request failed")
-    with mock.patch("spark_on_k8s.api.webserver.list_apps", side_effect=error):
-        response = TestClient(app).get("/webserver/apps")
+    with mock.patch("spark_on_k8s.api.webserver.AsyncHttpClientSingleton.client") as http_client:
+        http_client.return_value.send = mock.AsyncMock(side_effect=error)
+        response = TestClient(app).get("/webserver/ui/analytics/app-1")
 
     assert response.status_code == expected_status
     assert response.headers["content-type"].startswith("text/html")

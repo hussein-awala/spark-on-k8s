@@ -4,6 +4,7 @@ from typing import Literal
 
 import click
 
+from spark_on_k8s.cli.automation import execute_submission, execution, output_option, timeout_option
 from spark_on_k8s.cli.options import (
     app_id_option,
     app_name_option,
@@ -59,11 +60,16 @@ class SparkAppCommand(click.Command):
     cls=SparkAppCommand,
     help="Get the status of a Spark application.",
 )
-def status(app_id: str, namespace: str):
+@output_option
+def status(app_id: str, namespace: str, output: str):
     from spark_on_k8s.utils.app_manager import SparkAppManager
 
-    app_manager = SparkAppManager()
-    print(app_manager.app_status(namespace=namespace, app_id=app_id).value)
+    with execution("status", namespace, output) as result:
+        result["app_id"] = app_id
+        result["status"] = None
+        result["status"] = SparkAppManager().app_status(namespace=namespace, app_id=app_id)
+        if output == "text":
+            click.echo(result["status"].value)
 
 
 @app_cli.command(cls=SparkAppCommand, help="Stream the logs of a Spark application.")
@@ -95,13 +101,31 @@ def delete(app_id: str, namespace: str, force: bool):
 
 
 @app_cli.command(cls=SparkAppCommand, help="Wait for a Spark application to finish.")
-def wait(app_id: str, namespace: str):
+@output_option
+@timeout_option
+def wait(app_id: str, namespace: str, output: str, timeout: float | None):
     from spark_on_k8s.utils.app_manager import SparkAppManager
+    from spark_on_k8s.utils.run import WaitDeadline
 
     app_manager = SparkAppManager()
-    app_manager.wait_for_app(namespace=namespace, app_id=app_id, should_print=True)
-    app_status = app_manager.app_status(namespace=namespace, app_id=app_id)
-    print(f"App {app_id} has terminated with status {app_status.value}")
+    with execution("wait", namespace, output) as result:
+        deadline = WaitDeadline(timeout)
+        result["app_id"] = app_id
+        result["status"] = None
+        app_manager.wait_for_app(
+            namespace=namespace,
+            app_id=app_id,
+            should_print=True,
+            **({"timeout": deadline.remaining()} if timeout is not None else {}),
+        )
+        result["status"] = app_manager.app_status(
+            namespace=namespace,
+            app_id=app_id,
+            **({"request_timeout": deadline.remaining()} if timeout is not None else {}),
+        )
+        deadline.remaining()
+        if output == "text":
+            click.echo(f"App {app_id} has terminated with status {result['status'].value}")
 
 
 @app_cli.command(
@@ -142,6 +166,8 @@ def wait(app_id: str, namespace: str):
     ],
     help="Submit a Spark application.",
 )
+@output_option
+@timeout_option
 @click.argument("app_arguments", nargs=-1, type=str)
 def submit(
     image: str,
@@ -178,34 +204,35 @@ def submit(
     executor_annotations: dict[str, str],
     executor_pod_template_path: str,
     executor_pod_template: str,
+    output: str,
+    timeout: float | None,
 ):
     from spark_on_k8s.client import ExecutorInstances, PodResources, SparkOnK8S
     from spark_on_k8s.utils.types import NOTSET
 
-    spark_client = SparkOnK8S()
-    spark_client.submit_app(
-        image=image,
-        app_path=path,
-        namespace=namespace,
-        service_account=service_account,
-        app_name=name,
-        spark_conf=spark_conf,
-        class_name=class_name,
-        app_waiter="log" if logs else "wait" if wait else "no_wait",
-        image_pull_policy=image_pull_policy,
-        ui_reverse_proxy=ui_reverse_proxy,
-        app_arguments=list(app_arguments) if app_arguments else NOTSET,
-        driver_resources=PodResources(
+    kwargs = {
+        "image": image,
+        "app_path": path,
+        "namespace": namespace,
+        "service_account": service_account,
+        "app_name": name,
+        "spark_conf": spark_conf,
+        "class_name": class_name,
+        "app_waiter": "log" if logs else "wait" if wait else "no_wait",
+        "image_pull_policy": image_pull_policy,
+        "ui_reverse_proxy": ui_reverse_proxy,
+        "app_arguments": list(app_arguments) if app_arguments else NOTSET,
+        "driver_resources": PodResources(
             cpu=driver_cpu,
             memory=driver_memory,
             memory_overhead=driver_memory_overhead,
         ),
-        executor_resources=PodResources(
+        "executor_resources": PodResources(
             cpu=executor_cpu,
             memory=executor_memory,
             memory_overhead=executor_memory_overhead,
         ),
-        executor_instances=ExecutorInstances(
+        "executor_instances": ExecutorInstances(
             min=executor_min_instances,
             max=executor_max_instances,
             initial=executor_initial_instances,
@@ -213,15 +240,16 @@ def submit(
             scheduler_backlog_timeout=scheduler_backlog_timeout,
             sustained_scheduler_backlog_timeout=sustained_scheduler_backlog_timeout,
         ),
-        should_print=True,
-        secret_values=secret_env_var,
-        driver_env_vars_from_secrets=driver_env_vars_from_secrets,
-        driver_node_selector=driver_node_selector,
-        executor_node_selector=executor_node_selector,
-        driver_labels=driver_labels,
-        executor_labels=executor_labels,
-        driver_annotations=driver_annotations,
-        executor_annotations=executor_annotations,
-        executor_pod_template_path=executor_pod_template_path,
-        executor_pod_template=executor_pod_template,
-    )
+        "should_print": True,
+        "secret_values": secret_env_var,
+        "driver_env_vars_from_secrets": driver_env_vars_from_secrets,
+        "driver_node_selector": driver_node_selector,
+        "executor_node_selector": executor_node_selector,
+        "driver_labels": driver_labels,
+        "executor_labels": executor_labels,
+        "driver_annotations": driver_annotations,
+        "executor_annotations": executor_annotations,
+        "executor_pod_template_path": executor_pod_template_path,
+        "executor_pod_template": executor_pod_template,
+    }
+    execute_submission(SparkOnK8S(), kwargs, output=output, timeout=timeout)

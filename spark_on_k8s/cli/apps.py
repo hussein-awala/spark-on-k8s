@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import click
 
+from spark_on_k8s.cli.automation import execution, output_option
 from spark_on_k8s.cli.options import namespace_option
 
 
@@ -17,10 +18,14 @@ class SparkAppsCommand(click.Command):
 
 
 @apps_cli.command(cls=SparkAppsCommand, help="List all Spark applications in a namespace.")
-def list(namespace: str):
+@output_option
+def list(namespace: str, output: str):
     from spark_on_k8s.utils.app_manager import SparkAppManager
 
-    app_manager = SparkAppManager()
-    apps = app_manager.list_apps(namespace=namespace)
-    for app in apps:
-        print(app)
+    with execution("list", namespace, output) as result:
+        result["items"] = None
+        apps = SparkAppManager().list_apps(namespace=namespace)
+        result["items"] = [{"app_id": app_id, "namespace": namespace} for app_id in apps]
+        if output == "text":
+            for app_id in apps:
+                click.echo(app_id)

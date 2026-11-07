@@ -76,6 +76,7 @@ nav:
       - Installation: user-guide/installation.md
       - Getting Started: user-guide/getting_started.md
       - Examples: user-guide/examples.md
+      - Automation: user-guide/automation.md
       - Airflow: user-guide/airflow.md
   - Code Reference: reference/
   - Helm Chart: helm-chart/

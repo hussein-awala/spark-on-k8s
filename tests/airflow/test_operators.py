@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import json
-from importlib.util import find_spec
 from unittest import mock
 
 import pytest
 from spark_on_k8s.utils.spark_app_status import SparkAppStatus
 
-pytestmark = pytest.mark.skipif(find_spec("airflow") is None, reason="Airflow extra is not installed")
+from conftest import AIRFLOW_INSTALLED
+
+pytestmark = pytest.mark.skipif(not AIRFLOW_INSTALLED, reason="Airflow extra is not installed")
 
 
 class TestSparkOnK8SOperator:

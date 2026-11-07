@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from importlib.util import find_spec
 from unittest import mock
 
 import pytest
 
-pytestmark = pytest.mark.skipif(find_spec("airflow") is None, reason="Airflow extra is not installed")
+from conftest import AIRFLOW_INSTALLED
+
+pytestmark = pytest.mark.skipif(not AIRFLOW_INSTALLED, reason="Airflow extra is not installed")
 
 
 class TestSparkOnK8SOperatorLink:

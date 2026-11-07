@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 
 from pyspark.sql import SparkSession
@@ -8,13 +9,12 @@ logger = logging.getLogger("SparkSqlOnK8s")
 
 
 def read_sql_file(file_path):
-    """
-    Reads an SQL file and splits commands by semicolon ";".
-    """
-    with open(file_path) as f:
-        file_content = f.read()
-    # Split commands by semicolon while ignoring empty lines
-    return [command.strip() for command in file_content.split(";") if command.strip()]
+    """Read the JSON array of SQL statements prepared by SparkSqlOnK8SOperator."""
+    with open(file_path, encoding="utf-8") as f:
+        commands = json.load(f)
+    if not isinstance(commands, list) or not all(isinstance(command, str) for command in commands):
+        raise ValueError("Expected a JSON array of SQL strings")
+    return commands
 
 
 def execute_sql_commands(spark_session: SparkSession, commands):
@@ -27,24 +27,22 @@ def execute_sql_commands(spark_session: SparkSession, commands):
             spark_session.sql(command).show(truncate=False)
         except Exception:
             logger.exception(f"Error executing SQL command: {command}")
+            raise
 
 
 if __name__ == "__main__":
     import sys
 
     if len(sys.argv) != 2:
-        logger.error("Usage: spark-submit run_sql_commands.py <path_to_sql_file>")
+        logger.error("Usage: spark-submit spark_sql.py <path_to_statements_json>")
         sys.exit(1)
 
     sql_file_path = sys.argv[1]
 
     _spark_session = SparkSession.builder.getOrCreate()
 
-    # Read SQL commands from file
-    sql_commands = read_sql_file(sql_file_path)
-
-    # Execute each SQL command
-    execute_sql_commands(_spark_session, sql_commands)
-
-    # Stop SparkSession
-    _spark_session.stop()
+    try:
+        sql_commands = read_sql_file(sql_file_path)
+        execute_sql_commands(_spark_session, sql_commands)
+    finally:
+        _spark_session.stop()

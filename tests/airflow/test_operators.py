@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from unittest import mock
 
 import pytest
@@ -223,6 +224,7 @@ class TestSparkOnK8SOperator:
     @pytest.mark.parametrize(
         "job_status, should_submit",
         [
+            (SparkAppStatus.Pending, False),
             (SparkAppStatus.Running, False),
             (SparkAppStatus.Succeeded, True),
             (SparkAppStatus.Failed, True),
@@ -254,6 +256,12 @@ class TestSparkOnK8SOperator:
             mock_submit_app.assert_called_once()
         else:
             mock_submit_app.assert_not_called()
+            mock_wait_for_app.assert_called_once_with(
+                namespace="test-namespace",
+                pod_name="existing-pod",
+                poll_interval=10,
+                startup_timeout=0,
+            )
 
     @pytest.mark.parametrize(
         "app_waiter",
@@ -345,15 +353,15 @@ class TestSparkSqlOnK8SOperator:
                             "text_path": f"{root_path}/spark_on_k8s/airflow/scripts/spark_sql.py",
                         },
                         {
-                            "name": "queries.sql",
-                            "text": "SELECT * FROM test_table",
+                            "name": "queries.json",
+                            "text": json.dumps(["SELECT * FROM test_table"]),
                         },
                     ],
                 }
             ],
             namespace="default",
             service_account="spark",
-            app_arguments=["/configmap/queries.sql"],
+            app_arguments=["/configmap/queries.json"],
             app_waiter="no_wait",
             image_pull_policy="IfNotPresent",
             app_name=None,
@@ -377,3 +385,51 @@ class TestSparkSqlOnK8SOperator:
             driver_tolerations=None,
             executor_pod_template_path=None,
         )
+
+
+@pytest.mark.skipif(PYTHON_313_OR_ABOVE, reason="Python 3.13+ is not supported by Airflow")
+@pytest.mark.parametrize(
+    "sql, expected",
+    [
+        ("SELECT 'a;b'; SELECT 2;", ["SELECT 'a;b'", "SELECT 2"]),
+        ('SELECT "a;b"; SELECT `c;d` FROM t;', ['SELECT "a;b"', "SELECT `c;d` FROM t"]),
+        ("SELECT 'it''s;a'; SELECT 2;", ["SELECT 'it''s;a'", "SELECT 2"]),
+        (
+            "-- heading; note\nSELECT 1;\n/* block; note */ SELECT 2;",
+            ["-- heading; note\nSELECT 1", "/* block; note */ SELECT 2"],
+        ),
+        ("/* only; comments */ -- more; comments\n", []),
+        ("; ; SELECT 1; ;", ["SELECT 1"]),
+    ],
+)
+@mock.patch("spark_on_k8s.airflow.operators.SparkOnK8SOperator.execute")
+def test_sql_statement_boundaries_are_preserved(mock_execute, sql, expected):
+    from spark_on_k8s.airflow.operators import SparkSqlOnK8SOperator
+
+    task = SparkSqlOnK8SOperator(task_id="sql_boundaries", image="pyspark-job", sql=sql)
+    task.render_template_fields(context={})
+    task.execute({})
+
+    sources = task.driver_ephemeral_configmaps_volumes[0]["sources"]
+    statements_source = next(source for source in sources if source["name"] == "queries.json")
+    assert json.loads(statements_source["text"]) == expected
+    assert task.app_arguments == ["/configmap/queries.json"]
+    mock_execute.assert_called_once_with({})
+
+
+@pytest.mark.skipif(PYTHON_313_OR_ABOVE, reason="Python 3.13+ is not supported by Airflow")
+@mock.patch("spark_on_k8s.airflow.operators.SparkOnK8SOperator.execute")
+def test_sql_file_is_rendered_before_splitting(mock_execute, tmp_path):
+    from spark_on_k8s.airflow.operators import SparkSqlOnK8SOperator
+
+    from airflow.models import DAG
+
+    (tmp_path / "queries.sql").write_text("SELECT '{{ value }}'; SELECT 2;")
+    dag = DAG(dag_id="sql_file", schedule=None, template_searchpath=[str(tmp_path)])
+    task = SparkSqlOnK8SOperator(task_id="sql_file", image="pyspark-job", sql="queries.sql", dag=dag)
+    task.render_template_fields(context={"value": "a;b"})
+    task.execute({})
+
+    sources = task.driver_ephemeral_configmaps_volumes[0]["sources"]
+    statements_source = next(source for source in sources if source["name"] == "queries.json")
+    assert json.loads(statements_source["text"]) == ["SELECT 'a;b'", "SELECT 2"]

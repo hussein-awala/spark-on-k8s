@@ -30,6 +30,10 @@ def test_overall_wait_deadline_covers_running_jobs_and_caps_sleep(monkeypatch):
 
 
 def test_quiet_log_watch_is_cancelled_and_closed_at_deadline(monkeypatch):
+    real_monotonic = time.monotonic
+    clock = [0.0]
+    # Mock setup must not consume the budget for cancelling an active stream.
+    monkeypatch.setattr(run, "time", SimpleNamespace(monotonic=lambda: clock[0], sleep=time.sleep))
     api = Mock()
     api.read_namespaced_pod.return_value = SimpleNamespace(
         status=SimpleNamespace(phase="Running"),
@@ -41,6 +45,7 @@ def test_quiet_log_watch_is_cancelled_and_closed_at_deadline(monkeypatch):
 
     class QuietWatch:
         def stream(self, *args, **kwargs):
+            clock[0] = 0.05
             assert 0 < kwargs["_request_timeout"] <= 0.05
             assert kwargs["container"] == "driver"
             try:
@@ -55,10 +60,10 @@ def test_quiet_log_watch_is_cancelled_and_closed_at_deadline(monkeypatch):
 
     monkeypatch.setattr(app_manager.watch, "Watch", QuietWatch)
     manager = app_manager.SparkAppManager(k8s_client_manager=MagicMock())
-    before = time.monotonic()
+    before = real_monotonic()
     with pytest.raises(TimeoutError, match="wait timeout"):
         manager.stream_logs(namespace="spark", pod_name="driver", timeout=0.05)
-    assert time.monotonic() - before < 1.5
+    assert real_monotonic() - before < 1.5
     assert stopped.is_set() and closed.is_set()
 
 

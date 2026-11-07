@@ -15,7 +15,10 @@ versions in older release notes are current tooling requirements.
    without a relevant change or unresolved concern.
 2. Use separate locked uv environments. For Airflow 2.11, begin without Airflow 3
    packages, install the legacy override, then use that environment's Python
-   directly. Never downgrade/reuse the Airflow 3 environment.
+   directly. Never downgrade/reuse the Airflow 3 environment. Give each version a
+   fresh scratch `AIRFLOW_HOME` and `AIRFLOW_CONFIG` before any Airflow import,
+   including focused reruns: separate virtual environments still share default
+   configuration/database state. Preserve the user's existing Airflow home.
 3. For packaging, imports or Airflow behavior, build and install the actual wheel,
    then use `python -I tests/run_installed_tests.py`. Check the interpreter and
    selected Airflow version. Exercise provider discovery and the native Airflow 3

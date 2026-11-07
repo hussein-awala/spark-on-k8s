@@ -59,15 +59,27 @@ Pass a test path or `-k` expression for the initial focused run. Install Helm fo
 chart tests. The CI profile requires collected tests and rejects skips; unavailable
 tools are not a passing result.
 
+A virtual environment isolates Python packages, but not Airflow's default home,
+configuration or metadata database. Each profile below uses its own fresh scratch
+`AIRFLOW_HOME` and `AIRFLOW_CONFIG` inside a subshell, before importing Airflow.
+This avoids Airflow 2 reading settings written by Airflow 3 (such as its XCom
+backend) and leaves the user's existing Airflow configuration untouched. Keep
+these settings on focused reruns too; do not copy one version's configuration into
+the other profile. Scratch homes remain available for inspecting failed runs.
+
 Airflow 3 (CI selects 3.4.0 on Python 3.11–3.14; use only `airflow-ui` so the
 standalone API extra cannot hide a missing native-UI dependency):
 
 ```bash
-UV_PROJECT_ENVIRONMENT=.venv-airflow3 uv sync --python 3.12 --locked --no-default-groups --group test --extra airflow-ui
-uv build --wheel
-uv pip install --python .venv-airflow3/bin/python --no-deps --reinstall dist/*.whl
-.venv-airflow3/bin/python -I tests/run_installed_tests.py tests/airflow
-uv pip check --python .venv-airflow3/bin/python
+(
+  export AIRFLOW_HOME="$(mktemp -d "${TMPDIR:-/tmp}/spark-airflow3.XXXXXX")"
+  export AIRFLOW_CONFIG="$AIRFLOW_HOME/airflow.cfg"
+  UV_PROJECT_ENVIRONMENT=.venv-airflow3 uv sync --python 3.12 --locked --no-default-groups --group test --extra airflow-ui
+  uv build --wheel
+  uv pip install --python .venv-airflow3/bin/python --no-deps --reinstall dist/*.whl
+  .venv-airflow3/bin/python -I tests/run_installed_tests.py tests/airflow
+  uv pip check --python .venv-airflow3/bin/python
+)
 ```
 
 Airflow 2.11.2 uses a **fresh separate environment** on Python 3.11 or 3.12 (the
@@ -75,13 +87,17 @@ CI legacy row uses 3.12). Never downgrade an Airflow 3 environment: its separate
 core/task-SDK packages can remain installed.
 
 ```bash
-UV_PROJECT_ENVIRONMENT=.venv-airflow211 uv sync --python 3.12 --locked --no-default-groups --group test
-uv pip install --python .venv-airflow211/bin/python '.[airflow]' 'apache-airflow==2.11.2'
-.venv-airflow211/bin/python -c 'import airflow; assert airflow.__version__ == "2.11.2"'
-uv build --wheel
-uv pip install --python .venv-airflow211/bin/python --no-deps --reinstall dist/*.whl
-.venv-airflow211/bin/python -I tests/run_installed_tests.py tests/airflow --ignore=tests/airflow/ui
-uv pip check --python .venv-airflow211/bin/python
+(
+  export AIRFLOW_HOME="$(mktemp -d "${TMPDIR:-/tmp}/spark-airflow211.XXXXXX")"
+  export AIRFLOW_CONFIG="$AIRFLOW_HOME/airflow.cfg"
+  UV_PROJECT_ENVIRONMENT=.venv-airflow211 uv sync --python 3.12 --locked --no-default-groups --group test
+  uv pip install --python .venv-airflow211/bin/python '.[airflow]' 'apache-airflow==2.11.2'
+  .venv-airflow211/bin/python -c 'import airflow; assert airflow.__version__ == "2.11.2"'
+  uv build --wheel
+  uv pip install --python .venv-airflow211/bin/python --no-deps --reinstall dist/*.whl
+  .venv-airflow211/bin/python -I tests/run_installed_tests.py tests/airflow --ignore=tests/airflow/ui
+  uv pip check --python .venv-airflow211/bin/python
+)
 ```
 
 Use the environment's Python directly after installing the wheel or legacy

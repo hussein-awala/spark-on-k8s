@@ -24,7 +24,7 @@ If release name contains chart name it will be used as a full name.
 {{- end }}
 
 {{- define "spark-on-k8s.sparkHistory.fullname" -}}
-{{- printf "%s-%s" (include "spark-on-k8s.fullname" .) "history" | trunc 63 | trimSuffix "-" }}
+{{- printf "%s-history" (include "spark-on-k8s.fullname" . | trunc 55 | trimSuffix "-") }}
 {{- end }}
 
 {{/*
@@ -58,7 +58,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 Spark history Selector labels
 */}}
 {{- define "spark-on-k8s.sparkHistory.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "spark-on-k8s.name" . }}-history
+app.kubernetes.io/name: {{ include "spark-on-k8s.name" . | trunc 55 | trimSuffix "-" }}-history
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 

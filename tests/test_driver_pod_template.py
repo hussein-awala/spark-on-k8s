@@ -315,3 +315,98 @@ def test_cli_passes_template_path_and_container_selection(tmp_path, monkeypatch)
     assert result.exit_code == 0, result.output
     assert mocked_submit.call_args.kwargs["driver_pod_template"] == str(path)
     assert mocked_submit.call_args.kwargs["driver_container_name"] == "spark-main"
+
+
+@pytest.mark.parametrize("value", [42, b"apiVersion: v1", "1: unsupported-key"])
+def test_invalid_template_input_types_fail_before_secret_or_pod_creation(submission, value):
+    with pytest.raises(ValueError):
+        submission.submit(driver_pod_template=value, secret_values={"TOKEN": "private"})
+    submission.clients.client.assert_not_called()
+    assert submission.api.mock_calls == []
+
+
+@pytest.mark.parametrize("string_path", [False, True])
+def test_non_utf8_template_file_fails_before_any_kubernetes_operation(submission, tmp_path, string_path):
+    path = tmp_path / "driver.yaml"
+    path.write_bytes(b"apiVersion: v1\nkind: Pod\n# \xff")
+    with pytest.raises(UnicodeDecodeError):
+        submission.submit(driver_pod_template=str(path) if string_path else path)
+    submission.clients.client.assert_not_called()
+    assert submission.api.mock_calls == []
+
+
+def test_template_file_that_becomes_unreadable_fails_before_any_kubernetes_operation(
+    submission, tmp_path, monkeypatch
+):
+    path = tmp_path / "driver.yaml"
+    path.write_text("apiVersion: v1", encoding="utf-8")
+
+    def unreadable(self, *args, **kwargs):
+        raise PermissionError("File permissions changed after the existence check")
+
+    monkeypatch.setattr(Path, "read_text", unreadable)
+    with pytest.raises(ValueError, match="Cannot read driver pod template file"):
+        submission.submit(driver_pod_template=str(path))
+    submission.clients.client.assert_not_called()
+    assert submission.api.mock_calls == []
+
+
+def test_yaml_text_survives_filesystem_probe_failure(monkeypatch):
+    def cannot_probe(self):
+        raise OSError("Input exceeds the filesystem filename limit")
+
+    monkeypatch.setattr(Path, "is_file", cannot_probe)
+    template = load_driver_pod_template("{apiVersion: v1, kind: Pod, spec: {containers: [{name: driver}]}}")
+    assert template["spec"]["containers"] == [{"name": "driver"}]
+
+
+@pytest.mark.parametrize(
+    "field,entry",
+    [
+        ("volumes", {"name": ""}),
+        ("initContainers", {"image": "spark:test"}),
+        ("imagePullSecrets", {"name": 42}),
+    ],
+)
+def test_missing_named_pod_entries_are_rejected_before_writes(submission, template, field, entry):
+    template["spec"][field] = [entry]
+    with pytest.raises(ValueError, match="require a nonempty name"):
+        submission.submit(driver_pod_template=template, driver_container_name="spark-main")
+    submission.clients.client.assert_not_called()
+    assert submission.api.mock_calls == []
+
+
+@pytest.mark.parametrize(
+    "field,entry,message",
+    [
+        ("env", {"value": "example"}, "name"),
+        ("volumeMounts", {"name": "scratch"}, "mountPath"),
+    ],
+)
+def test_missing_named_container_entries_are_rejected_before_writes(
+    submission, template, field, entry, message
+):
+    template["spec"]["containers"][1][field] = [entry]
+    with pytest.raises(ValueError, match=f"require a nonempty {message}"):
+        submission.submit(driver_pod_template=template, driver_container_name="spark-main")
+    submission.clients.client.assert_not_called()
+    assert submission.api.mock_calls == []
+
+
+def test_explicit_tolerations_extend_template_without_duplicates_or_input_mutation(submission, template):
+    template["spec"]["tolerations"] = [{"key": "batch", "operator": "Exists"}]
+    before = deepcopy(template)
+    submission.submit(
+        driver_pod_template=template,
+        driver_container_name="spark-main",
+        driver_tolerations=[
+            k8s.V1Toleration(key="batch", operator="Exists"),
+            k8s.V1Toleration(key="dedicated", operator="Equal", value="spark", effect="NoSchedule"),
+        ],
+    )
+    result = submission.api.create_namespaced_pod.call_args.kwargs["body"]
+    assert result["spec"]["tolerations"] == [
+        {"key": "batch", "operator": "Exists"},
+        {"key": "dedicated", "operator": "Equal", "value": "spark", "effect": "NoSchedule"},
+    ]
+    assert template == before

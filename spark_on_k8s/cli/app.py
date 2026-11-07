@@ -223,5 +223,5 @@ def submit(
         driver_annotations=driver_annotations,
         executor_annotations=executor_annotations,
         executor_pod_template_path=executor_pod_template_path,
-        executor_template=executor_pod_template,
+        executor_pod_template=executor_pod_template,
     )

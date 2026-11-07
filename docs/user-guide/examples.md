@@ -248,7 +248,7 @@ spark_client.submit_app(
 
 The package provides an enhanced way to configure executor pod templates compared to Spark's built-in `spark.kubernetes.executor.podTemplateFile` configuration.
 
-Instead of manually creating ConfigMaps and managing volume mounts, you can use the `executor_template` parameter that accepts either:
+Instead of manually creating ConfigMaps and managing volume mounts, you can use the `executor_pod_template` parameter that accepts either:
 - Template content as a string (YAML)
 - Path to a local template file
 
@@ -256,7 +256,7 @@ The package automatically:
 1. Creates a ConfigMap with the template content
 2. Mounts it to the driver pod (so the driver can validate the template)
 3. Configures Spark to use the template for executor pods
-4. Cleans up the ConfigMap when the application finishes
+4. Sets the driver pod as the ConfigMap owner, so Kubernetes cleans up the ConfigMap when that pod is deleted
 
 **Using template content as string:**
 ```python
@@ -286,8 +286,9 @@ spec:
 """
 
 spark_client.submit_app(
-    ...,
-    executor_template=executor_template_yaml,
+    image="pyspark-job",
+    app_path="local:///opt/spark/work-dir/job.py",
+    executor_pod_template=executor_template_yaml,
 )
 ```
 
@@ -295,19 +296,21 @@ spark_client.submit_app(
 ```python
 # Save your template to a file, e.g., executor-template.yaml
 spark_client.submit_app(
-    ...,
-    executor_template="./executor-template.yaml",
+    image="pyspark-job",
+    app_path="local:///opt/spark/work-dir/job.py",
+    executor_pod_template="./executor-template.yaml",
 )
 ```
 
 **Via CLI:**
 ```bash
 # Using template file
-spark-on-k8s submit --executor-template ./executor-template.yaml ...
+spark-on-k8s app submit --image pyspark-job --path local:///opt/spark/work-dir/job.py \
+    --executor-template ./executor-template.yaml
 
 # You can also set it via environment variable
 export SPARK_ON_K8S_EXECUTOR_TEMPLATE="./executor-template.yaml"
-spark-on-k8s submit ...
+spark-on-k8s app submit --image pyspark-job --path local:///opt/spark/work-dir/job.py
 ```
 
-**Note:** The `executor_template` parameter takes precedence over `executor_pod_template_path`. If you need to use external template files (S3, GCS, etc.), use `executor_pod_template_path` instead.
+**Note:** `executor_pod_template` and `executor_pod_template_path` are mutually exclusive. Use `executor_pod_template_path` (or `--executor-pod-template-path` in the CLI) for a template path already available to the Spark driver. Do not configure both options, including through environment defaults.

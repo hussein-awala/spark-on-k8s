@@ -1,14 +1,15 @@
 from __future__ import annotations
 
+import hashlib
 import logging
 import re
-import yaml
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Literal
 
+import yaml
 from kubernetes import client as k8s
 
 from spark_on_k8s.k8s.sync_client import KubernetesClientManager
@@ -116,37 +117,37 @@ class SparkOnK8S(LoggingMixin):
 
     def _process_executor_template(self, executor_template: str) -> str:
         """Process executor template string, reading from file if it's a file path.
-        
+
         Args:
             executor_template: Either template content as string or path to template file
-            
+
         Returns:
             Template content as string
-            
+
         Raises:
             ValueError: If the resulting content is not valid YAML
         """
         # Try to read from file first, if that fails use the string as-is
         try:
             template_path = Path(executor_template).expanduser()
-            content = template_path.read_text(encoding='utf-8')
+            content = template_path.read_text(encoding="utf-8")
         except (OSError, PermissionError):
             # Not a valid file path, use as content
             content = executor_template
-        
+
         # Validate that the content is valid YAML and expected Kubernetes resource
         try:
             parsed = yaml.safe_load(content)
         except yaml.YAMLError as e:
             raise ValueError(f"Executor template contains invalid YAML: {e}") from e
-        
+
         # Check if it's a proper Kubernetes resource structure
         if not isinstance(parsed, dict):
             raise ValueError("Executor template must be a Kubernetes resource (YAML object)")
-        
-        if parsed.get('kind') != 'Pod':
+
+        if parsed.get("kind") != "Pod":
             raise ValueError("Executor template must be a Kubernetes Pod resource (kind: Pod)")
-            
+
         return content
 
     def submit_app(
@@ -340,7 +341,6 @@ class SparkOnK8S(LoggingMixin):
         if executor_pod_template_path is NOTSET or executor_pod_template_path is None:
             executor_pod_template_path = Configuration.SPARK_ON_K8S_EXECUTOR_POD_TEMPLATE_PATH
         if executor_pod_template is NOTSET or executor_pod_template is None:
-            
             executor_pod_template = Configuration.SPARK_ON_K8S_EXECUTOR_TEMPLATE
         if startup_timeout is NOTSET:
             startup_timeout = Configuration.SPARK_ON_K8S_STARTUP_TIMEOUT
@@ -410,37 +410,41 @@ class SparkOnK8S(LoggingMixin):
         executor_template_configmap = None
         if executor_pod_template and executor_pod_template_path:
             raise ValueError(
-                "Both executor_template and executor_pod_template_path are provided. "
+                "Both executor_pod_template and executor_pod_template_path are provided. "
                 "Please provide only one of them."
             )
 
         if executor_pod_template:
             # Process the template (read from file if it's a path, otherwise use as content)
             template_content = self._process_executor_template(executor_pod_template)
-            
-            # Create a ConfigMap for the executor template
+
+            # ConfigMap names are reused as volume names, which are limited to 63 characters.
+            template_configmap_name = f"{app_id}-executor-template"
+            if len(template_configmap_name) > 63:
+                # Hash the full ID so truncating the readable prefix preserves uniqueness.
+                app_id_digest = hashlib.sha256(app_id.encode("utf-8")).hexdigest()[:32]
+                template_configmap_name = f"{app_id[:12]}-{app_id_digest}-executor-template"
             executor_template_configmap = {
-                "name": f"{app_id}-executor-template",
+                "name": template_configmap_name,
                 "mount_path": "/opt/spark/executor-template",
-                "sources": [{
-                    "name": "executor-template.yaml",
-                    "text": template_content
-                }]
+                "sources": [{"name": "executor-template.yaml", "text": template_content}],
             }
-            
+
             # Set Spark configuration to use the mounted template
-            basic_conf.update(self._executor_pod_template_path("/opt/spark/executor-template/executor-template.yaml"))
+            basic_conf.update(
+                self._executor_pod_template_path("/opt/spark/executor-template/executor-template.yaml")
+            )
 
         elif executor_pod_template_path:
             # Handle external executor pod template path (S3, GCS, etc.)
             basic_conf.update(self._executor_pod_template_path(executor_pod_template_path))
-        
+
         # Process executor volume mounts before building driver command args
         if executor_volume_mounts:
             basic_conf.update(
                 self._executor_volumes_config(volumes=volumes, volume_mounts=executor_volume_mounts)
             )
-        
+
         driver_command_args = ["driver", "--master", "k8s://https://kubernetes.default.svc.cluster.local:443"]
         if class_name:
             driver_command_args.extend(["--class", class_name])
@@ -453,11 +457,11 @@ class SparkOnK8S(LoggingMixin):
         all_configmaps = []
         if driver_ephemeral_configmaps_volumes:
             all_configmaps.extend(driver_ephemeral_configmaps_volumes)
-        
+
         # Add executor template ConfigMap if present
         if executor_template_configmap:
             all_configmaps.append(executor_template_configmap)
-        
+
         if all_configmaps:
             application_configmaps_volumes = self.app_manager.create_configmap_objects(
                 app_name=app_name,
@@ -472,7 +476,7 @@ class SparkOnK8S(LoggingMixin):
                         config_map=k8s.V1ConfigMapVolumeSource(name=configmap.metadata.name),
                     )
                 )
-                
+
                 configmap_mount_path = all_configmaps[ind]["mount_path"]
                 driver_volume_mounts.append(
                     k8s.V1VolumeMount(
@@ -482,7 +486,6 @@ class SparkOnK8S(LoggingMixin):
                 )
         else:
             application_configmaps_volumes = []
-
 
         pod = SparkAppManager.create_spark_pod_spec(
             app_name=app_name,

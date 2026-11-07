@@ -6,14 +6,16 @@ This is a list of things that we will work on in the future. If you want to cont
 
 - [ ] Support more Spark configuration options
 - [ ] Simplify setup to work with cloud provider services (e.g. S3, GCS, Glue, etc.)
-- [ ] Support creating of K8S ephemeral secrets to store and use credentials, configmaps for env vars, etc.
+- [x] Create ephemeral Kubernetes Secrets for application environment variables.
+- [ ] Support ConfigMaps as sources of environment variables.
 - [ ] Support configuring Kubernetes client from cloud provider credentials
 (e.g. AWS access/secret keys, GCP service account, etc.)
 
 ## API / Web UI
 
 - [ ] Improve the UI to be more user-friendly and add more features
-- [ ] Support managing the Spark application from the UI and the API (e.g. kill, delete, submit, etc.)
+- [x] Kill and delete applications through the API and web UI.
+- [ ] Submit applications through the API and web UI.
 - [ ] Support authentication and RBAC for the API and the UI (e.g. only allow certain users to submit apps, etc.)
 
 ## CLI
@@ -24,10 +26,9 @@ This is a list of things that we will work on in the future. If you want to cont
 ## Airflow Operator
 
 - [ ] Support all the added features in the Python client
-- [ ] Adopting the existing Spark application after a failure (e.g. when the Airflow worker pod is restarted)
+- [x] Adopt Pending or Running applications using the namespace and driver pod stored in XCom.
 - [ ] Find a way to read the logs from the trigger instead of waiting for the app to finish
-- [ ] Create an operator extra link for the Spark UI when the reverse proxy is enabled
-(and maybe the spark history server)
+- [x] Provide operator extra links to the Spark UI and Spark History Server through the API.
 
 ## CI compatibility follow-up
 
@@ -35,6 +36,8 @@ This is a list of things that we will work on in the future. If you want to cont
   Python 3.11–3.15 on Linux and macOS ARM64 with separate Airflow 3 and 2.11 checks.
 - [x] Replace the package manager and build backend with uv, preserving installed
   Airflow provider discovery and Spark UI links.
+- [ ] Migrate the external Snyk dependency project from Poetry to a scan that
+  includes uv extras and dependency groups.
 
 ## Other
 

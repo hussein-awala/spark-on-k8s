@@ -160,18 +160,18 @@ class AsyncSparkAppManager(LoggingMixin):
                 )
                 if pod.status.phase != "Pending":
                     break
+                await asyncio.sleep(5)
 
-            watcher = watch.Watch()
-            log_streamer = watcher.stream(
-                api.read_namespaced_pod_log,
-                namespace=namespace,
-                name=pod_name,
-                tail_lines=tail_lines if tail_lines > 0 else None,
-                follow=True,
-            )
-            async for line in log_streamer:
-                yield line
-            watcher.stop()
+            async with watch.Watch() as watcher:
+                log_streamer = watcher.stream(
+                    api.read_namespaced_pod_log,
+                    namespace=namespace,
+                    name=pod_name,
+                    tail_lines=tail_lines if tail_lines > 0 else None,
+                    follow=True,
+                )
+                async for line in log_streamer:
+                    yield line
 
     async def kill_app(
         self,

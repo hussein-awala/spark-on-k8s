@@ -31,7 +31,10 @@ def test_overall_wait_deadline_covers_running_jobs_and_caps_sleep(monkeypatch):
 
 def test_quiet_log_watch_is_cancelled_and_closed_at_deadline(monkeypatch):
     api = Mock()
-    api.read_namespaced_pod.return_value = SimpleNamespace(status=SimpleNamespace(phase="Running"))
+    api.read_namespaced_pod.return_value = SimpleNamespace(
+        status=SimpleNamespace(phase="Running"),
+        spec=SimpleNamespace(containers=[SimpleNamespace(name="driver")]),
+    )
     monkeypatch.setattr(app_manager.k8s, "CoreV1Api", Mock(return_value=api))
     stopped = threading.Event()
     closed = threading.Event()
@@ -39,6 +42,7 @@ def test_quiet_log_watch_is_cancelled_and_closed_at_deadline(monkeypatch):
     class QuietWatch:
         def stream(self, *args, **kwargs):
             assert 0 < kwargs["_request_timeout"] <= 0.05
+            assert kwargs["container"] == "driver"
             try:
                 assert stopped.wait(2), "The deadline failed to cancel a silent stream"
                 return
@@ -60,7 +64,10 @@ def test_quiet_log_watch_is_cancelled_and_closed_at_deadline(monkeypatch):
 
 def test_log_stream_closes_generator_on_keyboard_interrupt(monkeypatch):
     api = Mock()
-    api.read_namespaced_pod.return_value = SimpleNamespace(status=SimpleNamespace(phase="Running"))
+    api.read_namespaced_pod.return_value = SimpleNamespace(
+        status=SimpleNamespace(phase="Running"),
+        spec=SimpleNamespace(containers=[SimpleNamespace(name="driver")]),
+    )
     monkeypatch.setattr(app_manager.k8s, "CoreV1Api", Mock(return_value=api))
     closed = []
 

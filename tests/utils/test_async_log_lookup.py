@@ -16,7 +16,14 @@ def log_lookup(monkeypatch):
             items=[SimpleNamespace(metadata=SimpleNamespace(name="selected-driver"))]
         )
     )
-    api.read_namespaced_pod = AsyncMock(return_value=SimpleNamespace(status=SimpleNamespace(phase="Running")))
+    api.read_namespaced_pod = AsyncMock(
+        return_value=SimpleNamespace(
+            status=SimpleNamespace(phase="Running"),
+            spec=SimpleNamespace(
+                containers=[SimpleNamespace(name="spark-driver"), SimpleNamespace(name="metrics")]
+            ),
+        )
+    )
     context = AsyncMock()
     context.__aexit__.return_value = False
     clients = Mock()
@@ -60,6 +67,7 @@ def test_async_logs_resolve_app_id_and_forward_tail_limit(log_lookup, tail_lines
         log_lookup.api.read_namespaced_pod_log,
         namespace="analytics",
         name="selected-driver",
+        container="spark-driver",
         tail_lines=tail_lines if tail_lines > 0 else None,
         follow=True,
     )

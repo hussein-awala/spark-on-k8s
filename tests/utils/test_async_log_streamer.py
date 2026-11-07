@@ -17,7 +17,12 @@ def test_pending_log_stream_waits_between_status_requests(monkeypatch):
     async def read_pod(**kwargs):
         phase = next(phases)
         calls.append(("read", phase))
-        return SimpleNamespace(status=SimpleNamespace(phase=phase))
+        return SimpleNamespace(
+            status=SimpleNamespace(phase=phase),
+            spec=SimpleNamespace(
+                containers=[SimpleNamespace(name="spark-driver"), SimpleNamespace(name="metrics")]
+            ),
+        )
 
     api.read_namespaced_pod = AsyncMock(side_effect=read_pod)
     monkeypatch.setattr(async_app_manager.k8s_async, "CoreV1Api", Mock(return_value=api))
@@ -50,7 +55,14 @@ def test_pending_log_stream_waits_between_status_requests(monkeypatch):
 @pytest.mark.parametrize("termination", ["exhausted", "error", "consumer_close", "cancelled"])
 def test_log_stream_closes_watch_resources(monkeypatch, termination):
     api = MagicMock()
-    api.read_namespaced_pod = AsyncMock(return_value=SimpleNamespace(status=SimpleNamespace(phase="Running")))
+    api.read_namespaced_pod = AsyncMock(
+        return_value=SimpleNamespace(
+            status=SimpleNamespace(phase="Running"),
+            spec=SimpleNamespace(
+                containers=[SimpleNamespace(name="spark-driver"), SimpleNamespace(name="metrics")]
+            ),
+        )
+    )
     monkeypatch.setattr(async_app_manager.k8s_async, "CoreV1Api", Mock(return_value=api))
     client_manager = MagicMock()
     manager = async_app_manager.AsyncSparkAppManager(k8s_client_manager=client_manager)

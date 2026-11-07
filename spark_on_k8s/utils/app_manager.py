@@ -244,6 +244,7 @@ class SparkAppManager(LoggingMixin):
                             api.read_namespaced_pod_log,
                             namespace=namespace,
                             name=pod_name,
+                            container=pod.spec.containers[0].name,
                             **deadline.request_options(),
                         )
                         for line in stream:

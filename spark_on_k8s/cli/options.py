@@ -315,3 +315,15 @@ executor_template_option = click.Option(
     show_default=False,
     help="Executor pod template content as string or local file path.",
 )
+
+
+driver_pod_template_option = click.Option(
+    ("--driver-pod-template",),
+    type=str,
+    help="Driver Pod YAML text or local template file path.",
+)
+driver_container_name_option = click.Option(
+    ("--driver-container-name",),
+    type=str,
+    help="Driver container to select from the template; defaults to driver or the sole container.",
+)

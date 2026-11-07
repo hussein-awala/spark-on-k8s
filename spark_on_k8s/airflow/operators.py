@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import contextlib
+import json
 import time
 from dataclasses import replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
+import sqlparse
 
 from airflow.exceptions import AirflowException
 from airflow.models import BaseOperator
@@ -529,7 +532,9 @@ class SparkSqlOnK8SOperator(SparkOnK8SOperator):
     """Execute Spark SQL commands on Kubernetes.
 
     This operator passes the SQL commands to a Python script that runs them on Spark,
-    that's why it requires a PySpark docker image.
+    that's why it requires a PySpark docker image. SQL is split into statements before
+    submission, so semicolons inside quoted strings or comments remain intact. The
+    internal runner receives a JSON statement list and does not require a SQL parser.
 
     Args:
         sql (str): SQL commands to execute.
@@ -547,12 +552,17 @@ class SparkSqlOnK8SOperator(SparkOnK8SOperator):
     def __init__(self, sql: str, **kwargs):
         super().__init__(
             app_path="/configmap/spark_sql.py",
-            app_arguments=literal(["/configmap/queries.sql"]),
+            app_arguments=literal(["/configmap/queries.json"]),
             **kwargs,
         )
         self.sql = sql
 
     def execute(self, context: Context):
+        statements = [
+            statement
+            for statement in sqlparse.split(self.sql, strip_semicolon=True)
+            if sqlparse.format(statement, strip_comments=True).strip()
+        ]
         self.driver_ephemeral_configmaps_volumes = [
             {
                 "mount_path": "/configmap",
@@ -562,8 +572,8 @@ class SparkSqlOnK8SOperator(SparkOnK8SOperator):
                         "text_path": f"{Path(__file__).parent}/scripts/spark_sql.py",
                     },
                     {
-                        "name": "queries.sql",
-                        "text": self.sql,
+                        "name": "queries.json",
+                        "text": json.dumps(statements),
                     },
                 ],
             }

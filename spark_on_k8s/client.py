@@ -13,6 +13,7 @@ import yaml
 from kubernetes import client as k8s
 
 from spark_on_k8s.k8s.sync_client import KubernetesClientManager
+from spark_on_k8s.planning import ApplicationPlan
 from spark_on_k8s.utils.app_manager import SparkAppManager
 from spark_on_k8s.utils.configuration import Configuration
 from spark_on_k8s.utils.driver_pod_template import load_driver_pod_template, merge_driver_pod_template
@@ -204,7 +205,8 @@ class SparkOnK8S(LoggingMixin):
         driver_host_aliases: list[k8s.V1HostAlias] | ArgNotSet = NOTSET,
         driver_pod_template: str | Path | Mapping[str, Any] | None = None,
         driver_container_name: str | None = None,
-    ) -> str:
+        dry_run: bool = False,
+    ) -> str | ApplicationPlan:
         """Submit a Spark app to Kubernetes
 
         Args:
@@ -255,6 +257,7 @@ class SparkOnK8S(LoggingMixin):
                 Generated identity and launch settings override the template; other fields are preserved.
             driver_container_name: Container to use as the driver in the template. Defaults to the
                 container named "driver", or the sole container. Ambiguous templates are rejected.
+            dry_run: Build an offline plan without opening a Kubernetes connection or creating resources.
 
         Returns:
             Name of the Spark application pod. The same identity is available as last_submitted_run.
@@ -262,8 +265,9 @@ class SparkOnK8S(LoggingMixin):
         The optional wait_timeout bounds observation after resource creation, in seconds.
         It does not stop or delete the application. None preserves unlimited waiting.
         """
-        self.last_submitted_run = None
-        self.last_submitted_app_id = None
+        if not dry_run:
+            self.last_submitted_run = None
+            self.last_submitted_app_id = None
         WaitDeadline(wait_timeout)
         if driver_container_name is not None and driver_pod_template is None:
             raise ValueError("driver_container_name requires driver_pod_template")
@@ -338,8 +342,8 @@ class SparkOnK8S(LoggingMixin):
         app_name, app_id = self._parse_app_name_and_id(
             app_name=app_name, app_id_suffix=app_id_suffix, should_print=should_print
         )
-        if secret_values is not NOTSET and secret_values:
-            env_from_secrets = [app_id]
+        if secret_values is not NOTSET and secret_values is not None:
+            env_from_secrets = [app_id] if secret_values else []
         else:
             secret_values = Configuration.SPARK_ON_K8S_SECRET_ENV_VAR
             env_from_secrets = [app_id] if secret_values else []
@@ -355,6 +359,9 @@ class SparkOnK8S(LoggingMixin):
             driver_volume_mounts = []
         if executor_volume_mounts is NOTSET or executor_volume_mounts is None:
             executor_volume_mounts = []
+        volumes = list(volumes)
+        driver_volume_mounts = list(driver_volume_mounts)
+        executor_volume_mounts = list(executor_volume_mounts)
         if driver_node_selector is NOTSET or driver_node_selector is None:
             driver_node_selector = {}
         if executor_node_selector is NOTSET or executor_node_selector is None:
@@ -554,6 +561,39 @@ class SparkOnK8S(LoggingMixin):
         )
         if template is not None:
             pod = merge_driver_pod_template(pod, template, driver_container_name)
+        if dry_run:
+            objects = [("ConfigMap", item) for item in application_configmaps_volumes]
+            if secret_values:
+                objects.insert(
+                    0,
+                    (
+                        "Secret",
+                        self.app_manager.create_secret_object(
+                            app_name=app_name,
+                            app_id=app_id,
+                            secrets_values=secret_values,
+                            namespace=namespace,
+                        ),
+                    ),
+                )
+            objects.extend(
+                [
+                    ("Pod", pod),
+                    (
+                        "Service",
+                        SparkAppManager.create_headless_service_object(
+                            app_name=app_name, app_id=app_id, namespace=namespace, extra_labels=extra_labels
+                        ),
+                    ),
+                ]
+            )
+            with k8s.ApiClient() as serializer:
+                resources = tuple(
+                    {**serializer.sanitize_for_serialization(item), "apiVersion": "v1", "kind": kind}
+                    for kind, item in objects
+                )
+            pod_name = pod["metadata"]["name"] if isinstance(pod, dict) else pod.metadata.name
+            return ApplicationPlan(namespace, app_id, pod_name, resources)
         with self.k8s_client_manager.client() as client:
             api = k8s.CoreV1Api(client)
             if secret_values:
@@ -629,6 +669,15 @@ class SparkOnK8S(LoggingMixin):
                 **({"timeout": deadline.remaining()} if wait_timeout is not None else {}),
             )
         return pod.metadata.name
+
+    def plan_app(self, **kwargs) -> ApplicationPlan:
+        """Render a deterministic offline preview using the same builder as submission."""
+        kwargs.setdefault("app_id_suffix", lambda: "-preview")
+        kwargs["dry_run"] = True
+        kwargs["should_print"] = False
+        result = self.submit_app(**kwargs)
+        assert isinstance(result, ApplicationPlan)
+        return result
 
     def _parse_app_name_and_id(
         self,

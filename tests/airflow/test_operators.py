@@ -58,6 +58,8 @@ class TestSparkOnK8SOperator:
                     ],
                 },
             ],
+            driver_env_vars_from_secrets=None,
+            executor_pod_template=None,
             executor_pod_template_path="s3a://bucket/executor.yml",
             spark_on_k8s_service_url="http://localhost:8000",
         )
@@ -102,6 +104,8 @@ class TestSparkOnK8SOperator:
                     ],
                 },
             ],
+            driver_env_vars_from_secrets=None,
+            executor_pod_template=None,
             executor_pod_template_path="s3a://bucket/executor.yml",
         )
         assert ti_mock.xcom_push.call_count == 3
@@ -217,6 +221,8 @@ class TestSparkOnK8SOperator:
             driver_annotations=None,
             executor_annotations=None,
             driver_tolerations=None,
+            driver_env_vars_from_secrets=None,
+            executor_pod_template=None,
             executor_pod_template_path=None,
             driver_ephemeral_configmaps_volumes=None,
         )
@@ -384,6 +390,8 @@ class TestSparkSqlOnK8SOperator:
             driver_annotations=None,
             executor_annotations=None,
             driver_tolerations=None,
+            driver_env_vars_from_secrets=None,
+            executor_pod_template=None,
             executor_pod_template_path=None,
         )
 
@@ -431,3 +439,34 @@ def test_sql_file_is_rendered_before_splitting(mock_execute, tmp_path):
     sources = task.driver_ephemeral_configmaps_volumes[0]["sources"]
     statements_source = next(source for source in sources if source["name"] == "queries.json")
     assert json.loads(statements_source["text"]) == ["SELECT 'a;b'", "SELECT 2"]
+
+
+def test_job_spec_reuses_configuration_and_secret_references():
+    from spark_on_k8s.airflow.operators import SparkOnK8SOperator
+    from spark_on_k8s.jobs import JobSpec
+
+    job = JobSpec.from_mapping(
+        {
+            "apiVersion": "spark-on-k8s/v1",
+            "kind": "SparkJob",
+            "metadata": {"name": "portable"},
+            "spec": {
+                "image": "spark:4.0.5",
+                "app_path": "local:///job.py",
+                "driver_env_vars_from_secrets": ["existing-secret"],
+                "executor_pod_template": {
+                    "apiVersion": "v1",
+                    "kind": "Pod",
+                    "spec": {"containers": [{"name": "executor"}]},
+                },
+            },
+        }
+    )
+    operator = SparkOnK8SOperator(task_id="portable", **job.to_operator_kwargs())
+    with mock.patch("spark_on_k8s.client.SparkOnK8S.submit_app", return_value="portable-driver") as submit:
+        operator.execute({"ti": mock.MagicMock(xcom_pull=mock.MagicMock(return_value=None))})
+    kwargs = submit.call_args.kwargs
+    assert kwargs["driver_env_vars_from_secrets"] == ["existing-secret"]
+    assert "kind: Pod" in kwargs["executor_pod_template"]
+    assert kwargs["secret_values"] == {}
+    assert kwargs["executor_instances"].initial == 2

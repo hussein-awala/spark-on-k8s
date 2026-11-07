@@ -232,6 +232,7 @@ def test_kubernetes_failures_are_sanitized_and_never_retried(server):
     [
         ("GET", "/apps/list_apps/analytics"),
         ("GET", "/webserver/api/apps?namespace=analytics"),
+        ("GET", "/webserver/api/apps/analytics/pods/run/diagnostics"),
         ("PATCH", "/app/analytics/run"),
         ("DELETE", "/app/analytics/run"),
         ("GET", "/webserver/logs/analytics/run"),

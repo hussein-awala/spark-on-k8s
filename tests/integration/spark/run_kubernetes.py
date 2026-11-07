@@ -140,11 +140,25 @@ def run_case(api, submitter: SparkOnK8S, args, namespace: str, scenario: str):
         assert pod.status.phase == "Succeeded", f"{scenario} failed: {logs[-4000:]}"
         assert marker in logs, f"Expected actual execution marker {marker}"
         assert executors, f"{scenario} did not create an owned executor pod"
+    diagnosis = submitter.diagnose_app(namespace=namespace, pod_name=pod_name)
+    (args.artifacts / f"{scenario}-diagnosis.json").write_text(json.dumps(diagnosis.to_dict(), indent=2))
+    assert diagnosis.app_id == submitter.last_submitted_app_id
+    assert diagnosis.driver_pod == pod_name and diagnosis.namespace == namespace
+    assert not diagnosis.incomplete, f"Incomplete real-cluster diagnosis: {diagnosis.to_dict()}"
+    assert diagnosis.inspected_pods == 1 + len(executors), (
+        "Diagnostic label selection must include every retained executor owned by the real driver"
+    )
+    if scenario == "sql-failure":
+        assert any(
+            finding.code == "container_failed" and finding.resource == pod_name
+            for finding in diagnosis.findings
+        ), f"Missing failed driver evidence: {diagnosis.to_dict()}"
     result = {
         "scenario": scenario,
         "phase": pod.status.phase,
         "driver": pod_name,
         "executors": len(executors),
+        "diagnosed_pods": diagnosis.inspected_pods,
     }
     dump_diagnostics(api, namespace, args.artifacts / scenario)
     submitter.app_manager.delete_app(namespace=namespace, pod_name=pod_name)

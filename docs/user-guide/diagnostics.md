@@ -9,8 +9,8 @@ Diagnostics collect a bounded snapshot of driver and executor pod states and Kub
 Use the application ID returned by submission:
 
 ```shell
-spark_on_k8s app diagnose --namespace spark --app-id YOUR_APPLICATION_ID
-spark_on_k8s app diagnose --namespace spark --app-id YOUR_APPLICATION_ID --output json
+spark-on-k8s app diagnose --namespace spark --app-id YOUR_APPLICATION_ID
+spark-on-k8s app diagnose --namespace spark --app-id YOUR_APPLICATION_ID --output json
 ```
 
 The SDK accepts either an application ID or an exact driver pod name:
@@ -42,15 +42,15 @@ GET /webserver/api/apps/{namespace}/pods/{driver_pod}/diagnostics
 
 It returns `{ "application": { ... }, "diagnosis": { ... } }`. The two objects come from the same inspected driver pod. Query parameters `pod_limit` and `event_limit` use the bounds above. The endpoint permits up to five seconds for the initial driver lookup, followed by the bounded collection budget.
 
-The optional [Airflow task tab](airflow.md) uses the shared diagnostics panel. Its backend resolves the task's application and checks the driver ownership annotation against the authorized task before returning findings. It does not accept a browser-supplied namespace or application ID. Diagnostics are unavailable after the driver is deleted; the task's history link remains separate.
+The optional [Airflow task tab](airflow.md) uses the shared diagnostics panel. Its backend resolves the task's application and checks the driver ownership annotation against the authorized task before returning findings. It does not accept a browser-supplied namespace or application ID. Diagnostics are unavailable after the driver is deleted; the task's history link remains separate. When the Spark API enables remote bearer authentication, the Airflow service URL must use a trusted gateway that authenticates the Airflow backend and injects that credential, or a separate restricted internal API. See [remote submission deployment](remote-submission.md#configure-the-server).
 
 The API caller needs namespaced pod reads and `list` access to core `events`. Current source chart namespace Roles include this event permission. For an existing installation using an older chart or a custom service account, an administrator must review and add the permission before event collection can succeed. The page can still show pod evidence when event access is denied. API authentication and task authorization continue to apply; diagnostics do not grant additional access.
 
 ## Check cluster prerequisites
 
 ```shell
-spark_on_k8s doctor --namespace spark --service-account spark
-spark_on_k8s doctor --namespace spark --service-account spark --output json
+spark-on-k8s doctor --namespace spark --service-account spark
+spark-on-k8s doctor --namespace spark --service-account spark --output json
 ```
 
 `doctor` reads the named service account and submits non-persistent Kubernetes `SelfSubjectAccessReview` requests for the authenticated **caller's** application-management permissions. It does not impersonate the driver or apply resources. Service-account existence and the caller's access do not prove that the driver can create executors: `driver_permissions_verified` remains `false`. A denied or unavailable review is reported explicitly.
@@ -60,7 +60,7 @@ The caller checks cover pod creation, lookup, listing and deletion; driver log r
 To prepare a namespace-scoped baseline driver role for administrator review, render manifests offline:
 
 ```shell
-spark_on_k8s doctor --namespace spark --service-account spark --emit-rbac > driver-rbac.yaml
+spark-on-k8s doctor --namespace spark --service-account spark --emit-rbac > driver-rbac.yaml
 ```
 
 This command prints a Role and RoleBinding and never contacts Kubernetes. It does not create the namespace or service account and does not apply the manifests. The binding references the existing service account. The role allows Spark to manage pods, services and ConfigMaps within that namespace; collection deletion is limited to services and ConfigMaps for Spark cleanup. It grants no cluster-wide permissions, Secret access or pod exec access. Optional features such as dynamically created PVCs may need additional permissions that an administrator should review separately.

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 
@@ -12,7 +13,12 @@ import pytest
     [("log", [], "log"), ("wait", [], "wait"), ("no_wait", [], "no_wait"), ("no_wait", ["--logs"], "log")],
 )
 def test_submit_uses_configured_waiter(monkeypatch, configured_waiter, flags, expected_waiter):
-    monkeypatch.setenv("SPARK_ON_K8S_APP_WAITER", configured_waiter)
+    # Unrelated parent settings must not affect the child CLI's startup.
+    monkeypatch.setenv("SPARK_ON_K8S_SPARK_CONF", "unrelated invalid JSON")
+    child_environment = {
+        key: value for key, value in os.environ.items() if not key.startswith("SPARK_ON_K8S_")
+    }
+    child_environment["SPARK_ON_K8S_APP_WAITER"] = configured_waiter
     # Configuration and Click defaults are captured at import time. A fresh
     # process exercises the same environment-loading path as the installed CLI.
     script = """
@@ -30,7 +36,9 @@ with mock.patch("spark_on_k8s.client.SparkOnK8S") as client_class:
     print(json.dumps(client_class.return_value.submit_app.call_args.kwargs["app_waiter"]))
 """
 
-    result = subprocess.run([sys.executable, "-c", script, *flags], capture_output=True, text=True)
+    result = subprocess.run(
+        [sys.executable, "-c", script, *flags], capture_output=True, text=True, env=child_environment
+    )
 
     assert result.returncode == 0, result.stderr
     assert json.loads(result.stdout) == expected_waiter

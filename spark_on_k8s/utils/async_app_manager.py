@@ -53,6 +53,10 @@ class AsyncSparkAppManager(LoggingMixin):
 
         Returns:
             SparkAppStatus: App status.
+
+        Raises:
+            ValueError: If neither pod_name nor app_id is provided.
+            ApiException: If no matching pod exists (404), or the Kubernetes request fails.
         """
 
         async def _app_status(_client: k8s_async.CoreV1Api) -> SparkAppStatus:
@@ -71,7 +75,7 @@ class AsyncSparkAppManager(LoggingMixin):
                     )
                 ).items
                 if not pods:
-                    raise ValueError(f"No pods found for app {app_id}")
+                    raise ApiException(status=404, reason=f"No pods found for app {app_id}")
                 _pod = pods[0]
             return get_app_status(_pod)
 

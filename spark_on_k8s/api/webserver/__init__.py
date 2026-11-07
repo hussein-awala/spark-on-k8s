@@ -39,6 +39,7 @@ def handle_k8s_errors(func):
                     "title": title,
                     "message": message,
                 },
+                status_code=e.status or 500,
             )
 
     return wrapper

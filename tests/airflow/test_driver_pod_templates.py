@@ -14,7 +14,9 @@ pytestmark = pytest.mark.skipif(not AIRFLOW_INSTALLED, reason="Airflow extra is 
 @pytest.mark.parametrize("template_kind", ["mapping", "yaml", "path"])
 def test_operator_renders_and_submits_driver_template(template_kind, monkeypatch, tmp_path):
     from spark_on_k8s.airflow.operators import SparkOnK8SOperator
+    from spark_on_k8s.airflow.ui_config import CONSOLE_XCOM_KEY
     from spark_on_k8s.client import SparkOnK8S
+    from spark_on_k8s.utils.console_models import AIRFLOW_TASK_ANNOTATION
 
     template = {
         "apiVersion": "v1",
@@ -45,7 +47,19 @@ def test_operator_renders_and_submits_driver_template(template_kind, monkeypatch
         driver_pod_template=template,
         driver_container_name="{{ container }}",
     )
-    context = {"team": "analytics", "container": "spark-main", "ti": MagicMock()}
+    context = {
+        "team": "analytics",
+        "container": "spark-main",
+        "ti": MagicMock(
+            dag_id="driver_templates",
+            run_id="manual__template",
+            task_id="report",
+            map_index=-1,
+            try_number=2,
+            region_id=None,
+            region_index=None,
+        ),
+    }
     context["ti"].xcom_pull.return_value = None
     operator.render_template_fields(context)
     operator.execute(context)
@@ -56,6 +70,18 @@ def test_operator_renders_and_submits_driver_template(template_kind, monkeypatch
     else:
         assert actual == expected
     assert submit.call_args.kwargs["driver_container_name"] == "spark-main"
+    assert json.loads(submit.call_args.kwargs["driver_annotations"][AIRFLOW_TASK_ANNOTATION]) == {
+        "dag_id": "driver_templates",
+        "run_id": "manual__template",
+        "task_id": "report",
+        "map_index": -1,
+        "try_number": 2,
+    }
+    pushed = {call.kwargs["key"]: call.kwargs["value"] for call in context["ti"].xcom_push.call_args_list}
+    assert pushed["driver_pod_name"] == "report-driver"
+    assert pushed["driver_pod_namespace"] == operator.namespace
+    assert pushed[CONSOLE_XCOM_KEY]["driver_pod"] == "report-driver"
+    assert pushed[CONSOLE_XCOM_KEY]["try_number"] == 2
 
 
 def test_driver_template_survives_dag_serialization_for_application_and_sql():

@@ -4,10 +4,11 @@ from unittest import mock
 
 import pytest
 
-from conftest import PYTHON_313_OR_ABOVE
+from conftest import AIRFLOW_INSTALLED
+
+pytestmark = pytest.mark.skipif(not AIRFLOW_INSTALLED, reason="Airflow extra is not installed")
 
 
-@pytest.mark.skipif(PYTHON_313_OR_ABOVE, reason="Python 3.13+ is not supported by Airflow")
 @pytest.mark.parametrize("templated", [False, True])
 @mock.patch("spark_on_k8s.client.SparkOnK8S.submit_app", return_value="test-driver")
 def test_executor_allocation_tuning_survives_submission(mock_submit_app, templated):

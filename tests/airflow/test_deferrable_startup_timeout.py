@@ -6,9 +6,9 @@ from unittest import mock
 
 import pytest
 
-from conftest import PYTHON_313_OR_ABOVE
+from conftest import AIRFLOW_INSTALLED
 
-pytestmark = pytest.mark.skipif(PYTHON_313_OR_ABOVE, reason="Python 3.13+ is not supported by Airflow")
+pytestmark = pytest.mark.skipif(not AIRFLOW_INSTALLED, reason="Airflow extra is not installed")
 
 
 @pytest.mark.parametrize("startup_timeout,deadline", [(0, None), (10, 1010)])

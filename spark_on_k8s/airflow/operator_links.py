@@ -2,12 +2,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from airflow.models import BaseOperatorLink, XCom
+from spark_on_k8s.airflow._compat import BaseOperatorLink, XCom
 
 if TYPE_CHECKING:
-    from airflow.models import BaseOperator
     from airflow.models.taskinstancekey import TaskInstanceKey
-    from airflow.utils.context import Context
+    from spark_on_k8s.airflow._compat import BaseOperator, Context
 
 
 class SparkOnK8SOperatorLink(BaseOperatorLink):
@@ -18,6 +17,7 @@ class SparkOnK8SOperatorLink(BaseOperatorLink):
     """
 
     name = "Spark Job UI"
+    xcom_key = "spark_ui_link"
 
     @staticmethod
     def persist_spark_ui_link(
@@ -33,8 +33,7 @@ class SparkOnK8SOperatorLink(BaseOperatorLink):
         from spark_on_k8s.airflow.operators import SparkOnK8SOperator
 
         spark_ui_link = f"{spark_on_k8s_service_url}/webserver/ui/{namespace}/{spark_app_id}"
-        task_instance.xcom_push(
-            context,
+        context["ti"].xcom_push(
             key=SparkOnK8SOperator.XCOM_SPARK_UI_LINK,
             value=spark_ui_link,
         )
@@ -49,8 +48,7 @@ class SparkOnK8SOperatorLink(BaseOperatorLink):
         from spark_on_k8s.airflow.operators import SparkOnK8SOperator
 
         spark_history_ui_link = f"{spark_on_k8s_service_url}/webserver/ui-history/history/{spark_app_id}"
-        task_instance.xcom_push(
-            context,
+        context["ti"].xcom_push(
             key=SparkOnK8SOperator.XCOM_SPARK_UI_LINK,
             value=spark_history_ui_link,
         )

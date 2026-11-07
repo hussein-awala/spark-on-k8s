@@ -29,7 +29,8 @@ def test_submit_app_output_destination(
     original_name = "spark-app-" + "x" * 63
     normalized_name = original_name[:63]
     expected_messages = [
-        f"Application name {original_name} is too long and will be truncated to {normalized_name}"
+        f"Application name {original_name!r} has been sanitized"
+        f" to {normalized_name!r} to comply with Kubernetes naming conventions"
     ]
 
     with (

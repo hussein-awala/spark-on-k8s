@@ -2,148 +2,322 @@ name: test
 
 on:
   pull_request:
-    types:
-      - opened
-      - reopened
-      - synchronize
+    types: [opened, reopened, synchronize]
   push:
-    branches:
-      - main
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  POETRY_VERSION: "2.5.1"
+  POETRY_VIRTUALENVS_IN_PROJECT: "true"
+  POETRY_NO_INTERACTION: "1"
 
 jobs:
   changed-files:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: read
+      pull-requests: read
     outputs:
-      should_run_pytest: ${{ steps.check-pytest.outputs.src }}
+      tests: ${{ steps.filter.outputs.tests }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - id: check-pytest
-        name: Should run pytest
-        uses: dorny/paths-filter@v3
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: filter
         with:
           filters: |
-            src:
+            tests:
               - "spark_on_k8s/**"
               - "tests/**"
               - "chart/**"
+              - "examples/**"
               - "poetry.lock"
               - "pyproject.toml"
-              - ".github/workflows/ci.yml"
+              - ".github/workflows/**"
 
-  pytest:
+  core-api:
+    name: Core/API (${{ matrix.os }}, Python ${{ matrix.python-version }})
     needs: changed-files
-    if: ${{ needs.changed-files.outputs.should_run_pytest == 'true' }}
+    if: needs.changed-files.outputs.tests == 'true'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        # The package requires Python 3.11 or newer.
-        os: [ "ubuntu-24.04", "macos-15-intel" ]
-        python-version: [ "3.11", "3.12", "3.13", "3.14", "3.15" ]
-    runs-on: ${{ matrix.os }}
+        os: [ubuntu-26.04]
+        python-version: ["3.11", "3.12", "3.13", "3.14", "3.15"]
+        include:
+          - os: macos-26
+            python-version: "3.11"
+          - os: macos-26
+            python-version: "3.14"
+          - os: macos-26
+            python-version: "3.15"
+    env:
+      PYTHON_VERSION: ${{ matrix.python-version }}
+      COVERAGE_FILE: .coverage.core-api
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up python ${{ matrix.python-version }}
-        id: setup-python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
-          python-version: ${{ matrix.python-version }}
-
-      - name: Install Poetry
-        uses: snok/install-poetry@v1
-        with:
-          # Poetry 2.3+ requires Python 3.10 or newer.
-          version: "2.2.1"
-          virtualenvs-create: true
-          virtualenvs-in-project: true
-
-      - name: Load cached venv
-        id: cached-poetry-dependencies
-        uses: actions/cache@v4
-        with:
-          path: .venv
-          key: venv-${{ matrix.os }}-${{ runner.arch }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock', 'pyproject.toml') }}
-
-      - name: Install dependencies
-        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction --no-root --all-extras
-
-      - name: Install library
-        run: poetry install --no-interaction --all-extras
-
-      - name: Install Helm for chart tests
-        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
-        with:
-          version: "v3.17.3"
-
-      - name: Verify Python 3.14 integration and test tools
-        if: matrix.python-version == '3.14'
+          version: "0.13.7"
+          enable-cache: true
+          cache-dependency-glob: poetry.lock
+      - name: Create isolated Python and Poetry environments
+        shell: bash
         run: |
-          export AIRFLOW_HOME="$RUNNER_TEMP/airflow-python314"
-          echo "AIRFLOW_HOME=$AIRFLOW_HOME" >> "$GITHUB_ENV"
-          poetry run python - <<'PY314'
-          import shutil
+          unset CONDA_DEFAULT_ENV CONDA_PREFIX VIRTUAL_ENV
+          uv python install "$PYTHON_VERSION"
+          python_path="$(uv python find --managed-python "$PYTHON_VERSION")"
+          uv tool install --python "$python_path" "poetry==$POETRY_VERSION"
+          echo "$(uv tool dir --bin)" >> "$GITHUB_PATH"
+          uv venv --python "$python_path" .venv
+          .venv/bin/python - <<'PYTHON'
           import sys
-          from importlib.metadata import version
-          from airflow.providers.cncf.kubernetes.hooks.kubernetes import AsyncKubernetesHook, KubernetesHook
-          from spark_on_k8s.airflow.operators import SparkOnK8SOperator, SparkSqlOnK8SOperator
-          assert sys.version_info[:2] == (3, 14), sys.version
-          assert version("apache-airflow").split(".", 1)[0] == "3"
-          assert shutil.which("node"), "Node.js is required for browser log tests"
-          assert shutil.which("helm"), "Helm is required for chart tests"
-          print(f"Python {sys.version}")
-          print(f"Airflow {version('apache-airflow')}")
-          print(f"Kubernetes provider {version('apache-airflow-providers-cncf-kubernetes')}")
-          PY314
-
-      - name: Verify Python 3.15 core and API support
-        if: matrix.python-version == '3.15'
+          from pathlib import Path
+          assert sys.prefix != sys.base_prefix, "Expected an isolated virtual environment"
+          assert Path(sys.prefix).resolve() == Path(".venv").resolve(), sys.prefix
+          PYTHON
+          echo "CONDA_DEFAULT_ENV=" >> "$GITHUB_ENV"
+          echo "CONDA_PREFIX=" >> "$GITHUB_ENV"
+          echo "VIRTUAL_ENV=$GITHUB_WORKSPACE/.venv" >> "$GITHUB_ENV"
+          echo "POETRY_CACHE_DIR=$RUNNER_TEMP/poetry-cache" >> "$GITHUB_ENV"
+          echo "AIRFLOW_HOME=$RUNNER_TEMP/airflow" >> "$GITHUB_ENV"
+          .venv/bin/python --version
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.POETRY_CACHE_DIR }}
+          key: poetry-api-${{ runner.os }}-${{ runner.arch }}-${{ matrix.python-version }}-${{ hashFiles('poetry.lock', 'pyproject.toml') }}
+      - name: Install locked core/API dependencies
         run: |
-          poetry run python - <<'PY315'
-          import shutil
+          test "$(poetry env info --path)" = "$GITHUB_WORKSPACE/.venv"
+          poetry check --lock --strict
+          poetry sync --only main,test -E api
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: v4.3.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "26"
+      - name: Verify core/API integration and test tools
+        run: |
+          helm version --short
+          node --version
+          poetry run python - <<'PY'
+          import os
           import sys
           from importlib.metadata import PackageNotFoundError, version
           from fastapi import FastAPI
           from spark_on_k8s.api.main import app
           from spark_on_k8s.client import SparkOnK8S
-          assert sys.version_info[:2] == (3, 15), sys.version
+          expected_python = tuple(map(int, os.environ["PYTHON_VERSION"].split(".")))
+          assert sys.version_info[:2] == expected_python, sys.version
           assert isinstance(app, FastAPI)
           for distribution in ("apache-airflow", "apache-airflow-core", "apache-airflow-task-sdk"):
               try:
                   version(distribution)
               except PackageNotFoundError:
                   continue
-              raise AssertionError(f"{distribution} must not be installed on Python 3.15")
-          assert shutil.which("node"), "Node.js is required for browser log tests"
-          assert shutil.which("helm"), "Helm is required for chart tests"
+              raise AssertionError(f"{distribution} must not be installed in the core/API environment")
           print(f"Python {sys.version}")
           print(f"FastAPI {version('fastapi')}")
-          PY315
-
-      - name: Run tests
+          PY
+      - name: Run core/API tests
+        run: poetry run pytest tests --ignore=tests/airflow --cov=spark_on_k8s --cov-report=term-missing --junitxml=test-results.xml
+      - name: Require executed core/API tests without skips
         run: |
-          source .venv/bin/activate
-          pytest_options=()
-          if [[ "${{ matrix.python-version }}" == "3.15" ]]; then
-            pytest_options+=(--ignore=tests/airflow)
-          fi
-          pytest tests/ "${pytest_options[@]}" --cov spark_on_k8s --cov-report=json --junitxml=pytest-results.xml
-
-      - name: Require Python 3.14 and 3.15 tests without skips
-        if: matrix.python-version == '3.14' || matrix.python-version == '3.15'
-        run: |
-          poetry run python - <<'PYTEST_RESULTS'
+          poetry run python - <<'PY'
           import xml.etree.ElementTree as ET
-          cases = list(ET.parse("pytest-results.xml").iter("testcase"))
-          assert cases, "No tests were collected"
+          cases = list(ET.parse("test-results.xml").iter("testcase"))
+          assert cases, "No core/API tests were collected"
           skipped = [case.attrib["name"] for case in cases if case.find("skipped") is not None]
-          assert not skipped, f"Tests were skipped: {skipped}"
-          PYTEST_RESULTS
+          assert not skipped, f"Core/API tests were skipped: {skipped}"
+          PY
+      - name: Save core/API coverage
+        if: matrix.os == 'ubuntu-26.04' && matrix.python-version == '3.15'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage-core-api
+          path: .coverage.core-api
+          include-hidden-files: true
+          if-no-files-found: error
 
-      - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@v4.0.1
+  airflow:
+    name: Airflow ${{ matrix.airflow-version }} (Python ${{ matrix.python-version }})
+    needs: changed-files
+    if: needs.changed-files.outputs.tests == 'true'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
+        airflow-version: ["3.4.0"]
+        include:
+          - python-version: "3.12"
+            airflow-version: "2.11.2"
+    env:
+      PYTHON_VERSION: ${{ matrix.python-version }}
+      AIRFLOW_VERSION: ${{ matrix.airflow-version }}
+      COVERAGE_FILE: .coverage.airflow-${{ matrix.airflow-version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.7"
+          enable-cache: true
+          cache-dependency-glob: poetry.lock
+      - name: Create isolated Python and Poetry environments
+        run: |
+          unset CONDA_DEFAULT_ENV CONDA_PREFIX VIRTUAL_ENV
+          uv python install "$PYTHON_VERSION"
+          python_path="$(uv python find --managed-python "$PYTHON_VERSION")"
+          uv tool install --python "$python_path" "poetry==$POETRY_VERSION"
+          echo "$(uv tool dir --bin)" >> "$GITHUB_PATH"
+          uv venv --python "$python_path" .venv
+          .venv/bin/python - <<'PYTHON'
+          import sys
+          from pathlib import Path
+          assert sys.prefix != sys.base_prefix, "Expected an isolated virtual environment"
+          assert Path(sys.prefix).resolve() == Path(".venv").resolve(), sys.prefix
+          PYTHON
+          echo "CONDA_DEFAULT_ENV=" >> "$GITHUB_ENV"
+          echo "CONDA_PREFIX=" >> "$GITHUB_ENV"
+          echo "VIRTUAL_ENV=$GITHUB_WORKSPACE/.venv" >> "$GITHUB_ENV"
+          echo "POETRY_CACHE_DIR=$RUNNER_TEMP/poetry-cache" >> "$GITHUB_ENV"
+          echo "AIRFLOW_HOME=$RUNNER_TEMP/airflow" >> "$GITHUB_ENV"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.POETRY_CACHE_DIR }}
+          key: poetry-airflow-${{ matrix.airflow-version }}-${{ matrix.python-version }}-${{ hashFiles('poetry.lock', 'pyproject.toml') }}
+      - name: Install Airflow dependencies
+        run: |
+          test "$(poetry env info --path)" = "$GITHUB_WORKSPACE/.venv"
+          poetry check --lock --strict
+          if [[ "$AIRFLOW_VERSION" == "2.11.2" ]]; then
+            # Start without Airflow 3's separate core/task-sdk distributions.
+            poetry sync --only main,test
+            uv pip install --python .venv/bin/python -e '.[airflow]' "apache-airflow==$AIRFLOW_VERSION"
+          else
+            poetry sync --only main,test -E airflow
+          fi
+      - name: Verify the requested Airflow integration is installed
+        run: |
+          poetry run python - <<'PY'
+          import os
+          import sys
+          from importlib.metadata import version
+          import airflow
+          from airflow.providers.cncf.kubernetes.hooks.kubernetes import AsyncKubernetesHook, KubernetesHook
+          from spark_on_k8s.airflow.operators import SparkOnK8SOperator, SparkSqlOnK8SOperator
+          expected_python = tuple(map(int, os.environ["PYTHON_VERSION"].split(".")))
+          assert sys.version_info[:2] == expected_python, sys.version
+          assert version("apache-airflow") == os.environ["AIRFLOW_VERSION"]
+          assert airflow.__version__ == os.environ["AIRFLOW_VERSION"], airflow.__version__
+          print(f"Testing Airflow {airflow.__version__}")
+          print(f"Kubernetes provider {version('apache-airflow-providers-cncf-kubernetes')}")
+          PY
+      - name: Run Airflow integration tests
+        run: poetry run pytest tests/airflow --cov=spark_on_k8s --cov-report=term-missing --junitxml=airflow-results.xml
+      - name: Require executed Airflow tests without skips
+        run: |
+          poetry run python - <<'PY'
+          import xml.etree.ElementTree as ET
+          cases = list(ET.parse("airflow-results.xml").iter("testcase"))
+          assert cases, "No Airflow tests were collected"
+          skipped = [case.attrib["name"] for case in cases if case.find("skipped") is not None]
+          assert not skipped, f"Airflow tests were skipped: {skipped}"
+          PY
+      - name: Save Airflow coverage
+        if: matrix.python-version == '3.14' || matrix.airflow-version == '2.11.2'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage-airflow-${{ matrix.airflow-version }}
+          path: .coverage.airflow-${{ matrix.airflow-version }}
+          include-hidden-files: true
+          if-no-files-found: error
+
+  quality:
+    name: Lint, build, and documentation
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.7"
+          enable-cache: true
+          cache-dependency-glob: poetry.lock
+      - name: Create tooling environment
+        run: |
+          unset CONDA_DEFAULT_ENV CONDA_PREFIX VIRTUAL_ENV
+          uv python install 3.12
+          python_path="$(uv python find --managed-python 3.12)"
+          uv tool install --python "$python_path" "poetry==$POETRY_VERSION"
+          echo "$(uv tool dir --bin)" >> "$GITHUB_PATH"
+          uv venv --python "$python_path" .venv
+          .venv/bin/python - <<'PYTHON'
+          import sys
+          from pathlib import Path
+          assert sys.prefix != sys.base_prefix, "Expected an isolated virtual environment"
+          assert Path(sys.prefix).resolve() == Path(".venv").resolve(), sys.prefix
+          PYTHON
+          echo "CONDA_DEFAULT_ENV=" >> "$GITHUB_ENV"
+          echo "CONDA_PREFIX=" >> "$GITHUB_ENV"
+          echo "VIRTUAL_ENV=$GITHUB_WORKSPACE/.venv" >> "$GITHUB_ENV"
+          echo "POETRY_CACHE_DIR=$RUNNER_TEMP/poetry-cache" >> "$GITHUB_ENV"
+          echo "AIRFLOW_HOME=$RUNNER_TEMP/airflow" >> "$GITHUB_ENV"
+      - name: Install locked tooling and documentation dependencies
+        run: |
+          test "$(poetry env info --path)" = "$GITHUB_WORKSPACE/.venv"
+          poetry check --lock --strict
+          poetry sync --only main,lint,docs --all-extras
+      - name: Lint Python
+        run: |
+          poetry run ruff check .
+          poetry run ruff format --check .
+          poetry run sqlfluff lint examples/airflow
+      - name: Build distributions
+        run: poetry build
+      - name: Build documentation
+        run: |
+          poetry run helm-mkdocs chart -o docs/helm-chart
+          poetry run mkdocs build --strict
+
+  coverage:
+    name: Combined coverage
+    needs: [changed-files, core-api, airflow]
+    if: needs.changed-files.outputs.tests == 'true'
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.7"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: coverage-*
+          path: coverage-data
+          merge-multiple: true
+      - name: Require and combine all coverage profiles
+        run: |
+          test -s coverage-data/.coverage.core-api
+          test -s coverage-data/.coverage.airflow-3.4.0
+          test -s coverage-data/.coverage.airflow-2.11.2
+          uv tool run --from coverage==7.17.2 coverage combine coverage-data
+          uv tool run --from coverage==7.17.2 coverage report
+          uv tool run --from coverage==7.17.2 coverage xml
+      - uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage.xml
+          disable_search: true
+          fail_ci_if_error: true

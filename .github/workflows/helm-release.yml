@@ -10,22 +10,27 @@ on:
         description: 'The version of the chart to be released'
         required: true
 
+concurrency:
+  group: helm-chart-gh-pages
+  cancel-in-progress: false
+  queue: max
+
 jobs:
   helm-build-and-push:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     permissions:
       contents: write
       packages: write
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Publish Helm chart
+        # Latest upstream commit; newer than the v1.7.0 release.
         uses: stefanprodan/helm-gh-pages@89c6698c192e70ed0e495bee7d3d1ca5b477fe82
         with:
           token: ${{ secrets.HELM_RELEASE_TOKEN }}
           charts_dir: .
           repository: spark-on-k8s-chart
           branch: gh-pages
+          helm_version: 4.3.1
           app_version: ${{ github.event.inputs.app_version }}
           chart_version: ${{ github.event.inputs.chart_version }}

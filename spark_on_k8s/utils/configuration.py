@@ -78,6 +78,7 @@ class Configuration:
         getenv("SPARK_ON_K8S_SPARK_EXECUTOR_ANNOTATIONS", "{}")
     )
     SPARK_ON_K8S_EXECUTOR_POD_TEMPLATE_PATH = getenv("SPARK_ON_K8S_EXECUTOR_POD_TEMPLATE_PATH", None)
+    SPARK_ON_K8S_EXECUTOR_TEMPLATE = getenv("SPARK_ON_K8S_EXECUTOR_TEMPLATE", None)
     try:
         from kubernetes_asyncio import client as async_k8s
 

@@ -5441,4 +5441,4 @@ api = ["aiohttp", "fastapi", "httpx", "jinja2", "kubernetes-asyncio", "uvicorn",
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.9"
-content-hash = "892ab02d62cdd6405d23dfaa4cf2652e0dc4fcbaa70a327d52db25edc27c928c"
+content-hash = "ccb1b2127fe342beb43add46a1f07ca2a858de20cd7fce727b0d03eb425060d3"

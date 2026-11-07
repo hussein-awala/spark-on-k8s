@@ -18,7 +18,16 @@ pytestmark = pytest.mark.skipif(HELM is None, reason="Helm is required to render
     ids=["default", "long-fullname", "long-chart-name"],
 )
 def test_history_resources_have_distinct_valid_names_and_selectors(settings):
-    command = [HELM, "template", "test", str(CHART), "--set", "sparkHistory.enabled=true"]
+    command = [
+        HELM,
+        "template",
+        "test",
+        str(CHART),
+        "--set",
+        "sparkHistory.enabled=true",
+        "--set",
+        "sparkHistory.image.tag=render-test",
+    ]
     for setting in settings:
         command.extend(["--set", setting])
     result = subprocess.run(command, check=True, capture_output=True, text=True)

@@ -50,7 +50,7 @@ spec:
         - name: {{ .Chart.Name }}
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          image: {{ include "spark-on-k8s.image" (dict "image" .Values.image "defaultTag" .Chart.AppVersion "error" "API image requires image.tag, image.digest or Chart.appVersion") | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           {{- $envNames := list }}
           {{- range .Values.env }}

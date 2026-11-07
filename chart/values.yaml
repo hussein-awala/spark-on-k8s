@@ -7,8 +7,11 @@ image:
   repository: ghcr.io/hussein-awala/spark-on-k8s
   # The deployment docker image pull policy
   pullPolicy: IfNotPresent
-  # The Docker image tag
+  # Development default retained until chart appVersion is qualified for these templates.
+  # Set an explicit release tag/digest for deployment. Empty opts into Chart.appVersion.
   tag: latest
+  # Optional sha256 digest; takes precedence over tag and Chart.appVersion.
+  digest: ""
 
 # List of imagePullSecrets to be used
 imagePullSecrets: []
@@ -29,6 +32,12 @@ serviceAccount:
   annotations: {}
   # The name of the service account to use.
   name: ""
+
+# RBAC ownership is independent of service-account ownership.
+rbac:
+  # null preserves legacy behavior: follow serviceAccount.create.
+  # true manages roles/bindings even for an existing named account; false manages none.
+  create: null
 
 # Annotations to be added to the Spark-on-K8S deployment pods
 podAnnotations: {}
@@ -133,8 +142,10 @@ sparkHistory:
       repository: ghcr.io/hussein-awala/spark-history
       # The deployment docker image pull policy
       pullPolicy: IfNotPresent
-      # The Docker image tag
-      tag: latest
+      # Required when enabled unless digest is set; this image has a separate release lifecycle.
+      tag: ""
+      # Optional immutable sha256 digest; takes precedence over tag.
+      digest: ""
     # Annotations to be added to the Spark History Server pods
     env: []
     # The resource configuration for the Spark History Server

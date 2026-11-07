@@ -1,0 +1,490 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "spark-on-k8s chart values",
+  "type": "object",
+  "description": "Validates chart-managed controls; Kubernetes passthrough objects and extension keys remain open.",
+  "definitions": {
+    "image": {
+      "type": "object",
+      "properties": {
+        "repository": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^\\s@]+$"
+        },
+        "tag": {
+          "type": "string",
+          "pattern": "^$|^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$"
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^$|^sha256:[a-fA-F0-9]{64}$"
+        },
+        "pullPolicy": {
+          "enum": [
+            "Always",
+            "IfNotPresent",
+            "Never"
+          ]
+        }
+      }
+    },
+    "serviceAccount": {
+      "type": "object",
+      "properties": {
+        "create": {
+          "type": "boolean"
+        },
+        "automount": {
+          "type": "boolean"
+        },
+        "name": {
+          "type": "string"
+        },
+        "annotations": {
+          "type": "object"
+        }
+      }
+    },
+    "autoscaling": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "minReplicas": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "maxReplicas": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "targetCPUUtilizationPercentage": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "targetMemoryUtilizationPercentage": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "enabled": {
+                "const": true
+              }
+            },
+            "required": [
+              "enabled"
+            ]
+          },
+          "then": {
+            "anyOf": [
+              {
+                "properties": {
+                  "targetCPUUtilizationPercentage": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                },
+                "required": [
+                  "targetCPUUtilizationPercentage"
+                ]
+              },
+              {
+                "properties": {
+                  "targetMemoryUtilizationPercentage": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                },
+                "required": [
+                  "targetMemoryUtilizationPercentage"
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "service": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "enum": [
+            "ClusterIP",
+            "NodePort",
+            "LoadBalancer"
+          ]
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        }
+      }
+    }
+  },
+  "properties": {
+    "replicaCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "image": {
+      "$ref": "#/definitions/image"
+    },
+    "serviceAccount": {
+      "$ref": "#/definitions/serviceAccount"
+    },
+    "rbac": {
+      "type": "object",
+      "properties": {
+        "create": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "service": {
+      "$ref": "#/definitions/service"
+    },
+    "autoscaling": {
+      "$ref": "#/definitions/autoscaling"
+    },
+    "namespaces": {
+      "type": "string",
+      "pattern": "^(\\*| *[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])? *(, *[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])? *)*)$",
+      "description": "Wildcard or comma-separated Kubernetes namespaces; not a YAML list."
+    },
+    "readOnly": {
+      "type": "boolean"
+    },
+    "metrics": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        }
+      }
+    },
+    "runHistory": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "namespaces": {
+          "type": "array",
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$"
+          }
+        },
+        "existingClaim": {
+          "type": "string"
+        },
+        "intervalSeconds": {
+          "type": "integer",
+          "minimum": 5,
+          "maximum": 3600
+        },
+        "retentionDays": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3650
+        },
+        "maxRows": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000000
+        }
+      }
+    },
+    "sparkHistory": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "replicaCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "image": {
+          "$ref": "#/definitions/image"
+        },
+        "serviceAccount": {
+          "$ref": "#/definitions/serviceAccount"
+        },
+        "service": {
+          "$ref": "#/definitions/service"
+        },
+        "autoscaling": {
+          "$ref": "#/definitions/autoscaling"
+        },
+        "configuration": {
+          "type": "string"
+        },
+        "resources": {
+          "type": "object"
+        },
+        "podSecurityContext": {
+          "type": "object"
+        },
+        "securityContext": {
+          "type": "object"
+        },
+        "podLabels": {
+          "type": "object"
+        },
+        "podAnnotations": {
+          "type": "object"
+        },
+        "nodeSelector": {
+          "type": "object"
+        },
+        "affinity": {
+          "type": "object"
+        },
+        "env": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "volumes": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "volumeMounts": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "tolerations": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "ingress": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        }
+      }
+    },
+    "resources": {
+      "type": "object"
+    },
+    "podSecurityContext": {
+      "type": "object"
+    },
+    "securityContext": {
+      "type": "object"
+    },
+    "podLabels": {
+      "type": "object"
+    },
+    "podAnnotations": {
+      "type": "object"
+    },
+    "nodeSelector": {
+      "type": "object"
+    },
+    "affinity": {
+      "type": "object"
+    },
+    "env": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "volumes": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "volumeMounts": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "tolerations": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "imagePullSecrets": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "runHistory": {
+            "properties": {
+              "enabled": {
+                "const": true
+              }
+            },
+            "required": [
+              "enabled"
+            ]
+          }
+        },
+        "required": [
+          "runHistory"
+        ]
+      },
+      "then": {
+        "properties": {
+          "replicaCount": {
+            "const": 1
+          },
+          "autoscaling": {
+            "properties": {
+              "enabled": {
+                "const": false
+              }
+            }
+          },
+          "runHistory": {
+            "properties": {
+              "namespaces": {
+                "minItems": 1
+              },
+              "existingClaim": {
+                "minLength": 1,
+                "pattern": "\\S"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "sparkHistory": {
+            "properties": {
+              "enabled": {
+                "const": true
+              }
+            },
+            "required": [
+              "enabled"
+            ]
+          }
+        },
+        "required": [
+          "sparkHistory"
+        ]
+      },
+      "then": {
+        "properties": {
+          "sparkHistory": {
+            "properties": {
+              "image": {
+                "anyOf": [
+                  {
+                    "properties": {
+                      "tag": {
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "tag"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "digest": {
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "digest"
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "rbac": {
+            "properties": {
+              "create": {
+                "const": true
+              }
+            },
+            "required": [
+              "create"
+            ]
+          },
+          "serviceAccount": {
+            "properties": {
+              "create": {
+                "const": false
+              }
+            },
+            "required": [
+              "create"
+            ]
+          }
+        },
+        "required": [
+          "rbac",
+          "serviceAccount"
+        ]
+      },
+      "then": {
+        "properties": {
+          "serviceAccount": {
+            "properties": {
+              "name": {
+                "minLength": 1,
+                "pattern": "\\S"
+              }
+            },
+            "required": [
+              "name"
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

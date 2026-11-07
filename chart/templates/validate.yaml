@@ -1,0 +1,21 @@
+{{/* Cross-field comparisons that JSON Schema cannot express without extensions. */}}
+{{- if gt (int .Values.autoscaling.minReplicas) (int .Values.autoscaling.maxReplicas) }}
+{{- fail "autoscaling.minReplicas must not exceed autoscaling.maxReplicas" }}
+{{- end }}
+{{- if gt (int .Values.sparkHistory.autoscaling.minReplicas) (int .Values.sparkHistory.autoscaling.maxReplicas) }}
+{{- fail "sparkHistory.autoscaling.minReplicas must not exceed sparkHistory.autoscaling.maxReplicas" }}
+{{- end }}
+{{- if and (eq (include "spark-on-k8s.rbacCreate" .) "true") (not .Values.serviceAccount.create) (not .Values.serviceAccount.name) }}
+{{- fail "chart-managed RBAC with an external service account requires serviceAccount.name" }}
+{{- end }}
+{{- if .Values.runHistory.enabled }}
+{{- range .Values.volumeMounts }}
+{{- if eq .name "run-history" }}{{- fail "run-history is a reserved volume mount name" }}{{- end }}
+{{- end }}
+{{- end }}
+{{- if and .Values.autoscaling.enabled (not .Values.autoscaling.targetCPUUtilizationPercentage) (not .Values.autoscaling.targetMemoryUtilizationPercentage) }}
+{{- fail "autoscaling requires a positive CPU or memory utilization target" }}
+{{- end }}
+{{- if and .Values.sparkHistory.enabled .Values.sparkHistory.autoscaling.enabled (not .Values.sparkHistory.autoscaling.targetCPUUtilizationPercentage) (not .Values.sparkHistory.autoscaling.targetMemoryUtilizationPercentage) }}
+{{- fail "sparkHistory.autoscaling requires a positive CPU or memory utilization target" }}
+{{- end }}

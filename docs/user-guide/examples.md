@@ -1,8 +1,9 @@
 These examples describe the current source checkout. Run build and submission
 commands from the repository root, with namespace `spark` and service account
 `spark` configured as described in [Getting Started](getting_started.md).
-The example Dockerfiles use a Spark base image built with Spark's image tool; see
-[the Spark documentation](https://spark.apache.org/docs/latest/running-on-kubernetes.html#docker-images).
+The example Dockerfiles default to the Apache Spark 3.5.9 image. To build them
+with Spark 4, set the image and matching Java dependency versions as described in
+[Spark compatibility](spark_compatibility.md).
 For scheduled jobs, see the [Airflow guide](airflow.md).
 
 ### Python

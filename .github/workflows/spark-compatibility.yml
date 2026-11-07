@@ -1,0 +1,125 @@
+name: Spark runtime compatibility
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "spark_on_k8s/**"
+      - "tests/integration/spark/**"
+      - "examples/python/**"
+      - "examples/java/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/spark-compatibility.yml"
+  push:
+    branches: [main]
+    paths:
+      - "spark_on_k8s/**"
+      - "tests/integration/spark/**"
+      - "examples/python/**"
+      - "examples/java/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/spark-compatibility.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: spark-compatibility-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  spark-on-kind:
+    name: Spark ${{ matrix.spark }} / Java ${{ matrix.java }} on Kubernetes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        include:
+          - spark: "3.5.9"
+            java: "17"
+            image: "apache/spark:3.5.9-scala2.12-java17-python3-ubuntu@sha256:f3d6eaa8bab8ec2e38f3c3918a5b2f8b253c95bcb19f9e87ad0e0cdacf9df2d5"
+          - spark: "4.0.5"
+            java: "17"
+            image: "apache/spark:4.0.5-scala2.13-java17-python3-ubuntu@sha256:45eb1b8261a89bc7692be05aa4664676856f1c886cecc7b97b4e10f635b45b3c"
+          - spark: "4.3.0"
+            java: "21"
+            image: "apache/spark:4.3.0-scala2.13-java21-python3-ubuntu@sha256:3dedc5c8665a6f472e2f0a3a828207a79a30785090ef325d3af219cb90a73d63"
+    env:
+      SPARK_IMAGE: ${{ matrix.image }}
+      SPARK_VERSION: ${{ matrix.spark }}
+      KIND_NODE: "kindest/node:v1.35.8@sha256:07b2536e30b803ed61d1677a79df6115f798ce64c80f9e22f6ed45afd09323c0"
+      KIND_SHA256: "aee6151561422756b764a4ae28e7f44cda5af5a9eead3cc9985112b1de8d8e0d"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.7"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+      - name: Install the client in an isolated Python 3.11 environment
+        run: |
+          unset CONDA_DEFAULT_ENV CONDA_PREFIX VIRTUAL_ENV
+          uv python install 3.11
+          uv venv --python "$(uv python find --managed-python 3.11)" .venv
+          .venv/bin/python -I - <<'PY'
+          import sys
+          from pathlib import Path
+          assert sys.prefix != sys.base_prefix
+          assert Path(sys.prefix).resolve() == Path('.venv').resolve()
+          PY
+          UV_PROJECT_ENVIRONMENT="$GITHUB_WORKSPACE/.venv" uv sync --locked --no-default-groups
+          uv build --wheel --out-dir "$RUNNER_TEMP/spark-wheel"
+          uv pip install --python .venv/bin/python --no-deps --reinstall "$RUNNER_TEMP"/spark-wheel/*.whl
+      - name: Install verified kind and create the disposable cluster
+        run: |
+          mkdir -p "$RUNNER_TEMP/bin"
+          curl --fail --location --retry 3 -o "$RUNNER_TEMP/bin/kind" \
+            https://github.com/kubernetes-sigs/kind/releases/download/v0.33.0/kind-linux-amd64
+          echo "$KIND_SHA256  $RUNNER_TEMP/bin/kind" | sha256sum --check
+          chmod +x "$RUNNER_TEMP/bin/kind"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/bin/kind" create cluster --name spark-compat --image "$KIND_NODE" \
+            --kubeconfig "$RUNNER_TEMP/spark-kubeconfig" --wait 120s
+      - name: Build Java against the matching Spark jars and load the test image
+        run: |
+          docker pull "$SPARK_IMAGE"
+          docker create --name spark-compat-layers "$SPARK_IMAGE"
+          mkdir -p "$RUNNER_TEMP/spark-jars" tests/integration/spark/target/classes
+          docker cp spark-compat-layers:/opt/spark/jars/. "$RUNNER_TEMP/spark-jars"
+          docker rm spark-compat-layers
+          javac --release 17 -cp "$RUNNER_TEMP/spark-jars/*" \
+            -d tests/integration/spark/target/classes tests/integration/spark/IntegrationJob.java
+          jar cf tests/integration/spark/target/integration.jar -C tests/integration/spark/target/classes .
+          docker build --build-arg "SPARK_IMAGE=$SPARK_IMAGE" -f tests/integration/spark/Dockerfile \
+            -t "spark-compat:$SPARK_VERSION" .
+          kind load docker-image --name spark-compat "spark-compat:$SPARK_VERSION"
+      - name: Execute Python, SQL, failure, and Java jobs through the installed client
+        run: |
+          .venv/bin/python -I tests/integration/spark/run_kubernetes.py \
+            --kubeconfig "$RUNNER_TEMP/spark-kubeconfig" --image "spark-compat:$SPARK_VERSION" \
+            --spark-version "$SPARK_VERSION" --artifacts "$RUNNER_TEMP/spark-compat-results"
+      - name: Save cluster diagnostics and stop the disposable cluster
+        if: always()
+        run: |
+          if command -v kind >/dev/null 2>&1; then
+            kind export logs --name spark-compat "$RUNNER_TEMP/kind-logs" || true
+            kind delete cluster --name spark-compat
+          fi
+          docker rm -f spark-compat-layers >/dev/null 2>&1 || true
+      - name: Upload execution evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: spark-${{ matrix.spark }}-execution
+          path: |
+            ${{ runner.temp }}/spark-compat-results/
+            ${{ runner.temp }}/kind-logs/
+          retention-days: 7

@@ -23,11 +23,9 @@ test("merges history while retaining live status, links, and safe archive action
     archiveApp,
   ]);
   await page.goto("/tests/fixture.html");
-  const liveRow = page
-    .getByRole("row")
-    .filter({
-      has: page.getByRole("button", { name: live.name!, exact: true }),
-    });
+  const liveRow = page.getByRole("row").filter({
+    has: page.getByRole("button", { name: live.name!, exact: true }),
+  });
   await expect(liveRow.getByText("Running", { exact: true })).toBeVisible();
   await expect(
     liveRow.getByRole("link", { name: "Logs", exact: true }),
@@ -44,11 +42,9 @@ test("merges history while retaining live status, links, and safe archive action
   await expect(
     page.getByText("Showing 2 of 2 loaded applications"),
   ).toBeVisible();
-  const archive = page
-    .getByRole("row")
-    .filter({
-      has: page.getByRole("button", { name: "Weekly archive", exact: true }),
-    });
+  const archive = page.getByRole("row").filter({
+    has: page.getByRole("button", { name: "Weekly archive", exact: true }),
+  });
   await expect(archive.getByText("Archived · namespace unknown")).toBeVisible();
   await expect(
     archive.getByRole("link", { name: "Logs", exact: true }),

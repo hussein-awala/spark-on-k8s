@@ -352,6 +352,8 @@ Run the following commands from a source checkout. The examples use namespace
 above. See the [examples guide](docs/user-guide/examples.md) for the application
 code, driver configuration and executor templates, and the
 [Airflow guide](docs/user-guide/airflow.md) for DAG examples.
+The [ETL and Iceberg starters](docs/user-guide/starters.md) include real data checks
+and portable job definitions for shared-storage deployments.
 [Spark compatibility](docs/user-guide/spark_compatibility.md) describes the Spark 3.5
 and Spark 4 runtime matrix, image build arguments, and execution tests.
 

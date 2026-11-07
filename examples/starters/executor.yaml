@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Pod
+spec:
+  securityContext:
+    fsGroup: 185
+  containers:
+    - name: executor
+      volumeMounts:
+        - name: starter-data
+          mountPath: /data
+  volumes:
+    - name: starter-data
+      persistentVolumeClaim:
+        claimName: spark-starter-data

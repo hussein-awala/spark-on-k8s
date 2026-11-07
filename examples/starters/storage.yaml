@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: spark-starter-data
+  namespace: spark
+spec:
+  # Set storageClassName to an RWX-capable class provided by your cluster.
+  # A single-node demo can use ReadWriteOnce instead; multiple nodes need RWX.
+  accessModes: [ReadWriteMany]
+  resources:
+    requests:
+      storage: 1Gi

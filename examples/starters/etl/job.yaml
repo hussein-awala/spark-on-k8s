@@ -1,0 +1,23 @@
+apiVersion: spark-on-k8s/v1
+kind: SparkJob
+metadata:
+  name: orders-etl
+spec:
+  image: starter-etl:4.3.0
+  image_pull_policy: Never
+  app_path: local:///opt/spark/work-dir/starters/etl/job.py
+  app_arguments:
+    - --input
+    - /opt/spark/work-dir/starters/etl/orders.json
+    - --output
+    - /data/orders
+  namespace: spark
+  service_account: spark
+  app_waiter: log
+  executor_instances:
+    initial: 1
+  driver_pod_template: ../driver.yaml
+  executor_pod_template: ../executor.yaml
+  spark_conf:
+    spark.sql.shuffle.partitions: 2
+    spark.sql.session.timeZone: UTC

@@ -1,15 +1,15 @@
 from __future__ import annotations
 
 import json
+from importlib.util import find_spec
 from unittest import mock
 
 import pytest
 from spark_on_k8s.utils.spark_app_status import SparkAppStatus
 
-from conftest import PYTHON_313_OR_ABOVE
+pytestmark = pytest.mark.skipif(find_spec("airflow") is None, reason="Airflow extra is not installed")
 
 
-@pytest.mark.skipif(PYTHON_313_OR_ABOVE, reason="Python 3.13+ is not supported by Airflow")
 class TestSparkOnK8SOperator:
     @mock.patch("spark_on_k8s.client.SparkOnK8S.submit_app")
     def test_execute(self, mock_submit_app):
@@ -115,7 +115,6 @@ class TestSparkOnK8SOperator:
         assert xcom_push_calls[2].kwargs == {
             "key": "spark_ui_link",
             "value": "http://localhost:8000/webserver/ui/spark/test-app-id",
-            "execution_date": None,
         }
 
     @mock.patch("spark_on_k8s.client.SparkOnK8S.submit_app")
@@ -316,7 +315,6 @@ class TestSparkOnK8SOperator:
             )
 
 
-@pytest.mark.skipif(PYTHON_313_OR_ABOVE, reason="Python 3.13+ is not supported by Airflow")
 class TestSparkSqlOnK8SOperator:
     @mock.patch("spark_on_k8s.client.SparkOnK8S.submit_app")
     def test_rendering_templates(self, mock_submit_app, root_path):
@@ -387,7 +385,6 @@ class TestSparkSqlOnK8SOperator:
         )
 
 
-@pytest.mark.skipif(PYTHON_313_OR_ABOVE, reason="Python 3.13+ is not supported by Airflow")
 @pytest.mark.parametrize(
     "sql, expected",
     [
@@ -417,12 +414,10 @@ def test_sql_statement_boundaries_are_preserved(mock_execute, sql, expected):
     mock_execute.assert_called_once_with({})
 
 
-@pytest.mark.skipif(PYTHON_313_OR_ABOVE, reason="Python 3.13+ is not supported by Airflow")
 @mock.patch("spark_on_k8s.airflow.operators.SparkOnK8SOperator.execute")
 def test_sql_file_is_rendered_before_splitting(mock_execute, tmp_path):
+    from spark_on_k8s.airflow._compat import DAG
     from spark_on_k8s.airflow.operators import SparkSqlOnK8SOperator
-
-    from airflow.models import DAG
 
     (tmp_path / "queries.sql").write_text("SELECT '{{ value }}'; SELECT 2;")
     dag = DAG(dag_id="sql_file", schedule=None, template_searchpath=[str(tmp_path)])

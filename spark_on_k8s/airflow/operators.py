@@ -10,8 +10,7 @@ from typing import TYPE_CHECKING, Any
 import sqlparse
 
 from airflow.exceptions import AirflowException
-from airflow.models import BaseOperator
-from airflow.utils.template import literal
+from spark_on_k8s.airflow._compat import BaseOperator, get_current_context
 from spark_on_k8s.airflow.operator_links import SparkOnK8SOperatorLink
 from spark_on_k8s.airflow.triggers import SparkOnK8STrigger
 from spark_on_k8s.k8s.sync_client import KubernetesClientManager
@@ -29,7 +28,7 @@ if TYPE_CHECKING:
     import jinja2
     from kubernetes import client as k8s
 
-    from airflow.utils.context import Context
+    from spark_on_k8s.airflow._compat import Context
     from spark_on_k8s.client import ExecutorInstances, PodResources
     from spark_on_k8s.utils.types import ConfigMap
 
@@ -496,8 +495,6 @@ class SparkOnK8SOperator(BaseOperator):
         raise AirflowException(f"The job finished with status: {event['status']}")
 
     def on_kill(self) -> None:
-        from airflow.operators.python import get_current_context
-
         if self.on_kill_action == OnKillAction.KEEP:
             return
         self.log.warning(self._driver_pod_name)
@@ -552,7 +549,7 @@ class SparkSqlOnK8SOperator(SparkOnK8SOperator):
     def __init__(self, sql: str, **kwargs):
         super().__init__(
             app_path="/configmap/spark_sql.py",
-            app_arguments=literal(["/configmap/queries.json"]),
+            app_arguments=["/configmap/queries.json"],
             **kwargs,
         )
         self.sql = sql

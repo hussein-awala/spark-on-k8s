@@ -2,13 +2,12 @@ from __future__ import annotations
 
 import asyncio
 import json
+from importlib.util import find_spec
 from unittest import mock
 
 import pytest
 
-from conftest import PYTHON_313_OR_ABOVE
-
-pytestmark = pytest.mark.skipif(PYTHON_313_OR_ABOVE, reason="Python 3.13+ is not supported by Airflow")
+pytestmark = pytest.mark.skipif(find_spec("airflow") is None, reason="Airflow extra is not installed")
 
 
 @pytest.mark.parametrize("startup_timeout,deadline", [(0, None), (10, 1010)])

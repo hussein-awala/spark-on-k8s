@@ -125,7 +125,12 @@ for (const [basePath, prefix] of [
         `/webserver/ui/${encodeURIComponent(namespace)}/${encodeURIComponent(appId)}`,
       ],
     ]) {
-      const link = page.getByRole("link", { name, exact: true });
+      const link = page.getByRole("link", {
+        name: ["Logs", "Spark UI"].includes(name)
+          ? new RegExp(`^${name} for `)
+          : name,
+        exact: true,
+      });
       await expect(link).toHaveAttribute("href", `${prefix}${suffix}`);
       expect(
         await link.evaluate((element: HTMLAnchorElement) => element.origin),

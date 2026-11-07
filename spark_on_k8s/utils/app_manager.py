@@ -347,6 +347,30 @@ class SparkAppManager(LoggingMixin):
                 _preload_content=False,
             )
 
+    def cancel_run(self, run, *, force: bool = False) -> None:
+        """Cancel a UID-bearing run without deleting a replacement or another application."""
+        if not isinstance(run.driver_uid, str) or not run.driver_uid:
+            raise ValueError("Cancellation requires a receipt with a driver UID")
+        with self.k8s_client_manager.client() as client:
+            api = k8s.CoreV1Api(client)
+            pod = api.read_namespaced_pod(name=run.driver_pod, namespace=run.namespace)
+            labels = pod.metadata.labels or {}
+            if (
+                pod.metadata.uid != run.driver_uid
+                or labels.get("spark-app-id") != run.app_id
+                or labels.get("spark-role") != "driver"
+            ):
+                raise ValueError("The recorded driver identity does not match the current pod")
+            api.delete_namespaced_pod(
+                name=run.driver_pod,
+                namespace=run.namespace,
+                body=k8s.V1DeleteOptions(
+                    grace_period_seconds=0 if force else None,
+                    propagation_policy="Foreground",
+                    preconditions=k8s.V1Preconditions(uid=run.driver_uid),
+                ),
+            )
+
     def delete_app(
         self, namespace: str, pod_name: str | None = None, app_id: str | None = None, force: bool = False
     ):
@@ -366,10 +390,12 @@ class SparkAppManager(LoggingMixin):
                 # we don't use `delete_collection_namespaced_pod` to know if the app exists or not
                 pods = api.list_namespaced_pod(
                     namespace=namespace,
-                    label_selector=f"spark-app-id={app_id}",
+                    label_selector=f"spark-app-id={app_id},spark-role=driver",
                 ).items
                 if len(pods) == 0:
                     raise ValueError(f"No pods found for app {app_id}")
+                if len(pods) > 1:
+                    raise ValueError(f"Multiple driver pods found for app {app_id}; use a run receipt")
                 pod_name = pods[0].metadata.name
             api.delete_namespaced_pod(
                 name=pod_name,

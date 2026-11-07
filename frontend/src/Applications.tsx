@@ -7,6 +7,7 @@ import {
   errorMessage,
   mergeApplications,
 } from "./client";
+import { SnapshotAge } from "./SnapshotAge";
 import { Diagnostics } from "./Diagnostics";
 import { Dialog } from "./Dialog";
 import { Icon } from "./icons";
@@ -59,17 +60,27 @@ function AppLinks({
   const historyUrl = transport.historyUrl
     ? transport.historyUrl(app)
     : appHistoryPath(config, app);
+  const identity = `${app.name || app.app_id} (${app.app_id})`;
   return (
     <div className="app-links">
       {app.driver_logs &&
         app.namespace &&
         (config.embedded ? (
-          <button className="text-link" onClick={() => onOpenLogs(app)}>
+          <button
+            className="text-link"
+            aria-label={`Logs for ${identity}`}
+            data-app-logs={app.app_id}
+            onClick={() => onOpenLogs(app)}
+          >
             <Icon name="logs" />
             Logs
           </button>
         ) : (
-          <a className="text-link" href={appLogsPath(config, app)}>
+          <a
+            className="text-link"
+            aria-label={`Logs for ${identity}`}
+            href={appLogsPath(config, app)}
+          >
             <Icon name="logs" />
             Logs
           </a>
@@ -80,6 +91,7 @@ function AppLinks({
         uiUrl && (
           <a
             className="text-link"
+            aria-label={`Spark UI for ${identity}`}
             href={uiUrl}
             target="_blank"
             rel="noopener noreferrer"
@@ -91,6 +103,7 @@ function AppLinks({
       {app.spark_history_proxy && historyUrl && (
         <a
           className="text-link"
+          aria-label={`History for ${identity}`}
           href={historyUrl}
           target="_blank"
           rel="noopener noreferrer"
@@ -107,6 +120,8 @@ function AppLinks({
 }
 
 interface ApplicationsProps {
+  restoreLogsFor?: string;
+  onFocusRestored?: () => void;
   config: ConsoleConfig;
   transport: ConsoleTransport;
   namespaceEditable: boolean;
@@ -115,12 +130,15 @@ interface ApplicationsProps {
 }
 
 export function Applications({
+  restoreLogsFor,
+  onFocusRestored,
   config,
   transport,
   namespaceEditable,
   onOpenLogs,
   onNamespaceChange,
 }: ApplicationsProps) {
+  const container = useRef<HTMLDivElement>(null);
   const namespace = config.namespace;
   const [namespaceInput, setNamespaceInput] = useState(config.namespace);
   const [live, setLive] = useState<ConsoleApplication[]>([]);
@@ -138,10 +156,12 @@ export function Applications({
     Math.max(0, config.refreshInterval),
   );
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
+  const [historyUpdatedAt, setHistoryUpdatedAt] = useState<Date | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState<{
     app: ConsoleApplication;
     action: "kill" | "delete";
+    fetchedAt: Date | null;
   } | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -227,7 +247,10 @@ export function Applications({
     setHistoryError(null);
     try {
       const items = await transport.listHistory({ signal: controller.signal });
-      if (!controller.signal.aborted) setHistory(items);
+      if (!controller.signal.aborted) {
+        setHistory(items);
+        setHistoryUpdatedAt(new Date());
+      }
     } catch (failure) {
       if (!controller.signal.aborted) setHistoryError(errorMessage(failure));
     } finally {
@@ -265,6 +288,21 @@ export function Applications({
     }, refreshInterval * 1000);
     return () => window.clearInterval(timer);
   }, [refreshInterval, loadApps, loadHistory, selectedId, confirmation]);
+
+  useEffect(() => {
+    if (!restoreLogsFor || initialLoading) return;
+    const button = Array.from(
+      container.current?.querySelectorAll<HTMLElement>("[data-app-logs]") ?? [],
+    ).find((element) => element.dataset.appLogs === restoreLogsFor);
+    if (button) button.focus();
+    else {
+      container.current?.querySelector<HTMLElement>("h1")?.focus();
+      setFeedback(
+        "The previous application's Logs control is unavailable. Applications are shown.",
+      );
+    }
+    onFocusRestored?.();
+  }, [restoreLogsFor, initialLoading, onFocusRestored]);
 
   const apps = useMemo(() => mergeApplications(live, history), [live, history]);
   const filtered = useMemo(() => {
@@ -312,17 +350,21 @@ export function Applications({
 
   function confirm(app: ConsoleApplication, action: "kill" | "delete") {
     setActionError(null);
-    setConfirmation({ app, action });
+    setConfirmation({
+      app,
+      action,
+      fetchedAt: app.source === "history" ? historyUpdatedAt : updatedAt,
+    });
   }
 
   return (
-    <>
+    <div ref={container}>
       <header className="page-heading">
         <div>
           <div className="eyebrow">
             {config.contextLabel || "SPARK ON KUBERNETES"}
           </div>
-          <h1>
+          <h1 tabIndex={-1}>
             Applications<span className="heading-dot">.</span>
           </h1>
           <p className="page-description">
@@ -667,9 +709,7 @@ export function Applications({
       <div className="page-footnote">
         <span>
           <Icon name="clock" />
-          {updatedAt
-            ? `Updated ${updatedAt.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`
-            : "Waiting for the first update"}
+          <SnapshotAge fetchedAt={updatedAt} label="Application list" />
         </span>
         <span>Counts reflect loaded applications, not the entire cluster.</span>
       </div>
@@ -689,6 +729,33 @@ export function Applications({
                 : "Kubernetes application"}
             </span>
           </div>
+          <p className="muted">
+            <SnapshotAge
+              fetchedAt={
+                selected.source === "history" ? historyUpdatedAt : updatedAt
+              }
+              label="Application snapshot"
+            />{" "}
+            {refreshInterval > 0
+              ? "Auto-refresh paused while details are open."
+              : "Auto-refresh is off."}
+          </p>
+          <button
+            className="button button-secondary"
+            aria-disabled={refreshing || historyLoading}
+            onClick={() => {
+              if (refreshing || historyLoading) return;
+              void loadApps();
+              void loadHistory();
+            }}
+          >
+            Refresh application snapshot
+          </button>
+          {(selected.source === "history" ? historyError : error) && (
+            <p role="alert">
+              Snapshot refresh failed. Previous application data is still shown.
+            </p>
+          )}
           <dl className="detail-grid">
             {[
               ["Application ID", selected.app_id],
@@ -763,6 +830,17 @@ export function Applications({
             <strong>{confirmation.app.name || confirmation.app.app_id}</strong>{" "}
             in <strong>{confirmation.app.namespace}</strong>
           </p>
+          <p className="mono">
+            Application ID: {confirmation.app.app_id} · Driver pod:{" "}
+            {confirmation.app.driver_pod || "Unknown"}
+          </p>
+          <p className="muted">
+            <SnapshotAge
+              fetchedAt={confirmation.fetchedAt}
+              label="Application snapshot"
+            />{" "}
+            Auto-refresh paused during confirmation.
+          </p>
           <p className="muted">
             {confirmation.action === "kill"
               ? "This stops the running driver. The application will stop processing, and its existing resources remain available for inspection."
@@ -795,6 +873,6 @@ export function Applications({
           </div>
         </Dialog>
       )}
-    </>
+    </div>
   );
 }

@@ -28,6 +28,22 @@ uses; they do not inherit the connection's namespace. Follow
 [Getting Started](getting_started.md) to prepare these resources and permissions.
 The examples use namespace `spark` and service account `spark`.
 
+## Separate execution and task-tab permissions
+
+| Component/action | Credential and authorization boundary |
+| --- | --- |
+| Worker submits, waits or performs configured cleanup | The selected Airflow Kubernetes connection; grant the required pod/service and optional Secret/ConfigMap operations only in approved namespaces |
+| Triggerer observes a deferred application | The same connection ID resolved in the triggerer's own environment; it needs observation access, not permission to submit another job |
+| Spark driver creates executors | The submission's `service_account` in its application namespace, independently of the worker's identity |
+| Native tab reads details/logs | Airflow task/task-log access, verified task ownership, and the Spark API's own permissions |
+| Native tab kills/deletes | The corresponding Airflow write permission, verified ownership, `SPARK_ON_K8S_AIRFLOW_ALLOW_WRITES=true`, and the Spark API's permissions |
+
+Setting the tab's allow-writes flag to `false` only disables browser actions. It
+does not prevent a DAG from submitting through its Kubernetes connection or from
+performing configured cleanup. Install the same integration version in workers
+and triggerers, and restrict their resolved credentials to the intended scope.
+A connection that works on a worker may still be unavailable to the triggerer.
+
 ## Load the example DAGs
 
 The [Airflow examples](https://github.com/hussein-awala/spark-on-k8s/tree/main/examples/airflow)
@@ -79,6 +95,102 @@ submission and leaves the live link in place.
 
 With `deferrable=True`, waiting runs in the Airflow triggerer. If
 `app_waiter="log"` is also set, logs are read when the task resumes after completion.
+
+## Lifecycle, retries and cleanup
+
+The table applies to `app_waiter="wait"` or `"log"` unless stated otherwise.
+`startup_timeout` bounds the driver's Pending phase; `0` disables that deadline.
+It is separate from Airflow's task execution timeout.
+
+| Outcome or event | Task outcome and application action |
+| --- | --- |
+| Spark succeeds | Task succeeds; `keep` retains the application, `delete` and `keep_if_failed` delete it |
+| Spark fails | Task fails; `keep` and `keep_if_failed` retain it, `delete` deletes it |
+| Driver startup deadline expires | Task fails and deletes the application, including with `on_finish_action="keep"`; applies to synchronous and deferred waiting |
+| Deferred trigger reports an observation error | Task fails with the trigger error; `keep` retains the application, while `delete` and `keep_if_failed` delete it because an observation error is not a confirmed Spark `Failed` state |
+| Synchronous observation raises a non-timeout API/transport error | Error propagates before finish cleanup; no new submission or automatic cleanup is performed by that wait path |
+| `app_waiter="no_wait"` | Returns after submission/adoption; no finish cleanup or completion assertion |
+| Airflow invokes `on_kill` with a known driver | `on_kill_action="keep"` retains, `"delete"` requests deletion, and `"kill"` requests process termination; default is `delete` |
+
+Do not assume every scheduler state change, worker loss or manual task-state
+edit invokes `on_kill`. A termination request also does not prove that application
+output was rolled back. The SDK/CLI retain applications after observation timeout
+or interruption; the Airflow startup-timeout deletion policy is intentionally
+different. See the [automation contract](automation.md).
+
+When task-local XCom still contains the recorded namespace and driver name, a
+retry adopts a Pending or Running application. Confirmed absence (Kubernetes
+404), or a confirmed Succeeded/Failed application, permits the existing new-job
+path. Authentication failures, unavailable status lookups and Unknown status now
+fail the task before submission. Restoring access lets a later attempt inspect
+the same recorded identity; uncertainty is not treated as absence.
+
+This depends on retained XCom. Airflow may clear XCom during a retry, and a crash
+between pod creation and receipt persistence remains outside this guarantee.
+It is not submission deduplication or an exactly-once data-write promise.
+Applications must define their own handling of a repeated logical date.
+
+For a daily DAG, choose the startup deadline and retention behavior explicitly.
+Replace the example image with your approved application artifact:
+
+```python
+from datetime import UTC, datetime, timedelta
+from airflow import DAG
+from spark_on_k8s.airflow.operators import SparkOnK8SOperator
+
+with DAG(
+    "daily_transform", schedule="@daily", catchup=False,
+    start_date=datetime(2026, 1, 1, tzinfo=UTC),
+) as dag:
+    SparkOnK8SOperator(
+        task_id="transform",
+        image="registry.example.com/team/daily-job:approved",
+        app_path="local:///opt/spark/work-dir/job.py",
+        namespace="analytics", service_account="spark-driver",
+        app_arguments=["--run-date", "{{ ds }}"],
+        driver_labels={"logical-date": "{{ ds_nodash }}"},
+        executor_labels={"logical-date": "{{ ds_nodash }}"},
+        deferrable=True, startup_timeout=180, poll_interval=10,
+        on_finish_action="keep_if_failed", on_kill_action="delete",
+        retries=2, retry_delay=timedelta(minutes=2),
+    )
+```
+
+`packages` and driver/executor labels and annotations support Airflow templates,
+alongside the existing image, arguments and resource fields. Use valid Kubernetes
+label values after rendering. The reserved `spark-on-k8s.io/airflow-task`
+annotation is generated from task identity and cannot be overridden by a user
+annotation. Previously literal Jinja expressions in these newly templated fields
+will now be rendered; review existing DAGs when upgrading.
+
+## Verify the integration on Kubernetes
+
+The source workflow `.github/workflows/airflow-kubernetes.yml` builds the wheel
+and runs Airflow 2.11.2 and 3.4.0 in service-account-bearing pods against the
+representative Spark 4.0.5 image. It checks successful work, deliberate Spark
+failure after real executor work, and an unschedulable startup timeout, each in
+synchronous and deferred mode. Deferred cases run and resume the real trigger.
+
+This uses Airflow's `DAG.test()` engine, metadata database and XCom. It does not
+qualify a separately deployed scheduler, executor or triggerer process, or
+worker-crash recovery. The broader Spark runtime matrix remains in the Spark
+compatibility workflow. Follow the Airflow workflow's image-building and kind
+setup, then run its exact host command from the repository root:
+
+```bash
+.venv/bin/python -I tests/integration/airflow/run_kubernetes.py \
+  --kubeconfig "$RUNNER_TEMP/airflow-kubeconfig" \
+  --airflow-image "airflow-compat:$AIRFLOW_VERSION" \
+  --airflow-version "$AIRFLOW_VERSION" \
+  --spark-image "airflow-spark:$SPARK_VERSION" --spark-version "$SPARK_VERSION" \
+  --artifacts "$RUNNER_TEMP/airflow-kubernetes-results"
+```
+
+The default context is `kind-airflow-compat`; the runner refuses non-kind
+contexts. Inspect all six cases in `result.json`, the Airflow log, cluster
+pods/events/logs and kind logs. A passing unit suite or an unexecuted workflow is
+not real-cluster evidence. See the [development guide](../development.md) for
+installed-wheel checks and the complete validation policy.
 
 ## Native task tab in Airflow 3
 

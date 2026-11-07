@@ -98,7 +98,7 @@ class ConnectProfile:
 
     @contextmanager
     def session(self):
-        """Create and close an independent remote session, including when user code fails."""
+        """Create an independent session and attempt release without masking application failure."""
         connection = self.connection_string()
         try:
             from pyspark.sql.connect.session import SparkSession
@@ -114,8 +114,19 @@ class ConnectProfile:
             ) from None
         try:
             yield session
-        finally:
-            session.stop()
+        except BaseException as original:
+            try:
+                session.stop()
+            except Exception:
+                original.add_note("Spark Connect session release also failed; server expiry may be required.")
+            raise
+        else:
+            try:
+                session.stop()
+            except Exception:
+                raise ConnectError(
+                    "Spark Connect session release failed; server expiry may be required."
+                ) from None
 
     def probe(self, *, timeout: float = 15) -> dict:
         """Execute a tiny remote query in a child process with a hard total timeout."""

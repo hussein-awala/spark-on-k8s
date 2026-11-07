@@ -86,3 +86,16 @@ For scheduled and templated SQL, the [Airflow operator](airflow.md) uses the sam
 runner. Jinja templating belongs to Airflow; the standalone SDK and CLI send SQL
 as provided. Review [Spark compatibility](spark_compatibility.md) before changing
 runtime images or connector versions.
+
+## Locate a failed statement
+
+The SQL runner records the local file basename (or `<inline>`), statement number
+and original starting line in a companion metadata file. It stops at the first
+failure and reports that location plus the Spark error condition when available.
+The runner no longer prints the complete query in its own progress or failure
+messages. Spark's own logs and displayed result rows can still contain data;
+apply your normal log-access and retention controls.
+
+Earlier successful statements are not rolled back. For quality gates, run
+explicit Spark SQL `assert_true(...)` statements before writes where possible.
+A successful pod only establishes program completion, not business correctness.

@@ -89,10 +89,12 @@ def test_submission_json_is_a_stable_receipt_without_secrets(cluster):
         "namespace": "spark",
         "error": None,
         "status": None,
+        "submission_phase": "resources_created",
         "run": {
             "namespace": "spark",
             "app_id": pod.metadata.labels["spark-app-id"],
             "driver_pod": pod.metadata.name,
+            "driver_uid": "test-uid",
         },
     }
     assert "private-value" not in result.stdout + result.stderr

@@ -24,7 +24,9 @@ def render_deployment(*settings):
 
 @pytest.mark.parametrize("history_enabled", ["false", "true"])
 def test_api_runtime_defaults_do_not_depend_on_history(history_enabled):
-    container = render_deployment("--set", f"sparkHistory.enabled={history_enabled}")
+    container = render_deployment(
+        "--set", f"sparkHistory.enabled={history_enabled}", "--set", "sparkHistory.image.tag=render-test"
+    )
     env = {entry["name"]: entry.get("value") for entry in container["env"]}
     assert env["SPARK_ON_K8S_IN_CLUSTER"] == "true"
     assert env["SPARK_ON_K8S_API_HOST"] == "0.0.0.0"

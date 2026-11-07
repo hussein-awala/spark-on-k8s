@@ -23,3 +23,6 @@ class APIConfiguration:
     SPARK_ON_K8S_API_WEBSERVER_APPS_REFRESH_INTERVAL = int(
         getenv("SPARK_ON_K8S_API_WEBSERVER_APPS_REFRESH_INTERVAL", "10")
     )
+
+    # Exact public http(s) origins; empty means the direct request origin only.
+    SPARK_ON_K8S_API_WEBSOCKET_ALLOWED_ORIGINS = getenv("SPARK_ON_K8S_API_WEBSOCKET_ALLOWED_ORIGINS", "")

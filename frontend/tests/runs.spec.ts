@@ -57,9 +57,7 @@ test("records remain separate after names are reused and never offer live action
       .getByRole("dialog")
       .getByRole("button", { name: /Delete|Stop|Replay/ }),
   ).toHaveCount(0);
-  await expect(
-    page.getByRole("link", { name: "Logs", exact: true }),
-  ).toHaveCount(0);
+  await expect(page.getByRole("link", { name: /^Logs for / })).toHaveCount(0);
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(

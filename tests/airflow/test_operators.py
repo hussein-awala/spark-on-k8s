@@ -270,6 +270,106 @@ class TestSparkOnK8SOperator:
                 startup_timeout=0,
             )
 
+    @pytest.mark.parametrize("status", [401, 403, 429, 500, 503, None])
+    @pytest.mark.parametrize("map_index", [-1, 3])
+    def test_adoption_lookup_error_never_submits(self, status, map_index):
+        from airflow.exceptions import AirflowException
+        from kubernetes.client import ApiException
+        from spark_on_k8s.airflow.operators import SparkOnK8SOperator
+
+        task = SparkOnK8SOperator(task_id="spark", image="spark:test", app_path="local:///job.py")
+        ti = mock.Mock(dag_id="dag", task_id="spark", map_index=map_index)
+        ti.xcom_pull.side_effect = ["default", "existing-driver"]
+        error = ApiException(status=status) if status is not None else ConnectionError("unreachable")
+        with (
+            mock.patch("spark_on_k8s.utils.app_manager.SparkAppManager.app_status", side_effect=error),
+            mock.patch.object(task, "_submit_new_job") as submit,
+            pytest.raises(AirflowException, match="refusing to submit another application") as caught,
+        ):
+            task.execute({"ti": ti})
+        assert caught.value.__cause__ is error
+        submit.assert_not_called()
+        assert all(call.kwargs["map_indexes"] == map_index for call in ti.xcom_pull.call_args_list)
+        ti.xcom_push.assert_not_called()
+
+    def test_adoption_confirmed_absence_submits(self):
+        from kubernetes.client import ApiException
+        from spark_on_k8s.airflow.operators import SparkOnK8SOperator
+
+        task = SparkOnK8SOperator(
+            task_id="spark", image="spark:test", app_path="local:///job.py", app_waiter="no_wait"
+        )
+        ti = mock.Mock(xcom_pull=mock.Mock(side_effect=["default", "missing-driver"]))
+        with (
+            mock.patch(
+                "spark_on_k8s.utils.app_manager.SparkAppManager.app_status",
+                side_effect=ApiException(status=404),
+            ),
+            mock.patch("spark_on_k8s.client.SparkOnK8S.submit_app", return_value="new-driver") as submit,
+        ):
+            task.execute({"ti": ti})
+        submit.assert_called_once()
+        ti.xcom_push.assert_any_call(key="driver_pod_name", value="new-driver")
+
+    def test_adoption_unknown_status_never_submits(self):
+        from airflow.exceptions import AirflowException
+        from spark_on_k8s.airflow.operators import SparkOnK8SOperator
+
+        task = SparkOnK8SOperator(task_id="spark", image="spark:test", app_path="local:///job.py")
+        ti = mock.Mock(xcom_pull=mock.Mock(side_effect=["default", "existing-driver"]))
+        with (
+            mock.patch(
+                "spark_on_k8s.utils.app_manager.SparkAppManager.app_status",
+                return_value=SparkAppStatus.Unknown,
+            ),
+            mock.patch.object(task, "_submit_new_job") as submit,
+            pytest.raises(AirflowException, match="indeterminate status Unknown"),
+        ):
+            task.execute({"ti": ti})
+        submit.assert_not_called()
+
+    def test_package_and_pod_metadata_templates_preserve_task_identity(self):
+        from spark_on_k8s.airflow.operators import SparkOnK8SOperator
+        from spark_on_k8s.utils.console_models import AIRFLOW_TASK_ANNOTATION
+
+        packages = ["org.example:job:{{ version }}"]
+        labels = {"dataset": "{{ dataset }}"}
+        annotations = {"source": "{{ dataset }}", AIRFLOW_TASK_ANNOTATION: "forged"}
+        for dataset in ("orders", "customers"):
+            task = SparkOnK8SOperator(
+                task_id="spark",
+                image="spark:test",
+                app_path="local:///job.py",
+                app_waiter="no_wait",
+                packages=packages,
+                driver_labels=labels,
+                executor_labels=labels,
+                driver_annotations=annotations,
+                executor_annotations={"source": "{{ dataset }}"},
+            )
+            task.render_template_fields({"version": "1.0", "dataset": dataset})
+            ti = mock.Mock(
+                dag_id="dag",
+                task_id="spark",
+                run_id="run",
+                map_index=2,
+                try_number=1,
+                region_id=None,
+                region_index=None,
+                xcom_pull=mock.Mock(return_value=None),
+            )
+            with mock.patch("spark_on_k8s.client.SparkOnK8S.submit_app", return_value="driver") as submit:
+                task.execute({"ti": ti})
+            values = submit.call_args.kwargs
+            assert values["packages"] == ["org.example:job:1.0"]
+            assert values["driver_labels"] == values["executor_labels"] == {"dataset": dataset}
+            assert values["driver_annotations"]["source"] == dataset
+            assert values["executor_annotations"] == {"source": dataset}
+            assert json.loads(values["driver_annotations"][AIRFLOW_TASK_ANNOTATION])["map_index"] == 2
+        assert packages == ["org.example:job:{{ version }}"]
+        assert labels == {"dataset": "{{ dataset }}"}
+        assert annotations[AIRFLOW_TASK_ANNOTATION] == "forged"
+
     @pytest.mark.parametrize(
         "app_waiter",
         [
@@ -362,6 +462,16 @@ class TestSparkSqlOnK8SOperator:
                         {
                             "name": "queries.json",
                             "text": json.dumps(["SELECT * FROM test_table"]),
+                        },
+                        {
+                            "name": "locations.json",
+                            "text": json.dumps(
+                                {
+                                    "schema_version": 1,
+                                    "source": "<inline>",
+                                    "statements": [{"statement": 1, "line": 1}],
+                                }
+                            ),
                         },
                     ],
                 }

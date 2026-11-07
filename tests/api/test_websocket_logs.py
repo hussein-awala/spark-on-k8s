@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from unittest import mock
 
+import httpx
 import pytest
 from fastapi import FastAPI, WebSocketDisconnect
 from fastapi.testclient import TestClient
@@ -86,6 +87,7 @@ def test_disconnected_browser_closes_log_generator():
         await asyncio.Event().wait()
 
     websocket = mock.Mock(
+        headers=mock.Mock(getlist=mock.Mock(return_value=[])),
         accept=mock.AsyncMock(),
         receive=mock.AsyncMock(side_effect=wait_for_disconnect),
         send_text=mock.AsyncMock(side_effect=WebSocketDisconnect()),
@@ -163,3 +165,143 @@ def test_idle_websocket_cleans_up_without_waiting_for_another_log_line(terminati
                 await asyncio.gather(task, return_exceptions=True)
 
     asyncio.run(check_cleanup())
+
+
+@pytest.mark.parametrize("remote_mode", [True, False])
+@pytest.mark.parametrize("root_path", ["", "/platform/spark"])
+@pytest.mark.parametrize(
+    "origins,configured,allowed",
+    [
+        ([], "", True),
+        (["http://testserver"], "", True),
+        (["http://TESTSERVER:80"], "", True),
+        (["https://testserver"], "", False),
+        (["https://foreign.example"], "", False),
+        (["null"], "", False),
+        (["http://testserver", "http://testserver"], "", False),
+        (["http://testserver/"], "", False),
+        (["http://user@testserver"], "", False),
+        (["http://testserver?"], "", False),
+        (["http://testserver#"], "", False),
+        ([""], "", False),
+        ([" http://testserver"], "", False),
+        (["http://testserver\\foreign"], "", False),
+        (["http://testserver:invalid"], "", False),
+        (["http://testserver:65536"], "", False),
+        (["http://[broken"], "", False),
+        (["https://console.example"], "https://console.example", True),
+        (["https://console.example:443"], "https://console.example", True),
+        (["http://testserver"], "https://console.example", False),
+        (["https://console.example"], "https://console.example/path", False),
+        (["https://console.example"], "https://console.example,invalid", False),
+        (["https://console.example"], "https://console.example,", False),
+        (["https://console.example"], "https://console.example:invalid", False),
+        ([], "https://console.example", True),
+    ],
+)
+def test_log_websocket_origin_contract(monkeypatch, root_path, origins, configured, allowed, remote_mode):
+    from spark_on_k8s.api import remote_auth
+    from spark_on_k8s.api.configuration import APIConfiguration
+    from spark_on_k8s.api.remote_auth import RemoteAccessMiddleware
+    from spark_on_k8s.api.submission_policy import SubmissionSettings
+
+    token = "dummy-operator-bearer-with-more-than-32-characters"
+    monkeypatch.setattr(
+        remote_auth, "get_submission_settings", lambda: SubmissionSettings(remote_mode, token.encode())
+    )
+    monkeypatch.setattr(APIConfiguration, "SPARK_ON_K8S_API_WEBSOCKET_ALLOWED_ORIGINS", configured)
+    app = FastAPI(root_path=root_path)
+    app.add_middleware(RemoteAccessMiddleware)
+    app.include_router(router)
+
+    async def logs():
+        yield "permitted"
+
+    # Spoofed proxy headers must not broaden the direct-origin default.
+    headers = [("origin", origin) for origin in origins] + [
+        ("authorization", "Bearer " + token),
+        ("x-forwarded-host", "foreign.example"),
+        ("x-forwarded-proto", "https"),
+        ("forwarded", "host=foreign.example;proto=https"),
+    ]
+    with mock.patch("spark_on_k8s.api.webserver.AsyncSparkAppManager") as manager:
+        manager.return_value.logs_streamer.return_value = logs()
+        with TestClient(app) as client:
+            if allowed:
+                with client.websocket_connect(
+                    root_path + "/webserver/ws/logs/spark/app", headers=httpx.Headers(headers)
+                ) as ws:
+                    assert ws.receive_text() == "permitted"
+            else:
+                with pytest.raises(WebSocketDisconnect) as error:
+                    with client.websocket_connect(
+                        root_path + "/webserver/ws/logs/spark/app", headers=httpx.Headers(headers)
+                    ):
+                        pytest.fail("Foreign browser origin was accepted")
+                assert error.value.code == 1008
+                manager.assert_not_called()
+        # Avoid an unconsumed test generator in rejected cases.
+        asyncio.run(manager.return_value.logs_streamer.return_value.aclose())
+
+
+@pytest.mark.parametrize(
+    "origin,allowed",
+    [
+        ("https://testserver", True),
+        ("https://testserver:443", True),
+        ("http://testserver", False),
+        ("https://testserver:8443", False),
+    ],
+)
+def test_secure_direct_websocket_uses_https_origin(monkeypatch, origin, allowed):
+    from spark_on_k8s.api.configuration import APIConfiguration
+
+    monkeypatch.setattr(APIConfiguration, "SPARK_ON_K8S_API_WEBSOCKET_ALLOWED_ORIGINS", "")
+    app = FastAPI()
+    app.include_router(router)
+
+    async def logs():
+        yield "secure"
+
+    with mock.patch("spark_on_k8s.api.webserver.AsyncSparkAppManager") as manager:
+        manager.return_value.logs_streamer.return_value = logs()
+        with TestClient(app) as client:
+            if allowed:
+                with client.websocket_connect(
+                    "wss://testserver/webserver/ws/logs/spark/app", headers={"origin": origin}
+                ) as ws:
+                    assert ws.receive_text() == "secure"
+            else:
+                with pytest.raises(WebSocketDisconnect):
+                    with client.websocket_connect(
+                        "wss://testserver/webserver/ws/logs/spark/app", headers={"origin": origin}
+                    ):
+                        pytest.fail("HTTP origin accepted for secure direct endpoint")
+                manager.assert_not_called()
+        asyncio.run(manager.return_value.logs_streamer.return_value.aclose())
+
+
+@pytest.mark.parametrize("hosts", [[], [b"testserver", b"other.example"]])
+def test_browser_socket_without_unique_authority_is_rejected_before_collection(monkeypatch, hosts):
+    from fastapi import WebSocket
+    from spark_on_k8s.api.configuration import APIConfiguration
+
+    monkeypatch.setattr(APIConfiguration, "SPARK_ON_K8S_API_WEBSOCKET_ALLOWED_ORIGINS", "")
+    # An ASGI request with no unique Host cannot establish the direct browser origin.
+    send = mock.AsyncMock()
+    websocket = WebSocket(
+        {
+            "type": "websocket",
+            "scheme": "ws",
+            "path": "/webserver/ws/logs/spark/app",
+            "headers": [(b"origin", b"http://testserver"), *[(b"host", host) for host in hosts]],
+        },
+        receive=mock.AsyncMock(),
+        send=send,
+    )
+    with mock.patch("spark_on_k8s.api.webserver.AsyncSparkAppManager") as manager:
+        asyncio.run(app_logs_websocket(websocket, "spark", "app", tail=100))
+    manager.assert_not_called()
+    assert send.await_count == 1
+    assert send.call_args.args[0]["type"] == "websocket.close"
+    assert send.call_args.args[0]["code"] == 1008

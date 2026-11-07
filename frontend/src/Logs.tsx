@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { consolePath, errorMessage } from "./client";
+import { LogExcerpt, downloadText } from "./LogExcerpt";
 import { Icon } from "./icons";
 import type { ConsoleConfig, ConsoleTransport } from "./types";
 
@@ -23,6 +24,12 @@ export function Logs({
   const [tail, setTail] = useState(config.tail ?? 1000);
   const [query, setQuery] = useState("");
   const [follow, setFollow] = useState(true);
+  const [frozen, setFrozen] = useState<{
+    lines: LogLine[];
+    lastNumber: number;
+    dropped: number;
+  } | null>(null);
+  const [excerpt, setExcerpt] = useState<string | null>(null);
   const [wrap, setWrap] = useState(false);
   const [connection, setConnection] = useState<ConnectionState>("connecting");
   const [connectionMessage, setConnectionMessage] = useState("");
@@ -46,6 +53,8 @@ export function Logs({
     allLines.current = [];
     setLines([]);
     setDropped(0);
+    setFrozen(null);
+    setExcerpt(null);
   }
 
   useEffect(() => {
@@ -157,17 +166,18 @@ export function Logs({
     };
   }, [appId, config.namespace, tail, session, transport]);
 
+  const readingLines = frozen?.lines ?? lines;
   const visible = useMemo(() => {
     const needle = query.toLowerCase();
     return needle
-      ? lines.filter((line) => line.text.toLowerCase().includes(needle))
-      : lines;
-  }, [lines, query]);
+      ? readingLines.filter((line) => line.text.toLowerCase().includes(needle))
+      : readingLines;
+  }, [readingLines, query]);
   const text = visible.map((line) => line.text).join("\n");
   useEffect(() => {
-    if (follow && viewport.current)
+    if (follow && !frozen && viewport.current)
       viewport.current.scrollTop = viewport.current.scrollHeight;
-  }, [visible, follow]);
+  }, [visible, follow, frozen]);
 
   async function copyLogs() {
     try {
@@ -183,16 +193,10 @@ export function Logs({
   }
 
   function downloadLogs() {
-    const blob = new Blob(
-      [allLines.current.map((line) => line.text).join("\n")],
-      { type: "text/plain;charset=utf-8" },
+    downloadText(
+      allLines.current.map((line) => line.text).join("\n"),
+      `${appId.replace(/[^a-zA-Z0-9_.-]/g, "_") || "application"}.log`,
     );
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `${appId.replace(/[^a-zA-Z0-9_.-]/g, "_") || "application"}.log`;
-    link.click();
-    setTimeout(() => URL.revokeObjectURL(url), 0);
   }
 
   const choices = [...new Set([100, 1000, 5000, MAX_LOG_LINES, -1, tail])];
@@ -216,7 +220,7 @@ export function Logs({
       <header className="page-heading logs-heading">
         <div>
           <div className="eyebrow">DRIVER OUTPUT</div>
-          <h1>
+          <h1 tabIndex={-1}>
             Application logs<span className="heading-dot">.</span>
           </h1>
           <p className="log-identity">
@@ -268,6 +272,23 @@ export function Logs({
         <div className="log-controls-group">
           <button
             className="button button-secondary"
+            aria-pressed={!!frozen}
+            onClick={() =>
+              setFrozen(
+                frozen
+                  ? null
+                  : {
+                      lines: [...lines],
+                      lastNumber: nextLine.current - 1,
+                      dropped,
+                    },
+              )
+            }
+          >
+            {frozen ? "Return to live output" : "Freeze reading view"}
+          </button>
+          <button
+            className="button button-secondary"
             onClick={() => setSession((value) => value + 1)}
             disabled={connection === "connecting"}
           >
@@ -288,10 +309,29 @@ export function Logs({
             disabled={!lines.length}
           >
             <Icon name="download" />
-            Download
+            Download live buffer
+          </button>
+          <button
+            className="button button-secondary"
+            disabled={!visible.length}
+            onClick={() => setExcerpt(text)}
+          >
+            Prepare excerpt
           </button>
         </div>
       </div>
+      {frozen && (
+        <p className="notice notice-info">
+          Reading view frozen.{" "}
+          {Math.max(
+            0,
+            nextLine.current - 1 - frozen.lastNumber,
+          ).toLocaleString()}{" "}
+          new lines received · {(dropped - frozen.dropped).toLocaleString()}{" "}
+          live-buffer lines discarded since freezing. Search and Copy visible
+          use this snapshot.
+        </p>
+      )}
       {connectionMessage && (
         <div
           className={`notice ${connection === "error" ? "notice-warning" : "notice-info"}`}
@@ -380,7 +420,11 @@ export function Logs({
                 <>
                   <Icon name="search" />
                   <strong>No matching log lines</strong>
-                  <span>Try another search. New lines continue to arrive.</span>
+                  <span>
+                    {frozen
+                      ? "Try another search in this frozen snapshot."
+                      : "Try another search. New lines continue to arrive."}
+                  </span>
                 </>
               ) : (
                 <>
@@ -405,21 +449,33 @@ export function Logs({
         <div className="log-footer">
           <span>
             {visible.length.toLocaleString()} {query ? "matching" : "visible"} /{" "}
-            {lines.length.toLocaleString()} buffered lines
+            {readingLines.length.toLocaleString()}{" "}
+            {frozen ? "snapshot" : "buffered"} lines
             {dropped > 0
               ? ` · ${dropped.toLocaleString()} older lines discarded`
               : ""}
           </span>
           <span>
-            {follow ? "Following output" : "Auto-scroll paused"} · Buffer limit{" "}
-            {MAX_LOG_LINES.toLocaleString()}
+            {frozen
+              ? "Reading view frozen"
+              : follow
+                ? "Following output"
+                : "Auto-scroll paused"}{" "}
+            · Buffer limit {MAX_LOG_LINES.toLocaleString()}
           </span>
         </div>
       </section>
       <p className="log-help">
-        Logs are displayed as plain text. Changing the tail limit or
-        reconnecting starts a fresh buffer.
+        Copy visible uses the current search and reading snapshot. Download live
+        buffer includes all currently buffered lines, including lines hidden by
+        search, and uses the application ID in its filename. Prepare excerpt
+        lets you review and mask a bounded selection locally. Changing the tail
+        limit, reconnecting or clearing starts a fresh buffer and ends a frozen
+        reading view.
       </p>
+      {excerpt !== null && (
+        <LogExcerpt text={excerpt} onClose={() => setExcerpt(null)} />
+      )}
     </>
   );
 }

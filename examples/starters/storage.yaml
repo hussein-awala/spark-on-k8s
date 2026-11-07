@@ -1,3 +1,5 @@
+# Functional demo dataset/output storage, not a shuffle layout or production capacity baseline.
+# Deleting this claim may destroy data; driver cleanup deliberately leaves it alone.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:

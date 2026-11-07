@@ -4,14 +4,29 @@ import argparse
 import json
 import re
 import time
+from dataclasses import replace
 from pathlib import Path
 from uuid import uuid4
 
 from kubernetes import client as k8s, config
+from spark_on_k8s.cli.receipts import read_receipt, receipt_writer
 from spark_on_k8s.client import ExecutorInstances, PodResources, SparkOnK8S
 from spark_on_k8s.k8s.sync_client import KubernetesClientManager
 
 REQUEST_TIMEOUT = (5, 20)
+
+
+def read_logs(api, namespace, pod_name, **kwargs):
+    # Read bytes directly: the Kubernetes client's str deserializer can stringify
+    # a byte body as b'...\\n...', losing actual line boundaries in the receipt stream.
+    response = api.read_namespaced_pod_log(
+        pod_name, namespace, _preload_content=False, _request_timeout=REQUEST_TIMEOUT, **kwargs
+    )
+    try:
+        return response.data.decode("utf-8", errors="replace")
+    finally:
+        response.close()
+        response.release_conn()
 
 
 def owned_executors(api, namespace: str, driver_uid: str):
@@ -36,12 +51,7 @@ def dump_diagnostics(api, namespace: str, destination: Path):
                 for pod in objects.items:
                     for container in pod.spec.containers:
                         try:
-                            logs = api.read_namespaced_pod_log(
-                                pod.metadata.name,
-                                namespace,
-                                container=container.name,
-                                _request_timeout=REQUEST_TIMEOUT,
-                            )
+                            logs = read_logs(api, namespace, pod.metadata.name, container=container.name)
                         except k8s.ApiException as error:
                             logs = f"Logs unavailable: {error.status}"
                         (destination / f"{pod.metadata.name}-{container.name}.log").write_text(logs)
@@ -126,15 +136,26 @@ def run_case(api, submitter: SparkOnK8S, args, namespace: str, scenario: str):
         },
         **options,
     )
-    pod = await_completion(api, namespace, pod_name, args.timeout)
-    logs = api.read_namespaced_pod_log(
-        pod_name, namespace, container="driver", _request_timeout=REQUEST_TIMEOUT
+    run = submitter.last_submitted_run
+    assert run is not None and run.driver_uid, "The installed client must return a UID-bearing receipt"
+    receipt_path = args.artifacts / f"{scenario}-receipt.json"
+    with receipt_writer(receipt_path) as save:
+        save(run)
+    assert read_receipt(receipt_path) == run
+    # A different process/client can resume observation using the durable identity.
+    observer = SparkOnK8S(k8s_client_manager=submitter.k8s_client_manager)
+    observer.app_manager.wait_for_app(
+        namespace=run.namespace, pod_name=run.driver_pod, timeout=args.timeout, poll_interval=2
     )
+    pod = api.read_namespaced_pod(pod_name, namespace, _request_timeout=REQUEST_TIMEOUT)
+    assert pod.metadata.uid == run.driver_uid
+    assert observer.app_manager.app_status(namespace=namespace, pod_name=pod_name).value == pod.status.phase
+    logs = read_logs(api, namespace, pod_name, container="driver")
     (args.artifacts / f"{scenario}.log").write_text(logs)
     executors = owned_executors(api, namespace, pod.metadata.uid)
     if scenario == "sql-failure":
         assert pod.status.phase == "Failed", f"SQL failure incorrectly succeeded: {pod_name}"
-        assert "UNRESOLVED_COLUMN" in logs and "missing_column" in logs, f"Unexpected failure: {logs[-4000:]}"
+        assert "UNRESOLVED_COLUMN" in logs and "SQL statement" in logs, f"Unexpected failure: {logs[-4000:]}"
         assert "SHOULD_NOT_RUN" not in logs, "SQL runner continued after the first failed statement"
     else:
         assert pod.status.phase == "Succeeded", f"{scenario} failed: {logs[-4000:]}"
@@ -161,7 +182,17 @@ def run_case(api, submitter: SparkOnK8S, args, namespace: str, scenario: str):
         "diagnosed_pods": diagnosis.inspected_pods,
     }
     dump_diagnostics(api, namespace, args.artifacts / scenario)
-    submitter.app_manager.delete_app(namespace=namespace, pod_name=pod_name)
+    try:
+        observer.cancel_run(replace(run, driver_uid="stale-receipt-uid"))
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("A stale receipt must not cancel a live driver")
+    assert (
+        api.read_namespaced_pod(pod_name, namespace, _request_timeout=REQUEST_TIMEOUT).metadata.uid
+        == run.driver_uid
+    )
+    observer.cancel_run(read_receipt(receipt_path))
     await_cleanup(
         api,
         namespace,
@@ -172,6 +203,58 @@ def run_case(api, submitter: SparkOnK8S, args, namespace: str, scenario: str):
     result["garbage_collected"] = True
     print(json.dumps(result), flush=True)
     return result
+
+
+def run_pending_case(api, submitter, args, namespace):
+    """A real unschedulable driver must time out without cancellation or a duplicate submission."""
+    pod_name = submitter.submit_app(
+        image=args.image,
+        namespace=namespace,
+        service_account="spark",
+        app_name="pending",
+        app_id_suffix=lambda: "-" + uuid4().hex[:8],
+        image_pull_policy="Never",
+        app_waiter="no_wait",
+        app_path="local:///opt/spark/work-dir/runtime_job.py",
+        app_arguments=[args.spark_version],
+        driver_node_selector={"spark-on-k8s.test/unschedulable": uuid4().hex},
+        executor_instances=ExecutorInstances(initial=1),
+    )
+    run = submitter.last_submitted_run
+    start = time.monotonic()
+    try:
+        submitter.app_manager.wait_for_app(
+            namespace=namespace, pod_name=pod_name, timeout=3, poll_interval=0.5
+        )
+    except TimeoutError:
+        pass
+    else:
+        raise AssertionError("Unschedulable driver did not time out")
+    elapsed = time.monotonic() - start
+    assert elapsed < 15, f"Observation deadline exceeded its bounded tolerance: {elapsed}"
+    pod = api.read_namespaced_pod(pod_name, namespace, _request_timeout=REQUEST_TIMEOUT)
+    assert pod.metadata.uid == run.driver_uid and pod.status.phase == "Pending"
+    assert (
+        len(
+            api.list_namespaced_pod(
+                namespace,
+                label_selector=f"spark-app-id={run.app_id},spark-role=driver",
+                _request_timeout=REQUEST_TIMEOUT,
+            ).items
+        )
+        == 1
+    )
+    report = submitter.diagnose_app(namespace=namespace, pod_name=pod_name)
+    assert any(item.code in {"unschedulable", "cause_unknown"} for item in report.findings)
+    dump_diagnostics(api, namespace, args.artifacts / "pending")
+    submitter.cancel_run(run)
+    await_cleanup(api, namespace, pod_name, run.app_id, {run.driver_uid})
+    return {
+        "scenario": "pending-timeout",
+        "elapsed_seconds": elapsed,
+        "driver_preserved_until_cancel": True,
+        "garbage_collected": True,
+    }
 
 
 def main():
@@ -215,22 +298,34 @@ def main():
                 _request_timeout=REQUEST_TIMEOUT,
             )
             submitter = SparkOnK8S(k8s_client_manager=manager)
-            results = [
-                run_case(api, submitter, args, namespace, scenario)
-                for scenario in ("python", "sql", "sql-failure", "java")
-            ]
-            (args.artifacts / "result.json").write_text(
-                json.dumps(
-                    {
-                        "spark": args.spark_version,
-                        "image": args.image,
-                        "mode": "kubernetes",
-                        "results": results,
-                    },
-                    indent=2,
-                )
-                + "\n"
-            )
+            results = []
+            for scenario in ("python", "sql", "sql-failure", "java", "pending-timeout"):
+                try:
+                    result = (
+                        run_pending_case(api, submitter, args, namespace)
+                        if scenario == "pending-timeout"
+                        else run_case(api, submitter, args, namespace, scenario)
+                    )
+                    results.append({**result, "test_status": "passed"})
+                except Exception as error:
+                    results.append(
+                        {"scenario": scenario, "test_status": "failed", "error_type": type(error).__name__}
+                    )
+                    raise
+                finally:
+                    (args.artifacts / "result.json").write_text(
+                        json.dumps(
+                            {
+                                "spark": args.spark_version,
+                                "image": args.image,
+                                "mode": "kubernetes",
+                                "results": results,
+                            },
+                            indent=2,
+                        )
+                        + "\n"
+                    )
+
         finally:
             dump_diagnostics(api, namespace, args.artifacts / "final")
             api.delete_namespace(namespace, _request_timeout=REQUEST_TIMEOUT)

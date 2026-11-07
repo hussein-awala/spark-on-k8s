@@ -12,10 +12,14 @@ class RunHandle:
     namespace: str
     app_id: str
     driver_pod: str
+    driver_uid: str | None = None
 
     def to_dict(self) -> dict[str, str]:
         """Return JSON-serializable identity fields."""
-        return asdict(self)
+        result = asdict(self)
+        if self.driver_uid is None:
+            result.pop("driver_uid")
+        return result
 
 
 class WaitDeadline:

@@ -1,0 +1,32 @@
+# Starting point only: validate resources and storage against your own service targets.
+# This file intentionally does not render until image.digest is supplied with --set-string.
+image:
+  digest: REQUIRED_SHA256_DIGEST
+# The API service account exists in the Helm release namespace; RBAC is managed externally.
+serviceAccount:
+  create: false
+  name: spark-observer
+rbac:
+  create: false
+# API permissions/initial namespace, not a tenant boundary or Spark application defaults.
+namespaces: "analytics,batch"
+readOnly: true
+replicaCount: 1
+autoscaling:
+  enabled: false
+# Illustrative reservations; measure and adjust for actual API traffic.
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: "1"
+    memory: 512Mi
+service:
+  type: ClusterIP
+ingress:
+  enabled: false
+sparkHistory:
+  enabled: false
+runHistory:
+  enabled: false

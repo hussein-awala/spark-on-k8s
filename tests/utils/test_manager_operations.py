@@ -101,7 +101,8 @@ def test_missing_application_never_mutates_resources(manager_case, method):
         manager_case.call(method, app_id="absent")
 
     manager_case.api.list_namespaced_pod.assert_called_once_with(
-        namespace="analytics", label_selector="spark-app-id=absent"
+        namespace="analytics",
+        label_selector="spark-app-id=absent" + (",spark-role=driver" if method == "delete_app" else ""),
     )
     manager_case.api.delete_namespaced_pod.assert_not_called()
     manager_case.execute.assert_not_called()
@@ -164,7 +165,7 @@ def test_delete_uses_foreground_propagation_and_explicit_force(manager_case, tar
 
     if "app_id" in target:
         manager_case.api.list_namespaced_pod.assert_called_once_with(
-            namespace="analytics", label_selector="spark-app-id=report-123"
+            namespace="analytics", label_selector="spark-app-id=report-123,spark-role=driver"
         )
     else:
         manager_case.api.list_namespaced_pod.assert_not_called()

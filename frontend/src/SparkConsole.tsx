@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Applications } from "./Applications";
 import { consolePath, createConsoleTransport } from "./client";
 import { Icon, SparkMark } from "./icons";
@@ -57,8 +57,19 @@ function ConsoleContent({
       appId: config.appId,
     });
   }, [config.view, config.namespace, config.appId]);
+  const content = useRef<HTMLDivElement>(null);
+  const navigateFocus = useRef(false);
+  const logsOrigin = useRef<string | undefined>(undefined);
+  const [restoreLogsFor, setRestoreLogsFor] = useState<string | undefined>();
+  useEffect(() => {
+    if (!navigateFocus.current) return;
+    navigateFocus.current = false;
+    content.current?.querySelector<HTMLElement>("h1")?.focus();
+  }, [location.view]);
   const activeConfig = { ...config, ...location };
   function openLogs(app: ConsoleApplication) {
+    navigateFocus.current = true;
+    logsOrigin.current = app.app_id;
     setLocation({
       view: "logs",
       namespace: app.namespace || config.namespace,
@@ -66,6 +77,8 @@ function ConsoleContent({
     });
   }
   function backToApps() {
+    navigateFocus.current = true;
+    setRestoreLogsFor(logsOrigin.current);
     setLocation({
       view: "apps",
       namespace: location.namespace,
@@ -144,7 +157,7 @@ function ConsoleContent({
         </aside>
       )}
       <main className="console-main">
-        <div className="console-content">
+        <div className="console-content" ref={content}>
           {location.view === "runs" ? (
             <Runs
               config={activeConfig}
@@ -160,6 +173,8 @@ function ConsoleContent({
             />
           ) : (
             <Applications
+              restoreLogsFor={restoreLogsFor}
+              onFocusRestored={() => setRestoreLogsFor(undefined)}
               config={activeConfig}
               transport={transport}
               namespaceEditable={namespaceEditable}

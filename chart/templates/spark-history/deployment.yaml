@@ -35,7 +35,7 @@ spec:
         - name: spark-history
           securityContext:
             {{- toYaml .Values.sparkHistory.securityContext | nindent 12 }}
-          image: "{{ .Values.sparkHistory.image.repository }}:{{ .Values.sparkHistory.image.tag }}"
+          image: {{ include "spark-on-k8s.image" (dict "image" .Values.sparkHistory.image "defaultTag" "" "error" "sparkHistory requires an explicit image.tag or image.digest") | quote }}
           imagePullPolicy: {{ .Values.sparkHistory.image.pullPolicy }}
           {{- with .Values.sparkHistory.env }}
           env:

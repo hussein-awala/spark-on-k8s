@@ -5,6 +5,7 @@ import re
 from contextlib import aclosing
 from functools import wraps
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import httpx
 from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
@@ -30,7 +31,7 @@ router = APIRouter(
 _DNS_LABEL = re.compile(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?")
 
 
-_REMOTE_PROXY_HEADERS = {
+_PROXY_HEADERS = {
     b"accept",
     b"accept-encoding",
     b"accept-language",
@@ -46,11 +47,54 @@ _REMOTE_PROXY_HEADERS = {
 
 
 def _proxy_headers(request: Request) -> list[tuple[bytes, bytes]]:
-    if not request.scope.get("spark_on_k8s.remote_authenticated"):
-        return request.headers.raw
     # The API/gateway identity is never a credential for application or history services.
     # An allowlist also excludes vendor-specific gateway token/identity headers.
-    return [(key, value) for key, value in request.headers.raw if key.lower() in _REMOTE_PROXY_HEADERS]
+    return [(key, value) for key, value in request.headers.raw if key.lower() in _PROXY_HEADERS]
+
+
+def _origin(value: str) -> tuple[str, str, int] | None:
+    """Parse an HTTP origin, rejecting URL paths, credentials and opaque origins."""
+    if not value or any(character.isspace() for character in value) or "\\" in value:
+        return None
+    try:
+        parsed = urlsplit(value)
+        if (
+            parsed.scheme not in {"http", "https"}
+            or not parsed.hostname
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.path
+            or parsed.query
+            or parsed.fragment
+            or "?" in value
+            or "#" in value
+        ):
+            return None
+        port = parsed.port if parsed.port is not None else (443 if parsed.scheme == "https" else 80)
+        return parsed.scheme, parsed.hostname.lower(), port
+    except ValueError:
+        return None
+
+
+def _logs_origin_allowed(websocket: WebSocket) -> bool:
+    origins = websocket.headers.getlist("origin")
+    # Non-browser clients may omit Origin; existing authentication still applies.
+    if not origins:
+        return True
+    if len(origins) != 1 or (origin := _origin(origins[0])) is None:
+        return False
+    configured = APIConfiguration.SPARK_ON_K8S_API_WEBSOCKET_ALLOWED_ORIGINS
+    if configured:
+        allowed = [_origin(value.strip()) for value in configured.split(",")]
+        # A malformed deployment list must not fall back to a broader default.
+        return all(value is not None for value in allowed) and origin in allowed
+    hosts = websocket.headers.getlist("host")
+    if len(hosts) != 1:
+        return False
+    scheme = {"ws": "http", "wss": "https"}.get(websocket.scope["scheme"])
+    # Never derive trust from Forwarded or X-Forwarded-* request headers.
+    # An explicit public-origin list supports gateways that translate Host/TLS.
+    return scheme is not None and origin == _origin(f"{scheme}://{hosts[0]}")
 
 
 def handle_k8s_errors(func):
@@ -184,6 +228,9 @@ async def app_logs_websocket(
     websocket: WebSocket, namespace: str, app_id: str, tail: int = Query(default=-1, ge=-1, le=10000)
 ):
     """Stream literal log text and signal failures through the WebSocket close state."""
+    if not _logs_origin_allowed(websocket):
+        await websocket.close(code=1008, reason="Browser origin is not permitted.")
+        return
     await websocket.accept()
     manager = AsyncSparkAppManager(k8s_client_manager=KubernetesClientSingleton.client_manager)
 

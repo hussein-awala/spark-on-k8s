@@ -109,3 +109,9 @@ executes Python, SQL, SQL failure, and Java workloads with `local[2]`; it does
 **not** validate Kubernetes submission, networking, RBAC, or resource cleanup.
 The Kubernetes workflow requires a working Docker daemon. Its run results are
 the evidence for cluster compatibility; local-mode results are separate evidence.
+
+The JVM matrix compiles a Java class against each runtime image's Spark jars.
+This proves that selected workload, not compatibility of an existing Scala
+assembly or arbitrary third-party connector. Rebuild and test your actual
+application with the intended Java, Scala binary version, Spark jars and
+connector set before upgrading it.

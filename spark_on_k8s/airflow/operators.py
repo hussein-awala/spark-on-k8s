@@ -7,6 +7,7 @@ from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
 from airflow.exceptions import AirflowException
+from kubernetes.client import ApiException
 
 from spark_on_k8s.airflow._compat import BaseOperator, get_current_context
 from spark_on_k8s.airflow.operator_links import SparkOnK8SOperatorLink
@@ -129,11 +130,16 @@ class SparkOnK8SOperator(BaseOperator):
         "app_id_suffix",
         "spark_conf",
         "class_name",
+        "packages",
         "app_arguments",
         "app_waiter",
         "image_pull_policy",
         "driver_resources",
         "executor_resources",
+        "driver_labels",
+        "executor_labels",
+        "driver_annotations",
+        "executor_annotations",
         "executor_instances",
         "secret_values",
         "driver_env_vars_from_secrets",
@@ -337,17 +343,47 @@ class SparkOnK8SOperator(BaseOperator):
             key=self._XCOM_DRIVER_POD_NAME,
             include_prior_dates=False,
         )
-        if xcom_driver_pod_name:
-            with contextlib.suppress(Exception):
-                app_status = spark_app_manager.app_status(
-                    namespace=xcom_driver_namespace,
-                    pod_name=xcom_driver_pod_name,
+        if not xcom_driver_pod_name:
+            return False
+        try:
+            app_status = spark_app_manager.app_status(
+                namespace=xcom_driver_namespace,
+                pod_name=xcom_driver_pod_name,
+            )
+        except ApiException as error:
+            if error.status == 404:
+                self.log.info(
+                    "Previously recorded Spark driver %s/%s is absent", self.namespace, xcom_driver_pod_name
                 )
-                if app_status in {SparkAppStatus.Pending, SparkAppStatus.Running}:
-                    self._driver_pod_name = xcom_driver_pod_name
-                    self._restore_console_metadata(context)
-                    return True
-        return False
+                return False
+            raise AirflowException(
+                f"Cannot verify previously recorded Spark driver {self.namespace}/{xcom_driver_pod_name}; "
+                "refusing to submit another application. Restore Kubernetes access before retrying."
+            ) from error
+        except Exception as error:
+            raise AirflowException(
+                f"Cannot verify previously recorded Spark driver {self.namespace}/{xcom_driver_pod_name}; "
+                "refusing to submit another application. Restore Kubernetes access before retrying."
+            ) from error
+        if app_status in {SparkAppStatus.Pending, SparkAppStatus.Running}:
+            self._driver_pod_name = xcom_driver_pod_name
+            self._restore_console_metadata(context)
+            self.log.info(
+                "Reattaching to Spark driver %s/%s (%s)", self.namespace, xcom_driver_pod_name, app_status
+            )
+            return True
+        if app_status in {SparkAppStatus.Succeeded, SparkAppStatus.Failed}:
+            self.log.info(
+                "Previously recorded Spark driver %s/%s is terminal (%s)",
+                self.namespace,
+                xcom_driver_pod_name,
+                app_status,
+            )
+            return False
+        raise AirflowException(
+            f"Previously recorded Spark driver {self.namespace}/{xcom_driver_pod_name} "
+            f"has indeterminate status {app_status}; refusing to submit another application."
+        )
 
     def _task_driver_annotations(self, context: Context) -> dict[str, str]:
         from pydantic import ValidationError

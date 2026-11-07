@@ -44,6 +44,7 @@ from spark_on_k8s.cli.options import (
     ui_reverse_proxy_option,
     wait_option,
 )
+from spark_on_k8s.cli.receipts import receipt_option
 
 
 @click.group(name="app", help="Create and manage a single Spark applications.")
@@ -172,6 +173,7 @@ def wait(app_id: str, namespace: str, output: str, timeout: float | None):
 )
 @output_option
 @timeout_option
+@receipt_option
 @click.argument("app_arguments", nargs=-1, type=str)
 def submit(
     image: str,
@@ -212,6 +214,7 @@ def submit(
     timeout: float | None,
     driver_pod_template: str | None,
     driver_container_name: str | None,
+    receipt_file,
 ):
     from spark_on_k8s.client import ExecutorInstances, PodResources, SparkOnK8S
     from spark_on_k8s.utils.types import NOTSET
@@ -260,7 +263,7 @@ def submit(
         "driver_pod_template": driver_pod_template,
         "driver_container_name": driver_container_name,
     }
-    execute_submission(SparkOnK8S(), kwargs, output=output, timeout=timeout)
+    execute_submission(SparkOnK8S(), kwargs, output=output, timeout=timeout, receipt_file=receipt_file)
 
 
 @app_cli.command(
@@ -285,3 +288,25 @@ def diagnose(app_id: str, namespace: str, output: str, pod_limit: int, event_lim
             "Unable to collect diagnostics; check the target and Kubernetes read access."
         ) from error
     display_report(report, output)
+
+
+@app_cli.command(name="cancel", help="Request cancellation of exactly the driver in a saved run receipt.")
+@click.option("--receipt", required=True, type=click.Path(exists=True, dir_okay=False))
+@click.option("--force", is_flag=True, help="Request zero grace period; does not wait for deletion.")
+@output_option
+def cancel(receipt, force, output):
+    from pathlib import Path
+
+    from spark_on_k8s.cli.receipts import read_receipt
+    from spark_on_k8s.client import SparkOnK8S
+
+    try:
+        run = read_receipt(Path(receipt))
+    except (ValueError, OSError) as error:
+        raise click.ClickException(str(error)) from error
+    with execution("cancel", run.namespace, output) as result:
+        result["run"] = run.to_dict()
+        SparkOnK8S().cancel_run(run, force=force)
+        result["accepted"] = True
+        if output == "text":
+            click.echo("Cancellation accepted; resource cleanup may still be in progress.")

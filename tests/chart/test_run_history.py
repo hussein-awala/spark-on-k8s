@@ -71,10 +71,10 @@ def test_history_uses_existing_claim_explicit_namespaces_and_recreate_strategy(t
 @pytest.mark.parametrize(
     "extra,message",
     [
-        ({"runHistory": {"enabled": True}}, "namespace list"),
-        ({"runHistory": {"enabled": True, "namespaces": ["analytics"]}}, "persistent volume claim"),
-        ({"replicaCount": 2}, "one replica"),
-        ({"autoscaling": {"enabled": True}}, "one replica"),
+        ({"runHistory": {"enabled": True}}, "namespaces"),
+        ({"runHistory": {"enabled": True, "namespaces": ["analytics"]}}, "existingClaim"),
+        ({"replicaCount": 2}, "replicaCount"),
+        ({"autoscaling": {"enabled": True}}, "autoscaling"),
         ({"volumes": [{"name": "run-history", "emptyDir": {}}]}, "reserved volume name"),
     ],
 )

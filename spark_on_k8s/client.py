@@ -118,6 +118,7 @@ class SparkOnK8S(LoggingMixin):
         self.k8s_client_manager = k8s_client_manager or KubernetesClientManager()
         self.last_submitted_app_id: str | None = None
         self.last_submitted_run: RunHandle | None = None
+        self.last_submission_phase: str | None = None
         self.app_manager = SparkAppManager(k8s_client_manager=self.k8s_client_manager)
 
     def submit_run(self, **kwargs) -> RunHandle:
@@ -338,6 +339,7 @@ class SparkOnK8S(LoggingMixin):
         if not dry_run:
             self.last_submitted_run = None
             self.last_submitted_app_id = None
+            self.last_submission_phase = "preparing"
         WaitDeadline(wait_timeout)
         if driver_container_name is not None and driver_pod_template is None:
             raise ValueError("driver_container_name requires driver_pod_template")
@@ -663,7 +665,17 @@ class SparkOnK8S(LoggingMixin):
                     for kind, item in objects
                 )
             pod_name = pod["metadata"]["name"] if isinstance(pod, dict) else pod.metadata.name
-            return ApplicationPlan(namespace, app_id, pod_name, resources)
+            from spark_on_k8s.resource_plan import resource_envelope
+
+            planned_pod = next(item for item in resources if item["kind"] == "Pod")
+            return ApplicationPlan(
+                namespace,
+                app_id,
+                pod_name,
+                resources,
+                resource_envelope(planned_pod, {**basic_conf, **spark_conf}),
+            )
+        self.last_submission_phase = "creating_resources"
         with self.k8s_client_manager.client() as client:
             api = k8s.CoreV1Api(client)
             if secret_values:
@@ -680,6 +692,12 @@ class SparkOnK8S(LoggingMixin):
                 namespace=namespace,
                 body=pod,
             )
+            # Preserve the confirmed driver identity before later resource operations can fail.
+            self.last_submitted_app_id = app_id
+            self.last_submitted_run = RunHandle(
+                namespace=namespace, app_id=app_id, driver_pod=pod.metadata.name, driver_uid=pod.metadata.uid
+            )
+            self.last_submission_phase = "driver_created"
             if secret_values:
                 application_secret.metadata.owner_references = [
                     k8s.V1OwnerReference(
@@ -718,8 +736,7 @@ class SparkOnK8S(LoggingMixin):
                     extra_labels=extra_labels,
                 ),
             )
-        self.last_submitted_app_id = app_id
-        self.last_submitted_run = RunHandle(namespace=namespace, app_id=app_id, driver_pod=pod.metadata.name)
+        self.last_submission_phase = "resources_created"
         deadline = WaitDeadline(wait_timeout)
         if app_waiter == SparkAppWait.LOG:
             self.app_manager.stream_logs(
@@ -739,6 +756,10 @@ class SparkOnK8S(LoggingMixin):
                 **({"timeout": deadline.remaining()} if wait_timeout is not None else {}),
             )
         return pod.metadata.name
+
+    def cancel_run(self, run: RunHandle, *, force: bool = False) -> None:
+        """Request deletion of exactly the recorded driver; does not wait for cleanup."""
+        self.app_manager.cancel_run(run, force=force)
 
     def plan_app(self, **kwargs) -> ApplicationPlan:
         """Render a deterministic offline preview using the same builder as submission."""

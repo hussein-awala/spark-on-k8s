@@ -250,3 +250,17 @@ def test_task_cancellation_respects_policy_and_missing_driver(
             key="spark_ui_link",
             value="https://spark.example/webserver/ui-history/history/application",
         )
+
+
+@pytest.mark.parametrize("saved_driver", [None, ""])
+def test_incomplete_retry_record_does_not_lookup_or_adopt_an_unidentified_driver(
+    make_operator, task_context, app_manager, saved_driver
+):
+    _, manager = app_manager
+    task_context["ti"].xcom_pull.side_effect = ["spark", saved_driver]
+    operator = make_operator()
+
+    assert operator._try_to_adopt_job(task_context, manager) is False
+    assert operator._driver_pod_name is None
+    manager.app_status.assert_not_called()
+    manager.delete_app.assert_not_called()

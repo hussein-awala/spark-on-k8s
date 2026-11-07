@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import posixpath
+import re
 from copy import deepcopy
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -16,7 +17,7 @@ SQL_APP_PATH = f"{SQL_MOUNT_PATH}/spark_sql.py"
 SQL_ARGUMENTS = [f"{SQL_MOUNT_PATH}/queries.json"]
 
 
-def prepare_sql_configmap(sql: str, *, allow_empty: bool = False) -> ConfigMap:
+def prepare_sql_configmap(sql: str, *, allow_empty: bool = False, source_name: str = "<inline>") -> ConfigMap:
     """Prepare SQL statements and the standalone runner for a managed ConfigMap.
 
     Parsing happens on the submitting machine. The Spark image needs only PySpark
@@ -24,6 +25,12 @@ def prepare_sql_configmap(sql: str, *, allow_empty: bool = False) -> ConfigMap:
     """
     if not isinstance(sql, str):
         raise TypeError("SQL must be a string")
+    if not isinstance(source_name, str):
+        raise TypeError("SQL source name must be a string")
+    # Coordinates need a filename, never the submitter's local directory hierarchy.
+    source_name = (
+        re.sub(r"[\x00-\x1f\x7f]", "_", source_name.replace("\\", "/").rsplit("/", 1)[-1])[:255] or "<inline>"
+    )
     try:
         import sqlparse
     except ImportError as error:
@@ -37,11 +44,24 @@ def prepare_sql_configmap(sql: str, *, allow_empty: bool = False) -> ConfigMap:
     ]
     if not statements and not allow_empty:
         raise ValueError("SQL must contain at least one statement")
+    cursor = 0
+    locations = []
+    for number, statement in enumerate(statements, 1):
+        offset = sql.find(statement, cursor)
+        locations.append(
+            {"statement": number, "line": sql.count("\n", 0, offset) + 1 if offset >= 0 else None}
+        )
+        if offset >= 0:
+            cursor = offset + len(statement)
     return {
         "mount_path": SQL_MOUNT_PATH,
         "sources": [
             {"name": "spark_sql.py", "text_path": str(Path(__file__).with_name("runner.py"))},
             {"name": "queries.json", "text": json.dumps(statements)},
+            {
+                "name": "locations.json",
+                "text": json.dumps({"schema_version": 1, "source": source_name, "statements": locations}),
+            },
         ],
     }
 
@@ -57,7 +77,9 @@ def prepare_sql_options(
         raise ValueError(f"SQL submission manages these options: {', '.join(sorted(reserved))}")
     if sql_file is not None:
         sql = Path(sql_file).expanduser().read_text(encoding="utf-8")
-    sql_configmap = prepare_sql_configmap(sql)
+    sql_configmap = prepare_sql_configmap(
+        sql, source_name=Path(sql_file).name if sql_file is not None else "<inline>"
+    )
     options = {key: NOTSET if value is NOTSET else deepcopy(value) for key, value in submit_options.items()}
     configmaps = options.pop("driver_ephemeral_configmaps_volumes", None)
     configmaps = [] if configmaps is None or configmaps is NOTSET else list(configmaps)

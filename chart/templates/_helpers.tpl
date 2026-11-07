@@ -83,3 +83,22 @@ Create the name of the service account to use for the history server
 {{- default "default" .Values.sparkHistory.serviceAccount.name }}
 {{- end }}
 {{- end }}
+
+{{/* Preserve the legacy ownership default when rbac.create is null/absent. */}}
+{{- define "spark-on-k8s.rbacCreate" -}}
+{{- if kindIs "bool" .Values.rbac.create -}}
+{{- .Values.rbac.create -}}
+{{- else -}}
+{{- .Values.serviceAccount.create -}}
+{{- end -}}
+{{- end }}
+
+{{/* Digest selection is shared by the API and independently versioned History Server. */}}
+{{- define "spark-on-k8s.image" -}}
+{{- if .image.digest -}}
+{{- printf "%s@%s" .image.repository .image.digest -}}
+{{- else -}}
+{{- $tag := default .defaultTag .image.tag -}}
+{{- printf "%s:%s" .image.repository (required .error $tag) -}}
+{{- end -}}
+{{- end }}

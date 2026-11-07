@@ -6,6 +6,7 @@ on:
 
 permissions:
   contents: write
+  actions: read
 
 concurrency:
   group: documentation-gh-pages
@@ -15,11 +16,21 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-26.04
-    timeout-minutes: 20
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+      - name: Qualify tagged documentation before publication
+        id: tag_eligibility
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 scripts/release_eligibility.py \
+            --repository "$GITHUB_REPOSITORY" --commit "$(git rev-parse HEAD)" \
+            --version "$GITHUB_REF_NAME" --timeout-seconds 1800 \
+            --output "$RUNNER_TEMP/docs-eligibility.json" --github-output "$GITHUB_OUTPUT"
       - name: Configure Git Credentials
         run: |
           git config user.name github-actions[bot]
@@ -59,12 +70,18 @@ jobs:
       - name: Build Helm Docs
         run: .venv/bin/helm-mkdocs chart -o docs/helm-chart
       - name: Deploy Docs
+        env:
+          PROMOTE_LATEST: ${{ steps.tag_eligibility.outputs.promote_latest }}
         run: |
           if [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
             .venv/bin/mike deploy --push develop
           elif [[ "$GITHUB_REF" == refs/tags/* ]]; then
             version="${GITHUB_REF#refs/tags/}"
-            .venv/bin/mike deploy --push --update-aliases "$version" latest
+            if [[ "$PROMOTE_LATEST" == "true" ]]; then
+              .venv/bin/mike deploy --push --update-aliases "$version" latest
+            else
+              .venv/bin/mike deploy --push "$version"
+            fi
           else
             echo "Not a deployable ref"
             exit 1

@@ -33,7 +33,7 @@ class KubernetesAsyncClientManager:
         self.client_configuration = (
             client_configuration
             if client_configuration is not NOTSET
-            else Configuration.SPARK_ON_K8S_CLIENT_CONFIG
+            else Configuration.SPARK_ON_K8S_ASYNC_CLIENT_CONFIG
         )
         self.in_cluster = in_cluster if in_cluster is not NOTSET else Configuration.SPARK_ON_K8S_IN_CLUSTER
 
@@ -77,5 +77,5 @@ class KubernetesAsyncClientManager:
                 client_configuration=self.client_configuration,
             )
         else:
-            config.load_incluster_config()
-        return k8s.ApiClient()
+            config.load_incluster_config(client_configuration=self.client_configuration)
+        return k8s.ApiClient(configuration=self.client_configuration)

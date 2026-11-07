@@ -36,18 +36,30 @@ spec:
             {{- toYaml .Values.securityContext | nindent 12 }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          {{- if or .Values.sparkHistory.enabled .Values.env }}
+          {{- $envNames := list }}
+          {{- range .Values.env }}
+          {{- $envNames = append $envNames .name }}
+          {{- end }}
           env:
-            {{- with .Values.env }}
-            {{- toYaml . | nindent 12 }}
-            {{- end }}
-            {{- if .Values.sparkHistory.enabled }}
+            {{- if not (has "SPARK_ON_K8S_IN_CLUSTER" $envNames) }}
             - name: SPARK_ON_K8S_IN_CLUSTER
               value: "true"
+            {{- end }}
+            {{- if not (has "SPARK_ON_K8S_API_HOST" $envNames) }}
+            - name: SPARK_ON_K8S_API_HOST
+              value: "0.0.0.0"
+            {{- end }}
+            {{- if not (has "SPARK_ON_K8S_API_PORT" $envNames) }}
+            - name: SPARK_ON_K8S_API_PORT
+              value: {{ .Values.service.port | quote }}
+            {{- end }}
+            {{- if and .Values.sparkHistory.enabled (not (has "SPARK_ON_K8S_API_SPARK_HISTORY_HOST" $envNames)) }}
             - name: SPARK_ON_K8S_API_SPARK_HISTORY_HOST
               value: "{{ include "spark-on-k8s.sparkHistory.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.sparkHistory.service.port }}"
             {{- end }}
-          {{- end }}
+            {{- with .Values.env }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
           ports:
             - name: http
               containerPort: {{ .Values.service.port }}

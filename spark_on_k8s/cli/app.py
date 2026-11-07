@@ -177,6 +177,7 @@ def submit(
     executor_pod_template_path: str,
 ):
     from spark_on_k8s.client import ExecutorInstances, PodResources, SparkOnK8S
+    from spark_on_k8s.utils.types import NOTSET
 
     spark_client = SparkOnK8S()
     spark_client.submit_app(
@@ -190,7 +191,7 @@ def submit(
         app_waiter="log" if logs else "wait" if wait else "no_wait",
         image_pull_policy=image_pull_policy,
         ui_reverse_proxy=ui_reverse_proxy,
-        app_arguments=list(app_arguments),
+        app_arguments=list(app_arguments) if app_arguments else NOTSET,
         driver_resources=PodResources(
             cpu=driver_cpu,
             memory=driver_memory,

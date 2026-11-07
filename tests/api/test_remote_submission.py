@@ -383,3 +383,115 @@ def test_auth_rejects_wrong_ambiguous_and_untrusted_gateway_headers(server, head
     assert response.status_code == 401
     assert response.json()["error"]["code"] == "unauthorized"
     server[3].assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        lambda p: p.update(schema_version=True),
+        lambda p: p.update(namespaces={}),
+        lambda p: p.update(namespaces={"not a namespace": ["spark"]}),
+        lambda p: p.update(namespaces={"spark": []}),
+        lambda p: p.update(namespaces={"spark": ["BadAccount"]}),
+        lambda p: p.update(applications=[]),
+        lambda p: p["applications"][0].update(image="image with whitespace"),
+        lambda p: p["applications"][0].update(app_path="https://example.test/job.py"),
+        lambda p: p["applications"][0].update(app_path="local:///jobs/../private.py"),
+        lambda p: p["applications"][0].update(class_name=""),
+        lambda p: p["applications"][0].update(arguments=[["allowed"], [42]]),
+        lambda p: p["limits"].update(executors=True),
+        lambda p: p["spark_conf"].update({"spark.sql.shuffle.partitions": [1.5]}),
+    ],
+)
+def test_invalid_administrator_policies_fail_closed(change):
+    policy = policy_document()
+    change(policy)
+    with pytest.raises(ValueError):
+        SubmissionPolicy.from_mapping(policy)
+
+
+def test_invalid_enabled_flag_and_oversized_policy_are_rejected(tmp_path, monkeypatch):
+    monkeypatch.setenv("SPARK_ON_K8S_SUBMISSION_ENABLED", "maybe")
+    with pytest.raises(ValueError, match="must be true or false"):
+        SubmissionSettings.from_env()
+    token = tmp_path / "token"
+    token.write_text(TOKEN)
+    policy = tmp_path / "policy.json"
+    policy.write_bytes(b" " * (1024 * 1024 + 1))
+    monkeypatch.setenv("SPARK_ON_K8S_SUBMISSION_ENABLED", "true")
+    monkeypatch.setenv("SPARK_ON_K8S_SUBMISSION_TOKEN_FILE", str(token))
+    monkeypatch.setenv("SPARK_ON_K8S_SUBMISSION_POLICY_FILE", str(policy))
+    with pytest.raises(ValueError, match="exceeds 1 MiB"):
+        SubmissionSettings.from_env()
+
+
+@pytest.mark.parametrize("change", ["namespace", "foreign_resource", "extra_resource", "driver_missing"])
+def test_generated_plan_identity_and_resource_boundaries_are_rechecked(server, change):
+    from spark_on_k8s.planning import ApplicationPlan
+
+    client, api, manager, factory = server
+    real = SparkOnK8S(k8s_client_manager=manager)
+    original = real.plan_app
+
+    def altered(**kwargs):
+        plan = original(**kwargs)
+        resources = list(copy.deepcopy(plan.resources))
+        namespace = plan.namespace
+        if change == "namespace":
+            namespace = "another-namespace"
+        elif change == "foreign_resource":
+            resources[0]["metadata"]["namespace"] = "another-namespace"
+        elif change == "extra_resource":
+            resources.append({"kind": "Secret", "metadata": {"namespace": namespace}})
+        else:
+            resources = [r for r in resources if r["kind"] != "Pod"]
+        return ApplicationPlan(namespace, plan.app_id, plan.driver_pod, resources)
+
+    real.plan_app = altered
+    factory.side_effect = lambda: real
+    response = client.post("/jobs/v1/submit", json=job_document())
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "policy_denied"
+    manager.client.assert_not_called()
+    assert not api.mock_calls
+
+
+def test_stalled_request_body_is_rejected_before_admission(server, monkeypatch):
+    from types import SimpleNamespace
+
+    async def expire_body(awaitable, *, timeout):
+        assert timeout == 15
+        awaitable.close()
+        raise TimeoutError
+
+    monkeypatch.setattr(submission, "asyncio", SimpleNamespace(wait_for=expire_body))
+    client, _, _, factory = server
+    response = client.post("/jobs/v1/submit", json=job_document())
+    assert response.status_code == 408
+    assert response.json()["error"]["code"] == "request_timeout"
+    factory.assert_not_called()
+
+
+def test_unexpected_submission_failure_does_not_disclose_details_or_retry(server):
+    client, api, _, factory = server
+    factory.side_effect = RuntimeError("private internal credential")
+    response = client.post("/jobs/v1/submit", json=job_document())
+    assert response.status_code == 500
+    assert response.json()["error"]["code"] == "operation_error"
+    assert "private internal credential" not in response.text
+    factory.assert_called_once()
+    assert not api.mock_calls
+
+
+def test_server_clients_do_not_reuse_submission_receipts_or_connect_during_creation(monkeypatch):
+    def unexpected_connection(*args, **kwargs):
+        raise AssertionError("Creating a submission client must not contact Kubernetes")
+
+    monkeypatch.setattr(
+        "spark_on_k8s.k8s.sync_client.KubernetesClientManager.create_client", unexpected_connection
+    )
+    first = submission.create_submission_client()
+    first.last_submitted_app_id = "previous-request"
+    second = submission.create_submission_client()
+    assert first is not second
+    assert second.last_submitted_app_id is None and second.last_submitted_run is None

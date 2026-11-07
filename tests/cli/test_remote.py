@@ -53,6 +53,16 @@ def http_server():
                 self.wfile.flush()
                 release.wait(5)
                 return
+            if state["stall"] == "trickle":
+                for byte in body:
+                    try:
+                        self.wfile.write(bytes([byte]))
+                        self.wfile.flush()
+                    except OSError:
+                        return
+                    if release.wait(0.03):
+                        return
+                return
             self.wfile.write(body)
 
         def log_message(self, *_args):
@@ -161,7 +171,7 @@ def test_cli_preserves_structured_errors_and_does_not_retry(
     assert len(requests) == 1
 
 
-@pytest.mark.parametrize("stall", ["headers", "body"])
+@pytest.mark.parametrize("stall", ["headers", "body", "trickle"])
 def test_http_deadline_interrupts_stalled_headers_and_detached_body_socket(http_server, stall):
     url, state, requests = http_server
     state["stall"] = stall
@@ -237,3 +247,113 @@ def test_remote_cli_rejects_local_credentials_before_sending(http_server, tmp_pa
     assert result.exit_code == 2
     assert json.loads(result.stdout)["error"]["code"] == "invalid_request"
     assert requests == []
+
+
+@pytest.mark.parametrize("token", ["", "contains space", "line\nbreak", "\N{SNOWMAN}"])
+def test_invalid_bearer_value_is_rejected_before_a_connection(token):
+    with pytest.raises(ValueError, match="printable ASCII"):
+        RemoteClient("https://example.test", token)
+
+
+@pytest.mark.parametrize("operation,document", [("kill", {}), ("submit", {"large": "x" * (1024 * 1024)})])
+def test_unsupported_or_oversized_requests_never_open_connection(monkeypatch, operation, document):
+    from unittest.mock import Mock
+
+    connect = Mock()
+    monkeypatch.setattr("spark_on_k8s.remote.http.client.HTTPSConnection", connect)
+    with pytest.raises(ValueError):
+        RemoteClient("https://example.test", TOKEN).request(operation, document)
+    connect.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "status,body,operation",
+    [
+        (403, {"schema_version": 1, "error": {"code": 12}}, "submit"),
+        (200, {"schema_version": 1, "operation": "plan", "error": None, "plan": []}, "plan"),
+    ],
+)
+def test_malformed_error_or_plan_is_never_reported_as_success(http_server, status, body, operation):
+    url, state, requests = http_server
+    state.update(status=status, body=body)
+    with pytest.raises(RemoteError) as caught:
+        RemoteClient(url, TOKEN).request(operation, DOCUMENT)
+    assert caught.value.code == "invalid_response"
+    assert len(requests) == 1
+
+
+@pytest.mark.parametrize("timeout", [False, True])
+def test_connection_failure_is_sanitized_closed_and_not_retried(monkeypatch, timeout):
+    from unittest.mock import Mock
+
+    connection = Mock()
+    connection.connect.side_effect = TimeoutError("private host") if timeout else OSError("private host")
+    factory = Mock(return_value=connection)
+    monkeypatch.setattr("spark_on_k8s.remote.http.client.HTTPSConnection", factory)
+    with pytest.raises(RemoteError) as caught:
+        RemoteClient("https://example.test", TOKEN).request("submit", DOCUMENT)
+    assert caught.value.code == ("timeout" if timeout else "connection_error")
+    assert "private host" not in str(caught.value)
+    connection.connect.assert_called_once()
+    connection.close.assert_called_once()
+    connection.request.assert_not_called()
+
+
+def test_deadline_exhausted_during_connect_never_sends_request(monkeypatch):
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+
+    clock = iter([0.0, 2.0])
+    connection = Mock()
+    monkeypatch.setattr("spark_on_k8s.remote.time", SimpleNamespace(monotonic=lambda: next(clock)))
+    monkeypatch.setattr("spark_on_k8s.remote.http.client.HTTPSConnection", Mock(return_value=connection))
+    with pytest.raises(RemoteError) as caught:
+        RemoteClient("https://example.test", TOKEN, timeout=1).request("submit", DOCUMENT)
+    assert caught.value.code == "timeout"
+    connection.request.assert_not_called()
+    connection.close.assert_called_once()
+
+
+def test_oversized_cli_token_file_is_rejected_before_request(tmp_path, monkeypatch):
+    from unittest.mock import Mock
+
+    file = tmp_path / "job.json"
+    file.write_text(json.dumps(DOCUMENT))
+    token = tmp_path / "token"
+    token.write_text("x" * 4097)
+    request = Mock()
+    monkeypatch.setattr(RemoteClient, "request", request)
+    result = CliRunner().invoke(
+        remote_cli, ["submit", str(file), "--api-url", "https://example.test", "--token-file", str(token)]
+    )
+    assert result.exit_code == 2
+    assert json.loads(result.stdout)["error"]["code"] == "invalid_request"
+    request.assert_not_called()
+
+
+@pytest.mark.parametrize("interrupted", [False, True])
+def test_cli_interrupt_and_text_error_preserve_exit_status(tmp_path, monkeypatch, interrupted):
+    from unittest.mock import Mock
+
+    file = tmp_path / "job.json"
+    file.write_text(json.dumps(DOCUMENT))
+    monkeypatch.setenv("SPARK_ON_K8S_API_TOKEN", TOKEN)
+    failure = KeyboardInterrupt() if interrupted else RemoteError("denied", "Not authorized.", status=403)
+    monkeypatch.setattr(RemoteClient, "request", Mock(side_effect=failure))
+    result = CliRunner().invoke(
+        remote_cli, ["submit", str(file), "--api-url", "https://example.test", "--output", "text"]
+    )
+    assert result.exit_code == (130 if interrupted else 1)
+    assert result.stdout == ""
+    assert ("Interrupted" if interrupted else "Not authorized") in result.stderr
+
+
+def test_successful_remote_submit_text_prints_only_driver_identity(http_server, tmp_path, monkeypatch):
+    url, _, _ = http_server
+    file = tmp_path / "job.json"
+    file.write_text(json.dumps(DOCUMENT))
+    monkeypatch.setenv("SPARK_ON_K8S_API_TOKEN", TOKEN)
+    result = CliRunner().invoke(remote_cli, ["submit", str(file), "--api-url", url, "--output", "text"])
+    assert result.exit_code == 0
+    assert result.stdout == RECEIPT["run"]["driver_pod"] + "\n"
+    assert result.stderr == ""

@@ -9,40 +9,63 @@ To install the package, you can check [this documentation](README.md#installatio
 
 ## Testing
 
-Use Python 3.11+ and Poetry 2.5.1. The lockfile separates test, lint, and documentation
-dependencies so contributors and CI can install the tools they need.
+Use Python 3.11+ and [uv](https://docs.astral.sh/uv/) 0.13.7, matching CI.
+The committed `uv.lock` separates test, lint, and documentation dependencies.
+Run these commands from the repository root. `uv sync` creates an isolated `.venv`;
+the `test` group is selected by default, and the commands below choose groups explicitly.
 
-For the core client and API tests:
+For the core client and API tests on Python 3.11–3.15:
 
 ```bash
-poetry sync --only main,test -E api
-poetry run pytest --ignore=tests/airflow
+uv sync --locked --no-default-groups --group test --extra api
+uv run --no-sync pytest --ignore=tests/airflow
 ```
 
-For the complete suite, use Python 3.11–3.14 and install both extras:
+For the complete suite with Airflow 3, use Python 3.11–3.14 and both extras.
+This example selects Python 3.12:
 
 ```bash
-poetry sync --only main,test --all-extras
-poetry run pytest
+uv sync --python 3.12 --locked --no-default-groups --group test --all-extras
+uv run --no-sync pytest
 ```
 
 Install Helm and Node.js to run the chart-rendering and browser-log regression tests.
-Airflow-specific CI jobs reject skipped tests so missing dependencies cannot
-silently reduce coverage.
+CI verifies the actual interpreter and integrations, requires collected tests, and
+rejects skipped tests in each profile.
+
+For Airflow 2.11.2, create a separate, fresh environment on Python 3.11 or 3.12.
+The normal lock selects Airflow 3; install the legacy version only after syncing
+core/API and test dependencies without the Airflow extra:
+
+```bash
+uv venv --python 3.12 .venv-airflow211
+UV_PROJECT_ENVIRONMENT=.venv-airflow211 uv sync --python 3.12 --locked --no-default-groups --group test --extra api
+uv pip install --python .venv-airflow211/bin/python '.[airflow]' 'apache-airflow==2.11.2'
+.venv-airflow211/bin/python -c 'import airflow; assert airflow.__version__ == "2.11.2"'
+.venv-airflow211/bin/python -m pytest
+uv pip check --python .venv-airflow211/bin/python
+```
+
+Use that environment's Python directly for subsequent legacy tests. A normal
+`uv run` or `uv sync --extra airflow` can replace the legacy selection with the
+locked Airflow 3 dependencies. Do not downgrade an existing Airflow 3 environment:
+its separate core and task-SDK packages can remain installed.
 
 To run code checks and build documentation:
 
 ```bash
-poetry sync --with lint,docs --all-extras
-poetry run ruff check .
-poetry run ruff format --check .
-poetry run helm-mkdocs chart -o docs/helm-chart
-poetry run mkdocs build --strict
-poetry build
+uv sync --python 3.12 --locked --no-default-groups --group lint --group docs --all-extras
+uv run --no-sync ruff check .
+uv run --no-sync ruff format --check .
+uv run --no-sync sqlfluff lint examples/airflow
+uv run --no-sync helm-mkdocs chart -o docs/helm-chart
+uv run --no-sync mkdocs build --strict
+uv build
 ```
 
-The Airflow compatibility workflow runs separate checks for Airflow 3.4.0 and
-Airflow 2.11.2. Both checks require collected tests and reject skipped tests.
+CI installs the built wheel for its Airflow checks, verifies provider discovery,
+and exercises operators and Spark UI links under Airflow 3.4.0 and 2.11.2.
+Keep `uv.lock` committed and use `uv lock --check` to check it without changing it.
 
 ## Reporting a bug
 

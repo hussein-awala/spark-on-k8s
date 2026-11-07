@@ -3,12 +3,12 @@ from __future__ import annotations
 import json
 import runpy
 import sys
-from pathlib import Path
+from importlib.resources import files
 from unittest import mock
 
 import pytest
 
-SCRIPT = Path(__file__).resolve().parents[2] / "spark_on_k8s/airflow/scripts/spark_sql.py"
+SCRIPT = files("spark_on_k8s").joinpath("airflow/scripts/spark_sql.py")
 
 
 @pytest.fixture

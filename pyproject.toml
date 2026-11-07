@@ -7,6 +7,7 @@ readme = "README.md"
 requires-python = ">=3.11,<4.0"
 keywords = ["spark", "kubernetes", "k8s", "spark-submit", "spark-on-k8s"]
 license = "Apache-2.0"
+license-files = ["LICENSE"]
 classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -50,42 +51,45 @@ spark-on-k8s = "spark_on_k8s:cli.main"
 [project.entry-points.apache_airflow_provider]
 provider_info = "spark_on_k8s.airflow.provider_info:get_provider_info"
 
-[tool.poetry]
-packages = [{include = "spark_on_k8s"}]
-
-[tool.poetry.group.test.dependencies]
-mock = "^5.2.0"
-pytest = "^9.2.0"
-pytest-cov = "^7.1.0"
-freezegun = "^1.5.5"
-
-[tool.poetry.group.lint]
-optional = true
-
-[tool.poetry.group.lint.dependencies]
-pre-commit = "^4.7.0"
-ruff = "==0.17.4"
-sqlfluff = "==4.5.0"
-
-[tool.poetry.group.docs]
-optional = true
-
-[tool.poetry.group.docs.dependencies]
-mkdocs = "==1.6.1"
-mkdocs-material = "^9.8.0"
-mkdocstrings = {version = "^1.0.8", extras = ["python"]}
-mkdocs-gen-files = "^0.6.1"
-mkdocs-literate-nav = "^0.6.3"
-mkdocs-git-revision-date-localized-plugin = "^1.6.3"
-helm-mkdocs = "^0.0.5"
-mike = "^2.2.0"
+[dependency-groups]
+test = [
+    "mock>=5.2.0,<6",
+    "pytest>=9.2.0,<10",
+    "pytest-cov>=7.1.0,<8",
+    "freezegun>=1.5.5,<2",
+]
+lint = [
+    "pre-commit>=4.7.0,<5",
+    "ruff==0.17.4",
+    "sqlfluff==4.5.0",
+]
+docs = [
+    "mkdocs==1.6.1",
+    "mkdocs-material>=9.8.0,<10",
+    "mkdocstrings[python]>=1.0.8,<2",
+    "mkdocs-gen-files>=0.6.1,<0.7",
+    "mkdocs-literate-nav>=0.6.3,<0.7",
+    "mkdocs-git-revision-date-localized-plugin>=1.6.3,<2",
+    "helm-mkdocs>=0.0.5,<0.0.6",
+    "mike>=2.2.0,<3",
+]
 
 [build-system]
-requires = ["poetry-core>=2.5.0,<3"]
-build-backend = "poetry.core.masonry.api"
+requires = ["uv_build==0.13.7"]
+build-backend = "uv_build"
+
+[tool.uv]
+default-groups = ["test"]
+
+[tool.uv.build-backend]
+module-name = "spark_on_k8s"
+module-root = ""
 
 [tool.coverage.run]
 patch = ["subprocess"]
+
+[tool.coverage.paths]
+source = ["spark_on_k8s", "*/site-packages/spark_on_k8s"]
 
 [tool.ruff]
 target-version = "py311"

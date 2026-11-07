@@ -3,16 +3,16 @@ from __future__ import annotations
 import re
 import shutil
 import subprocess
-from pathlib import Path
+from importlib.resources import files
 
 import pytest
 
 
-def test_driver_logs_are_rendered_as_literal_text(root_path):
+def test_driver_logs_are_rendered_as_literal_text():
     node = shutil.which("node")
     if node is None:
         pytest.skip("Node.js is required to exercise the browser log-rendering callback")
-    template = Path(root_path, "spark_on_k8s/api/webserver/templates/app_logs.html").read_text()
+    template = files("spark_on_k8s").joinpath("api/webserver/templates/app_logs.html").read_text()
     browser_script = re.search(r"<script>(.*?)</script>", template, re.DOTALL).group(1)
     # Run the actual browser callback against a minimal DOM. HTML access fails
     # deliberately; text and append operations have normal DOM semantics.

@@ -223,6 +223,7 @@ class TestSparkOnK8SOperator:
     @pytest.mark.parametrize(
         "job_status, should_submit",
         [
+            (SparkAppStatus.Pending, False),
             (SparkAppStatus.Running, False),
             (SparkAppStatus.Succeeded, True),
             (SparkAppStatus.Failed, True),
@@ -254,6 +255,12 @@ class TestSparkOnK8SOperator:
             mock_submit_app.assert_called_once()
         else:
             mock_submit_app.assert_not_called()
+            mock_wait_for_app.assert_called_once_with(
+                namespace="test-namespace",
+                pod_name="existing-pod",
+                poll_interval=10,
+                startup_timeout=0,
+            )
 
     @pytest.mark.parametrize(
         "app_waiter",

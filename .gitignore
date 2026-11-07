@@ -158,3 +158,8 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
+
+# Frontend development and browser test artifacts
+node_modules/
+frontend/test-results/
+frontend/playwright-report/

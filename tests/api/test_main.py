@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from importlib.metadata import version
 from unittest import mock
 
 from fastapi.testclient import TestClient
@@ -26,6 +27,7 @@ def test_real_application_lifecycle_routes_and_assets(monkeypatch):
             assert client.get("/").json() == {"message": "Welcome to Spark on Kubernetes!"}
             assert client.get("/health").json() == {"status": "ok"}
             schema = client.get("/openapi.json").json()
+            assert schema["info"]["version"] == version("spark-on-k8s")
             assert "/app/{namespace}/{app_id}" in schema["paths"]
             assert "/apps/list_apps/{namespace}" in schema["paths"]
             assert client.get("/apps/list_apps/analytics").json() == []
@@ -33,10 +35,13 @@ def test_real_application_lifecycle_routes_and_assets(monkeypatch):
             logs = client.get("/webserver/logs/analytics/app-1")
             assert logs.status_code == 200
             assert "app-1" in logs.text
-            stylesheet = client.get("/static/apps.css")
+            stylesheet = client.get("/static/ui/console.css")
             assert stylesheet.status_code == 200
             assert stylesheet.headers["content-type"].startswith("text/css")
-            assert "body" in stylesheet.text
+            assert ".spark-console" in stylesheet.text
+            bundle = client.get("/static/ui/console.js")
+            assert bundle.status_code == 200
+            assert len(bundle.content) > 1000
             create_client.assert_awaited_once()
             http_factory.assert_called_once_with()
             kubernetes_client.close.assert_not_awaited()

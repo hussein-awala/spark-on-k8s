@@ -29,7 +29,7 @@ uv sync --python 3.12 --locked --no-default-groups --group test --all-extras
 uv run --no-sync pytest
 ```
 
-Install Helm and Node.js to run the chart-rendering and browser-log regression tests.
+Install Helm to run the chart-rendering tests. Node.js 24+ is required when changing the UI.
 CI verifies the actual interpreter and integrations, requires collected tests, and
 rejects skipped tests in each profile.
 
@@ -66,6 +66,32 @@ uv build
 CI installs the built wheel for its Airflow checks, verifies provider discovery,
 and exercises operators and Spark UI links under Airflow 3.4.0 and 2.11.2.
 Keep `uv.lock` committed and use `uv lock --check` to check it without changing it.
+
+## Web console development
+
+The console uses reusable React components in `frontend/src`.
+The Python package includes the built JavaScript, CSS, and third-party license notices;
+users installing a wheel or source distribution do not need Node.js or a frontend CDN.
+
+Use Node.js 26 (matching CI) and the committed npm lockfile:
+
+```bash
+cd frontend
+npm ci
+npm run build
+npx playwright install chromium
+npm test
+```
+
+`npm run build` checks TypeScript and regenerates `spark_on_k8s/api/webserver/static/ui`.
+Commit those generated files with source changes. CI rebuilds them and rejects stale
+assets, then runs browser tests for navigation, actions, filtering, errors, and safe log
+rendering. `npm run dev` serves the development fixtures; `npm run test:ui` opens the
+interactive test runner. The fixtures use mocked services and are not packaged in the wheel.
+
+To test the packaged application against a Kubernetes environment, start the API as
+documented in the README and open `/webserver/apps`. Keep API deployment prefixes in
+mind: browser URLs are derived from the server-provided base path, never a fixed host.
 
 ## Reporting a bug
 

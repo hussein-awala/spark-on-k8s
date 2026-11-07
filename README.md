@@ -200,6 +200,17 @@ curl 'http://127.0.0.1:8080/apps/list_apps/spark' \
   -H 'accept: application/json'
 ```
 
+The console provides a searchable application list, status filters, namespace selection,
+application details, and confirmed stop/delete actions. It refreshes in the background
+without resetting your filters. Counts and filters describe the applications loaded so far;
+use **Load more** when additional pages are available. Completed applications from the
+configured history server appear as archive entries without live-driver actions.
+
+The driver-log view supports search, copying, download, a configurable tail, and pausing
+auto-scroll. It keeps the most recent 10,000 lines in the browser. Connection failures
+are shown separately from log text, and a history-server outage leaves live applications
+available. JavaScript and CSS are packaged with the Python distribution; no CDN is needed.
+
 Open `http://127.0.0.1:8080/webserver/apps?namespace=spark` and use **Open Spark UI**
 for an application submitted with UI reverse proxy enabled. Its direct URL is
 `http://127.0.0.1:8080/webserver/ui/spark/APP_ID`; replace `APP_ID` with the actual

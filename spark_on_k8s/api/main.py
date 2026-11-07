@@ -9,6 +9,7 @@ from spark_on_k8s import __version__
 from spark_on_k8s.api import AsyncHttpClientSingleton, KubernetesClientSingleton
 from spark_on_k8s.api.app import router as app_router
 from spark_on_k8s.api.apps import router as apps_router
+from spark_on_k8s.api.console import router as console_router
 from spark_on_k8s.api.webserver import router as webserver_router
 
 
@@ -32,6 +33,7 @@ app = FastAPI(
 app.include_router(app_router)
 app.include_router(apps_router)
 app.include_router(webserver_router)
+app.include_router(console_router)
 app.mount(
     "/static",
     StaticFiles(directory=Path(__file__).resolve().parent.absolute() / "webserver/static"),

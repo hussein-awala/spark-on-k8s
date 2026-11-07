@@ -41,7 +41,10 @@ class UpstreamBody(httpx.AsyncByteStream):
         ),
     ],
 )
-def test_proxy_preserves_query_response_and_closes_upstream(monkeypatch, path, history_host, expected_url):
+@pytest.mark.parametrize("root_path", ["", "/platform/spark"])
+def test_proxy_preserves_query_response_and_closes_upstream(
+    monkeypatch, path, history_host, expected_url, root_path
+):
     monkeypatch.setattr(APIConfiguration, "SPARK_ON_K8S_API_SPARK_HISTORY_HOST", history_host)
     body = UpstreamBody()
     requests = []
@@ -59,7 +62,7 @@ def test_proxy_preserves_query_response_and_closes_upstream(monkeypatch, path, h
             },
         )
 
-    app = FastAPI()
+    app = FastAPI(root_path=root_path)
     app.include_router(router)
     http_client = httpx.AsyncClient(transport=httpx.MockTransport(upstream))
     try:
@@ -68,7 +71,8 @@ def test_proxy_preserves_query_response_and_closes_upstream(monkeypatch, path, h
         ):
             with TestClient(app) as client:
                 response = client.get(
-                    path + "?stage=1&stage=2&description=a%2Bb", headers={"x-request-id": "trace-1"}
+                    root_path + path + "?stage=1&stage=2&description=a%2Bb",
+                    headers={"x-request-id": "trace-1"},
                 )
         assert response.status_code == 206
         assert response.content == b"".join(body.chunks)
@@ -92,23 +96,86 @@ def test_proxy_preserves_query_response_and_closes_upstream(monkeypatch, path, h
         (None, None),
     ],
 )
-def test_history_redirect_remains_under_the_proxy(monkeypatch, location, expected):
+@pytest.mark.parametrize("root_path", ["", "/platform/spark"])
+def test_history_redirect_remains_under_the_proxy(monkeypatch, location, expected, root_path):
     monkeypatch.setattr(APIConfiguration, "SPARK_ON_K8S_API_SPARK_HISTORY_HOST", "history:18080")
     body = UpstreamBody()
     headers = {"location": location} if location is not None else {}
     http_client = httpx.AsyncClient(
         transport=httpx.MockTransport(lambda request: httpx.Response(302, headers=headers, stream=body))
     )
-    app = FastAPI()
+    app = FastAPI(root_path=root_path)
     app.include_router(router)
     try:
         with mock.patch(
             "spark_on_k8s.api.webserver.AsyncHttpClientSingleton.client", return_value=http_client
         ):
-            response = TestClient(app).get("/webserver/ui-history/history/app-1", follow_redirects=False)
+            response = TestClient(app).get(
+                root_path + "/webserver/ui-history/history/app-1", follow_redirects=False
+            )
         assert response.status_code == 302
-        assert response.headers.get("location") == expected
+        assert response.headers.get("location") == (root_path + expected if expected is not None else None)
         assert response.content == b"".join(body.chunks)
         assert body.closed
+    finally:
+        asyncio.run(http_client.aclose())
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/webserver/ui/analytics/app%40example.invalid%3A80%23/jobs/",
+        "/webserver/ui/analytics%40example.invalid%3A80%23/app/jobs/",
+        "/webserver/ui/Analytics/app/jobs/",
+        "/webserver/ui/analytics/app_name/jobs/",
+        "/webserver/ui/analytics/-app/jobs/",
+        "/webserver/ui/analytics/app-/jobs/",
+        "/webserver/ui/" + "a" * 64 + "/app/jobs/",
+        "/webserver/ui/analytics/" + "a" * 64 + "/jobs/",
+    ],
+)
+def test_proxy_rejects_invalid_kubernetes_targets_before_opening_http_client(path):
+    requests = []
+
+    async def upstream(request):
+        requests.append(request)
+        return httpx.Response(200, stream=UpstreamBody())
+
+    app = FastAPI()
+    app.include_router(router)
+    http_client = httpx.AsyncClient(transport=httpx.MockTransport(upstream))
+    try:
+        with mock.patch(
+            "spark_on_k8s.api.webserver.AsyncHttpClientSingleton.client", return_value=http_client
+        ) as acquire:
+            response = TestClient(app).get(path)
+        assert response.status_code == 400
+        acquire.assert_not_called()
+        assert requests == []
+    finally:
+        asyncio.run(http_client.aclose())
+
+
+@pytest.mark.parametrize("suffix", ["/history/app-1/", "?show=all"])
+def test_history_redirect_with_deployment_prefix_is_idempotent(monkeypatch, suffix):
+    monkeypatch.setattr(APIConfiguration, "SPARK_ON_K8S_API_SPARK_HISTORY_HOST", "history:18080")
+    prefix = "/platform/spark"
+    location = prefix + "/webserver/ui-history" + suffix
+    http_client = httpx.AsyncClient(
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(302, headers={"location": location}, stream=UpstreamBody())
+        )
+    )
+    app = FastAPI(root_path=prefix)
+    app.include_router(router)
+    try:
+        with mock.patch(
+            "spark_on_k8s.api.webserver.AsyncHttpClientSingleton.client", return_value=http_client
+        ):
+            response = TestClient(app).get(
+                prefix + "/webserver/ui-history/history/app-1", follow_redirects=False
+            )
+        assert response.status_code == 302
+        assert response.headers["location"] == location
     finally:
         asyncio.run(http_client.aclose())

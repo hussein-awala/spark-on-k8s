@@ -84,6 +84,8 @@ default-groups = ["test"]
 [tool.uv.build-backend]
 module-name = "spark_on_k8s"
 module-root = ""
+# Ship editable UI sources in sdists; wheels only need the prebuilt package assets.
+source-include = ["frontend/src/**", "frontend/tests/**", "frontend/*.json", "frontend/*.ts"]
 
 [tool.coverage.run]
 patch = ["subprocess"]

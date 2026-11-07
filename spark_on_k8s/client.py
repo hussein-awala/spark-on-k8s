@@ -304,6 +304,8 @@ class SparkOnK8S(LoggingMixin):
                 and executor_instances.initial is None
             ):
                 executor_instances.initial = 2
+        if should_print is NOTSET:
+            should_print = False
         app_name, app_id = self._parse_app_name_and_id(
             app_name=app_name, app_id_suffix=app_id_suffix, should_print=should_print
         )

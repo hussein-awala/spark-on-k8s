@@ -1,0 +1,5 @@
+[
+  "CREATE OR REPLACE TEMP VIEW compatibility_values AS SELECT id FROM range(100)",
+  "SELECT assert_true(sum(id) = 4950) FROM compatibility_values",
+  "SELECT 'quoted;semicolon' AS statement_boundary, 'SPARK_ON_K8S_SQL_OK' AS result"
+]

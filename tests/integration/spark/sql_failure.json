@@ -1,0 +1,4 @@
+[
+  "SELECT missing_column FROM range(1)",
+  "SELECT 'SHOULD_NOT_RUN' AS unexpected_result"
+]

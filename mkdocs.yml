@@ -79,6 +79,7 @@ nav:
       - Examples: user-guide/examples.md
       - Automation: user-guide/automation.md
       - Driver pod templates: user-guide/driver_pod_templates.md
+      - Spark Compatibility: user-guide/spark_compatibility.md
       - Airflow: user-guide/airflow.md
   - Code Reference: reference/
   - Helm Chart: helm-chart/

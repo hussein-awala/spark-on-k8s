@@ -40,7 +40,7 @@ jobs:
       matrix:
         # The package requires Python 3.11 or newer.
         os: [ "ubuntu-24.04", "macos-15-intel" ]
-        python-version: [ "3.11", "3.12", "3.13" ]
+        python-version: [ "3.11", "3.12", "3.13", "3.14" ]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Check out repository
@@ -79,10 +79,41 @@ jobs:
         with:
           version: "v3.17.3"
 
+      - name: Verify Python 3.14 integration and test tools
+        if: matrix.python-version == '3.14'
+        run: |
+          export AIRFLOW_HOME="$RUNNER_TEMP/airflow-python314"
+          echo "AIRFLOW_HOME=$AIRFLOW_HOME" >> "$GITHUB_ENV"
+          poetry run python - <<'PY314'
+          import shutil
+          import sys
+          from importlib.metadata import version
+          from airflow.providers.cncf.kubernetes.hooks.kubernetes import AsyncKubernetesHook, KubernetesHook
+          from spark_on_k8s.airflow.operators import SparkOnK8SOperator, SparkSqlOnK8SOperator
+          assert sys.version_info[:2] == (3, 14), sys.version
+          assert version("apache-airflow").split(".", 1)[0] == "3"
+          assert shutil.which("node"), "Node.js is required for browser log tests"
+          assert shutil.which("helm"), "Helm is required for chart tests"
+          print(f"Python {sys.version}")
+          print(f"Airflow {version('apache-airflow')}")
+          print(f"Kubernetes provider {version('apache-airflow-providers-cncf-kubernetes')}")
+          PY314
+
       - name: Run tests
         run: |
           source .venv/bin/activate
-          pytest tests/ --cov spark_on_k8s --cov-report=json
+          pytest tests/ --cov spark_on_k8s --cov-report=json --junitxml=pytest-results.xml
+
+      - name: Require Python 3.14 tests without skips
+        if: matrix.python-version == '3.14'
+        run: |
+          poetry run python - <<'PY314'
+          import xml.etree.ElementTree as ET
+          cases = list(ET.parse("pytest-results.xml").iter("testcase"))
+          assert cases, "No Python 3.14 tests were collected"
+          skipped = [case.attrib["name"] for case in cases if case.find("skipped") is not None]
+          assert not skipped, f"Python 3.14 tests were skipped: {skipped}"
+          PY314
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v4.0.1

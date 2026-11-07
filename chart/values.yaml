@@ -95,7 +95,9 @@ tolerations: []
 # The affinity for the Spark-on-K8S deployment
 affinity: {}
 
-# A list of environment variables to be added to the Spark-on-K8S deployment
+# A list of environment variables to be added to the Spark-on-K8S deployment.
+# Entries override the chart defaults for in-cluster authentication, API host
+# (0.0.0.0), API port (service.port), and the optional history server address.
 env: []
 
 # List of namespaces to be managed by the Spark-on-K8S service

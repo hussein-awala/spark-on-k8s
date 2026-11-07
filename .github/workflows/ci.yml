@@ -1,6 +1,7 @@
 name: test
 
 on:
+  workflow_dispatch:
   pull_request:
     types: [opened, reopened, synchronize]
   push:
@@ -30,6 +31,7 @@ jobs:
             tests:
               - "spark_on_k8s/**"
               - "tests/**"
+              - "scripts/**"
               - "frontend/**"
               - "chart/**"
               - "examples/**"
@@ -40,7 +42,7 @@ jobs:
   core-api:
     name: Core/API (${{ matrix.os }}, Python ${{ matrix.python-version }})
     needs: changed-files
-    if: needs.changed-files.outputs.tests == 'true'
+    if: github.event_name == 'workflow_dispatch' || needs.changed-files.outputs.tests == 'true'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     strategy:
@@ -140,7 +142,7 @@ jobs:
   airflow:
     name: Airflow ${{ matrix.airflow-version }} (Python ${{ matrix.python-version }})
     needs: changed-files
-    if: needs.changed-files.outputs.tests == 'true'
+    if: github.event_name == 'workflow_dispatch' || needs.changed-files.outputs.tests == 'true'
     runs-on: ubuntu-26.04
     timeout-minutes: 25
     strategy:
@@ -322,7 +324,7 @@ jobs:
   frontend:
     name: UI build and browser tests
     needs: changed-files
-    if: needs.changed-files.outputs.tests == 'true'
+    if: github.event_name == 'workflow_dispatch' || needs.changed-files.outputs.tests == 'true'
     runs-on: ubuntu-26.04
     timeout-minutes: 15
     defaults:
@@ -360,7 +362,7 @@ jobs:
   coverage:
     name: Combined coverage
     needs: [changed-files, core-api, airflow]
-    if: needs.changed-files.outputs.tests == 'true'
+    if: github.event_name == 'workflow_dispatch' || needs.changed-files.outputs.tests == 'true'
     runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

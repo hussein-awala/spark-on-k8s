@@ -74,8 +74,10 @@ python scripts/release_eligibility.py \
   --output /tmp/spark-release-eligibility.json
 ```
 
-The `release` workflow's manual **Run workflow** inputs are `candidate_ref` and
-`version`. This path runs eligibility, builds distributions and tests frozen API
+For the `release` workflow's manual **Run workflow**, choose the candidate branch
+or tag in GitHub's native ref selector and supply the `version` input. Every job
+checks out the resulting immutable event SHA; there is no arbitrary checkout-ref
+input. This path runs eligibility, builds distributions and tests frozen API
 images for Linux amd64 and arm64, then stops before PyPI/registry publication. It
 does not trigger a documentation push. Qualify missing main-commit workflows via
 their own manual runs first; the core CI dispatch runs all profiles even for a

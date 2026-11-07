@@ -14,10 +14,6 @@ on:
       - ".github/workflows/deploy-doc.yml"
   workflow_dispatch:
     inputs:
-      candidate_ref:
-        description: 'Commit, branch or tag to qualify without publishing'
-        required: true
-        default: main
       version:
         description: 'Bare candidate version (X.Y.Z, optionally aN/bN/rcN); dry run only'
         required: true
@@ -28,6 +24,7 @@ permissions:
 concurrency:
   group: ${{ github.event_name == 'push' && 'release-publication' || format('release-validation-{0}', github.ref) }}
   cancel-in-progress: false
+  queue: max
 
 jobs:
   candidate:
@@ -40,7 +37,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.candidate_ref || github.ref }}
+          ref: ${{ github.sha }}
       - name: Select a release or nonpublishing preview version
         id: select
         env:
@@ -72,7 +69,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.candidate.outputs.commit }}
+          ref: ${{ github.sha }}
           fetch-depth: 0
       - name: Require executed checks for the exact candidate commit
         id: check
@@ -99,7 +96,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.candidate.outputs.commit }}
+          ref: ${{ github.sha }}
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
           version: "0.13.7"

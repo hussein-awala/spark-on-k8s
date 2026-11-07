@@ -11,7 +11,9 @@ records; do not copy it into another checklist. Inspect the release, documentati
 and Helm workflow files at the intended candidate commit.
 
 Establish the actual repository, selected version, previous published tag and
-candidate SHA. Query current releases/tags; the development version string has
+candidate SHA. For manual dry-run validation, choose the branch/tag in GitHub's
+native workflow ref selector and set only the version input; jobs check out the
+immutable event SHA, not a user-supplied arbitrary checkout ref. Query current releases/tags; the development version string has
 historically lagged published releases and is not a safe version-selection source.
 Use the GitHub connector when available for releases. For historical discussion
 context, use a supported read-only discussion API or `gh api graphql` if the

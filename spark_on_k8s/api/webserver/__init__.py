@@ -17,6 +17,7 @@ from starlette.templating import Jinja2Templates
 from spark_on_k8s import __version__
 from spark_on_k8s.api import AsyncHttpClientSingleton, KubernetesClientSingleton
 from spark_on_k8s.api.configuration import APIConfiguration
+from spark_on_k8s.api.run_history import get_history_settings
 from spark_on_k8s.utils.async_app_manager import AsyncSparkAppManager
 
 router = APIRouter(
@@ -157,6 +158,7 @@ def console_page(request: Request, *, view: str, namespace: str, app_id: str | N
         "allowKill": APIConfiguration.SPARK_ON_K8S_API_WEBSERVER_APPS_KILL_BUTTON,
         "allowDelete": APIConfiguration.SPARK_ON_K8S_API_WEBSERVER_APPS_DELETE_BUTTON,
         "historyEnabled": bool(APIConfiguration.SPARK_ON_K8S_API_SPARK_HISTORY_HOST),
+        "runsEnabled": get_history_settings().enabled,
         "version": __version__,
         "view": view,
         "appId": app_id,
@@ -232,3 +234,14 @@ async def app_logs(
 ):
     """Display a bounded, searchable driver-log stream."""
     return console_page(request, view="logs", namespace=namespace, app_id=app_id, tail=tail)
+
+
+@router.get("/runs", response_class=HTMLResponse)
+async def runs_page(request: Request, namespace: str | None = None):
+    settings = get_history_settings()
+    if not settings.enabled:
+        raise HTTPException(status_code=404, detail="Run history is disabled.")
+    namespace = namespace or settings.namespaces[0]
+    if namespace not in settings.namespaces:
+        raise HTTPException(status_code=400, detail="Namespace is not recorded.")
+    return console_page(request, view="runs", namespace=namespace)

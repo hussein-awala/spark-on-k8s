@@ -40,7 +40,7 @@ jobs:
       matrix:
         # The package requires Python 3.11 or newer.
         os: [ "ubuntu-24.04", "macos-15-intel" ]
-        python-version: [ "3.11", "3.12", "3.13", "3.14" ]
+        python-version: [ "3.11", "3.12", "3.13", "3.14", "3.15" ]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Check out repository
@@ -99,21 +99,49 @@ jobs:
           print(f"Kubernetes provider {version('apache-airflow-providers-cncf-kubernetes')}")
           PY314
 
+      - name: Verify Python 3.15 core and API support
+        if: matrix.python-version == '3.15'
+        run: |
+          poetry run python - <<'PY315'
+          import shutil
+          import sys
+          from importlib.metadata import PackageNotFoundError, version
+          from fastapi import FastAPI
+          from spark_on_k8s.api.main import app
+          from spark_on_k8s.client import SparkOnK8S
+          assert sys.version_info[:2] == (3, 15), sys.version
+          assert isinstance(app, FastAPI)
+          for distribution in ("apache-airflow", "apache-airflow-core", "apache-airflow-task-sdk"):
+              try:
+                  version(distribution)
+              except PackageNotFoundError:
+                  continue
+              raise AssertionError(f"{distribution} must not be installed on Python 3.15")
+          assert shutil.which("node"), "Node.js is required for browser log tests"
+          assert shutil.which("helm"), "Helm is required for chart tests"
+          print(f"Python {sys.version}")
+          print(f"FastAPI {version('fastapi')}")
+          PY315
+
       - name: Run tests
         run: |
           source .venv/bin/activate
-          pytest tests/ --cov spark_on_k8s --cov-report=json --junitxml=pytest-results.xml
+          pytest_options=()
+          if [[ "${{ matrix.python-version }}" == "3.15" ]]; then
+            pytest_options+=(--ignore=tests/airflow)
+          fi
+          pytest tests/ "${pytest_options[@]}" --cov spark_on_k8s --cov-report=json --junitxml=pytest-results.xml
 
-      - name: Require Python 3.14 tests without skips
-        if: matrix.python-version == '3.14'
+      - name: Require Python 3.14 and 3.15 tests without skips
+        if: matrix.python-version == '3.14' || matrix.python-version == '3.15'
         run: |
-          poetry run python - <<'PY314'
+          poetry run python - <<'PYTEST_RESULTS'
           import xml.etree.ElementTree as ET
           cases = list(ET.parse("pytest-results.xml").iter("testcase"))
-          assert cases, "No Python 3.14 tests were collected"
+          assert cases, "No tests were collected"
           skipped = [case.attrib["name"] for case in cases if case.find("skipped") is not None]
-          assert not skipped, f"Python 3.14 tests were skipped: {skipped}"
-          PY314
+          assert not skipped, f"Tests were skipped: {skipped}"
+          PYTEST_RESULTS
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v4.0.1

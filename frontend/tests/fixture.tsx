@@ -13,9 +13,15 @@ const config: ConsoleConfig = {
   refreshInterval: Number(params.get("refresh") ?? 0),
   allowKill: params.get("allowKill") !== "false",
   allowDelete: params.get("allowDelete") !== "false",
+  runsEnabled: params.get("runs") === "true",
   historyEnabled: params.get("history") !== "false",
   version: "0.11.0",
-  view: params.get("view") === "logs" ? "logs" : "apps",
+  view:
+    params.get("view") === "runs"
+      ? "runs"
+      : params.get("view") === "logs"
+        ? "logs"
+        : "apps",
   appId: params.get("appId") ?? "report-1",
   tail: Number(params.get("tail") ?? 1000),
   embedded: params.get("embedded") === "true",
@@ -58,6 +64,13 @@ if (params.get("authorizedLinks") === "true") {
   transport.sparkUiUrl = () => "/authorized/spark-ui?task=aggregate";
   transport.historyUrl = () => "/authorized/history?task=aggregate";
 }
-createRoot(document.getElementById("root")!).render(
-  <SparkConsole config={config} transport={transport} />,
-);
+const root = createRoot(document.getElementById("root")!);
+function renderConfig(updates: Partial<ConsoleConfig> = {}) {
+  root.render(
+    <SparkConsole config={{ ...config, ...updates }} transport={transport} />,
+  );
+}
+(
+  globalThis as unknown as { updateConsoleConfig: typeof renderConfig }
+).updateConsoleConfig = renderConfig;
+renderConfig();

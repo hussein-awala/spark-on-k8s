@@ -11,6 +11,7 @@ from spark_on_k8s.api.app import router as app_router
 from spark_on_k8s.api.apps import router as apps_router
 from spark_on_k8s.api.console import router as console_router
 from spark_on_k8s.api.remote_auth import RemoteAccessMiddleware
+from spark_on_k8s.api.run_history import router as run_history_router, start_history, stop_history
 from spark_on_k8s.api.submission import router as submission_router
 from spark_on_k8s.api.submission_policy import get_submission_settings
 from spark_on_k8s.api.webserver import router as webserver_router
@@ -20,9 +21,11 @@ async def on_start_up() -> None:
     get_submission_settings()  # Invalid remote configuration fails before the server accepts traffic.
     await KubernetesClientSingleton.client()
     AsyncHttpClientSingleton.client()
+    await start_history()
 
 
 async def on_shutdown() -> None:
+    await stop_history()
     await (await KubernetesClientSingleton.client()).close()
     await AsyncHttpClientSingleton.client().aclose()
 
@@ -36,6 +39,7 @@ app = FastAPI(
 )
 app.add_middleware(RemoteAccessMiddleware)
 app.include_router(submission_router)
+app.include_router(run_history_router)
 app.include_router(app_router)
 app.include_router(apps_router)
 app.include_router(webserver_router)
@@ -53,5 +57,6 @@ async def root():
 
 
 @app.get("/health")
+@app.head("/health", include_in_schema=False)
 async def health():
     return {"status": "ok"}

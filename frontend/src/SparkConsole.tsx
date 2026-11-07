@@ -3,21 +3,42 @@ import { Applications } from "./Applications";
 import { consolePath, createConsoleTransport } from "./client";
 import { Icon, SparkMark } from "./icons";
 import { Logs } from "./Logs";
+import { Runs } from "./Runs";
 import type {
   ConsoleApplication,
   ConsoleConfig,
   ConsoleTransport,
 } from "./types";
 
-export function SparkConsole({
-  config,
-  transport: suppliedTransport,
-  namespaceEditable = config.namespaceEditable ?? true,
-}: {
+interface SparkConsoleProps {
   config: ConsoleConfig;
   transport?: ConsoleTransport;
   namespaceEditable?: boolean;
-}) {
+}
+
+export function SparkConsole(props: SparkConsoleProps) {
+  try {
+    consolePath(props.config.basePath, "/");
+  } catch {
+    return (
+      <div className="spark-console console-embedded">
+        <div className="console-content">
+          <p role="alert">
+            The console base path is invalid. Check the deployment
+            configuration.
+          </p>
+        </div>
+      </div>
+    );
+  }
+  return <ConsoleContent {...props} />;
+}
+
+function ConsoleContent({
+  config,
+  transport: suppliedTransport,
+  namespaceEditable = config.namespaceEditable ?? true,
+}: SparkConsoleProps) {
   const transport = useMemo(
     () =>
       suppliedTransport ??
@@ -90,6 +111,19 @@ export function SparkConsole({
               <Icon name="grid" />
               Applications
             </a>
+            {config.runsEnabled && (
+              <a
+                className={`sidebar-link ${location.view === "runs" ? "sidebar-link-active" : ""}`}
+                aria-current={location.view === "runs" ? "page" : undefined}
+                href={consolePath(
+                  config.basePath,
+                  `/webserver/runs?namespace=${encodeURIComponent(location.namespace)}`,
+                )}
+              >
+                <Icon name="layers" />
+                Recorded runs
+              </a>
+            )}
             {location.view === "logs" && (
               <span
                 className="sidebar-link sidebar-link-active"
@@ -111,7 +145,14 @@ export function SparkConsole({
       )}
       <main className="console-main">
         <div className="console-content">
-          {location.view === "logs" ? (
+          {location.view === "runs" ? (
+            <Runs
+              config={activeConfig}
+              transport={transport}
+              namespaceEditable={namespaceEditable}
+              onNamespaceChange={changeNamespace}
+            />
+          ) : location.view === "logs" ? (
             <Logs
               config={activeConfig}
               transport={transport}

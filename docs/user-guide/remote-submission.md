@@ -3,7 +3,7 @@
 Remote submission lets an automation runner send an approved `SparkJob` to the API without
 loading a local kubeconfig. It is **disabled by default**. Enabling it also requires bearer
 authentication for the existing API, dashboard, static assets, proxies and WebSockets.
-Only `GET /health` and `HEAD /health` remain public.
+Only the `GET`/`HEAD` liveness (`/health`) and readiness (`/ready`) probes remain public.
 
 This is an operator API, not a multi-tenant authorization system. Its bearer token grants access
 to the existing read and management routes as well as admitted submissions. The submission

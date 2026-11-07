@@ -5,8 +5,9 @@ export interface ConsoleConfig {
   allowKill: boolean;
   allowDelete: boolean;
   historyEnabled: boolean;
+  runsEnabled?: boolean;
   version: string;
-  view: "apps" | "logs";
+  view: "apps" | "logs" | "runs";
   appId?: string;
   tail?: number;
   embedded?: boolean;
@@ -54,7 +55,37 @@ export interface Diagnosis {
   }[];
 }
 
+export interface RecordedRun {
+  uid: string;
+  app_id: string | null;
+  name: string;
+  namespace: string;
+  driver_pod: string;
+  image: string | null;
+  spark_version: string | null;
+  status: string;
+  created_at: string | null;
+  first_seen: string;
+  last_seen: string;
+  disappeared_at: string | null;
+}
+
+export interface RunPage {
+  schema_version: 1;
+  items: RecordedRun[];
+  next_cursor: string | null;
+}
+
 export interface ConsoleTransport {
+  listRuns?(options: {
+    namespace: string;
+    status?: string;
+    presence?: "all" | "present" | "missing";
+    limit: number;
+    cursor?: string;
+    signal?: AbortSignal;
+  }): Promise<RunPage>;
+
   diagnoseApp?(
     app: ConsoleApplication,
     signal?: AbortSignal,

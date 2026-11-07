@@ -81,6 +81,7 @@ nav:
       - Diagnostics: user-guide/diagnostics.md
       - Automation: user-guide/automation.md
       - Remote submission: user-guide/remote-submission.md
+      - Run history and health: user-guide/run-history.md
       - Driver pod templates: user-guide/driver_pod_templates.md
       - Spark Compatibility: user-guide/spark_compatibility.md
       - ETL and Lakehouse Starters: user-guide/starters.md

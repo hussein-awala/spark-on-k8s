@@ -169,3 +169,18 @@ sparkHistory:
         port: 18080
     # The Spark configuration for the Spark History Server
     configuration: ""
+
+# Optional operational metadata recorder; separate from Spark History Server event logs.
+runHistory:
+  enabled: false
+  # Explicit namespaces; the API service account must be able to list driver pods in each.
+  namespaces: []
+  # Existing ReadWriteOnce block-backed claim. SQLite WAL must not use NFS/SMB.
+  existingClaim: ""
+  intervalSeconds: 30
+  retentionDays: 30
+  maxRows: 10000
+
+# Prometheus text endpoint; remote mode requires the same operator bearer token.
+metrics:
+  enabled: false

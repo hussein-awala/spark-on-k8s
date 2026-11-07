@@ -11,4 +11,6 @@ export type {
   ConsoleApplication,
   ConsoleTransport,
   ApplicationPage,
+  RecordedRun,
+  RunPage,
 } from "./types";

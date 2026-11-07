@@ -17,7 +17,13 @@ class RemoteAccessMiddleware:
         if scope["type"] not in {"http", "websocket"}:
             return await self.app(scope, receive, send)
         settings = get_submission_settings()
-        health = scope["type"] == "http" and scope["path"] == "/health" and scope["method"] in {"GET", "HEAD"}
+        path = scope["path"]
+        root_path = scope.get("root_path", "").rstrip("/")
+        if root_path and path.startswith(root_path + "/"):
+            path = path[len(root_path) :]
+        health = (
+            scope["type"] == "http" and path in {"/health", "/ready"} and scope["method"] in {"GET", "HEAD"}
+        )
         if settings.enabled and not health:
             values = [value for key, value in scope["headers"] if key.lower() == b"authorization"]
             scheme, _, credential = values[0].partition(b" ") if len(values) == 1 else (b"", b"", b"")

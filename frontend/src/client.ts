@@ -4,10 +4,49 @@ import type {
   ConsoleConfig,
   ConsoleTransport,
   Diagnosis,
+  RunPage,
 } from "./types";
 
+function pathSegments(path: string, prefix: boolean): string[] {
+  if (
+    !path.startsWith("/") ||
+    path.startsWith("//") ||
+    /[\\\u0000-\u001f\u007f?#]/u.test(path)
+  )
+    throw new Error("Invalid console path");
+  let end = path.length;
+  while (prefix && end > 0 && path[end - 1] === "/") end -= 1;
+  const pathname = path.slice(0, end);
+  if (!pathname || pathname === "/") return [];
+  return pathname
+    .slice(1)
+    .split("/")
+    .map((segment) => {
+      const decoded = decodeURIComponent(segment);
+      if (
+        (prefix && !segment) ||
+        decoded === "." ||
+        decoded === ".." ||
+        /[\u0000-\u001f\u007f]/u.test(decoded) ||
+        (prefix && /[/\\]/u.test(decoded))
+      )
+        throw new Error("Invalid console path");
+      return encodeURIComponent(decoded);
+    });
+}
+
 export function consolePath(basePath: string, path: string): string {
-  return `${basePath.replace(/\/+$/, "")}${path}`;
+  const queryStart = path.indexOf("?");
+  const pathname = queryStart < 0 ? path : path.slice(0, queryStart);
+  const query = queryStart < 0 ? "" : path.slice(queryStart);
+  if (/[#\u0000-\u001f\u007f]/u.test(query))
+    throw new Error("Invalid console query");
+  const prefix = basePath ? pathSegments(basePath, true) : [];
+  const route = pathSegments(pathname, false);
+  // Encode each component before adding separators: a normalized prefix must
+  // never become a scheme or a network-path reference such as //other-host.
+  const trailingSlash = pathname === "/" && prefix.length ? "/" : "";
+  return `/${[...prefix, ...route].join("/")}${trailingSlash}${query}`;
 }
 
 export function appLogsPath(
@@ -54,10 +93,11 @@ export async function checkResponse(response: Response): Promise<Response> {
     const data = JSON.parse(body) as {
       detail?: string | { message?: string };
       message?: string;
+      error?: { message?: string };
     };
     const detail =
       typeof data.detail === "string" ? data.detail : data.detail?.message;
-    message = detail || data.message || message;
+    message = detail || data.message || data.error?.message || message;
   } catch {
     if (body && !body.trimStart().startsWith("<")) message = body.slice(0, 500);
   }
@@ -69,6 +109,26 @@ export function createConsoleTransport(
 ): ConsoleTransport {
   const url = (path: string) => consolePath(config.basePath, path);
   return {
+    async listRuns({
+      namespace,
+      status,
+      presence,
+      limit,
+      cursor,
+      signal,
+    }): Promise<RunPage> {
+      const query = new URLSearchParams({ namespace, limit: String(limit) });
+      if (status) query.set("status", status);
+      if (presence) query.set("presence", presence);
+      if (cursor) query.set("cursor", cursor);
+      const response = await checkResponse(
+        await fetch(url(`/runs/v1?${query}`), {
+          signal,
+          credentials: "same-origin",
+        }),
+      );
+      return response.json() as Promise<RunPage>;
+    },
     async diagnoseApp(app, signal): Promise<Diagnosis> {
       const response = await checkResponse(
         await fetch(

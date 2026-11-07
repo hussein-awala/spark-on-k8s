@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+from dataclasses import replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -298,13 +299,13 @@ class SparkOnK8SOperator(BaseOperator):
                     namespace=xcom_driver_namespace,
                     pod_name=xcom_driver_pod_name,
                 )
-                if app_status == SparkAppStatus.Running:
+                if app_status in {SparkAppStatus.Pending, SparkAppStatus.Running}:
                     self._driver_pod_name = xcom_driver_pod_name
                     return True
         return False
 
     def _submit_new_job(self, context: Context):
-        from spark_on_k8s.client import ExecutorInstances, PodResources, SparkOnK8S
+        from spark_on_k8s.client import PodResources, SparkOnK8S
 
         # post-process template fields
         if self.driver_resources:
@@ -326,7 +327,8 @@ class SparkOnK8SOperator(BaseOperator):
                 memory_overhead=int(self.executor_resources.memory_overhead),
             )
         if self.executor_instances:
-            self.executor_instances = ExecutorInstances(
+            self.executor_instances = replace(
+                self.executor_instances,
                 min=int(self.executor_instances.min) if self.executor_instances.min is not None else None,
                 max=int(self.executor_instances.max) if self.executor_instances.max is not None else None,
                 initial=int(self.executor_instances.initial)

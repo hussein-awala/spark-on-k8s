@@ -25,7 +25,9 @@
 
         ws.onmessage = function(event) {
             const logsDiv = document.getElementById('logs-container');
-            logsDiv.innerHTML += `<p>${event.data}</p>`;
+            const logLine = document.createElement('p');
+            logLine.textContent = event.data;
+            logsDiv.appendChild(logLine);
             logsDiv.scrollTop = logsDiv.scrollHeight;
         };
 

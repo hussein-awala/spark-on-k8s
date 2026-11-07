@@ -125,9 +125,18 @@ def main():
         driver = remaining[0]
         expected_phase = "Succeeded" if OUTCOME == "success" else "Failed"
         assert driver.status.phase == expected_phase, driver.status.phase
-        logs = api.read_namespaced_pod_log(
-            driver.metadata.name, NAMESPACE, container="driver", _request_timeout=REQUEST_TIMEOUT
+        response = api.read_namespaced_pod_log(
+            driver.metadata.name,
+            NAMESPACE,
+            container="driver",
+            _request_timeout=REQUEST_TIMEOUT,
+            _preload_content=False,
         )
+        try:
+            logs = response.data.decode("utf-8", errors="replace")
+        finally:
+            response.close()
+            response.release_conn()
         print("AIRFLOW_SPARK_LOG_BEGIN " + CASE, flush=True)
         print(logs, flush=True)
         print("AIRFLOW_SPARK_LOG_END " + CASE, flush=True)

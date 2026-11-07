@@ -16,6 +16,19 @@ from spark_on_k8s.k8s.sync_client import KubernetesClientManager
 REQUEST_TIMEOUT = (5, 20)
 
 
+def read_logs(api, namespace, pod_name, **kwargs):
+    # Read bytes directly: the Kubernetes client's str deserializer can stringify
+    # a byte body as b'...\\n...', losing actual line boundaries in the receipt stream.
+    response = api.read_namespaced_pod_log(
+        pod_name, namespace, _preload_content=False, _request_timeout=REQUEST_TIMEOUT, **kwargs
+    )
+    try:
+        return response.data.decode("utf-8", errors="replace")
+    finally:
+        response.close()
+        response.release_conn()
+
+
 def owned_executors(api, namespace: str, driver_uid: str):
     return [
         pod
@@ -38,12 +51,7 @@ def dump_diagnostics(api, namespace: str, destination: Path):
                 for pod in objects.items:
                     for container in pod.spec.containers:
                         try:
-                            logs = api.read_namespaced_pod_log(
-                                pod.metadata.name,
-                                namespace,
-                                container=container.name,
-                                _request_timeout=REQUEST_TIMEOUT,
-                            )
+                            logs = read_logs(api, namespace, pod.metadata.name, container=container.name)
                         except k8s.ApiException as error:
                             logs = f"Logs unavailable: {error.status}"
                         (destination / f"{pod.metadata.name}-{container.name}.log").write_text(logs)
@@ -142,9 +150,7 @@ def run_case(api, submitter: SparkOnK8S, args, namespace: str, scenario: str):
     pod = api.read_namespaced_pod(pod_name, namespace, _request_timeout=REQUEST_TIMEOUT)
     assert pod.metadata.uid == run.driver_uid
     assert observer.app_manager.app_status(namespace=namespace, pod_name=pod_name).value == pod.status.phase
-    logs = api.read_namespaced_pod_log(
-        pod_name, namespace, container="driver", _request_timeout=REQUEST_TIMEOUT
-    )
+    logs = read_logs(api, namespace, pod_name, container="driver")
     (args.artifacts / f"{scenario}.log").write_text(logs)
     executors = owned_executors(api, namespace, pod.metadata.uid)
     if scenario == "sql-failure":

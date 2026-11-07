@@ -22,6 +22,19 @@ CASES = {
 }
 
 
+def read_logs(api, namespace, pod_name, **kwargs):
+    # Read bytes directly: the Kubernetes client's str deserializer can stringify
+    # a byte body as b'...\\n...', losing actual line boundaries in the receipt stream.
+    response = api.read_namespaced_pod_log(
+        pod_name, namespace, _preload_content=False, _request_timeout=REQUEST_TIMEOUT, **kwargs
+    )
+    try:
+        return response.data.decode("utf-8", errors="replace")
+    finally:
+        response.close()
+        response.release_conn()
+
+
 def diagnostics(api, namespace, destination):
     destination.mkdir(parents=True, exist_ok=True)
     for resource, reader in (("pods", api.list_namespaced_pod), ("events", api.list_namespaced_event)):
@@ -34,12 +47,7 @@ def diagnostics(api, namespace, destination):
                 for pod in objects.items:
                     for container in pod.spec.containers:
                         try:
-                            logs = api.read_namespaced_pod_log(
-                                pod.metadata.name,
-                                namespace,
-                                container=container.name,
-                                _request_timeout=REQUEST_TIMEOUT,
-                            )
+                            logs = read_logs(api, namespace, pod.metadata.name, container=container.name)
                         except k8s.ApiException as error:
                             logs = f"Logs unavailable: {error.status}"
                         (destination / f"{pod.metadata.name}-{container.name}.log").write_text(logs)
@@ -141,7 +149,7 @@ def main():
                 time.sleep(3)
             else:
                 raise TimeoutError("Airflow integration pod exceeded its deadline")
-            logs = api.read_namespaced_pod_log("airflow-runner", namespace, _request_timeout=REQUEST_TIMEOUT)
+            logs = read_logs(api, namespace, "airflow-runner")
             (args.artifacts / "airflow.log").write_text(logs)
             for line in logs.splitlines():
                 if line.startswith(PREFIX):

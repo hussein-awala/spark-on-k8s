@@ -304,6 +304,8 @@ class SparkOnK8S(LoggingMixin):
                 and executor_instances.initial is None
             ):
                 executor_instances.initial = 2
+        if should_print is NOTSET:
+            should_print = False
         app_name, app_id = self._parse_app_name_and_id(
             app_name=app_name, app_id_suffix=app_id_suffix, should_print=should_print
         )
@@ -340,8 +342,6 @@ class SparkOnK8S(LoggingMixin):
             driver_tolerations = []
         if executor_pod_template_path is NOTSET or executor_pod_template_path is None:
             executor_pod_template_path = Configuration.SPARK_ON_K8S_EXECUTOR_POD_TEMPLATE_PATH
-        if should_print is NOTSET:
-            should_print = False
         if executor_pod_template is NOTSET or executor_pod_template is None:
             executor_pod_template = Configuration.SPARK_ON_K8S_EXECUTOR_TEMPLATE
         if startup_timeout is NOTSET:

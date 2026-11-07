@@ -1413,3 +1413,20 @@
     min-width: 0;
   }
 }
+
+.spark-console .excerpt-label {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0;
+}
+.spark-console .excerpt-label textarea {
+  width: 100%;
+  resize: vertical;
+  font: 12px/1.6 monospace;
+  padding: 12px;
+}
+
+.spark-console .button[aria-disabled="true"] {
+  opacity: 0.55;
+  cursor: wait;
+}

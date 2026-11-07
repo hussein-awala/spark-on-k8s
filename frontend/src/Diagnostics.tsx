@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { SnapshotAge } from "./SnapshotAge";
 import { errorMessage } from "./client";
 import type { ConsoleApplication, ConsoleTransport, Diagnosis } from "./types";
 
@@ -12,6 +13,9 @@ export function Diagnostics({
   const [report, setReport] = useState<Diagnosis | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const [fetchedAt, setFetchedAt] = useState<Date | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const identity = useRef("");
   const supported =
     app.source === "kubernetes" &&
     !!app.driver_pod &&
@@ -19,15 +23,28 @@ export function Diagnostics({
     !!transport.diagnoseApp;
   useEffect(() => {
     const controller = new AbortController();
-    setReport(null);
+    const key = `${app.namespace}/${app.app_id}/${app.driver_pod}`;
+    if (identity.current !== key) {
+      setReport(null);
+      setFetchedAt(null);
+      identity.current = key;
+    }
     setError(null);
+    setRefreshing(supported);
     if (supported) {
       transport.diagnoseApp!(app, controller.signal).then(
         (result) => {
-          if (!controller.signal.aborted) setReport(result);
+          if (!controller.signal.aborted) {
+            setReport(result);
+            setFetchedAt(new Date());
+            setRefreshing(false);
+          }
         },
         (failure) => {
-          if (!controller.signal.aborted) setError(errorMessage(failure));
+          if (!controller.signal.aborted) {
+            setError(errorMessage(failure));
+            setRefreshing(false);
+          }
         },
       );
     }
@@ -44,12 +61,27 @@ export function Diagnostics({
   return (
     <section className="diagnostics" aria-label="Application diagnostics">
       <h3>Diagnostics</h3>
+      <p className="muted">
+        <SnapshotAge fetchedAt={fetchedAt} label="Diagnostic snapshot" />
+      </p>
+      {report && (
+        <button
+          className="button button-secondary"
+          aria-disabled={refreshing}
+          onClick={() => {
+            if (!refreshing) setAttempt((value) => value + 1);
+          }}
+        >
+          Refresh diagnostics
+        </button>
+      )}
       {!report && !error && (
         <p role="status">Checking pod states and events…</p>
       )}
       {error && (
         <div className="notice notice-error" role="alert">
           <p>{error}</p>
+          {report && <p>Previous diagnostic snapshot is still shown.</p>}
           <button
             className="button button-secondary"
             onClick={() => setAttempt((value) => value + 1)}

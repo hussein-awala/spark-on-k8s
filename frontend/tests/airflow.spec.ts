@@ -111,10 +111,10 @@ test("native bundle shares host React and binds every request to the task under 
     page.getByText("Showing 1 of 1 loaded applications"),
   ).toBeVisible();
   await expect(
-    page.getByRole("link", { name: "Spark UI", exact: true }),
+    page.getByRole("link", { name: /^Spark UI for / }),
   ).toHaveAttribute("href", capabilities.spark_ui_url);
   await expect(
-    page.getByRole("link", { name: "History", exact: true }),
+    page.getByRole("link", { name: /^History for / }),
   ).toHaveAttribute("href", capabilities.spark_history_url);
   expect(requests.length).toBeGreaterThanOrEqual(3);
   for (const request of requests) {
@@ -295,7 +295,7 @@ test("task changes close old log streams and task-bound logs stay literal", asyn
   await page.goto(
     "/tests/airflow-fixture.html?base=%2Fairflow%2F&dagId=sales%2Fdaily",
   );
-  await page.getByRole("button", { name: "Logs", exact: true }).click();
+  await page.getByRole("button", { name: /^Logs for / }).click();
   await expect.poll(() => sockets.length).toBe(1);
   const logQuery = new URL(sockets[0].url()).searchParams;
   expect(logQuery.get("dag_id")).toBe("sales/daily");
@@ -318,7 +318,7 @@ test("task changes close old log streams and task-bound logs stay literal", asyn
   await expect(
     page.getByRole("heading", { name: "Applications." }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Logs", exact: true }).click();
+  await page.getByRole("button", { name: /^Logs for / }).click();
   await expect.poll(() => sockets.length).toBe(2);
   expect(Object.fromEntries(new URL(sockets[1].url()).searchParams)).toEqual({
     dag_id: "next_dag",
@@ -476,14 +476,12 @@ test("a removed driver preserves task namespace and history without exposing liv
   await expect(
     page.getByText("Archived · namespace unknown", { exact: true }),
   ).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^Logs for / })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: /^Spark UI for / })).toHaveCount(
+    0,
+  );
   await expect(
-    page.getByRole("button", { name: "Logs", exact: true }),
-  ).toHaveCount(0);
-  await expect(
-    page.getByRole("link", { name: "Spark UI", exact: true }),
-  ).toHaveCount(0);
-  await expect(
-    page.getByRole("link", { name: "History", exact: true }),
+    page.getByRole("link", { name: /^History for / }),
   ).toHaveAttribute("href", capabilities.spark_history_url);
   await page
     .getByRole("button", { name: "Daily revenue report", exact: true })
@@ -503,7 +501,7 @@ test("a removed driver preserves task namespace and history without exposing liv
     }),
   ).toHaveCount(0);
   await expect(
-    dialog.getByRole("link", { name: "History", exact: true }),
+    dialog.getByRole("link", { name: /^History for / }),
   ).toHaveAttribute("href", capabilities.spark_history_url);
 });
 

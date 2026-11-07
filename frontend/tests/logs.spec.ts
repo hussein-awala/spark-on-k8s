@@ -35,7 +35,9 @@ test("logs remain literal, searchable, copyable, downloadable, and clearable", a
     .poll(() => page.evaluate(() => navigator.clipboard.readText()))
     .toBe("ERROR failed < threshold && count > 0");
   const downloading = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Download", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Download live buffer", exact: true })
+    .click();
   const download = await downloading;
   expect(download.suggestedFilename()).toBe("report-1.log");
   expect(await readFile((await download.path())!, "utf-8")).toBe(

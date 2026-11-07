@@ -28,13 +28,13 @@ test("merges history while retaining live status, links, and safe archive action
   });
   await expect(liveRow.getByText("Running", { exact: true })).toBeVisible();
   await expect(
-    liveRow.getByRole("link", { name: "Logs", exact: true }),
+    liveRow.getByRole("link", { name: /^Logs for / }),
   ).toHaveAttribute(
     "href",
     "/nested/spark/webserver/logs/analytics/report-1?tail=1000",
   );
   await expect(
-    liveRow.getByRole("link", { name: "History", exact: true }),
+    liveRow.getByRole("link", { name: /^History for / }),
   ).toHaveAttribute(
     "href",
     "/nested/spark/webserver/ui-history/history/report-1",
@@ -46,9 +46,9 @@ test("merges history while retaining live status, links, and safe archive action
     has: page.getByRole("button", { name: "Weekly archive", exact: true }),
   });
   await expect(archive.getByText("Archived · namespace unknown")).toBeVisible();
-  await expect(
-    archive.getByRole("link", { name: "Logs", exact: true }),
-  ).toHaveCount(0);
+  await expect(archive.getByRole("link", { name: /^Logs for / })).toHaveCount(
+    0,
+  );
   await archive
     .getByRole("button", { name: "Weekly archive", exact: true })
     .click();
@@ -352,12 +352,12 @@ test("embedded mode uses authorized links and internal log navigation", async ({
   ).toHaveCount(0);
   await expect(page.getByText("Daily sales", { exact: true })).toBeVisible();
   await expect(
-    page.getByRole("link", { name: "Spark UI", exact: true }),
+    page.getByRole("link", { name: /^Spark UI for / }),
   ).toHaveAttribute("href", "/authorized/spark-ui?task=aggregate");
   await expect(
-    page.getByRole("link", { name: "History", exact: true }),
+    page.getByRole("link", { name: /^History for / }),
   ).toHaveAttribute("href", "/authorized/history?task=aggregate");
-  await page.getByRole("button", { name: "Logs", exact: true }).click();
+  await page.getByRole("button", { name: /^Logs for / }).click();
   await expect(
     page.getByRole("heading", { name: "Application logs." }),
   ).toBeVisible();

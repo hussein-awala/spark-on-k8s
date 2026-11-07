@@ -83,7 +83,7 @@ def test_proxy_preserves_query_response_and_closes_upstream(
         assert len(requests) == 1
         assert requests[0].method == "GET"
         assert str(requests[0].url) == expected_url + "?stage=1&stage=2&description=a%2Bb"
-        assert requests[0].headers["x-request-id"] == "trace-1"
+        assert "x-request-id" not in requests[0].headers
     finally:
         asyncio.run(http_client.aclose())
 
@@ -229,12 +229,8 @@ def test_remote_proxy_never_forwards_operator_or_gateway_credentials(monkeypatch
         assert seen[0].url.query == b"stage=1"
         for key, value in functional.items():
             assert seen[0].headers[key] == value
-        for key, value in sensitive.items():
-            if remote_mode:
-                assert key not in seen[0].headers
-            else:
-                assert seen[0].headers[key] == value
-        if remote_mode:
-            assert token not in str(seen[0].headers)
+        for key in sensitive:
+            assert key not in seen[0].headers
+        assert token not in str(seen[0].headers)
     finally:
         asyncio.run(transport.aclose())

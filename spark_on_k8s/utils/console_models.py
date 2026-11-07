@@ -6,6 +6,7 @@ from uuid import UUID  # noqa: TC003 - Pydantic resolves this type at runtime.
 
 from pydantic import BaseModel, Field
 
+from spark_on_k8s.diagnostics import Diagnosis  # noqa: TC001 - Runtime model field.
 from spark_on_k8s.utils.spark_app_status import SparkAppStatus  # noqa: TC001 - Runtime model field.
 
 AIRFLOW_TASK_ANNOTATION = "spark-on-k8s.io/airflow-task"
@@ -62,3 +63,10 @@ class ConsoleApplicationsPage(BaseModel):
 
 class ConsoleHistory(BaseModel):
     items: list[ConsoleApplication]
+
+
+class ConsoleDiagnostics(BaseModel):
+    """Diagnosis and ownership metadata from the same inspected driver."""
+
+    application: ConsoleApplication
+    diagnosis: Diagnosis

@@ -148,6 +148,57 @@ class SparkOnK8S(LoggingMixin):
 
         return self.submit_app(**prepare_sql_options(sql=sql, sql_file=sql_file, **submit_options))
 
+    def diagnose_app(
+        self,
+        *,
+        namespace: str,
+        app_id: str | None = None,
+        pod_name: str | None = None,
+        pod_limit: int = 20,
+        event_limit: int = 100,
+        timeout: float = 10,
+    ):
+        """Read bounded pod/event evidence without changing the application."""
+        from spark_on_k8s.diagnostics import _limits, collect_diagnosis, validate_target
+
+        if (app_id is None) == (pod_name is None):
+            raise ValueError("Provide exactly one of app_id or pod_name")
+        validate_target(namespace, app_id if app_id is not None else pod_name, label=app_id is not None)
+        deadline = _limits(pod_limit, event_limit, timeout)
+        with self.k8s_client_manager.client() as client:
+            api = k8s.CoreV1Api(client)
+            if pod_name is not None:
+                driver = api.read_namespaced_pod(
+                    namespace=namespace, name=pod_name, **deadline.request_options()
+                )
+            else:
+                response = api.list_namespaced_pod(
+                    namespace=namespace,
+                    label_selector=f"spark-role=driver,spark-app-id={app_id}",
+                    limit=2,
+                    **deadline.request_options(),
+                )
+                if len(response.items) != 1:
+                    raise ValueError("Expected one Spark driver; use pod_name to select an existing driver")
+                driver = response.items[0]
+            return collect_diagnosis(
+                api,
+                driver,
+                namespace=namespace,
+                pod_limit=pod_limit,
+                event_limit=event_limit,
+                timeout=deadline.remaining(),
+            )
+
+    def doctor(self, *, namespace: str, service_account: str = "spark", timeout: float = 10):
+        """Check caller access and driver service-account existence without applying changes."""
+        from spark_on_k8s.doctor import check_cluster
+
+        with self.k8s_client_manager.client() as client:
+            return check_cluster(
+                client, namespace=namespace, service_account=service_account, timeout=timeout
+            )
+
     def _process_executor_template(self, executor_template: str) -> str:
         """Process executor template string, reading from file if it's a file path.
 

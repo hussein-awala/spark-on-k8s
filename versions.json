@@ -1,8 +1,12 @@
 [
   {
     "version": "develop",
-    "title": "develop",
-    "aliases": []
+    "title": "Development (unreleased)",
+    "aliases": [],
+    "properties": {
+      "source_sha": "559153bd208946e4caefe856b0a3be2025cb9c55",
+      "channel": "develop"
+    }
   },
   {
     "version": "0.12.1",

@@ -5,6 +5,22 @@
          <lastmod>2026-11-07</lastmod>
     </url>
     <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/development/</loc>
+         <lastmod>2026-11-07</lastmod>
+    </url>
+    <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/releases/</loc>
+         <lastmod>2026-11-07</lastmod>
+    </url>
+    <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/review-decisions/</loc>
+         <lastmod>2026-11-07</lastmod>
+    </url>
+    <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/security-boundaries/</loc>
+         <lastmod>2026-11-07</lastmod>
+    </url>
+    <url>
          <loc>https://hussein.awala.fr/spark-on-k8s/develop/helm-chart/</loc>
          <lastmod>2026-11-07</lastmod>
     </url>
@@ -21,7 +37,19 @@
          <lastmod>2026-11-07</lastmod>
     </url>
     <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/helm-chart/config/metrics/</loc>
+         <lastmod>2026-11-07</lastmod>
+    </url>
+    <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/helm-chart/config/rbac/</loc>
+         <lastmod>2026-11-07</lastmod>
+    </url>
+    <url>
          <loc>https://hussein.awala.fr/spark-on-k8s/develop/helm-chart/config/root/</loc>
+         <lastmod>2026-11-07</lastmod>
+    </url>
+    <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/helm-chart/config/runHistory/</loc>
          <lastmod>2026-11-07</lastmod>
     </url>
     <url>
@@ -37,11 +65,43 @@
          <lastmod>2026-11-07</lastmod>
     </url>
     <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/reference/</loc>
+         <lastmod>2026-11-07</lastmod>
+    </url>
+    <url>
          <loc>https://hussein.awala.fr/spark-on-k8s/develop/reference/SUMMARY/</loc>
          <lastmod>2026-11-07</lastmod>
     </url>
     <url>
          <loc>https://hussein.awala.fr/spark-on-k8s/develop/reference/spark_on_k8s/client/</loc>
+         <lastmod>2026-11-07</lastmod>
+    </url>
+    <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/reference/spark_on_k8s/connect/</loc>
+         <lastmod>2026-11-07</lastmod>
+    </url>
+    <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/reference/spark_on_k8s/diagnostics/</loc>
+         <lastmod>2026-11-07</lastmod>
+    </url>
+    <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/reference/spark_on_k8s/doctor/</loc>
+         <lastmod>2026-11-07</lastmod>
+    </url>
+    <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/reference/spark_on_k8s/jobs/</loc>
+         <lastmod>2026-11-07</lastmod>
+    </url>
+    <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/reference/spark_on_k8s/planning/</loc>
+         <lastmod>2026-11-07</lastmod>
+    </url>
+    <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/reference/spark_on_k8s/remote/</loc>
+         <lastmod>2026-11-07</lastmod>
+    </url>
+    <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/reference/spark_on_k8s/resource_plan/</loc>
          <lastmod>2026-11-07</lastmod>
     </url>
     <url>
@@ -65,7 +125,27 @@
          <lastmod>2026-11-07</lastmod>
     </url>
     <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/reference/spark_on_k8s/airflow/ui_config/</loc>
+         <lastmod>2026-11-07</lastmod>
+    </url>
+    <url>
          <loc>https://hussein.awala.fr/spark-on-k8s/develop/reference/spark_on_k8s/airflow/scripts/spark_sql/</loc>
+         <lastmod>2026-11-07</lastmod>
+    </url>
+    <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/reference/spark_on_k8s/airflow/ui/backend/</loc>
+         <lastmod>2026-11-07</lastmod>
+    </url>
+    <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/reference/spark_on_k8s/airflow/ui/plugin/</loc>
+         <lastmod>2026-11-07</lastmod>
+    </url>
+    <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/reference/spark_on_k8s/airflow/ui/task_binding/</loc>
+         <lastmod>2026-11-07</lastmod>
+    </url>
+    <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/reference/spark_on_k8s/api/</loc>
          <lastmod>2026-11-07</lastmod>
     </url>
     <url>
@@ -81,11 +161,39 @@
          <lastmod>2026-11-07</lastmod>
     </url>
     <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/reference/spark_on_k8s/api/console/</loc>
+         <lastmod>2026-11-07</lastmod>
+    </url>
+    <url>
          <loc>https://hussein.awala.fr/spark-on-k8s/develop/reference/spark_on_k8s/api/main/</loc>
          <lastmod>2026-11-07</lastmod>
     </url>
     <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/reference/spark_on_k8s/api/remote_auth/</loc>
+         <lastmod>2026-11-07</lastmod>
+    </url>
+    <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/reference/spark_on_k8s/api/run_history/</loc>
+         <lastmod>2026-11-07</lastmod>
+    </url>
+    <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/reference/spark_on_k8s/api/submission/</loc>
+         <lastmod>2026-11-07</lastmod>
+    </url>
+    <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/reference/spark_on_k8s/api/submission_policy/</loc>
+         <lastmod>2026-11-07</lastmod>
+    </url>
+    <url>
          <loc>https://hussein.awala.fr/spark-on-k8s/develop/reference/spark_on_k8s/api/utils/</loc>
+         <lastmod>2026-11-07</lastmod>
+    </url>
+    <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/reference/spark_on_k8s/api/webserver/</loc>
+         <lastmod>2026-11-07</lastmod>
+    </url>
+    <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/reference/spark_on_k8s/cli/</loc>
          <lastmod>2026-11-07</lastmod>
     </url>
     <url>
@@ -101,6 +209,22 @@
          <lastmod>2026-11-07</lastmod>
     </url>
     <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/reference/spark_on_k8s/cli/automation/</loc>
+         <lastmod>2026-11-07</lastmod>
+    </url>
+    <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/reference/spark_on_k8s/cli/connect/</loc>
+         <lastmod>2026-11-07</lastmod>
+    </url>
+    <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/reference/spark_on_k8s/cli/diagnostics/</loc>
+         <lastmod>2026-11-07</lastmod>
+    </url>
+    <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/reference/spark_on_k8s/cli/job/</loc>
+         <lastmod>2026-11-07</lastmod>
+    </url>
+    <url>
          <loc>https://hussein.awala.fr/spark-on-k8s/develop/reference/spark_on_k8s/cli/namespace/</loc>
          <lastmod>2026-11-07</lastmod>
     </url>
@@ -109,11 +233,43 @@
          <lastmod>2026-11-07</lastmod>
     </url>
     <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/reference/spark_on_k8s/cli/receipts/</loc>
+         <lastmod>2026-11-07</lastmod>
+    </url>
+    <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/reference/spark_on_k8s/cli/remote/</loc>
+         <lastmod>2026-11-07</lastmod>
+    </url>
+    <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/reference/spark_on_k8s/cli/sql/</loc>
+         <lastmod>2026-11-07</lastmod>
+    </url>
+    <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/reference/spark_on_k8s/history/collector/</loc>
+         <lastmod>2026-11-07</lastmod>
+    </url>
+    <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/reference/spark_on_k8s/history/settings/</loc>
+         <lastmod>2026-11-07</lastmod>
+    </url>
+    <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/reference/spark_on_k8s/history/store/</loc>
+         <lastmod>2026-11-07</lastmod>
+    </url>
+    <url>
          <loc>https://hussein.awala.fr/spark-on-k8s/develop/reference/spark_on_k8s/k8s/async_client/</loc>
          <lastmod>2026-11-07</lastmod>
     </url>
     <url>
          <loc>https://hussein.awala.fr/spark-on-k8s/develop/reference/spark_on_k8s/k8s/sync_client/</loc>
+         <lastmod>2026-11-07</lastmod>
+    </url>
+    <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/reference/spark_on_k8s/sql/</loc>
+         <lastmod>2026-11-07</lastmod>
+    </url>
+    <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/reference/spark_on_k8s/sql/runner/</loc>
          <lastmod>2026-11-07</lastmod>
     </url>
     <url>
@@ -129,7 +285,19 @@
          <lastmod>2026-11-07</lastmod>
     </url>
     <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/reference/spark_on_k8s/utils/console_models/</loc>
+         <lastmod>2026-11-07</lastmod>
+    </url>
+    <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/reference/spark_on_k8s/utils/driver_pod_template/</loc>
+         <lastmod>2026-11-07</lastmod>
+    </url>
+    <url>
          <loc>https://hussein.awala.fr/spark-on-k8s/develop/reference/spark_on_k8s/utils/logging_mixin/</loc>
+         <lastmod>2026-11-07</lastmod>
+    </url>
+    <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/reference/spark_on_k8s/utils/run/</loc>
          <lastmod>2026-11-07</lastmod>
     </url>
     <url>
@@ -149,6 +317,26 @@
          <lastmod>2026-11-07</lastmod>
     </url>
     <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/user-guide/airflow/</loc>
+         <lastmod>2026-11-07</lastmod>
+    </url>
+    <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/user-guide/automation/</loc>
+         <lastmod>2026-11-07</lastmod>
+    </url>
+    <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/user-guide/chart-deployments/</loc>
+         <lastmod>2026-11-07</lastmod>
+    </url>
+    <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/user-guide/diagnostics/</loc>
+         <lastmod>2026-11-07</lastmod>
+    </url>
+    <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/user-guide/driver_pod_templates/</loc>
+         <lastmod>2026-11-07</lastmod>
+    </url>
+    <url>
          <loc>https://hussein.awala.fr/spark-on-k8s/develop/user-guide/examples/</loc>
          <lastmod>2026-11-07</lastmod>
     </url>
@@ -158,6 +346,46 @@
     </url>
     <url>
          <loc>https://hussein.awala.fr/spark-on-k8s/develop/user-guide/installation/</loc>
+         <lastmod>2026-11-07</lastmod>
+    </url>
+    <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/user-guide/jobs/</loc>
+         <lastmod>2026-11-07</lastmod>
+    </url>
+    <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/user-guide/operations/</loc>
+         <lastmod>2026-11-07</lastmod>
+    </url>
+    <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/user-guide/remote-submission/</loc>
+         <lastmod>2026-11-07</lastmod>
+    </url>
+    <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/user-guide/run-history/</loc>
+         <lastmod>2026-11-07</lastmod>
+    </url>
+    <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/user-guide/spark_compatibility/</loc>
+         <lastmod>2026-11-07</lastmod>
+    </url>
+    <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/user-guide/spark_connect/</loc>
+         <lastmod>2026-11-07</lastmod>
+    </url>
+    <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/user-guide/sql/</loc>
+         <lastmod>2026-11-07</lastmod>
+    </url>
+    <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/user-guide/start-here/</loc>
+         <lastmod>2026-11-07</lastmod>
+    </url>
+    <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/user-guide/starters/</loc>
+         <lastmod>2026-11-07</lastmod>
+    </url>
+    <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/user-guide/support/</loc>
          <lastmod>2026-11-07</lastmod>
     </url>
 </urlset>

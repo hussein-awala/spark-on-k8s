@@ -10,10 +10,14 @@ from spark_on_k8s.api import AsyncHttpClientSingleton, KubernetesClientSingleton
 from spark_on_k8s.api.app import router as app_router
 from spark_on_k8s.api.apps import router as apps_router
 from spark_on_k8s.api.console import router as console_router
+from spark_on_k8s.api.remote_auth import RemoteAccessMiddleware
+from spark_on_k8s.api.submission import router as submission_router
+from spark_on_k8s.api.submission_policy import get_submission_settings
 from spark_on_k8s.api.webserver import router as webserver_router
 
 
 async def on_start_up() -> None:
+    get_submission_settings()  # Invalid remote configuration fails before the server accepts traffic.
     await KubernetesClientSingleton.client()
     AsyncHttpClientSingleton.client()
 
@@ -30,6 +34,8 @@ app = FastAPI(
     on_startup=[on_start_up],
     on_shutdown=[on_shutdown],
 )
+app.add_middleware(RemoteAccessMiddleware)
+app.include_router(submission_router)
 app.include_router(app_router)
 app.include_router(apps_router)
 app.include_router(webserver_router)

@@ -79,6 +79,7 @@ nav:
       - Job Files: user-guide/jobs.md
       - Examples: user-guide/examples.md
       - Automation: user-guide/automation.md
+      - Remote submission: user-guide/remote-submission.md
       - Driver pod templates: user-guide/driver_pod_templates.md
       - Spark Compatibility: user-guide/spark_compatibility.md
       - ETL and Lakehouse Starters: user-guide/starters.md

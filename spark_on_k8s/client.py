@@ -701,14 +701,14 @@ class SparkOnK8S(LoggingMixin):
         config = {}
         # https://spark.apache.org/docs/latest/running-on-kubernetes.html#using-kubernetes-volumes
         supported_volume_types = {
-            "hostPath",
-            "emptyDir",
-            "nfs",
-            "persistentVolumeClaim",
-            "configMap",
+            "hostPath": {"path"},
+            "emptyDir": {"medium", "sizeLimit"},
+            "nfs": {"path", "server"},
+            "persistentVolumeClaim": {"claimName"},
         }
         loaded_volumes = {}
         volumes_config = {}
+        read_only_volumes = set()
         for volume in volumes:
             volume_name = volume.name
             volume_mapped_type: str | None = None
@@ -719,16 +719,21 @@ class SparkOnK8S(LoggingMixin):
                     volume_type_str = k8s.V1Volume.openapi_types[attr]
                     volume = getattr(volume, attr)
                     break
-            volume_type = getattr(k8s, volume_type_str)
             if volume_mapped_type not in supported_volume_types:
                 continue
+            volume_type = getattr(k8s, volume_type_str)
             loaded_volumes[volume_name] = volume_mapped_type
+            if getattr(volume, "read_only", False):
+                read_only_volumes.add(volume_name)
             volumes_config[volume_name] = {}
             for attr in volume_type.attribute_map:
-                if getattr(volume, attr) is not None:
-                    option_name = volume_type.attribute_map[attr]
+                option_name = volume_type.attribute_map[attr]
+                if (
+                    option_name in supported_volume_types[volume_mapped_type]
+                    and getattr(volume, attr) is not None
+                ):
                     volumes_config[volume_name][
-                        f"spark.kubernetes.executor.volumes.{volume_mapped_type}.{volume_name}.{option_name}"
+                        f"spark.kubernetes.executor.volumes.{volume_mapped_type}.{volume_name}.options.{option_name}"
                     ] = getattr(volume, attr)
         for volume_mount in volume_mounts:
             if volume_mount.name not in loaded_volumes:
@@ -745,7 +750,7 @@ class SparkOnK8S(LoggingMixin):
             config[f"{volume_config_prefix}.path"] = volume_mount.mount_path
             if volume_mount.sub_path:
                 config[f"{volume_config_prefix}.subPath"] = volume_mount.sub_path
-            if volume_mount.read_only:
+            if volume_mount.read_only or volume_mount.name in read_only_volumes:
                 config[f"{volume_config_prefix}.readOnly"] = True
         return config
 

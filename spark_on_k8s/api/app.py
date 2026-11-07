@@ -46,7 +46,7 @@ async def delete_app(namespace: str, app_id: str, force: bool = False):
         k8s_client_manager=KubernetesClientSingleton.client_manager
     )
     try:
-        await async_spark_app_manager.delete_app(namespace=namespace, app_id=app_id)
+        await async_spark_app_manager.delete_app(namespace=namespace, app_id=app_id, force=force)
         return Response(status_code=200)
     except Exception as e:
         # TODO: handle exceptions properly and return proper status code

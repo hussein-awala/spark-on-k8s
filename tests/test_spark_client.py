@@ -641,19 +641,18 @@ class TestSparkOnK8s:
         )
         assert executor_volumes_config == {
             # volumes config
-            "spark.kubernetes.executor.volumes.hostPath.volume1.path": "/mnt/volume1",
-            "spark.kubernetes.executor.volumes.emptyDir.volume2.medium": "Memory",
-            "spark.kubernetes.executor.volumes.emptyDir.volume2.sizeLimit": "1Gi",
-            "spark.kubernetes.executor.volumes.nfs.volume6.path": "/mnt/volume6",
-            "spark.kubernetes.executor.volumes.nfs.volume6.readOnly": True,
-            "spark.kubernetes.executor.volumes.nfs.volume6.server": "nfs-server",
-            "spark.kubernetes.executor.volumes.persistentVolumeClaim.volume7.claimName": "pvc1",
-            "spark.kubernetes.executor.volumes.persistentVolumeClaim.volume7.readOnly": True,
+            "spark.kubernetes.executor.volumes.hostPath.volume1.options.path": "/mnt/volume1",
+            "spark.kubernetes.executor.volumes.emptyDir.volume2.options.medium": "Memory",
+            "spark.kubernetes.executor.volumes.emptyDir.volume2.options.sizeLimit": "1Gi",
+            "spark.kubernetes.executor.volumes.nfs.volume6.options.path": "/mnt/volume6",
+            "spark.kubernetes.executor.volumes.nfs.volume6.options.server": "nfs-server",
+            "spark.kubernetes.executor.volumes.persistentVolumeClaim.volume7.options.claimName": "pvc1",
             # volume mounts config
             "spark.kubernetes.executor.volumes.hostPath.volume1.mount.path": "/mnt/volume1",
             "spark.kubernetes.executor.volumes.emptyDir.volume2.mount.path": "/mnt/volume2",
             "spark.kubernetes.executor.volumes.emptyDir.volume2.mount.subPath": "sub-path",
             "spark.kubernetes.executor.volumes.nfs.volume6.mount.path": "/mnt/volume3",
+            "spark.kubernetes.executor.volumes.nfs.volume6.mount.readOnly": True,
             "spark.kubernetes.executor.volumes.persistentVolumeClaim.volume7.mount.path": "/mnt/volume4",
             "spark.kubernetes.executor.volumes.persistentVolumeClaim.volume7.mount.readOnly": True,
         }
@@ -774,18 +773,17 @@ class TestSparkOnK8s:
         }
 
         assert volumes_args == {
-            "spark.kubernetes.executor.volumes.hostPath.volume1.path": "/mnt/volume1",
-            "spark.kubernetes.executor.volumes.emptyDir.volume2.medium": "Memory",
-            "spark.kubernetes.executor.volumes.emptyDir.volume2.sizeLimit": "1Gi",
-            "spark.kubernetes.executor.volumes.nfs.volume6.path": "/mnt/volume6",
-            "spark.kubernetes.executor.volumes.nfs.volume6.readOnly": "true",
-            "spark.kubernetes.executor.volumes.nfs.volume6.server": "nfs-server",
-            "spark.kubernetes.executor.volumes.persistentVolumeClaim.volume7.claimName": "pvc1",
-            "spark.kubernetes.executor.volumes.persistentVolumeClaim.volume7.readOnly": "true",
+            "spark.kubernetes.executor.volumes.hostPath.volume1.options.path": "/mnt/volume1",
+            "spark.kubernetes.executor.volumes.emptyDir.volume2.options.medium": "Memory",
+            "spark.kubernetes.executor.volumes.emptyDir.volume2.options.sizeLimit": "1Gi",
+            "spark.kubernetes.executor.volumes.nfs.volume6.options.path": "/mnt/volume6",
+            "spark.kubernetes.executor.volumes.nfs.volume6.options.server": "nfs-server",
+            "spark.kubernetes.executor.volumes.persistentVolumeClaim.volume7.options.claimName": "pvc1",
             "spark.kubernetes.executor.volumes.hostPath.volume1.mount.path": "/mnt/volume1",
             "spark.kubernetes.executor.volumes.emptyDir.volume2.mount.path": "/mnt/volume2",
             "spark.kubernetes.executor.volumes.emptyDir.volume2.mount.subPath": "sub-path",
             "spark.kubernetes.executor.volumes.nfs.volume6.mount.path": "/mnt/volume3",
+            "spark.kubernetes.executor.volumes.nfs.volume6.mount.readOnly": "true",
             "spark.kubernetes.executor.volumes.persistentVolumeClaim.volume7.mount.path": "/mnt/volume4",
             "spark.kubernetes.executor.volumes.persistentVolumeClaim.volume7.mount.readOnly": "true",
         }

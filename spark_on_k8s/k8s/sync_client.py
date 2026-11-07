@@ -75,5 +75,5 @@ class KubernetesClientManager:
                 client_configuration=self.client_configuration,
             )
         else:
-            config.load_incluster_config()
-        return k8s.ApiClient()
+            config.load_incluster_config(client_configuration=self.client_configuration)
+        return k8s.ApiClient(configuration=self.client_configuration)

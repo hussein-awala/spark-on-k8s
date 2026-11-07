@@ -1,36 +1,59 @@
-This development version requires Python 3.11 or newer. The core client and API
-are tested on Python 3.11–3.15. The Airflow integration supports Airflow 3.4 on Python
-3.11–3.14 and Airflow 2.11.2 on Python 3.11–3.12.
-Airflow 2 is end-of-life and retains dependency versions with known security
-advisories; new deployments should use Airflow 3. The `airflow` extra
-is not supported on Python 3.15 because Airflow does not support that version yet.
+## Installation
 
-To install the core python package (only the Python client, the CLI and the helpers), run:
+### Published releases
+
+The following commands install a published package from PyPI. Choose the
+extra for the functionality you need, inside a virtual environment:
+
 ```bash
-pip install spark-on-k8s
-```
-If you want to use the REST API and the web UI, you will also need to install the api package:
-```bash
-pip install "spark-on-k8s[api]"
+python -m pip install spark-on-k8s # Python client, CLI and helpers
+python -m pip install "spark-on-k8s[api]" # Also install the REST API and web UI
+python -m pip install "spark-on-k8s[airflow]" # Also install the Airflow integration
 ```
 
-For Airflow, install the extra in an environment with a supported Python version:
+Published releases can have different Python requirements and features from the
+unreleased `main` branch. Check the selected release's metadata on
+[PyPI](https://pypi.org/project/spark-on-k8s/) and its version of the documentation.
+The source requirements and examples below describe `main`; installing from PyPI
+does not install unreleased changes.
+
+### Current source
+
+The current source requires Python 3.11 or newer. The core client and API are
+tested on Python 3.11–3.15. The Airflow integration is tested with Airflow 3.4 on
+Python 3.11–3.14 and Airflow 2.11.2 on Python 3.11–3.12. Airflow 2 is end-of-life
+and retains dependency versions with known security advisories; use Airflow 3 for
+new deployments. The `airflow` extra is not supported on Python 3.15.
+
+Clone the repository to use the source instructions and example files in this guide:
+
 ```bash
-pip install "spark-on-k8s[airflow]"
+git clone https://github.com/hussein-awala/spark-on-k8s.git
+cd spark-on-k8s
 ```
 
-From a source checkout, use pip or [uv](https://docs.astral.sh/uv/):
-```bash
-# With pip, inside a virtual environment
-python -m pip install . # Core package
-python -m pip install ".[api]" # API and web UI
-python -m pip install ".[airflow]" # Airflow integration on a supported Python version
+With [uv](https://docs.astral.sh/uv/), choose one environment profile. These commands
+use the committed lockfile and create a project-local `.venv`:
 
-# With uv, using the committed lockfile and a project-local virtual environment
+```bash
 uv sync --locked --no-default-groups # Core package
 uv sync --locked --no-default-groups --extra api # API and web UI
 uv sync --python 3.12 --locked --no-default-groups --extra airflow # Airflow 3 integration
 ```
-Run commands from the selected uv environment with `uv run --no-sync spark-on-k8s`.
+
+Run commands from the selected environment with `uv run --no-sync spark-on-k8s`,
+or activate it with `source .venv/bin/activate` before using the commands below.
+To install both integrations, select `--all-extras` on a supported Airflow Python
+version. A later `uv sync` selects a new profile and can remove unselected extras.
+
+Alternatively, install from the checkout with pip in an activated virtual environment:
+
+```bash
+python -m pip install . # Core package
+python -m pip install ".[api]" # API and web UI
+python -m pip install ".[airflow]" # Airflow integration
+```
+
 See [CONTRIBUTING.md](https://github.com/hussein-awala/spark-on-k8s/blob/main/CONTRIBUTING.md)
 for development dependencies and the separate Airflow 2.11 compatibility environment.
+See the [Airflow guide](airflow.md) for provider installation, connections and DAG examples.

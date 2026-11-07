@@ -1,6 +1,9 @@
-Here are some examples of how to package and submit spark apps with this package. In the examples, the base image is
-built with the spark image tool, as described in the
-[spark documentation](https://spark.apache.org/docs/latest/running-on-kubernetes.html#docker-images).
+These examples describe the current source checkout. Run build and submission
+commands from the repository root, with namespace `spark` and service account
+`spark` configured as described in [Getting Started](getting_started.md).
+The example Dockerfiles use a Spark base image built with Spark's image tool; see
+[the Spark documentation](https://spark.apache.org/docs/latest/running-on-kubernetes.html#docker-images).
+For scheduled jobs, see the [Airflow guide](airflow.md).
 
 ### Python
 
@@ -13,18 +16,29 @@ and a Dockerfile to package the application with the spark image:
 --8<-- "examples/python/Dockerfile"
 ```
 
-First, build the docker image and push it to a registry accessible by your cluster,
-or load it into your cluster's local registry if you're using minikube or kind:
+Build the image from the repository root:
+
 ```bash
 docker build -t pyspark-job examples/python
+```
 
-# For minikube
+For a local cluster, load the image into **one** of the following cluster runtimes:
+
+```bash
+# Minikube
 minikube image load pyspark-job
-# For kind
+# Or kind
 kind load docker-image pyspark-job
-# For remote clusters, you will need to change the image name to match your registry,
-# and then push it to that registry
-docker push pyspark-job
+```
+
+The supplied submission scripts use `image_pull_policy="Never"` (CLI:
+`--image-pull-policy Never`) for these preloaded images. For a remote cluster,
+replace the example registry below, push the tagged image, and update the script's
+image to that same name and its pull policy to `IfNotPresent`:
+
+```bash
+docker tag pyspark-job registry.example.com/team/pyspark-job:example
+docker push registry.example.com/team/pyspark-job:example
 ```
 Then, you can submit the job using the python client:
 ```python
@@ -47,18 +61,29 @@ the job class (`src/main/java/com/oss_tech/examples/TestJob.java`):
 --8<-- "examples/java/job/src/main/java/com/oss_tech/examples/TestJob.java"
 ```
 
-Similar to the PySpark application, you need to build the docker image and push it to a registry accessible by
-your cluster, or load it into your cluster's local registry if you're using minikube or kind:
+Build the image from the repository root:
+
 ```bash
 docker build -t java-spark-job examples/java
+```
 
-# For minikube
+For a local cluster, load the image into **one** of the following cluster runtimes:
+
+```bash
+# Minikube
 minikube image load java-spark-job
-# For kind
+# Or kind
 kind load docker-image java-spark-job
-# For remote clusters, you will need to change the image name to match your registry,
-# and then push it to that registry
-docker push java-spark-job
+```
+
+The supplied submission scripts use `image_pull_policy="Never"` (CLI:
+`--image-pull-policy Never`) for these preloaded images. For a remote cluster,
+replace the example registry below, push the tagged image, and update the script's
+image to that same name and its pull policy to `IfNotPresent`:
+
+```bash
+docker tag java-spark-job registry.example.com/team/java-spark-job:example
+docker push registry.example.com/team/java-spark-job:example
 ```
 Then, submit the job using the python client:
 ```python
@@ -96,7 +121,10 @@ spark_client.submit_app(
 ```
 
 #### Driver environment variables
-Instead of providing `spark.kubernetes.driverEnv.[EnvironmentVariableName]=<some-value>`, the package provides a safer way by creating an ephemeral secret and mounting it as an environment variable in the driver pod:
+Use `secret_values` to create an application-owned Kubernetes Secret. Its keys
+become environment variables in both the driver and executors; executor delivery
+uses Spark's `spark.kubernetes.executor.secretKeyRef` configuration. To import
+existing Secrets into the driver only, use `driver_env_vars_from_secrets`.
 ```python
 spark_client.submit_app(
     ...,
@@ -105,7 +133,11 @@ spark_client.submit_app(
 ```
 
 #### Driver volume mounts
-Instead of providing `spark.kubernetes.driver.volumes`, `spark.kubernetes.driver.volumeMounts`, you can use:
+Pass Kubernetes volume and mount objects to `volumes` and `driver_volume_mounts`.
+The Secret `secret1`, ConfigMap `configmap1` and persistent volume claim `pvc` in
+this example must already exist in the application's namespace. Replace the host
+and NFS paths with resources available in your cluster:
+
 ```python
 from kubernetes import client as k8s
 
@@ -137,11 +169,15 @@ spark_client.submit_app(
             projected=k8s.V1ProjectedVolumeSource(
                 sources=[
                     k8s.V1VolumeProjection(
-                        secret=k8s.V1SecretProjection(items=[k8s.V1KeyToPath(key="key1", path="path1")])
+                        secret=k8s.V1SecretProjection(
+                            name="secret1",
+                            items=[k8s.V1KeyToPath(key="key1", path="secret/key1")],
+                        )
                     ),
                     k8s.V1VolumeProjection(
                         config_map=k8s.V1ConfigMapProjection(
-                            items=[k8s.V1KeyToPath(key="key1", path="path1")]
+                            name="configmap1",
+                            items=[k8s.V1KeyToPath(key="key1", path="config/key1")],
                         )
                     ),
                 ]
@@ -167,7 +203,6 @@ spark_client.submit_app(
         k8s.V1VolumeMount(name="volume6", mount_path="/mnt/volume6"),
         k8s.V1VolumeMount(name="volume7", mount_path="/mnt/volume7", read_only=True),
     ],
-    
 )
 ```
 
@@ -249,14 +284,20 @@ spark_client.submit_app(
 The package provides an enhanced way to configure executor pod templates compared to Spark's built-in `spark.kubernetes.executor.podTemplateFile` configuration.
 
 Instead of manually creating ConfigMaps and managing volume mounts, you can use the `executor_pod_template` parameter that accepts either:
+
 - Template content as a string (YAML)
 - Path to a local template file
 
 The package automatically:
+
 1. Creates a ConfigMap with the template content
 2. Mounts it to the driver pod (so the driver can validate the template)
 3. Configures Spark to use the template for executor pods
 4. Sets the driver pod as the ConfigMap owner, so Kubernetes cleans up the ConfigMap when that pod is deleted
+
+These submissions use the locally preloaded `pyspark-job` image and the `spark`
+namespace/service account prepared earlier. For a registry image, change the image
+name and use `IfNotPresent` as described in the Python example above.
 
 **Using template content as string:**
 ```python
@@ -288,6 +329,9 @@ spec:
 spark_client.submit_app(
     image="pyspark-job",
     app_path="local:///opt/spark/work-dir/job.py",
+    namespace="spark",
+    service_account="spark",
+    image_pull_policy="Never",
     executor_pod_template=executor_template_yaml,
 )
 ```
@@ -298,6 +342,9 @@ spark_client.submit_app(
 spark_client.submit_app(
     image="pyspark-job",
     app_path="local:///opt/spark/work-dir/job.py",
+    namespace="spark",
+    service_account="spark",
+    image_pull_policy="Never",
     executor_pod_template="./executor-template.yaml",
 )
 ```
@@ -306,11 +353,13 @@ spark_client.submit_app(
 ```bash
 # Using template file
 spark-on-k8s app submit --image pyspark-job --path local:///opt/spark/work-dir/job.py \
+    --namespace spark --service-account spark --image-pull-policy Never \
     --executor-template ./executor-template.yaml
 
 # You can also set it via environment variable
 export SPARK_ON_K8S_EXECUTOR_TEMPLATE="./executor-template.yaml"
-spark-on-k8s app submit --image pyspark-job --path local:///opt/spark/work-dir/job.py
+spark-on-k8s app submit --image pyspark-job --path local:///opt/spark/work-dir/job.py \
+    --namespace spark --service-account spark --image-pull-policy Never
 ```
 
 **Note:** `executor_pod_template` and `executor_pod_template_path` are mutually exclusive. Use `executor_pod_template_path` (or `--executor-pod-template-path` in the CLI) for a template path already available to the Spark driver. Do not configure both options, including through environment defaults.

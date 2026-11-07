@@ -1,0 +1,30 @@
+# Airflow lifecycle tests on Kubernetes
+
+This suite installs the built wheel in a dedicated Airflow image and runs that
+image as a Kubernetes pod with an in-cluster service account. It uses Airflow's
+`DAG.test()` engine and its real metadata database, XCom, task execution, inline
+trigger runner and deferred-task resumption. Spark drivers and executors run as
+separate real Kubernetes pods. No Kubernetes or trigger calls are mocked.
+
+This is **not** a deployed scheduler/executor/triggerer-process test. It does not
+establish worker-crash recovery, scheduler retry behavior, or durable reattachment
+after Airflow clears XCom. The retained-XCom adoption decision is covered by the
+operator regression tests. Production scheduler coverage needs a separate,
+explicitly scoped deployment fixture.
+
+The workflow runs Airflow 2.11.2 and 3.4.0 on Python 3.12 against one representative
+Spark 4.0.5 image. Existing Spark compatibility CI owns the broader Spark matrix.
+Each Airflow version runs six cases: successful Spark execution, deliberate
+application failure after actual executor work, and an unschedulable startup
+timeout, each with synchronous and deferrable execution. The startup-timeout
+cases require a real Pending/Unschedulable pod and operator cleanup even when
+`on_finish_action="keep"`. Deferred cases must execute and resume the real trigger.
+
+`.github/workflows/airflow-kubernetes.yml` contains the complete setup. The host
+runner accepts only a disposable kind context, creates a unique namespace, saves
+per-case results plus logs and Kubernetes evidence, and removes its namespace.
+The workflow always deletes its kind cluster. It never connects to a production
+cluster. On a workstation, start a Docker daemon before running the same steps.
+
+The example namespace grants the runner and Spark driver the standard `edit`
+role for this disposable test only. It is not a production RBAC recommendation.

@@ -28,7 +28,11 @@ class _AirflowKubernetesAsyncClientManager(KubernetesAsyncClientManager):
 
 
 class SparkOnK8STrigger(BaseTrigger):
-    """Watch a Spark application on Kubernetes."""
+    """Watch a Spark application on Kubernetes.
+
+    startup_deadline is an absolute Unix timestamp, preserved when a trigger restarts.
+    It only limits the Pending phase; None disables the startup timeout.
+    """
 
     def __init__(
         self,
@@ -37,12 +41,14 @@ class SparkOnK8STrigger(BaseTrigger):
         namespace: str = "default",
         kubernetes_conn_id: str = "kubernetes_default",
         poll_interval: int = 10,
+        startup_deadline: float | None = None,
     ):
         super().__init__()
         self.driver_pod_name = driver_pod_name
         self.namespace = namespace
         self.kubernetes_conn_id = kubernetes_conn_id
         self.poll_interval = poll_interval
+        self.startup_deadline = startup_deadline
 
     def serialize(self) -> tuple[str, dict[str, Any]]:
         return (
@@ -52,11 +58,12 @@ class SparkOnK8STrigger(BaseTrigger):
                 "namespace": self.namespace,
                 "kubernetes_conn_id": self.kubernetes_conn_id,
                 "poll_interval": self.poll_interval,
+                "startup_deadline": self.startup_deadline,
             },
         )
 
     async def run(self) -> AsyncIterator[TriggerEvent]:
-        from spark_on_k8s.utils.async_app_manager import AsyncSparkAppManager
+        from spark_on_k8s.utils.async_app_manager import AsyncSparkAppManager, SparkAppStartupTimeoutError
 
         try:
             k8s_client_manager = _AirflowKubernetesAsyncClientManager(
@@ -69,6 +76,7 @@ class SparkOnK8STrigger(BaseTrigger):
                 namespace=self.namespace,
                 pod_name=self.driver_pod_name,
                 poll_interval=self.poll_interval,
+                startup_deadline=self.startup_deadline,
             )
             yield TriggerEvent(
                 {
@@ -78,6 +86,15 @@ class SparkOnK8STrigger(BaseTrigger):
                         namespace=self.namespace,
                         pod_name=self.driver_pod_name,
                     ),
+                }
+            )
+        except SparkAppStartupTimeoutError as e:
+            yield TriggerEvent(
+                {
+                    "namespace": self.namespace,
+                    "pod_name": self.driver_pod_name,
+                    "status": "startup_timeout",
+                    "error": str(e),
                 }
             )
         except Exception as e:

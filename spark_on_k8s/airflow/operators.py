@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import time
 from dataclasses import replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -421,6 +422,7 @@ class SparkOnK8SOperator(BaseOperator):
                     namespace=self.namespace,
                     kubernetes_conn_id=self.kubernetes_conn_id,
                     poll_interval=self.poll_interval,
+                    startup_deadline=time.time() + self.startup_timeout if self.startup_timeout else None,
                 ),
                 method_name="execute_complete",
             )
@@ -470,6 +472,13 @@ class SparkOnK8SOperator(BaseOperator):
         spark_app_manager = SparkAppManager(
             k8s_client_manager=k8s_client_manager,
         )
+        if event["status"] == "startup_timeout":
+            self.log.info("Deleting Spark application due to startup timeout...")
+            spark_app_manager.delete_app(
+                namespace=self.namespace,
+                pod_name=self._driver_pod_name,
+            )
+            raise AirflowException("Spark application startup timeout exceeded")
         if self.app_waiter == AppWaiter.LOG:
             spark_app_manager.stream_logs(
                 namespace=event["namespace"],

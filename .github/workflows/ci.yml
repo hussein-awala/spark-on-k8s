@@ -187,7 +187,7 @@ jobs:
             uv sync --locked --no-default-groups --group test
             uv pip install --python .venv/bin/python -e '.[airflow]' "apache-airflow==$AIRFLOW_VERSION"
           else
-            uv sync --locked --no-default-groups --group test --extra airflow
+            uv sync --locked --no-default-groups --group test --extra airflow-ui
           fi
       - name: Build and install the wheel without changing Airflow dependencies
         run: |
@@ -198,22 +198,63 @@ jobs:
           .venv/bin/python -I - <<'PY'
           import os
           import sys
-          from importlib.metadata import version
+          from importlib.metadata import distribution, version
+          from pathlib import Path
+          # Configure before the first Airflow import; retain its default lazy discovery.
+          os.environ.pop("AIRFLOW__CORE__LAZY_DISCOVER_PROVIDERS", None)
+          if os.environ["AIRFLOW_VERSION"].startswith("3."):
+              os.environ["SPARK_ON_K8S_AIRFLOW_SERVICE_URL"] = "http://spark.invalid"
+          else:
+              os.environ.pop("SPARK_ON_K8S_AIRFLOW_SERVICE_URL", None)
           import airflow
-          from airflow.providers.cncf.kubernetes.hooks.kubernetes import AsyncKubernetesHook, KubernetesHook
-          from spark_on_k8s.airflow.operators import SparkOnK8SOperator, SparkSqlOnK8SOperator
+          from airflow import plugins_manager, settings
           expected_python = tuple(map(int, os.environ["PYTHON_VERSION"].split(".")))
           assert sys.version_info[:2] == expected_python, sys.version
           assert version("apache-airflow") == os.environ["AIRFLOW_VERSION"]
           assert airflow.__version__ == os.environ["AIRFLOW_VERSION"], airflow.__version__
-          print(f"Testing Airflow {airflow.__version__}")
+          assert settings.LAZY_LOAD_PROVIDERS, "Expected Airflow's default lazy provider discovery"
+          entrypoints = [
+              entry for entry in distribution("spark-on-k8s").entry_points
+              if entry.group == "airflow.plugins" and entry.name == "spark_on_k8s_ui"
+          ]
+          assert len(entrypoints) == 1, "Missing or duplicate installed Airflow plugin entry point"
+          assert entrypoints[0].value == "spark_on_k8s.airflow.ui.plugin:SparkTaskUIPlugin"
+          # The manager must discover the plugin itself, without a direct plugin import.
+          plugins_manager.ensure_plugins_loaded()
+          if os.environ["AIRFLOW_VERSION"].startswith("3."):
+              import httpx
+              from websockets.asyncio.client import connect
+              apps, _ = plugins_manager.get_fastapi_plugins()
+              assert any(app["url_prefix"] == "/spark-on-k8s" for app in apps), "Plugin API was not registered"
+              registrations = [
+                  plugin for plugin in plugins_manager.get_plugin_info(attrs_to_dump=["react_apps"])
+                  if plugin["name"] == "spark_on_k8s_ui"
+              ]
+              assert len(registrations) == 1, "Native UI plugin was not discovered"
+              assert registrations[0]["react_apps"][0]["destination"] == "task_instance"
+              assets = Path(distribution("spark-on-k8s").locate_file("spark_on_k8s/airflow/ui/static"))
+              for name in ("airflow.js", "console.css"):
+                  assert (assets / name).is_file(), f"Missing packaged Airflow asset: {name}"
+          else:
+              registrations = [plugin for plugin in plugins_manager.plugins if plugin.name == "spark_on_k8s_ui"]
+              assert len(registrations) == 1, "Gated plugin entry point was not discovered"
+              assert not registrations[0].fastapi_apps and not registrations[0].react_apps
+              assert "spark_on_k8s.airflow.ui.backend" not in sys.modules
+          assert "spark_on_k8s.api" not in sys.modules
+          from airflow.providers.cncf.kubernetes.hooks.kubernetes import AsyncKubernetesHook, KubernetesHook
+          from spark_on_k8s.airflow.operators import SparkOnK8SOperator, SparkSqlOnK8SOperator
+          print(f"Testing Airflow {airflow.__version__} with native plugin discovery")
           print(f"Kubernetes provider {version('apache-airflow-providers-cncf-kubernetes')}")
           PY
       - name: Test the installed wheel with the requested Airflow version
         # Direct Python execution preserves the legacy Airflow override and wheel install.
         run: |
           installed_package="$(.venv/bin/python -I -c 'from pathlib import Path; import spark_on_k8s; print(Path(spark_on_k8s.__file__).parent)')"
-          .venv/bin/python -I tests/run_installed_tests.py tests/airflow --cov="$installed_package" --cov-report=term-missing --junitxml=airflow-results.xml
+          airflow_tests=(tests/airflow)
+          if [[ "$AIRFLOW_VERSION" == "2.11.2" ]]; then
+            airflow_tests+=(--ignore=tests/airflow/ui)
+          fi
+          .venv/bin/python -I tests/run_installed_tests.py "${airflow_tests[@]}" --cov="$installed_package" --cov-report=term-missing --junitxml=airflow-results.xml
       - name: Require executed Airflow tests without skips
         run: |
           .venv/bin/python - <<'PY'
@@ -300,8 +341,8 @@ jobs:
         run: |
           npm run format:check
           npm run build
-          git -C .. diff --exit-code -- spark_on_k8s/api/webserver/static/ui
-          test -z "$(git -C .. ls-files --others --exclude-standard -- spark_on_k8s/api/webserver/static/ui)"
+          git -C .. diff --exit-code -- spark_on_k8s/api/webserver/static/ui spark_on_k8s/airflow/ui/static
+          test -z "$(git -C .. ls-files --others --exclude-standard -- spark_on_k8s/api/webserver/static/ui spark_on_k8s/airflow/ui/static)"
       - name: Install test browser
         run: npx playwright install --with-deps chromium
       - name: Test browser interactions

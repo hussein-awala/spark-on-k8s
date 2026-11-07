@@ -84,6 +84,7 @@ def test_live_pages_preserve_metadata_and_opaque_continuation(console_client):
                 "spark_ui_proxy": True,
                 "spark_history_proxy": False,
                 "source": "kubernetes",
+                "task_context": None,
             }
         ],
         "next_cursor": token,
@@ -159,6 +160,7 @@ def test_sparse_driver_metadata_does_not_invent_versions_or_working_links(consol
             "spark_ui_proxy": False,
             "spark_history_proxy": False,
             "source": "kubernetes",
+            "task_context": None,
         }
     ]
 
@@ -291,6 +293,7 @@ def test_history_metadata_retains_real_id_without_inventing_namespace_or_success
         "spark_ui_proxy": False,
         "spark_history_proxy": True,
         "source": "history",
+        "task_context": None,
     }
     assert second["name"] == second["app_id"] == "minimal-history-record"
     assert second["created_at"] is None
@@ -362,3 +365,28 @@ def test_history_failures_are_independent_of_live_listing(console_client, monkey
     assert "private" not in history.text
     assert live.status_code == 200
     assert live.json()["items"][0]["app_id"] == "report-123"
+
+
+@pytest.mark.parametrize("annotation", [None, "not-json", "{}", '{"try_number":"1"}'])
+def test_driver_lookup_does_not_trust_invalid_task_annotation(console_client, annotation):
+    client, api, _ = console_client
+    pod = driver_pod()
+    pod.metadata.annotations[console.AIRFLOW_TASK_ANNOTATION] = annotation
+    api.read_namespaced_pod.return_value = pod
+    response = client.get("/webserver/api/apps/analytics/pods/report-driver")
+    assert response.status_code == 200
+    assert response.json()["task_context"] is None
+
+
+def test_driver_lookup_returns_only_validated_task_identity(console_client):
+    client, api, _ = console_client
+    pod = driver_pod()
+    identity = console.AirflowTaskContext(
+        dag_id="reports", run_id="scheduled__2026-11-07", task_id="daily", map_index=3, try_number=2
+    )
+    pod.metadata.annotations[console.AIRFLOW_TASK_ANNOTATION] = identity.model_dump_json()
+    api.read_namespaced_pod.return_value = pod
+    response = client.get("/webserver/api/apps/analytics/pods/report-driver")
+    assert response.status_code == 200
+    assert response.json()["task_context"] == identity.model_dump(mode="json")
+    assert "do-not-expose" not in response.text

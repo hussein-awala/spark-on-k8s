@@ -12,7 +12,8 @@ It provides a Python client that can be used to submit apps in your API or sched
 that can be used to submit apps from the command line, instead of  using spark-submit.
 
 It also provides an optional REST API with a web UI that can be used to list and manage apps, and access the
-spark UI through the reverse proxy.
+spark UI through the reverse proxy. The optional Airflow 3.4+ task tab reuses the
+same React console components inside Airflow; see the [Airflow guide](docs/user-guide/airflow.md).
 
 ## Installation
 
@@ -39,7 +40,9 @@ The current source requires Python 3.11 or newer. The core client and API are
 tested on Python 3.11–3.15. The Airflow integration is tested with Airflow 3.4 on
 Python 3.11–3.14 and Airflow 2.11.2 on Python 3.11–3.12. Airflow 2 is end-of-life
 and retains dependency versions with known security advisories; use Airflow 3 for
-new deployments. The `airflow` extra is not supported on Python 3.15.
+new deployments. The optional `airflow-ui` extra adds a native task tab for
+Airflow 3.4 or newer, below Airflow 4. The `airflow` and `airflow-ui` extras are
+not supported on Python 3.15.
 
 Clone the repository to use the source instructions and example files in this guide:
 
@@ -55,12 +58,14 @@ use the committed lockfile and create a project-local `.venv`:
 uv sync --locked --no-default-groups # Core package
 uv sync --locked --no-default-groups --extra api # API and web UI
 uv sync --python 3.12 --locked --no-default-groups --extra airflow # Airflow 3 integration
+uv sync --python 3.12 --locked --no-default-groups --extra airflow-ui # Also install the native task tab
 ```
 
 Run commands from the selected environment with `uv run --no-sync spark-on-k8s`,
 or activate it with `source .venv/bin/activate` before using the commands below.
-To install both integrations, select `--all-extras` on a supported Airflow Python
-version. A later `uv sync` selects a new profile and can remove unselected extras.
+To install the API and Airflow integration together, select `--extra api --extra airflow`,
+or `--extra api --extra airflow-ui` to include the task tab. A later `uv sync`
+selects a new profile and can remove unselected extras.
 
 Alternatively, install from the checkout with pip in an activated virtual environment:
 
@@ -68,6 +73,7 @@ Alternatively, install from the checkout with pip in an activated virtual enviro
 python -m pip install . # Core package
 python -m pip install ".[api]" # API and web UI
 python -m pip install ".[airflow]" # Airflow integration
+python -m pip install ".[airflow-ui]" # Airflow 3.4+ integration and native task tab
 ```
 
 See [CONTRIBUTING.md](https://github.com/hussein-awala/spark-on-k8s/blob/main/CONTRIBUTING.md)

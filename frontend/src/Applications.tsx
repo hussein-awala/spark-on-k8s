@@ -585,7 +585,9 @@ export function Applications({
                         </span>
                         {app.source === "history" && (
                           <span className="archive-label">
-                            Archived · namespace unknown
+                            {config.embedded
+                              ? "Driver removed · task reference"
+                              : "Archived · namespace unknown"}
                           </span>
                         )}
                       </div>
@@ -612,7 +614,9 @@ export function Applications({
                         {app.spark_version
                           ? `Spark ${app.spark_version}`
                           : app.source === "history"
-                            ? "History server"
+                            ? config.embedded
+                              ? "Task reference"
+                              : "History server"
                             : "Kubernetes"}
                       </span>
                     </td>
@@ -678,7 +682,9 @@ export function Applications({
             <StatusBadge status={selected.status} />
             <span className="source-label">
               {selected.source === "history"
-                ? "Archived application"
+                ? config.embedded
+                  ? "Driver removed · task reference"
+                  : "Archived application"
                 : "Kubernetes application"}
             </span>
           </div>

@@ -21,7 +21,8 @@ uv sync --locked --no-default-groups --group test --extra api
 uv run --no-sync pytest --ignore=tests/airflow
 ```
 
-For the complete suite with Airflow 3, use Python 3.11–3.14 and both extras.
+For the complete suite with Airflow 3, use Python 3.11–3.14 with the API and native
+Airflow task UI extras.
 This example selects Python 3.12:
 
 ```bash
@@ -42,14 +43,16 @@ uv venv --python 3.12 .venv-airflow211
 UV_PROJECT_ENVIRONMENT=.venv-airflow211 uv sync --python 3.12 --locked --no-default-groups --group test --extra api
 uv pip install --python .venv-airflow211/bin/python '.[airflow]' 'apache-airflow==2.11.2'
 .venv-airflow211/bin/python -c 'import airflow; assert airflow.__version__ == "2.11.2"'
-.venv-airflow211/bin/python -m pytest
+.venv-airflow211/bin/python -m pytest --ignore=tests/airflow/ui
 uv pip check --python .venv-airflow211/bin/python
 ```
 
 Use that environment's Python directly for subsequent legacy tests. A normal
 `uv run` or `uv sync --extra airflow` can replace the legacy selection with the
 locked Airflow 3 dependencies. Do not downgrade an existing Airflow 3 environment:
-its separate core and task-SDK packages can remain installed.
+its separate core and task-SDK packages can remain installed. The Airflow 2 profile
+explicitly excludes `tests/airflow/ui`, which requires Airflow 3.4; all remaining
+tests must execute without skips.
 
 To run code checks and build documentation:
 
@@ -64,12 +67,16 @@ uv build
 ```
 
 CI installs the built wheel for its Airflow checks, verifies provider discovery,
-and exercises operators and Spark UI links under Airflow 3.4.0 and 2.11.2.
+and exercises operators and Spark UI links under Airflow 3.4.0 and 2.11.2. Its Airflow 3
+profile installs only the `airflow-ui` extra, independently of the standalone `api`
+extra, and includes task authorization, binding, history and log-stream tests.
 Keep `uv.lock` committed and use `uv lock --check` to check it without changing it.
 
 ## Web console development
 
-The console uses reusable React components in `frontend/src`.
+The standalone console and Airflow task tab share the React components in
+`frontend/src`. Their entry points supply different transports and host context;
+keep UI behavior in the shared components rather than adding a separate renderer.
 The Python package includes the built JavaScript, CSS, and third-party license notices;
 users installing a wheel or source distribution do not need Node.js or a frontend CDN.
 
@@ -83,9 +90,11 @@ npx playwright install chromium
 npm test
 ```
 
-`npm run build` checks TypeScript and regenerates `spark_on_k8s/api/webserver/static/ui`.
-Commit those generated files with source changes. CI rebuilds them and rejects stale
-assets, then runs browser tests for navigation, actions, filtering, errors, and safe log
+`npm run build` checks TypeScript and regenerates both
+`spark_on_k8s/api/webserver/static/ui` and `spark_on_k8s/airflow/ui/static`.
+Commit both sets of generated files with source changes. CI rebuilds them and rejects
+stale or untracked assets. The same `npm test` command runs standalone and Airflow
+plugin browser tests, including navigation, actions, filtering, errors, and safe log
 rendering. `npm run dev` serves the development fixtures; `npm run test:ui` opens the
 interactive test runner. The fixtures use mocked services and are not packaged in the wheel.
 

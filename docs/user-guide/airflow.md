@@ -79,3 +79,76 @@ submission and leaves the live link in place.
 
 With `deferrable=True`, waiting runs in the Airflow triggerer. If
 `app_waiter="log"` is also set, logs are read when the task resumes after completion.
+
+## Native task tab in Airflow 3
+
+The optional **Spark on Kubernetes** tab is available for `SparkOnK8SOperator` and
+`SparkSqlOnK8SOperator` task instances on Airflow 3.4 or newer, below Airflow 4.
+It reuses the standalone console's React components for application details,
+logs, actions and history links. Airflow 2.11.2 continues to support the operators
+and **Spark Job UI** link, but does not load this tab.
+
+This feature describes the current source, not an earlier PyPI release. Install
+from the checkout as described in [Installation](installation.md#current-source):
+
+```bash
+uv sync --python 3.12 --locked --no-default-groups --extra airflow-ui
+# Or, in an activated virtual environment:
+python -m pip install ".[airflow-ui]"
+```
+
+The `airflow-ui` extra includes the Airflow operator dependencies and the plugin's
+HTTP and WebSocket dependencies; it does not require the standalone `api` extra
+in the Airflow process. Install the same package version in the Airflow API server
+and task workers. Deploy the spark-on-k8s API from that version separately with
+its `api` extra, so its console endpoints can return the driver's task ownership
+metadata. Built JavaScript and CSS are included in the Python package.
+
+Set these variables before starting the Airflow API server, then restart it:
+
+```bash
+export SPARK_ON_K8S_AIRFLOW_SERVICE_URL='http://spark-on-k8s.spark.svc.cluster.local:8000'
+export SPARK_ON_K8S_AIRFLOW_PUBLIC_URL='https://spark.example.com'
+export SPARK_ON_K8S_AIRFLOW_ALLOW_WRITES='false'
+```
+
+| Variable | Meaning | Default |
+| --- | --- | --- |
+| `SPARK_ON_K8S_AIRFLOW_SERVICE_URL` | Administrator-configured Spark API base URL reachable from the Airflow API server. Required to register the tab. | unset; tab disabled |
+| `SPARK_ON_K8S_AIRFLOW_PUBLIC_URL` | Browser-reachable base URL for external Spark UI and history links. | service URL |
+| `SPARK_ON_K8S_AIRFLOW_ALLOW_WRITES` | Set to `true` to permit kill/delete requests after task ownership and Airflow permissions are checked. | `false` |
+
+Both URLs may include a deployment path prefix and must be HTTP(S) URLs without
+embedded credentials, query parameters or fragments. The service URL is chosen
+by the administrator, not by browser input. The plugin does not forward the
+browser's Airflow credentials to that service. Keep the Spark API behind
+appropriate network access controls; Airflow authentication does not protect a
+separately exposed Spark API or its external links.
+
+If `spark_on_k8s_service_url` is set on an operator, it must match the configured
+service or public URL. Use the public URL to keep the existing **Spark Job UI**
+link browser-accessible. Set `ui_reverse_proxy=True` on the operator to offer the
+live Spark UI link. Airflow deployments under a URL prefix are supported; no
+root-relative plugin URL needs to be configured.
+
+The tab uses the selected DAG, run, task, mapped index or region, and current
+attempt to resolve a small metadata record in XCom. Live data is checked against
+the `spark-on-k8s.io/airflow-task` annotation written on the driver by the operator.
+A mismatched or missing ownership annotation is rejected. A retry may adopt its
+own earlier attempt's driver; another task's driver cannot be selected by editing
+XCom. Older task submissions without the new metadata retain their existing
+operator links but cannot use the task tab's live features.
+
+Read requests require Airflow access to the task; log streaming additionally
+requires task-log access. Kill and delete also require the corresponding Airflow
+write permission and `SPARK_ON_K8S_AIRFLOW_ALLOW_WRITES=true`. Log connections and
+write requests must come from the Airflow page's origin. The Spark API's own
+permissions still apply.
+
+After the driver pod is deleted, the tab shows only the saved task-local
+application ID with unknown status and an external history link. It disables live
+logs and actions, and does not fetch history records using XCom alone. The
+external history link requires the event logging and History Server setup
+[described above](#spark-ui-links-and-waiting). While a driver exists and ownership
+is verified, the tab can fetch that application's history metadata through the
+configured Spark API.

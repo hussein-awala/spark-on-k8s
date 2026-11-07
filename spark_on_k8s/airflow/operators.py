@@ -118,6 +118,7 @@ class SparkOnK8SOperator(BaseOperator):
     XCOM_SPARK_UI_LINK = "spark_ui_link"
 
     _driver_pod_name: str | None = None
+    _spark_app_id: str | None = None
 
     operator_extra_links = (SparkOnK8SOperatorLink(),)
 
@@ -267,6 +268,41 @@ class SparkOnK8SOperator(BaseOperator):
         context["ti"].xcom_push(key=self._XCOM_DRIVER_POD_NAMESPACE, value=self.namespace)
         context["ti"].xcom_push(key=self._XCOM_DRIVER_POD_NAME, value=self._driver_pod_name)
 
+    def _restore_console_metadata(self, context: Context):
+        from spark_on_k8s.airflow.ui_config import CONSOLE_XCOM_KEY
+
+        if not context.get("ti"):
+            return
+        # Legacy tasks have no console record. Their existing links remain available.
+        with contextlib.suppress(Exception):
+            metadata = context["ti"].xcom_pull(
+                key=CONSOLE_XCOM_KEY, task_ids=self.task_id, map_indexes=context["ti"].map_index
+            )
+            if (
+                isinstance(metadata, dict)
+                and metadata.get("version") == 1
+                and metadata.get("namespace") == self.namespace
+                and metadata.get("driver_pod") == self._driver_pod_name
+                and isinstance(metadata.get("app_id"), str)
+            ):
+                self._spark_app_id = metadata["app_id"]
+
+    def _persist_console_metadata(self, context: Context):
+        from spark_on_k8s.airflow.ui_config import CONSOLE_XCOM_KEY
+
+        try_number = getattr(context["ti"], "try_number", 1)
+        context["ti"].xcom_push(
+            key=CONSOLE_XCOM_KEY,
+            value={
+                "version": 1,
+                "namespace": self.namespace,
+                "driver_pod": self._driver_pod_name,
+                "try_number": try_number if isinstance(try_number, int) else 1,
+                "service_url": self.spark_on_k8s_service_url,
+                **({"app_id": self._spark_app_id} if self._spark_app_id else {}),
+            },
+        )
+
     def _persist_spark_ui_link(self, context: Context):
         if self.spark_on_k8s_service_url:
             SparkOnK8SOperatorLink.persist_spark_ui_link(
@@ -274,7 +310,7 @@ class SparkOnK8SOperator(BaseOperator):
                 self,
                 spark_on_k8s_service_url=self.spark_on_k8s_service_url,
                 namespace=self.namespace,
-                spark_app_id=self._driver_pod_name[: -len("-driver")],
+                spark_app_id=self._spark_app_id or self._driver_pod_name[: -len("-driver")],
             )
 
     def _persist_spark_history_ui_link(self, context: Context):
@@ -283,7 +319,7 @@ class SparkOnK8SOperator(BaseOperator):
                 context,
                 self,
                 spark_on_k8s_service_url=self.spark_on_k8s_service_url,
-                spark_app_id=self._driver_pod_name[: -len("-driver")],
+                spark_app_id=self._spark_app_id or self._driver_pod_name[: -len("-driver")],
             )
 
     def _try_to_adopt_job(self, context: Context, spark_app_manager: SparkAppManager) -> bool:
@@ -311,8 +347,35 @@ class SparkOnK8SOperator(BaseOperator):
                 )
                 if app_status in {SparkAppStatus.Pending, SparkAppStatus.Running}:
                     self._driver_pod_name = xcom_driver_pod_name
+                    self._restore_console_metadata(context)
                     return True
         return False
+
+    def _task_driver_annotations(self, context: Context) -> dict[str, str]:
+        from pydantic import ValidationError
+
+        from spark_on_k8s.utils.console_models import AIRFLOW_TASK_ANNOTATION, AirflowTaskContext
+
+        annotations = dict(self.driver_annotations or {})
+        # This reserved annotation cannot be supplied through user annotations.
+        annotations.pop(AIRFLOW_TASK_ANNOTATION, None)
+        ti = context.get("ti")
+        try:
+            identity = AirflowTaskContext(
+                dag_id=getattr(ti, "dag_id", None),
+                run_id=getattr(ti, "run_id", None),
+                task_id=getattr(ti, "task_id", None),
+                map_index=getattr(ti, "map_index", -1),
+                try_number=getattr(ti, "try_number", 1),
+                region_id=getattr(ti, "region_id", None),
+                region_index=getattr(ti, "region_index", None),
+            )
+        except ValidationError:
+            # Legacy/manual operator invocations without task context remain supported;
+            # the task UI will refuse live actions on their unbound pods.
+            return annotations
+        annotations[AIRFLOW_TASK_ANNOTATION] = identity.model_dump_json(exclude_none=True)
+        return annotations
 
     def _submit_new_job(self, context: Context):
         from spark_on_k8s.client import PodResources, SparkOnK8S
@@ -387,7 +450,7 @@ class SparkOnK8SOperator(BaseOperator):
             executor_node_selector=self.executor_node_selector,
             driver_labels=self.driver_labels,
             executor_labels=self.executor_labels,
-            driver_annotations=self.driver_annotations,
+            driver_annotations=self._task_driver_annotations(context),
             executor_annotations=self.executor_annotations,
             driver_env_vars_from_secrets=self.driver_env_vars_from_secrets,
             executor_pod_template=self.executor_pod_template,
@@ -396,6 +459,7 @@ class SparkOnK8SOperator(BaseOperator):
             executor_pod_template_path=self.executor_pod_template_path,
             **submit_app_kwargs,
         )
+        self._spark_app_id = spark_client.last_submitted_app_id
 
     def _clean_up(self, spark_app_manager: SparkAppManager, app_status: SparkAppStatus):
         if self.on_finish_action == OnFinishAction.KEEP or (
@@ -428,6 +492,7 @@ class SparkOnK8SOperator(BaseOperator):
             self._submit_new_job(context)
             self._persist_pod_name(context)
         self._persist_spark_ui_link(context)
+        self._persist_console_metadata(context)
         if self.app_waiter == AppWaiter.NO_WAIT:
             return
         if self.deferrable:
@@ -481,6 +546,7 @@ class SparkOnK8SOperator(BaseOperator):
     def execute_complete(self, context: Context, event: dict, **kwargs):
         self.namespace = event["namespace"]
         self._driver_pod_name = event["pod_name"]
+        self._restore_console_metadata(context)
         k8s_client_manager = _AirflowKubernetesClientManager(
             kubernetes_conn_id=self.kubernetes_conn_id,
         )

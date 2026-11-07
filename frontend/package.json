@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "typecheck": "tsc --noEmit",
-    "build": "npm run typecheck && vite build",
+    "build": "npm run typecheck && vite build && vite build --config vite.airflow.config.ts",
     "test": "playwright test",
     "test:ui": "playwright test --ui",
     "format": "prettier --write src tests *.ts *.json",

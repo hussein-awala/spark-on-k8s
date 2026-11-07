@@ -107,6 +107,7 @@ class AsyncSparkAppManager(LoggingMixin):
                             msg=f"Pod {pod_name} was deleted", level=logging.INFO, should_print=should_print
                         )
                         return
+                    raise
                 self.log(
                     msg=f"Pod {pod_name} status is {status}, sleep {poll_interval}s",
                     level=logging.INFO,

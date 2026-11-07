@@ -12,12 +12,14 @@ from spark_on_k8s.cli.options import (
     class_name_option,
     docker_image_option,
     driver_annotations_option,
+    driver_container_name_option,
     driver_cpu_option,
     driver_env_vars_from_secrets_option,
     driver_labels_option,
     driver_memory_option,
     driver_memory_overhead_option,
     driver_node_selector_option,
+    driver_pod_template_option,
     executor_allocation_ratio_option,
     executor_annotations_option,
     executor_cpu_option,
@@ -163,6 +165,8 @@ def wait(app_id: str, namespace: str, output: str, timeout: float | None):
         executor_annotations_option,
         executor_pod_template_path_option,
         executor_template_option,
+        driver_pod_template_option,
+        driver_container_name_option,
     ],
     help="Submit a Spark application.",
 )
@@ -206,6 +210,8 @@ def submit(
     executor_pod_template: str,
     output: str,
     timeout: float | None,
+    driver_pod_template: str | None,
+    driver_container_name: str | None,
 ):
     from spark_on_k8s.client import ExecutorInstances, PodResources, SparkOnK8S
     from spark_on_k8s.utils.types import NOTSET
@@ -251,5 +257,7 @@ def submit(
         "executor_annotations": executor_annotations,
         "executor_pod_template_path": executor_pod_template_path,
         "executor_pod_template": executor_pod_template,
+        "driver_pod_template": driver_pod_template,
+        "driver_container_name": driver_container_name,
     }
     execute_submission(SparkOnK8S(), kwargs, output=output, timeout=timeout)

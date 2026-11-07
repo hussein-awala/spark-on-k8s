@@ -189,6 +189,7 @@ class AsyncSparkAppManager(LoggingMixin):
                     api.read_namespaced_pod_log,
                     namespace=namespace,
                     name=pod_name,
+                    container=pod.spec.containers[0].name,
                     tail_lines=tail_lines if tail_lines > 0 else None,
                     follow=True,
                 )

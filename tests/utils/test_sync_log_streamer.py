@@ -10,7 +10,12 @@ from spark_on_k8s.utils import app_manager
 @pytest.fixture
 def log_case(monkeypatch):
     api = Mock()
-    api.read_namespaced_pod.return_value = SimpleNamespace(status=SimpleNamespace(phase="Running"))
+    api.read_namespaced_pod.return_value = SimpleNamespace(
+        status=SimpleNamespace(phase="Running"),
+        spec=SimpleNamespace(
+            containers=[SimpleNamespace(name="spark-driver"), SimpleNamespace(name="metrics")]
+        ),
+    )
     api.list_namespaced_pod.return_value = SimpleNamespace(
         items=[SimpleNamespace(metadata=SimpleNamespace(name="selected-driver"))]
     )
@@ -35,7 +40,10 @@ def test_logs_resolve_application_id_before_streaming(log_case):
     )
     log_case.api.read_namespaced_pod.assert_called_once_with(namespace="spark", name="selected-driver")
     log_case.watcher.stream.assert_called_once_with(
-        log_case.api.read_namespaced_pod_log, namespace="spark", name="selected-driver"
+        log_case.api.read_namespaced_pod_log,
+        namespace="spark",
+        name="selected-driver",
+        container="spark-driver",
     )
     log_case.manager.log.assert_called_once_with(msg="ready", level=20, should_print=True)
     log_case.watcher.stop.assert_called_once()

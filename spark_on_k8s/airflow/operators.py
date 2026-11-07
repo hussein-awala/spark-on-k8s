@@ -97,6 +97,8 @@ class SparkOnK8SOperator(BaseOperator):
         driver_ephemeral_configmaps_volumes: List of ConfigMaps to mount as ephemeral volumes to the driver.
         driver_init_containers: List of init containers for the driver pod.
         driver_host_aliases: List of host aliases for the driver pod.
+        driver_pod_template: Driver Pod YAML text, local file path, or mapping.
+        driver_container_name: Driver container to select from the template.
         spark_on_k8s_service_url: URL of the Spark On K8S service. Defaults to None.
         kubernetes_conn_id (str, optional): Kubernetes connection ID. Defaults to
             "kubernetes_default".
@@ -136,6 +138,8 @@ class SparkOnK8SOperator(BaseOperator):
         "executor_instances",
         "secret_values",
         "kubernetes_conn_id",
+        "driver_pod_template",
+        "driver_container_name",
     )
 
     def __init__(
@@ -172,6 +176,8 @@ class SparkOnK8SOperator(BaseOperator):
         driver_ephemeral_configmaps_volumes: list[ConfigMap] | None = None,
         driver_init_containers: list[k8s.V1Container] | None = None,
         driver_host_aliases: list[k8s.V1HostAlias] | None = None,
+        driver_pod_template: str | dict[str, Any] | None = None,
+        driver_container_name: str | None = None,
         spark_on_k8s_service_url: str | None = None,
         kubernetes_conn_id: str = "kubernetes_default",
         poll_interval: int = 10,
@@ -214,6 +220,8 @@ class SparkOnK8SOperator(BaseOperator):
         self.driver_ephemeral_configmaps_volumes = driver_ephemeral_configmaps_volumes
         self.driver_init_containers = driver_init_containers
         self.driver_host_aliases = driver_host_aliases
+        self.driver_pod_template = driver_pod_template
+        self.driver_container_name = driver_container_name
         self.spark_on_k8s_service_url = spark_on_k8s_service_url
         self.kubernetes_conn_id = kubernetes_conn_id
         self.poll_interval = poll_interval
@@ -345,6 +353,10 @@ class SparkOnK8SOperator(BaseOperator):
             submit_app_kwargs["driver_init_containers"] = self.driver_init_containers
         if self.driver_host_aliases is not None:
             submit_app_kwargs["driver_host_aliases"] = self.driver_host_aliases
+        if self.driver_pod_template is not None:
+            submit_app_kwargs["driver_pod_template"] = self.driver_pod_template
+        if self.driver_container_name is not None:
+            submit_app_kwargs["driver_container_name"] = self.driver_container_name
         self._driver_pod_name = spark_client.submit_app(
             image=self.image,
             app_path=self.app_path,

@@ -11,7 +11,9 @@ from spark_on_k8s.utils import app_manager, async_app_manager
 def driver_pod(phase="Running"):
     return SimpleNamespace(
         metadata=SimpleNamespace(name="actual-driver", labels={"spark-app-id": "report-123"}),
-        spec=SimpleNamespace(containers=[SimpleNamespace(name="spark-driver")]),
+        spec=SimpleNamespace(
+            containers=[SimpleNamespace(name="spark-driver"), SimpleNamespace(name="metrics")]
+        ),
         status=SimpleNamespace(phase=phase),
     )
 

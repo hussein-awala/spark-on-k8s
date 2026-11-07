@@ -21,6 +21,7 @@ def cluster(monkeypatch):
     api = Mock()
     pod = k8s.V1Pod(
         metadata=k8s.V1ObjectMeta(name="existing-driver", labels={"spark-app-id": "existing"}),
+        spec=k8s.V1PodSpec(containers=[k8s.V1Container(name="driver"), k8s.V1Container(name="metrics")]),
         status=k8s.V1PodStatus(phase="Succeeded"),
     )
     api.list_namespaced_pod.return_value = SimpleNamespace(items=[pod])

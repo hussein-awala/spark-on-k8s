@@ -15,12 +15,13 @@ from kubernetes import client as k8s
 from spark_on_k8s.k8s.sync_client import KubernetesClientManager
 from spark_on_k8s.utils.app_manager import SparkAppManager
 from spark_on_k8s.utils.configuration import Configuration
+from spark_on_k8s.utils.driver_pod_template import load_driver_pod_template, merge_driver_pod_template
 from spark_on_k8s.utils.logging_mixin import LoggingMixin
 from spark_on_k8s.utils.run import RunHandle, WaitDeadline
 from spark_on_k8s.utils.types import NOTSET, ArgNotSet
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Mapping
 
     from spark_on_k8s.utils.types import ConfigMap
 
@@ -201,6 +202,8 @@ class SparkOnK8S(LoggingMixin):
         wait_timeout: float | None = None,
         driver_init_containers: list[k8s.V1Container] | ArgNotSet = NOTSET,
         driver_host_aliases: list[k8s.V1HostAlias] | ArgNotSet = NOTSET,
+        driver_pod_template: str | Path | Mapping[str, Any] | None = None,
+        driver_container_name: str | None = None,
     ) -> str:
         """Submit a Spark app to Kubernetes
 
@@ -248,6 +251,10 @@ class SparkOnK8S(LoggingMixin):
             startup_timeout: Timeout in seconds to wait for the application to start
             driver_init_containers: List of init containers to run before the driver starts
             driver_host_aliases: List of host aliases for the driver
+            driver_pod_template: Driver Pod YAML text, a local file path, or a mapping.
+                Generated identity and launch settings override the template; other fields are preserved.
+            driver_container_name: Container to use as the driver in the template. Defaults to the
+                container named "driver", or the sole container. Ambiguous templates are rejected.
 
         Returns:
             Name of the Spark application pod. The same identity is available as last_submitted_run.
@@ -258,6 +265,9 @@ class SparkOnK8S(LoggingMixin):
         self.last_submitted_run = None
         self.last_submitted_app_id = None
         WaitDeadline(wait_timeout)
+        if driver_container_name is not None and driver_pod_template is None:
+            raise ValueError("driver_container_name requires driver_pod_template")
+        template = load_driver_pod_template(driver_pod_template) if driver_pod_template is not None else None
         if image is NOTSET:
             if Configuration.SPARK_ON_K8S_DOCKER_IMAGE is None:
                 raise ValueError(
@@ -516,7 +526,13 @@ class SparkOnK8S(LoggingMixin):
             namespace=namespace,
             service_account=service_account,
             args=driver_command_args,
-            extra_labels={**extra_labels, **driver_labels},
+            extra_labels={
+                **{key: value for key, value in driver_labels.items() if key != "spark-ui-proxy"},
+                **extra_labels,
+                "spark-app-name": app_name,
+                "spark-app-id": app_id,
+                "spark-role": "driver",
+            },
             annotations=driver_annotations,
             pod_resources={
                 "requests": {
@@ -536,6 +552,8 @@ class SparkOnK8S(LoggingMixin):
             init_containers=driver_init_containers,
             host_aliases=driver_host_aliases,
         )
+        if template is not None:
+            pod = merge_driver_pod_template(pod, template, driver_container_name)
         with self.k8s_client_manager.client() as client:
             api = k8s.CoreV1Api(client)
             if secret_values:

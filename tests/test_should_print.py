@@ -41,7 +41,10 @@ def test_submit_app_output_destination(
     ):
         api = api_class.return_value
         api.create_namespaced_pod.side_effect = lambda namespace, body: body
-        api.read_namespaced_pod.return_value = k8s.V1Pod(status=k8s.V1PodStatus(phase="Succeeded"))
+        api.read_namespaced_pod.return_value = k8s.V1Pod(
+            spec=k8s.V1PodSpec(containers=[k8s.V1Container(name="driver")]),
+            status=k8s.V1PodStatus(phase="Succeeded"),
+        )
         watcher_class.return_value.stream.return_value = iter(["application log line"])
         spark_client = client_module.SparkOnK8S(k8s_client_manager=mock.MagicMock())
         pod_name = spark_client.submit_app(

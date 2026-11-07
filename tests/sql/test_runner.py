@@ -4,19 +4,21 @@ import json
 import runpy
 import sys
 from importlib.resources import files
+from types import ModuleType
 from unittest import mock
 
 import pytest
 
-SCRIPT = files("spark_on_k8s").joinpath("airflow/scripts/spark_sql.py")
+SCRIPT = files("spark_on_k8s").joinpath("sql/runner.py")
 
 
 @pytest.fixture
 def spark_session(monkeypatch):
     session = mock.Mock()
-    pyspark_sql = mock.Mock()
+    pyspark_sql = ModuleType("pyspark.sql")
+    pyspark_sql.SparkSession = mock.Mock()
     pyspark_sql.SparkSession.builder.getOrCreate.return_value = session
-    monkeypatch.setitem(sys.modules, "pyspark", mock.Mock())
+    monkeypatch.setitem(sys.modules, "pyspark", ModuleType("pyspark"))
     monkeypatch.setitem(sys.modules, "pyspark.sql", pyspark_sql)
     return session
 
@@ -80,3 +82,12 @@ def test_script_rejects_invalid_statement_payload(spark_session, monkeypatch, tm
 
     spark_session.sql.assert_not_called()
     spark_session.stop.assert_called_once_with()
+
+
+@pytest.mark.parametrize("arguments", [[], ["one.json", "two.json"]])
+def test_usage_error_does_not_start_spark(spark_session, monkeypatch, arguments):
+    monkeypatch.setattr(sys, "argv", [str(SCRIPT), *arguments])
+    with pytest.raises(SystemExit) as error:
+        runpy.run_path(str(SCRIPT), run_name="__main__")
+    assert error.value.code == 1
+    sys.modules["pyspark.sql"].SparkSession.builder.getOrCreate.assert_not_called()

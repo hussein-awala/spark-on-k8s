@@ -79,7 +79,7 @@ jobs:
           assert sys.prefix != sys.base_prefix
           assert Path(sys.prefix).resolve() == Path('.venv').resolve()
           PY
-          UV_PROJECT_ENVIRONMENT="$GITHUB_WORKSPACE/.venv" uv sync --locked --no-default-groups
+          UV_PROJECT_ENVIRONMENT="$GITHUB_WORKSPACE/.venv" uv sync --locked --no-default-groups --extra sql
           uv build --wheel --out-dir "$RUNNER_TEMP/spark-wheel"
           uv pip install --python .venv/bin/python --no-deps --reinstall "$RUNNER_TEMP"/spark-wheel/*.whl
       - name: Install verified kind and create the disposable cluster

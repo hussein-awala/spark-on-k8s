@@ -17,7 +17,7 @@ the `test` group is selected by default, and the commands below choose groups ex
 For the core client and API tests on Python 3.11–3.15:
 
 ```bash
-uv sync --locked --no-default-groups --group test --extra api
+uv sync --locked --no-default-groups --group test --extra api --extra sql
 uv run --no-sync pytest --ignore=tests/airflow
 ```
 
@@ -40,7 +40,7 @@ core/API and test dependencies without the Airflow extra:
 
 ```bash
 uv venv --python 3.12 .venv-airflow211
-UV_PROJECT_ENVIRONMENT=.venv-airflow211 uv sync --python 3.12 --locked --no-default-groups --group test --extra api
+UV_PROJECT_ENVIRONMENT=.venv-airflow211 uv sync --python 3.12 --locked --no-default-groups --group test --extra api --extra sql
 uv pip install --python .venv-airflow211/bin/python '.[airflow]' 'apache-airflow==2.11.2'
 .venv-airflow211/bin/python -c 'import airflow; assert airflow.__version__ == "2.11.2"'
 .venv-airflow211/bin/python -m pytest --ignore=tests/airflow/ui

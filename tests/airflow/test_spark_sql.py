@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import runpy
 import sys
 from pathlib import Path
@@ -38,8 +39,8 @@ def test_failed_query_propagates_and_stops_later_commands(spark_session, failure
 
 
 def test_script_stops_session_when_query_fails(spark_session, monkeypatch, tmp_path):
-    query_file = tmp_path / "queries.sql"
-    query_file.write_text("SELECT broken;")
+    query_file = tmp_path / "queries.json"
+    query_file.write_text(json.dumps(["SELECT broken"]))
     monkeypatch.setattr(sys, "argv", [str(SCRIPT), str(query_file)])
     spark_session.sql.side_effect = RuntimeError("query failed")
     with pytest.raises(RuntimeError, match="query failed"):
@@ -48,7 +49,34 @@ def test_script_stops_session_when_query_fails(spark_session, monkeypatch, tmp_p
 
 
 def test_script_stops_session_when_input_cannot_be_read(spark_session, monkeypatch, tmp_path):
-    monkeypatch.setattr(sys, "argv", [str(SCRIPT), str(tmp_path / "missing.sql")])
+    monkeypatch.setattr(sys, "argv", [str(SCRIPT), str(tmp_path / "missing.json")])
     with pytest.raises(FileNotFoundError):
         runpy.run_path(str(SCRIPT), run_name="__main__")
+    spark_session.stop.assert_called_once_with()
+
+
+def test_script_executes_json_statements_without_resplitting(spark_session, monkeypatch, tmp_path):
+    statements = ["SELECT 'a;b'", "-- comment; text\nSELECT 'café'", "SELECT `c;d` FROM t"]
+    query_file = tmp_path / "queries.json"
+    query_file.write_text(json.dumps(statements), encoding="utf-8")
+    monkeypatch.setattr(sys, "argv", [str(SCRIPT), str(query_file)])
+    # The Spark image only needs PySpark and the standard library.
+    monkeypatch.setitem(sys.modules, "sqlparse", None)
+
+    runpy.run_path(str(SCRIPT), run_name="__main__")
+
+    assert spark_session.sql.call_args_list == [mock.call(statement) for statement in statements]
+    spark_session.stop.assert_called_once_with()
+
+
+@pytest.mark.parametrize("payload", [{"query": "SELECT 1"}, "SELECT 1", ["SELECT 1", 2], None])
+def test_script_rejects_invalid_statement_payload(spark_session, monkeypatch, tmp_path, payload):
+    query_file = tmp_path / "queries.json"
+    query_file.write_text(json.dumps(payload))
+    monkeypatch.setattr(sys, "argv", [str(SCRIPT), str(query_file)])
+
+    with pytest.raises(ValueError, match="JSON array of SQL strings"):
+        runpy.run_path(str(SCRIPT), run_name="__main__")
+
+    spark_session.sql.assert_not_called()
     spark_session.stop.assert_called_once_with()

@@ -9,7 +9,7 @@ logger = logging.getLogger("SparkSqlOnK8s")
 
 
 def read_sql_file(file_path):
-    """Read the JSON array of SQL statements prepared by SparkSqlOnK8SOperator."""
+    """Read the JSON array of SQL statements prepared by the SQL submission helpers."""
     with open(file_path, encoding="utf-8") as f:
         commands = json.load(f)
     if not isinstance(commands, list) or not all(isinstance(command, str) for command in commands):

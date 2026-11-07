@@ -129,6 +129,25 @@ class SparkOnK8S(LoggingMixin):
             raise RuntimeError("Submission completed without a run identity")
         return self.last_submitted_run
 
+    def submit_sql(
+        self,
+        *,
+        sql: str | None = None,
+        sql_file: str | Path | None = None,
+        **submit_options: Any,
+    ) -> str | ApplicationPlan:
+        """Submit inline SQL or a local SQL file using a PySpark image.
+
+        Exactly one of ``sql`` and ``sql_file`` is required. Other keyword arguments
+        are passed to :meth:`submit_app`, including image, resources, namespace,
+        service account, packages, and waiter options. SQL runs in statement order;
+        the first failed statement fails the application. This is not a transaction.
+        Set ``dry_run=True`` to return an offline :class:`ApplicationPlan` instead of submitting.
+        """
+        from spark_on_k8s.sql import prepare_sql_options
+
+        return self.submit_app(**prepare_sql_options(sql=sql, sql_file=sql_file, **submit_options))
+
     def _process_executor_template(self, executor_template: str) -> str:
         """Process executor template string, reading from file if it's a file path.
 

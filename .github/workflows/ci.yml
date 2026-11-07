@@ -87,7 +87,7 @@ jobs:
       - name: Install locked core/API dependencies
         run: |
           uv lock --check
-          uv sync --locked --no-default-groups --group test --extra api
+          uv sync --locked --no-default-groups --group test --extra api --extra sql
       - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
         with:
           version: v4.3.1

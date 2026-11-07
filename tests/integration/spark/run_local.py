@@ -54,7 +54,7 @@ def main():
         artifacts / "python.log",
         marker="SPARK_ON_K8S_PYTHON_OK",
     )
-    runner = repository / "spark_on_k8s/airflow/scripts/spark_sql.py"
+    runner = repository / "spark_on_k8s/sql/runner.py"
     run(
         [*base, str(runner), str(fixtures / "sql_success.json")],
         artifacts / "sql.log",

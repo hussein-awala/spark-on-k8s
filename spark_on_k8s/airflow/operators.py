@@ -1,20 +1,18 @@
 from __future__ import annotations
 
 import contextlib
-import json
 import time
 from dataclasses import replace
 from enum import StrEnum
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-import sqlparse
 from airflow.exceptions import AirflowException
 
 from spark_on_k8s.airflow._compat import BaseOperator, get_current_context
 from spark_on_k8s.airflow.operator_links import SparkOnK8SOperatorLink
 from spark_on_k8s.airflow.triggers import SparkOnK8STrigger
 from spark_on_k8s.k8s.sync_client import KubernetesClientManager
+from spark_on_k8s.sql import prepare_sql_configmap
 from spark_on_k8s.utils.app_manager import SparkAppManager
 from spark_on_k8s.utils.spark_app_status import SparkAppStatus
 
@@ -636,24 +634,5 @@ class SparkSqlOnK8SOperator(SparkOnK8SOperator):
         self.sql = sql
 
     def execute(self, context: Context):
-        statements = [
-            statement
-            for statement in sqlparse.split(self.sql, strip_semicolon=True)
-            if sqlparse.format(statement, strip_comments=True).strip()
-        ]
-        self.driver_ephemeral_configmaps_volumes = [
-            {
-                "mount_path": "/configmap",
-                "sources": [
-                    {
-                        "name": "spark_sql.py",
-                        "text_path": f"{Path(__file__).parent}/scripts/spark_sql.py",
-                    },
-                    {
-                        "name": "queries.json",
-                        "text": json.dumps(statements),
-                    },
-                ],
-            }
-        ]
+        self.driver_ephemeral_configmaps_volumes = [prepare_sql_configmap(self.sql, allow_empty=True)]
         return super().execute(context)

@@ -7,7 +7,6 @@ import time
 from pathlib import Path
 from uuid import uuid4
 
-import spark_on_k8s
 from kubernetes import client as k8s, config
 from spark_on_k8s.client import ExecutorInstances, PodResources, SparkOnK8S
 from spark_on_k8s.k8s.sync_client import KubernetesClientManager
@@ -87,25 +86,12 @@ def run_case(api, submitter: SparkOnK8S, args, namespace: str, scenario: str):
     options = {}
     marker = f"SPARK_ON_K8S_{scenario.upper()}_OK"
     if scenario.startswith("sql"):
-        runner = Path(spark_on_k8s.__file__).parent / "airflow/scripts/spark_sql.py"
         queries = json.loads(
             (fixtures / f"{'sql_failure' if scenario == 'sql-failure' else 'sql_success'}.json").read_text()
         )
         if scenario == "sql":
             queries.insert(0, f"SELECT assert_true(version() LIKE '{args.spark_version}%')")
-        options.update(
-            app_path="/smoke-sql/spark_sql.py",
-            app_arguments=["/smoke-sql/queries.json"],
-            driver_ephemeral_configmaps_volumes=[
-                {
-                    "mount_path": "/smoke-sql",
-                    "sources": [
-                        {"name": "spark_sql.py", "text_path": str(runner)},
-                        {"name": "queries.json", "text": json.dumps(queries)},
-                    ],
-                }
-            ],
-        )
+        options["sql"] = ";\n".join(queries) + ";"
     elif scenario == "java":
         options.update(
             app_path="local:///opt/spark/work-dir/integration.jar",
@@ -118,7 +104,8 @@ def run_case(api, submitter: SparkOnK8S, args, namespace: str, scenario: str):
             app_arguments=[args.spark_version],
             secret_values={"SPARK_COMPAT_SENTINEL": "present"},
         )
-    pod_name = submitter.submit_app(
+    submit = submitter.submit_sql if scenario.startswith("sql") else submitter.submit_app
+    pod_name = submit(
         image=args.image,
         namespace=namespace,
         service_account="spark",

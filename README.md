@@ -24,6 +24,7 @@ extra for the functionality you need, inside a virtual environment:
 
 ```bash
 python -m pip install spark-on-k8s # Python client, CLI and helpers
+python -m pip install "spark-on-k8s[sql]" # Also submit SQL files without Airflow
 python -m pip install "spark-on-k8s[api]" # Also install the REST API and web UI
 python -m pip install "spark-on-k8s[airflow]" # Also install the Airflow integration
 ```
@@ -360,6 +361,7 @@ code, driver configuration and executor templates, and the
 [Airflow guide](docs/user-guide/airflow.md) for DAG examples.
 The [ETL and Iceberg starters](docs/user-guide/starters.md) include real data checks
 and portable job definitions for shared-storage deployments.
+[SQL jobs](docs/user-guide/sql.md) can be submitted from the CLI or Python without Airflow.
 [Spark compatibility](docs/user-guide/spark_compatibility.md) describes the Spark 3.5
 and Spark 4 runtime matrix, image build arguments, and execution tests.
 

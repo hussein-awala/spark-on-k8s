@@ -28,6 +28,7 @@ Repository = "https://github.com/hussein-awala/spark-on-k8s"
 Documentation = "https://hussein.awala.fr/spark-on-k8s/"
 
 [project.optional-dependencies]
+sql = ["sqlparse>=0.6.1,<0.7"]
 api = [
     "fastapi>=0.162.1,<0.163",
     "starlette>=1.10.0,<2",

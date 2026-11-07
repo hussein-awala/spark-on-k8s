@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 
 from kubernetes.stream import stream
 from kubernetes_asyncio import client as k8s_async, watch
@@ -11,6 +12,10 @@ from kubernetes_asyncio.stream import WsApiClient
 from spark_on_k8s.k8s.async_client import KubernetesAsyncClientManager
 from spark_on_k8s.utils.logging_mixin import LoggingMixin
 from spark_on_k8s.utils.spark_app_status import SparkAppStatus, get_app_status
+
+
+class SparkAppStartupTimeoutError(TimeoutError):
+    """A Spark driver remained Pending beyond its startup deadline."""
 
 
 class AsyncSparkAppManager(LoggingMixin):
@@ -81,6 +86,7 @@ class AsyncSparkAppManager(LoggingMixin):
         app_id: str | None = None,
         poll_interval: float = 10,
         should_print: bool = False,
+        startup_deadline: float | None = None,
     ):
         """Wait for a Spark app to finish asynchronously.
 
@@ -90,17 +96,26 @@ class AsyncSparkAppManager(LoggingMixin):
             app_id (str): App ID.
             poll_interval (float, optional): Poll interval in seconds. Defaults to 10.
             should_print (bool, optional): Whether to print logs instead of logging them.
+            startup_deadline (float, optional): Absolute Unix timestamp after which a Pending
+                driver times out. Defaults to None (no startup timeout). Running applications
+                are not limited by this deadline.
         """
         termination_statuses = {SparkAppStatus.Succeeded, SparkAppStatus.Failed, SparkAppStatus.Unknown}
         async with self.k8s_client_manager.client() as client:
             api = k8s_async.CoreV1Api(client)
             while True:
+                sleep_interval = poll_interval
                 try:
                     status = await self.app_status(
                         namespace=namespace, pod_name=pod_name, app_id=app_id, client=api
                     )
                     if status in termination_statuses:
                         break
+                    if status == SparkAppStatus.Pending and startup_deadline is not None:
+                        remaining = startup_deadline - time.time()
+                        if remaining <= 0:
+                            raise SparkAppStartupTimeoutError("App startup timeout")
+                        sleep_interval = min(poll_interval, remaining)
                 except ApiException as e:
                     if e.status == 404:
                         self.log(
@@ -109,11 +124,11 @@ class AsyncSparkAppManager(LoggingMixin):
                         return
                     raise
                 self.log(
-                    msg=f"Pod {pod_name} status is {status}, sleep {poll_interval}s",
+                    msg=f"Pod {pod_name} status is {status}, sleep {sleep_interval}s",
                     level=logging.INFO,
                     should_print=should_print,
                 )
-                await asyncio.sleep(poll_interval)
+                await asyncio.sleep(sleep_interval)
             self.log(
                 msg=f"Pod {pod_name} finished with status {status.value}",
                 level=logging.INFO,

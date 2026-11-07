@@ -75,7 +75,7 @@ async def ui_reverse_proxy(request: Request):
 async def spark_history_reverse_proxy(request: Request):
     spark_history_url = APIConfiguration.SPARK_ON_K8S_API_SPARK_HISTORY_HOST
     if not spark_history_url:
-        return HTTPException(status_code=412, detail="SPARK_ON_K8S_API_SPARK_HISTORY_HOST is not set.")
+        raise HTTPException(status_code=412, detail="SPARK_ON_K8S_API_SPARK_HISTORY_HOST is not set.")
     path = request.url.path.replace(router.prefix, "").lstrip("/").replace("ui-history/", "")
     async_http_client = AsyncHttpClientSingleton.client()
     spark_history_url = (

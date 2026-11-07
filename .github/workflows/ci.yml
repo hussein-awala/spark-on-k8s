@@ -13,11 +13,6 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
-env:
-  POETRY_VERSION: "2.5.1"
-  POETRY_VIRTUALENVS_IN_PROJECT: "true"
-  POETRY_NO_INTERACTION: "1"
-
 jobs:
   changed-files:
     runs-on: ubuntu-26.04
@@ -37,7 +32,7 @@ jobs:
               - "tests/**"
               - "chart/**"
               - "examples/**"
-              - "poetry.lock"
+              - "uv.lock"
               - "pyproject.toml"
               - ".github/workflows/**"
 
@@ -68,15 +63,13 @@ jobs:
         with:
           version: "0.13.7"
           enable-cache: true
-          cache-dependency-glob: poetry.lock
-      - name: Create isolated Python and Poetry environments
+          cache-dependency-glob: uv.lock
+      - name: Create isolated Python environment
         shell: bash
         run: |
           unset CONDA_DEFAULT_ENV CONDA_PREFIX VIRTUAL_ENV
           uv python install "$PYTHON_VERSION"
           python_path="$(uv python find --managed-python "$PYTHON_VERSION")"
-          uv tool install --python "$python_path" "poetry==$POETRY_VERSION"
-          echo "$(uv tool dir --bin)" >> "$GITHUB_PATH"
           uv venv --python "$python_path" .venv
           .venv/bin/python - <<'PYTHON'
           import sys
@@ -87,18 +80,13 @@ jobs:
           echo "CONDA_DEFAULT_ENV=" >> "$GITHUB_ENV"
           echo "CONDA_PREFIX=" >> "$GITHUB_ENV"
           echo "VIRTUAL_ENV=$GITHUB_WORKSPACE/.venv" >> "$GITHUB_ENV"
-          echo "POETRY_CACHE_DIR=$RUNNER_TEMP/poetry-cache" >> "$GITHUB_ENV"
+          echo "UV_PROJECT_ENVIRONMENT=$GITHUB_WORKSPACE/.venv" >> "$GITHUB_ENV"
           echo "AIRFLOW_HOME=$RUNNER_TEMP/airflow" >> "$GITHUB_ENV"
           .venv/bin/python --version
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ${{ env.POETRY_CACHE_DIR }}
-          key: poetry-api-${{ runner.os }}-${{ runner.arch }}-${{ matrix.python-version }}-${{ hashFiles('poetry.lock', 'pyproject.toml') }}
       - name: Install locked core/API dependencies
         run: |
-          test "$(poetry env info --path)" = "$GITHUB_WORKSPACE/.venv"
-          poetry check --lock --strict
-          poetry sync --only main,test -E api
+          uv lock --check
+          uv sync --locked --no-default-groups --group test --extra api
       - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
         with:
           version: v4.3.1
@@ -109,7 +97,7 @@ jobs:
         run: |
           helm version --short
           node --version
-          poetry run python - <<'PY'
+          .venv/bin/python - <<'PY'
           import os
           import sys
           from importlib.metadata import PackageNotFoundError, version
@@ -129,10 +117,10 @@ jobs:
           print(f"FastAPI {version('fastapi')}")
           PY
       - name: Run core/API tests
-        run: poetry run pytest tests --ignore=tests/airflow --cov=spark_on_k8s --cov-report=term-missing --junitxml=test-results.xml
+        run: .venv/bin/python -m pytest tests --ignore=tests/airflow --cov=spark_on_k8s --cov-report=term-missing --junitxml=test-results.xml
       - name: Require executed core/API tests without skips
         run: |
-          poetry run python - <<'PY'
+          .venv/bin/python - <<'PY'
           import xml.etree.ElementTree as ET
           cases = list(ET.parse("test-results.xml").iter("testcase"))
           assert cases, "No core/API tests were collected"
@@ -172,14 +160,12 @@ jobs:
         with:
           version: "0.13.7"
           enable-cache: true
-          cache-dependency-glob: poetry.lock
-      - name: Create isolated Python and Poetry environments
+          cache-dependency-glob: uv.lock
+      - name: Create isolated Python environment
         run: |
           unset CONDA_DEFAULT_ENV CONDA_PREFIX VIRTUAL_ENV
           uv python install "$PYTHON_VERSION"
           python_path="$(uv python find --managed-python "$PYTHON_VERSION")"
-          uv tool install --python "$python_path" "poetry==$POETRY_VERSION"
-          echo "$(uv tool dir --bin)" >> "$GITHUB_PATH"
           uv venv --python "$python_path" .venv
           .venv/bin/python - <<'PYTHON'
           import sys
@@ -190,26 +176,25 @@ jobs:
           echo "CONDA_DEFAULT_ENV=" >> "$GITHUB_ENV"
           echo "CONDA_PREFIX=" >> "$GITHUB_ENV"
           echo "VIRTUAL_ENV=$GITHUB_WORKSPACE/.venv" >> "$GITHUB_ENV"
-          echo "POETRY_CACHE_DIR=$RUNNER_TEMP/poetry-cache" >> "$GITHUB_ENV"
+          echo "UV_PROJECT_ENVIRONMENT=$GITHUB_WORKSPACE/.venv" >> "$GITHUB_ENV"
           echo "AIRFLOW_HOME=$RUNNER_TEMP/airflow" >> "$GITHUB_ENV"
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ${{ env.POETRY_CACHE_DIR }}
-          key: poetry-airflow-${{ matrix.airflow-version }}-${{ matrix.python-version }}-${{ hashFiles('poetry.lock', 'pyproject.toml') }}
       - name: Install Airflow dependencies
         run: |
-          test "$(poetry env info --path)" = "$GITHUB_WORKSPACE/.venv"
-          poetry check --lock --strict
+          uv lock --check
           if [[ "$AIRFLOW_VERSION" == "2.11.2" ]]; then
             # Start without Airflow 3's separate core/task-sdk distributions.
-            poetry sync --only main,test
+            uv sync --locked --no-default-groups --group test
             uv pip install --python .venv/bin/python -e '.[airflow]' "apache-airflow==$AIRFLOW_VERSION"
           else
-            poetry sync --only main,test -E airflow
+            uv sync --locked --no-default-groups --group test --extra airflow
           fi
+      - name: Build and install the wheel without changing Airflow dependencies
+        run: |
+          uv build --wheel
+          uv pip install --python .venv/bin/python --no-deps --reinstall dist/*.whl
       - name: Verify the requested Airflow integration is installed
         run: |
-          poetry run python - <<'PY'
+          .venv/bin/python -I - <<'PY'
           import os
           import sys
           from importlib.metadata import version
@@ -223,11 +208,14 @@ jobs:
           print(f"Testing Airflow {airflow.__version__}")
           print(f"Kubernetes provider {version('apache-airflow-providers-cncf-kubernetes')}")
           PY
-      - name: Run Airflow integration tests
-        run: poetry run pytest tests/airflow --cov=spark_on_k8s --cov-report=term-missing --junitxml=airflow-results.xml
+      - name: Test the installed wheel with the requested Airflow version
+        # Direct Python execution preserves the legacy Airflow override and wheel install.
+        run: |
+          installed_package="$(.venv/bin/python -I -c 'from pathlib import Path; import spark_on_k8s; print(Path(spark_on_k8s.__file__).parent)')"
+          .venv/bin/python -I tests/run_installed_tests.py tests/airflow --cov="$installed_package" --cov-report=term-missing --junitxml=airflow-results.xml
       - name: Require executed Airflow tests without skips
         run: |
-          poetry run python - <<'PY'
+          .venv/bin/python - <<'PY'
           import xml.etree.ElementTree as ET
           cases = list(ET.parse("airflow-results.xml").iter("testcase"))
           assert cases, "No Airflow tests were collected"
@@ -255,14 +243,12 @@ jobs:
         with:
           version: "0.13.7"
           enable-cache: true
-          cache-dependency-glob: poetry.lock
+          cache-dependency-glob: uv.lock
       - name: Create tooling environment
         run: |
           unset CONDA_DEFAULT_ENV CONDA_PREFIX VIRTUAL_ENV
           uv python install 3.12
           python_path="$(uv python find --managed-python 3.12)"
-          uv tool install --python "$python_path" "poetry==$POETRY_VERSION"
-          echo "$(uv tool dir --bin)" >> "$GITHUB_PATH"
           uv venv --python "$python_path" .venv
           .venv/bin/python - <<'PYTHON'
           import sys
@@ -273,24 +259,23 @@ jobs:
           echo "CONDA_DEFAULT_ENV=" >> "$GITHUB_ENV"
           echo "CONDA_PREFIX=" >> "$GITHUB_ENV"
           echo "VIRTUAL_ENV=$GITHUB_WORKSPACE/.venv" >> "$GITHUB_ENV"
-          echo "POETRY_CACHE_DIR=$RUNNER_TEMP/poetry-cache" >> "$GITHUB_ENV"
+          echo "UV_PROJECT_ENVIRONMENT=$GITHUB_WORKSPACE/.venv" >> "$GITHUB_ENV"
           echo "AIRFLOW_HOME=$RUNNER_TEMP/airflow" >> "$GITHUB_ENV"
       - name: Install locked tooling and documentation dependencies
         run: |
-          test "$(poetry env info --path)" = "$GITHUB_WORKSPACE/.venv"
-          poetry check --lock --strict
-          poetry sync --only main,lint,docs --all-extras
+          uv lock --check
+          uv sync --locked --no-default-groups --group lint --group docs --all-extras
       - name: Lint Python
         run: |
-          poetry run ruff check .
-          poetry run ruff format --check .
-          poetry run sqlfluff lint examples/airflow
+          .venv/bin/ruff check .
+          .venv/bin/ruff format --check .
+          .venv/bin/sqlfluff lint examples/airflow
       - name: Build distributions
-        run: poetry build
+        run: uv build
       - name: Build documentation
         run: |
-          poetry run helm-mkdocs chart -o docs/helm-chart
-          poetry run mkdocs build --strict
+          .venv/bin/helm-mkdocs chart -o docs/helm-chart
+          .venv/bin/mkdocs build --strict
 
   coverage:
     name: Combined coverage

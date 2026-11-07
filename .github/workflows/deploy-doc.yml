@@ -12,11 +12,6 @@ concurrency:
   cancel-in-progress: false
   queue: max
 
-env:
-  POETRY_VERSION: "2.5.1"
-  POETRY_VIRTUALENVS_IN_PROJECT: "true"
-  POETRY_NO_INTERACTION: "1"
-
 jobs:
   deploy:
     runs-on: ubuntu-26.04
@@ -33,14 +28,12 @@ jobs:
         with:
           version: "0.13.7"
           enable-cache: true
-          cache-dependency-glob: poetry.lock
+          cache-dependency-glob: uv.lock
       - name: Create documentation environment
         run: |
           unset CONDA_DEFAULT_ENV CONDA_PREFIX VIRTUAL_ENV
           uv python install 3.12
           python_path="$(uv python find --managed-python 3.12)"
-          uv tool install --python "$python_path" "poetry==$POETRY_VERSION"
-          echo "$(uv tool dir --bin)" >> "$GITHUB_PATH"
           uv venv --python "$python_path" .venv
           .venv/bin/python - <<'PYTHON'
           import sys
@@ -51,28 +44,27 @@ jobs:
           echo "CONDA_DEFAULT_ENV=" >> "$GITHUB_ENV"
           echo "CONDA_PREFIX=" >> "$GITHUB_ENV"
           echo "VIRTUAL_ENV=$GITHUB_WORKSPACE/.venv" >> "$GITHUB_ENV"
-          echo "POETRY_CACHE_DIR=$RUNNER_TEMP/poetry-cache" >> "$GITHUB_ENV"
+          echo "UV_PROJECT_ENVIRONMENT=$GITHUB_WORKSPACE/.venv" >> "$GITHUB_ENV"
           echo "AIRFLOW_HOME=$RUNNER_TEMP/airflow" >> "$GITHUB_ENV"
       - name: Install documentation dependencies
         run: |
-          test "$(poetry env info --path)" = "$GITHUB_WORKSPACE/.venv"
-          poetry check --lock --strict
-          poetry sync --only main,docs --all-extras
+          uv lock --check
+          uv sync --locked --no-default-groups --group docs --all-extras
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          key: mkdocs-${{ runner.os }}-${{ hashFiles('poetry.lock', 'mkdocs.yml') }}
+          key: mkdocs-${{ runner.os }}-${{ hashFiles('uv.lock', 'mkdocs.yml') }}
           path: .cache
       - name: Fetch gh-pages branch
         run: git fetch origin gh-pages:gh-pages
       - name: Build Helm Docs
-        run: poetry run helm-mkdocs chart -o docs/helm-chart
+        run: .venv/bin/helm-mkdocs chart -o docs/helm-chart
       - name: Deploy Docs
         run: |
           if [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
-            poetry run mike deploy --push develop
+            .venv/bin/mike deploy --push develop
           elif [[ "$GITHUB_REF" == refs/tags/* ]]; then
             version="${GITHUB_REF#refs/tags/}"
-            poetry run mike deploy --push --update-aliases "$version" latest
+            .venv/bin/mike deploy --push --update-aliases "$version" latest
           else
             echo "Not a deployable ref"
             exit 1

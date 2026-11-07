@@ -7,11 +7,6 @@ on:
 permissions:
   contents: read
 
-env:
-  POETRY_VERSION: "2.5.1"
-  POETRY_VIRTUALENVS_IN_PROJECT: "true"
-  POETRY_NO_INTERACTION: "1"
-
 jobs:
   python-release-build:
     runs-on: ubuntu-26.04
@@ -21,19 +16,18 @@ jobs:
         with:
           version: "0.13.7"
           enable-cache: true
-          cache-dependency-glob: poetry.lock
-      - name: Install Poetry
+          cache-dependency-glob: uv.lock
+      - name: Set up build Python
         run: |
           unset CONDA_DEFAULT_ENV CONDA_PREFIX VIRTUAL_ENV
           uv python install 3.12
           python_path="$(uv python find --managed-python 3.12)"
-          uv tool install --python "$python_path" "poetry==$POETRY_VERSION"
-          echo "$(uv tool dir --bin)" >> "$GITHUB_PATH"
+          echo "UV_PYTHON=$python_path" >> "$GITHUB_ENV"
       - name: Build release distributions
         run: |
-          poetry check --lock --strict
-          poetry version "$GITHUB_REF_NAME"
-          poetry build
+          uv lock --check
+          uv version --frozen "$GITHUB_REF_NAME"
+          uv build
       - name: Upload dists
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

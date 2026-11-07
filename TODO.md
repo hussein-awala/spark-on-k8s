@@ -31,12 +31,10 @@ This is a list of things that we will work on in the future. If you want to cont
 
 ## CI compatibility follow-up
 
-- [ ] Replace the temporary CI compatibility pins (`ubuntu-24.04`, `macos-15-intel`,
-  and Poetry `2.2.1`) with support for current runner images and tooling. Review
-  the supported Python range, update dependencies and the lockfile for current
-  Python and Poetry releases, and validate Linux plus macOS (including ARM64)
-  before removing the workaround. Keep CI passing for every advertised supported
-  version during the migration.
+- [x] Replace temporary runner and tooling pins, refresh dependencies, and validate
+  Python 3.11–3.15 on Linux and macOS ARM64 with separate Airflow 3 and 2.11 checks.
+- [x] Replace the package manager and build backend with uv, preserving installed
+  Airflow provider discovery and Spark UI links.
 
 ## Other
 

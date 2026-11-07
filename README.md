@@ -37,16 +37,21 @@ For Airflow, install the extra in an environment with a supported Python version
 pip install "spark-on-k8s[airflow]"
 ```
 
-You can also install the package from source with pip or Poetry 2.5.1:
+From a source checkout, use pip or [uv](https://docs.astral.sh/uv/):
 ```bash
-# With pip
-pip install . # For the core package
-pip install ".[api]" # For the API package
+# With pip, inside a virtual environment
+python -m pip install . # Core package
+python -m pip install ".[api]" # API and web UI
+python -m pip install ".[airflow]" # Airflow integration on a supported Python version
 
-# With poetry
-poetry sync --only main # For the core package
-poetry sync --only main -E api # For the API package
+# With uv, using the committed lockfile and a project-local virtual environment
+uv sync --locked --no-default-groups # Core package
+uv sync --locked --no-default-groups --extra api # API and web UI
+uv sync --python 3.12 --locked --no-default-groups --extra airflow # Airflow 3 integration
 ```
+Run commands from the selected uv environment with `uv run --no-sync spark-on-k8s`.
+See [CONTRIBUTING.md](https://github.com/hussein-awala/spark-on-k8s/blob/main/CONTRIBUTING.md)
+for development dependencies and the separate Airflow 2.11 compatibility environment.
 
 ## Usage
 

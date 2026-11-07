@@ -4,6 +4,7 @@ import datetime
 import importlib
 import json
 import os
+import re
 from typing import Callable
 from unittest import mock
 
@@ -574,6 +575,18 @@ class TestSparkOnK8s:
         assert created_secret.string_data["KEY1"] == "VALUE1"
         assert created_secret.string_data["KEY2"] == "VALUE2"
 
+    def test_executor_configmap_volume_is_rejected(self):
+        with pytest.raises(ValueError, match="Volume settings .* is not supported"):
+            SparkOnK8S._executor_volumes_config(
+                volumes=[
+                    k8s.V1Volume(
+                        name="settings",
+                        config_map=k8s.V1ConfigMapVolumeSource(name="executor-settings"),
+                    )
+                ],
+                volume_mounts=[k8s.V1VolumeMount(name="settings", mount_path="/etc/settings")],
+            )
+
     def test__executor_volumes_config(self):
         spark_client = SparkOnK8S()
         executor_volumes_config = spark_client._executor_volumes_config(
@@ -641,19 +654,18 @@ class TestSparkOnK8s:
         )
         assert executor_volumes_config == {
             # volumes config
-            "spark.kubernetes.executor.volumes.hostPath.volume1.path": "/mnt/volume1",
-            "spark.kubernetes.executor.volumes.emptyDir.volume2.medium": "Memory",
-            "spark.kubernetes.executor.volumes.emptyDir.volume2.sizeLimit": "1Gi",
-            "spark.kubernetes.executor.volumes.nfs.volume6.path": "/mnt/volume6",
-            "spark.kubernetes.executor.volumes.nfs.volume6.readOnly": True,
-            "spark.kubernetes.executor.volumes.nfs.volume6.server": "nfs-server",
-            "spark.kubernetes.executor.volumes.persistentVolumeClaim.volume7.claimName": "pvc1",
-            "spark.kubernetes.executor.volumes.persistentVolumeClaim.volume7.readOnly": True,
+            "spark.kubernetes.executor.volumes.hostPath.volume1.options.path": "/mnt/volume1",
+            "spark.kubernetes.executor.volumes.emptyDir.volume2.options.medium": "Memory",
+            "spark.kubernetes.executor.volumes.emptyDir.volume2.options.sizeLimit": "1Gi",
+            "spark.kubernetes.executor.volumes.nfs.volume6.options.path": "/mnt/volume6",
+            "spark.kubernetes.executor.volumes.nfs.volume6.options.server": "nfs-server",
+            "spark.kubernetes.executor.volumes.persistentVolumeClaim.volume7.options.claimName": "pvc1",
             # volume mounts config
             "spark.kubernetes.executor.volumes.hostPath.volume1.mount.path": "/mnt/volume1",
             "spark.kubernetes.executor.volumes.emptyDir.volume2.mount.path": "/mnt/volume2",
             "spark.kubernetes.executor.volumes.emptyDir.volume2.mount.subPath": "sub-path",
             "spark.kubernetes.executor.volumes.nfs.volume6.mount.path": "/mnt/volume3",
+            "spark.kubernetes.executor.volumes.nfs.volume6.mount.readOnly": True,
             "spark.kubernetes.executor.volumes.persistentVolumeClaim.volume7.mount.path": "/mnt/volume4",
             "spark.kubernetes.executor.volumes.persistentVolumeClaim.volume7.mount.readOnly": True,
         }
@@ -774,18 +786,17 @@ class TestSparkOnK8s:
         }
 
         assert volumes_args == {
-            "spark.kubernetes.executor.volumes.hostPath.volume1.path": "/mnt/volume1",
-            "spark.kubernetes.executor.volumes.emptyDir.volume2.medium": "Memory",
-            "spark.kubernetes.executor.volumes.emptyDir.volume2.sizeLimit": "1Gi",
-            "spark.kubernetes.executor.volumes.nfs.volume6.path": "/mnt/volume6",
-            "spark.kubernetes.executor.volumes.nfs.volume6.readOnly": "true",
-            "spark.kubernetes.executor.volumes.nfs.volume6.server": "nfs-server",
-            "spark.kubernetes.executor.volumes.persistentVolumeClaim.volume7.claimName": "pvc1",
-            "spark.kubernetes.executor.volumes.persistentVolumeClaim.volume7.readOnly": "true",
+            "spark.kubernetes.executor.volumes.hostPath.volume1.options.path": "/mnt/volume1",
+            "spark.kubernetes.executor.volumes.emptyDir.volume2.options.medium": "Memory",
+            "spark.kubernetes.executor.volumes.emptyDir.volume2.options.sizeLimit": "1Gi",
+            "spark.kubernetes.executor.volumes.nfs.volume6.options.path": "/mnt/volume6",
+            "spark.kubernetes.executor.volumes.nfs.volume6.options.server": "nfs-server",
+            "spark.kubernetes.executor.volumes.persistentVolumeClaim.volume7.options.claimName": "pvc1",
             "spark.kubernetes.executor.volumes.hostPath.volume1.mount.path": "/mnt/volume1",
             "spark.kubernetes.executor.volumes.emptyDir.volume2.mount.path": "/mnt/volume2",
             "spark.kubernetes.executor.volumes.emptyDir.volume2.mount.subPath": "sub-path",
             "spark.kubernetes.executor.volumes.nfs.volume6.mount.path": "/mnt/volume3",
+            "spark.kubernetes.executor.volumes.nfs.volume6.mount.readOnly": "true",
             "spark.kubernetes.executor.volumes.persistentVolumeClaim.volume7.mount.path": "/mnt/volume4",
             "spark.kubernetes.executor.volumes.persistentVolumeClaim.volume7.mount.readOnly": "true",
         }
@@ -978,6 +989,225 @@ class TestSparkOnK8s:
             if conf.startswith("spark.kubernetes.executor")
         }
         assert executor_config.get("spark.kubernetes.executor.podTemplateFile") == "s3a://bucket/executor.yml"
+
+    @mock.patch("spark_on_k8s.k8s.sync_client.KubernetesClientManager.create_client")
+    @mock.patch("kubernetes.client.api.core_v1_api.CoreV1Api.create_namespaced_pod")
+    @mock.patch("kubernetes.client.api.core_v1_api.CoreV1Api.create_namespaced_config_map")
+    @mock.patch("kubernetes.client.api.core_v1_api.CoreV1Api.patch_namespaced_config_map")
+    @mock.patch("kubernetes.client.api.core_v1_api.CoreV1Api.create_namespaced_service")
+    @freeze_time(FAKE_TIME)
+    def test_submit_app_with_executor_template_string(
+        self,
+        mock_create_namespaced_service,
+        mock_patch_namespaced_config_map,
+        mock_create_namespaced_config_map,
+        mock_create_namespaced_pod,
+        mock_create_client,
+    ):
+        """Test the method submit_app with executor template as string content"""
+
+        template_content = """
+apiVersion: v1
+kind: Pod
+spec:
+  containers:
+  - name: executor
+    resources:
+      requests:
+        memory: "2Gi"
+"""
+
+        spark_client = SparkOnK8S()
+        spark_client.submit_app(
+            image="pyspark-job",
+            app_path="local:///opt/spark/work-dir/job.py",
+            namespace="spark",
+            service_account="spark",
+            app_name="pyspark-job-example",
+            app_arguments=["100000"],
+            app_waiter="no_wait",
+            executor_pod_template=template_content,
+        )
+
+        # Check that ConfigMap was created
+        assert mock_create_namespaced_config_map.called
+        created_configmap = mock_create_namespaced_config_map.call_args[1]["body"]
+        assert created_configmap.metadata.name == "pyspark-job-example-20240114121231-executor-template"
+        assert "executor-template.yaml" in created_configmap.data
+        assert template_content.strip() in created_configmap.data["executor-template.yaml"]
+
+        # Check that pod was created with correct Spark configuration
+        created_pod = mock_create_namespaced_pod.call_args[1]["body"]
+        arguments = created_pod.spec.containers[0].args
+        executor_config = {
+            conf.split("=")[0]: conf.split("=")[1]
+            for conf in arguments
+            if conf.startswith("spark.kubernetes.executor")
+        }
+        assert (
+            executor_config.get("spark.kubernetes.executor.podTemplateFile")
+            == "/opt/spark/executor-template/executor-template.yaml"
+        )
+
+        # Check that volume and volume mount were created
+        volumes = created_pod.spec.volumes
+        volume_names = [v.name for v in volumes]
+        assert "pyspark-job-example-20240114121231-executor-template" in volume_names
+
+        driver_volume_mounts = created_pod.spec.containers[0].volume_mounts
+        driver_mount_names = [vm.name for vm in driver_volume_mounts] if driver_volume_mounts else []
+        assert "pyspark-job-example-20240114121231-executor-template" in driver_mount_names
+
+    @mock.patch("spark_on_k8s.k8s.sync_client.KubernetesClientManager.create_client")
+    @mock.patch("kubernetes.client.api.core_v1_api.CoreV1Api.create_namespaced_pod")
+    @mock.patch("kubernetes.client.api.core_v1_api.CoreV1Api.create_namespaced_config_map")
+    @mock.patch("kubernetes.client.api.core_v1_api.CoreV1Api.patch_namespaced_config_map")
+    @mock.patch("kubernetes.client.api.core_v1_api.CoreV1Api.create_namespaced_service")
+    @mock.patch(
+        "pathlib.Path.read_text",
+        return_value="apiVersion: v1\nkind: Pod\nspec:\n  containers:\n  - name: executor",
+    )
+    @freeze_time(FAKE_TIME)
+    def test_submit_app_with_executor_template_file_path(
+        self,
+        mock_read_text,
+        mock_create_namespaced_service,
+        mock_patch_namespaced_config_map,
+        mock_create_namespaced_config_map,
+        mock_create_namespaced_pod,
+        mock_create_client,
+    ):
+        """Test the method submit_app with executor template as local file path"""
+
+        spark_client = SparkOnK8S()
+        spark_client.submit_app(
+            image="pyspark-job",
+            app_path="local:///opt/spark/work-dir/job.py",
+            namespace="spark",
+            service_account="spark",
+            app_name="pyspark-job-example",
+            app_arguments=["100000"],
+            app_waiter="no_wait",
+            executor_pod_template="./executor-template.yaml",
+        )
+
+        # Check that ConfigMap was created
+        assert mock_create_namespaced_config_map.called
+        created_configmap = mock_create_namespaced_config_map.call_args[1]["body"]
+        assert created_configmap.metadata.name == "pyspark-job-example-20240114121231-executor-template"
+        assert "executor-template.yaml" in created_configmap.data
+
+        # Check that pod was created with correct Spark configuration
+        created_pod = mock_create_namespaced_pod.call_args[1]["body"]
+        arguments = created_pod.spec.containers[0].args
+        executor_config = {
+            conf.split("=")[0]: conf.split("=")[1]
+            for conf in arguments
+            if conf.startswith("spark.kubernetes.executor")
+        }
+        assert (
+            executor_config.get("spark.kubernetes.executor.podTemplateFile")
+            == "/opt/spark/executor-template/executor-template.yaml"
+        )
+
+    @pytest.mark.parametrize("app_name_length", [31, 41])
+    @freeze_time(FAKE_TIME)
+    def test_executor_template_names_are_valid_and_distinct(self, app_name_length):
+        template_content = "apiVersion: v1\nkind: Pod\nspec:\n  containers:\n  - name: executor"
+        generated_names = []
+
+        def create_pod(*, namespace, body):
+            body.metadata.uid = f"uid-{body.metadata.name}"
+            return body
+
+        with mock.patch("spark_on_k8s.client.k8s.CoreV1Api") as mock_api:
+            api = mock_api.return_value
+            api.create_namespaced_pod.side_effect = create_pod
+            spark_client = SparkOnK8S(k8s_client_manager=MagicMock())
+            for final_character in ("a", "b"):
+                spark_client.submit_app(
+                    image="pyspark-job",
+                    app_path="local:///opt/spark/work-dir/job.py",
+                    namespace="spark",
+                    service_account="spark",
+                    app_name="a" * (app_name_length - 1) + final_character,
+                    app_waiter="no_wait",
+                    executor_pod_template=template_content,
+                )
+                configmap = api.create_namespaced_config_map.call_args.kwargs["body"]
+                pod = api.create_namespaced_pod.call_args.kwargs["body"]
+                name = configmap.metadata.name
+                assert len(name) <= 63
+                assert re.fullmatch(r"[a-z0-9](?:[a-z0-9-]*[a-z0-9])?", name)
+                assert len(pod.metadata.name) <= 63
+                assert configmap.data == {"executor-template.yaml": template_content}
+                assert pod.spec.volumes == [
+                    k8s.V1Volume(name=name, config_map=k8s.V1ConfigMapVolumeSource(name=name))
+                ]
+                assert pod.spec.containers[0].volume_mounts == [
+                    k8s.V1VolumeMount(name=name, mount_path="/opt/spark/executor-template")
+                ]
+                api.patch_namespaced_config_map.assert_called_with(
+                    namespace="spark", name=name, body=configmap
+                )
+                assert configmap.metadata.owner_references == [
+                    k8s.V1OwnerReference(
+                        api_version="v1", kind="Pod", name=pod.metadata.name, uid=pod.metadata.uid
+                    )
+                ]
+                generated_names.append(name)
+
+        assert len(set(generated_names)) == 2
+
+    def test_process_executor_template_valid_yaml_content(self):
+        """Test _process_executor_template with valid YAML content"""
+        spark_client = SparkOnK8S()
+        yaml_content = "apiVersion: v1\nkind: Pod\nspec:\n  containers:\n  - name: executor"
+
+        result = spark_client._process_executor_template(yaml_content)
+        assert result == yaml_content
+
+    def test_process_executor_template_invalid_yaml_content(self):
+        """Test _process_executor_template with invalid YAML content"""
+        spark_client = SparkOnK8S()
+        invalid_yaml = "invalid: yaml: content: ["
+
+        with pytest.raises(ValueError, match="Executor template contains invalid YAML"):
+            spark_client._process_executor_template(invalid_yaml)
+
+    @mock.patch(
+        "pathlib.Path.read_text",
+        return_value="apiVersion: v1\nkind: Pod\nspec:\n  containers:\n  - name: executor",
+    )
+    def test_process_executor_template_valid_file(self, mock_read_text):
+        """Test _process_executor_template with valid file"""
+        spark_client = SparkOnK8S()
+
+        result = spark_client._process_executor_template("./template.yaml")
+        assert "apiVersion: v1" in result
+        mock_read_text.assert_called_once()
+
+    @mock.patch("pathlib.Path.read_text", side_effect=OSError("File not found"))
+    def test_process_executor_template_file_not_found_not_k8s_resource(self, mock_read_text):
+        """Test _process_executor_template with non-existent file that's not a Kubernetes resource"""
+        spark_client = SparkOnK8S()
+
+        # "/nonexistent/file.yaml" is valid YAML (string) but not a Kubernetes Pod resource
+        with pytest.raises(ValueError, match="Executor template must be a Kubernetes resource"):
+            spark_client._process_executor_template("/nonexistent/file.yaml")
+
+    def test_process_executor_template_not_pod_resource(self):
+        """Test _process_executor_template with valid YAML but not a Pod resource"""
+        spark_client = SparkOnK8S()
+
+        # Valid YAML but wrong kind
+        configmap_yaml = """apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: test"""
+
+        with pytest.raises(ValueError, match="Executor template must be a Kubernetes Pod resource"):
+            spark_client._process_executor_template(configmap_yaml)
 
     @pytest.mark.parametrize(
         "app_waiter",

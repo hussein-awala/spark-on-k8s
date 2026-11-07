@@ -29,6 +29,15 @@ This is a list of things that we will work on in the future. If you want to cont
 - [ ] Create an operator extra link for the Spark UI when the reverse proxy is enabled
 (and maybe the spark history server)
 
+## CI compatibility follow-up
+
+- [ ] Replace the temporary CI compatibility pins (`ubuntu-24.04`, `macos-15-intel`,
+  and Poetry `2.2.1`) with support for current runner images and tooling. Review
+  the supported Python range, update dependencies and the lockfile for current
+  Python and Poetry releases, and validate Linux plus macOS (including ARM64)
+  before removing the workaround. Keep CI passing for every advertised supported
+  version during the migration.
+
 ## Other
 
 - [ ] Improve the documentation

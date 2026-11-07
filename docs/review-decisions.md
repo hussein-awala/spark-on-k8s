@@ -849,4 +849,3 @@ The maintained roadmap is [TODO](https://github.com/hussein-awala/spark-on-k8s/b
 **Feedback: Make compatibility retirement criteria part of the product scope.** The clarified behavior and ownership boundaries are captured in the linked implementation or canonical guide; existing support limits remain explicit. [Response](https://github.com/hussein-awala/spark-on-k8s/blob/main/docs/user-guide/support.md).
 
 **Scope caution accepted: Refuse a multi-tenant, highly available Spark control plane.** Do not grow operator admission into tenant IAM, the metadata recorder into a distributed database service, or the client into a scheduler. The documented trust-boundary and single-pod limits are coherent product boundaries. Integration requests should first use existing gateways, orchestrators and observability systems; revisit only with concrete users and dedicated maintainers. Those responsibilities would change the project's operating model, not merely add features.
-

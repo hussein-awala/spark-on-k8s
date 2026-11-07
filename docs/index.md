@@ -6,8 +6,11 @@ applications, logs and diagnostics accessible to operators. Spark creates the
 executors; your cluster and applications retain their infrastructure and data
 responsibilities.
 
-[Start here](user-guide/start-here.md) selects a route by outcome and names its
-prerequisites, installation extra and first success checkpoint:
+[Start here](user-guide/start-here.md) helps you choose a
+route, install the required components and recognize the first successful result.
+You can use the core Python client or CLI without deploying the API or Airflow.
+Spark and Java run in the application image; they are not required on the submitting
+machine. See [Spark compatibility](user-guide/spark_compatibility.md) for image requirements.
 
 - Run the [ETL fixture locally](user-guide/starters.md#order-events-to-parquet)
   before configuring a cluster.
@@ -17,9 +20,10 @@ prerequisites, installation extra and first success checkpoint:
 - Inspect applications through [diagnostics](user-guide/diagnostics.md), the
   optional console or the [Airflow task tab](user-guide/airflow.md).
 
-Choose the [documentation and installation matching your release](user-guide/installation.md).
-The current source can include features not yet on PyPI; chart and package releases
-are independent. Read [support boundaries](user-guide/support.md) before planning
+The **develop** documentation follows `main`. Before copying its examples,
+choose [a matching published release or a source installation](user-guide/installation.md).
+Installing the PyPI package does not include the repository's example files.
+Chart and package releases are independent. Read [support boundaries](user-guide/support.md) before planning
 production operation: this project does not provide a multi-tenant scheduler,
 a highly available metadata service or an embedded identity provider.
 

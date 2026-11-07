@@ -45,11 +45,26 @@ airflow = [
     "sqlparse>=0.6.1,<0.7; python_version < '3.15'",
 ]
 
+# Complete installation for the native Airflow task tab; the legacy extra stays compatible with 2.11.
+airflow-ui = [
+    "kubernetes-asyncio>=36.1.0,<37; python_version < '3.15'",
+    "apache-airflow>=3.4.0,<4; python_version < '3.15'",
+    "apache-airflow-providers-cncf-kubernetes>=10.25.0,<11; python_version < '3.15'",
+    "sqlparse>=0.6.1,<0.7; python_version < '3.15'",
+    "fastapi>=0.162.1,<0.163; python_version < '3.15'",
+    "httpx>=0.28.1,<0.29; python_version < '3.15'",
+    "websockets>=17.4,<18; python_version < '3.15'",
+]
+
 [project.scripts]
 spark-on-k8s = "spark_on_k8s:cli.main"
 
 [project.entry-points.apache_airflow_provider]
 provider_info = "spark_on_k8s.airflow.provider_info:get_provider_info"
+
+# Entrypoint loading also works with Airflow's default lazy provider discovery.
+[project.entry-points."airflow.plugins"]
+spark_on_k8s_ui = "spark_on_k8s.airflow.ui.plugin:SparkTaskUIPlugin"
 
 [dependency-groups]
 test = [

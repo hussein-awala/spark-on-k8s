@@ -9700,7 +9700,7 @@ function w({ config: e, transport: t, namespaceEditable: n, onOpenLogs: r, onNam
 										children: n.app_id
 									}), n.source === "history" && /* @__PURE__ */ (0, b.jsx)("span", {
 										className: "archive-label",
-										children: "Archived · namespace unknown"
+										children: e.embedded ? "Driver removed · task reference" : "Archived · namespace unknown"
 									})]
 								})] }),
 								/* @__PURE__ */ (0, b.jsx)("td", { children: /* @__PURE__ */ (0, b.jsx)(C, { status: n.status }) }),
@@ -9720,7 +9720,7 @@ function w({ config: e, transport: t, namespaceEditable: n, onOpenLogs: r, onNam
 										children: n.driver_pod || "—"
 									}), /* @__PURE__ */ (0, b.jsx)("span", {
 										className: "muted cell-secondary",
-										children: n.spark_version ? `Spark ${n.spark_version}` : n.source === "history" ? "History server" : "Kubernetes"
+										children: n.spark_version ? `Spark ${n.spark_version}` : n.source === "history" ? e.embedded ? "Task reference" : "History server" : "Kubernetes"
 									})]
 								}),
 								/* @__PURE__ */ (0, b.jsx)("td", { children: /* @__PURE__ */ (0, b.jsx)(ae, {
@@ -9766,7 +9766,7 @@ function w({ config: e, transport: t, namespaceEditable: n, onOpenLogs: r, onNam
 					className: "detail-summary",
 					children: [/* @__PURE__ */ (0, b.jsx)(C, { status: A.status }), /* @__PURE__ */ (0, b.jsx)("span", {
 						className: "source-label",
-						children: A.source === "history" ? "Archived application" : "Kubernetes application"
+						children: A.source === "history" ? e.embedded ? "Driver removed · task reference" : "Archived application" : "Kubernetes application"
 					})]
 				}),
 				/* @__PURE__ */ (0, b.jsx)("dl", {

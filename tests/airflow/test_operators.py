@@ -108,7 +108,7 @@ class TestSparkOnK8SOperator:
             executor_pod_template=None,
             executor_pod_template_path="s3a://bucket/executor.yml",
         )
-        assert ti_mock.xcom_push.call_count == 3
+        assert ti_mock.xcom_push.call_count == 4
         xcom_push_calls = ti_mock.xcom_push.mock_calls
         assert xcom_push_calls[0].kwargs == {
             "key": "driver_pod_namespace",
@@ -218,7 +218,7 @@ class TestSparkOnK8SOperator:
             executor_node_selector=None,
             driver_labels=None,
             executor_labels=None,
-            driver_annotations=None,
+            driver_annotations={},
             executor_annotations=None,
             driver_tolerations=None,
             driver_env_vars_from_secrets=None,
@@ -387,7 +387,7 @@ class TestSparkSqlOnK8SOperator:
             executor_node_selector=None,
             driver_labels=None,
             executor_labels=None,
-            driver_annotations=None,
+            driver_annotations={},
             executor_annotations=None,
             driver_tolerations=None,
             driver_env_vars_from_secrets=None,

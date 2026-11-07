@@ -6,11 +6,17 @@ from typing import Annotated
 import httpx
 from fastapi import APIRouter, HTTPException, Query
 from kubernetes_asyncio import client as k8s
-from pydantic import BaseModel, Field, TypeAdapter
+from pydantic import BaseModel, Field, TypeAdapter, ValidationError
 
 from spark_on_k8s.api import AsyncHttpClientSingleton, KubernetesClientSingleton, logger
 from spark_on_k8s.api.configuration import APIConfiguration
-from spark_on_k8s.utils.console_models import ConsoleApplication, ConsoleApplicationsPage, ConsoleHistory
+from spark_on_k8s.utils.console_models import (
+    AIRFLOW_TASK_ANNOTATION,
+    AirflowTaskContext,
+    ConsoleApplication,
+    ConsoleApplicationsPage,
+    ConsoleHistory,
+)
 from spark_on_k8s.utils.spark_app_status import SparkAppStatus, get_app_status
 
 router = APIRouter(prefix="/webserver/api", tags=["console"])
@@ -32,6 +38,13 @@ def _application_from_pod(pod: k8s.V1Pod, namespace: str) -> ConsoleApplication:
     labels = pod.metadata.labels or {}
     app_id = labels.get("spark-app-id")
     containers = pod.spec.containers if pod.spec else []
+    task_context = None
+    annotation = (pod.metadata.annotations or {}).get(AIRFLOW_TASK_ANNOTATION)
+    if annotation:
+        try:
+            task_context = AirflowTaskContext.model_validate_json(annotation)
+        except ValidationError:
+            pass
     return ConsoleApplication(
         app_id=app_id or pod.metadata.name,
         name=labels.get("spark-app-name") or app_id or pod.metadata.name,
@@ -46,6 +59,7 @@ def _application_from_pod(pod: k8s.V1Pod, namespace: str) -> ConsoleApplication:
         driver_logs=bool(app_id),
         spark_ui_proxy=bool(app_id) and labels.get("spark-ui-proxy", "").lower() == "true",
         source="kubernetes",
+        task_context=task_context,
     )
 
 

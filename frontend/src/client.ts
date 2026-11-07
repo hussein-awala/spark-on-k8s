@@ -45,7 +45,7 @@ export function errorMessage(error: unknown): string {
     : "Something went wrong. Please try again.";
 }
 
-async function checkResponse(response: Response): Promise<Response> {
+export async function checkResponse(response: Response): Promise<Response> {
   if (response.ok) return response;
   let message = `The request failed (${response.status}). Please try again.`;
   const body = await response.text();

@@ -4203,6 +4203,15 @@ airflow = [
     { name = "kubernetes-asyncio", marker = "python_full_version < '3.15'" },
     { name = "sqlparse", marker = "python_full_version < '3.15'" },
 ]
+airflow-ui = [
+    { name = "apache-airflow", marker = "python_full_version < '3.15'" },
+    { name = "apache-airflow-providers-cncf-kubernetes", marker = "python_full_version < '3.15'" },
+    { name = "fastapi", marker = "python_full_version < '3.15'" },
+    { name = "httpx", marker = "python_full_version < '3.15'" },
+    { name = "kubernetes-asyncio", marker = "python_full_version < '3.15'" },
+    { name = "sqlparse", marker = "python_full_version < '3.15'" },
+    { name = "websockets", marker = "python_full_version < '3.15'" },
+]
 api = [
     { name = "aiohttp" },
     { name = "fastapi" },
@@ -4241,21 +4250,28 @@ test = [
 requires-dist = [
     { name = "aiohttp", marker = "extra == 'api'", specifier = ">=3.14.5,<4" },
     { name = "apache-airflow", marker = "python_full_version < '3.15' and extra == 'airflow'", specifier = ">=2.11.2,<4" },
+    { name = "apache-airflow", marker = "python_full_version < '3.15' and extra == 'airflow-ui'", specifier = ">=3.4.0,<4" },
     { name = "apache-airflow-providers-cncf-kubernetes", marker = "python_full_version < '3.15' and extra == 'airflow'", specifier = ">=10.25.0,<11" },
+    { name = "apache-airflow-providers-cncf-kubernetes", marker = "python_full_version < '3.15' and extra == 'airflow-ui'", specifier = ">=10.25.0,<11" },
     { name = "click", specifier = ">=8.5.1,<9" },
+    { name = "fastapi", marker = "python_full_version < '3.15' and extra == 'airflow-ui'", specifier = ">=0.162.1,<0.163" },
     { name = "fastapi", marker = "extra == 'api'", specifier = ">=0.162.1,<0.163" },
+    { name = "httpx", marker = "python_full_version < '3.15' and extra == 'airflow-ui'", specifier = ">=0.28.1,<0.29" },
     { name = "httpx", marker = "extra == 'api'", specifier = ">=0.28.1,<0.29" },
     { name = "jinja2", marker = "extra == 'api'", specifier = ">=3.1.6,<4" },
     { name = "kubernetes", specifier = ">=36.0.3,<37" },
     { name = "kubernetes-asyncio", marker = "python_full_version < '3.15' and extra == 'airflow'", specifier = ">=36.1.0,<37" },
+    { name = "kubernetes-asyncio", marker = "python_full_version < '3.15' and extra == 'airflow-ui'", specifier = ">=36.1.0,<37" },
     { name = "kubernetes-asyncio", marker = "extra == 'api'", specifier = ">=36.1.0,<37" },
     { name = "pyyaml", specifier = ">=6.0.3,<7" },
     { name = "sqlparse", marker = "python_full_version < '3.15' and extra == 'airflow'", specifier = ">=0.6.1,<0.7" },
+    { name = "sqlparse", marker = "python_full_version < '3.15' and extra == 'airflow-ui'", specifier = ">=0.6.1,<0.7" },
     { name = "starlette", marker = "extra == 'api'", specifier = ">=1.10.0,<2" },
     { name = "uvicorn", marker = "extra == 'api'", specifier = ">=0.54.0,<0.55" },
+    { name = "websockets", marker = "python_full_version < '3.15' and extra == 'airflow-ui'", specifier = ">=17.4,<18" },
     { name = "websockets", marker = "extra == 'api'", specifier = ">=17.4,<18" },
 ]
-provides-extras = ["api", "airflow"]
+provides-extras = ["api", "airflow", "airflow-ui"]
 
 [package.metadata.requires-dev]
 docs = [

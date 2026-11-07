@@ -219,10 +219,9 @@ def test_synchronous_startup_timeout_deletes_even_with_keep_policy(
         manager.stream_logs.assert_not_called()
     manager.delete_app.assert_called_once_with(namespace="spark", pod_name="application-driver")
     manager.app_status.assert_not_called()
-    assert task_context["ti"].xcom_push.call_args.kwargs == {
-        "key": "spark_ui_link",
-        "value": "https://spark.example/webserver/ui/spark/application",
-    }
+    task_context["ti"].xcom_push.assert_any_call(
+        key="spark_ui_link", value="https://spark.example/webserver/ui/spark/application"
+    )
 
 
 @pytest.mark.parametrize("kill_action", ["keep", "kill", "delete"])

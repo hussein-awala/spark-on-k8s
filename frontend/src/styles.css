@@ -1372,3 +1372,44 @@
 .spark-console .diagnostic-finding p {
   margin: 8px 0;
 }
+
+.spark-console .run-details {
+  display: grid;
+  gap: 1rem;
+  margin: 1.25rem 0;
+}
+.spark-console .run-details > div {
+  display: grid;
+  grid-template-columns: minmax(8rem, 1fr) 2fr;
+  gap: 1rem;
+}
+.spark-console .run-details dt {
+  color: var(--muted);
+}
+.spark-console .run-details dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.spark-console .runs-filters select {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  padding: 9px 12px;
+}
+.spark-console .runs-filters label {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+@media (max-width: 700px) {
+  .spark-console .runs-filters {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: 10px;
+  }
+  .spark-console .runs-filters select {
+    width: 100%;
+    min-width: 0;
+  }
+}

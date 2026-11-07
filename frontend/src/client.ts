@@ -4,6 +4,7 @@ import type {
   ConsoleConfig,
   ConsoleTransport,
   Diagnosis,
+  RunPage,
 } from "./types";
 
 export function consolePath(basePath: string, path: string): string {
@@ -69,6 +70,26 @@ export function createConsoleTransport(
 ): ConsoleTransport {
   const url = (path: string) => consolePath(config.basePath, path);
   return {
+    async listRuns({
+      namespace,
+      status,
+      presence,
+      limit,
+      cursor,
+      signal,
+    }): Promise<RunPage> {
+      const query = new URLSearchParams({ namespace, limit: String(limit) });
+      if (status) query.set("status", status);
+      if (presence) query.set("presence", presence);
+      if (cursor) query.set("cursor", cursor);
+      const response = await checkResponse(
+        await fetch(url(`/runs/v1?${query}`), {
+          signal,
+          credentials: "same-origin",
+        }),
+      );
+      return response.json() as Promise<RunPage>;
+    },
     async diagnoseApp(app, signal): Promise<Diagnosis> {
       const response = await checkResponse(
         await fetch(

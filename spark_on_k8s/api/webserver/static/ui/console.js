@@ -9036,8 +9036,10 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 })))(), l = i();
 function u(e, t) {
 	if (!e.startsWith("/") || e.startsWith("//") || /[\\\u0000-\u001f\u007f?#]/u.test(e)) throw Error("Invalid console path");
-	let n = t ? e.replace(/\/+$/, "") : e;
-	return !n || n === "/" ? [] : n.slice(1).split("/").map((e) => {
+	let n = e.length;
+	for (; t && n > 0 && e[n - 1] === "/";) --n;
+	let r = e.slice(0, n);
+	return !r || r === "/" ? [] : r.slice(1).split("/").map((e) => {
 		let n = decodeURIComponent(e);
 		if (t && !e || n === "." || n === ".." || /[\u0000-\u001f\u007f]/u.test(n) || t && /[/\\]/u.test(n)) throw Error("Invalid console path");
 		return encodeURIComponent(n);

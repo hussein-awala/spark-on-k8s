@@ -195,3 +195,43 @@ test("valid-invalid-valid configuration changes close logs and remount without h
   await expect(page.getByTestId("log-text")).toHaveText("Reconnected safely");
   expect(errors).toEqual([]);
 });
+
+test("large slash runs are handled without backtracking", async ({ page }) => {
+  test.setTimeout(15_000);
+  await page.routeWebSocket("**/webserver/ws/logs/**", () => {});
+  await page.goto("/tests/fixture.html?view=logs&runs=true&history=false");
+  const recordedRuns = page.getByRole("link", {
+    name: "Recorded runs",
+    exact: true,
+  });
+  await expect(recordedRuns).toBeVisible();
+  await page.evaluate(() => {
+    (
+      window as unknown as {
+        updateConsoleConfig: (value: {
+          basePath: string;
+          namespace: string;
+        }) => void;
+      }
+    ).updateConsoleConfig({
+      basePath: "/large/mount" + "/".repeat(100_000),
+      namespace: "large-prefix",
+    });
+  });
+  await expect(recordedRuns).toHaveAttribute(
+    "href",
+    "/large/mount/webserver/runs?namespace=large-prefix",
+  );
+  await page.evaluate(() => {
+    (
+      window as unknown as {
+        updateConsoleConfig: (value: { basePath: string }) => void;
+      }
+    ).updateConsoleConfig({
+      basePath: "/nested/" + "/".repeat(100_000) + "suffix",
+    });
+  });
+  await expect(page.getByRole("alert")).toContainText(
+    "The console base path is invalid",
+  );
+});

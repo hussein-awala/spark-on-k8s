@@ -14,7 +14,9 @@ function pathSegments(path: string, prefix: boolean): string[] {
     /[\\\u0000-\u001f\u007f?#]/u.test(path)
   )
     throw new Error("Invalid console path");
-  const pathname = prefix ? path.replace(/\/+$/, "") : path;
+  let end = path.length;
+  while (prefix && end > 0 && path[end - 1] === "/") end -= 1;
+  const pathname = path.slice(0, end);
   if (!pathname || pathname === "/") return [];
   return pathname
     .slice(1)

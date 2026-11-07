@@ -60,7 +60,7 @@ class Configuration:
     SPARK_ON_K8S_CONFIG_FILE = getenv("SPARK_ON_K8S_CONFIG_FILE", None)
     SPARK_ON_K8S_CONTEXT = getenv("SPARK_ON_K8S_CONTEXT", None)
     SPARK_ON_K8S_CLIENT_CONFIG = (
-        k8s.Configuration(json.loads(getenv("SPARK_ON_K8S_CLIENT_CONFIG")))
+        k8s.Configuration(**json.loads(getenv("SPARK_ON_K8S_CLIENT_CONFIG")))
         if getenv("SPARK_ON_K8S_CLIENT_CONFIG", None)
         else None
     )
@@ -82,7 +82,7 @@ class Configuration:
         from kubernetes_asyncio import client as async_k8s
 
         SPARK_ON_K8S_ASYNC_CLIENT_CONFIG = (
-            async_k8s.Configuration(json.loads(getenv("SPARK_ON_K8S_ASYNC_CLIENT_CONFIG")))
+            async_k8s.Configuration(**json.loads(getenv("SPARK_ON_K8S_ASYNC_CLIENT_CONFIG")))
             if getenv("SPARK_ON_K8S_ASYNC_CLIENT_CONFIG", None)
             else None
         )

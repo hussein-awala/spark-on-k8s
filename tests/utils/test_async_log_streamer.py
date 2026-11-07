@@ -52,7 +52,8 @@ def test_log_stream_closes_watch_resources(monkeypatch, termination):
     api = MagicMock()
     api.read_namespaced_pod = AsyncMock(return_value=SimpleNamespace(status=SimpleNamespace(phase="Running")))
     monkeypatch.setattr(async_app_manager.k8s_async, "CoreV1Api", Mock(return_value=api))
-    manager = async_app_manager.AsyncSparkAppManager(k8s_client_manager=MagicMock())
+    client_manager = MagicMock()
+    manager = async_app_manager.AsyncSparkAppManager(k8s_client_manager=client_manager)
 
     async def check_lifecycle():
         watcher = Watch()
@@ -76,6 +77,7 @@ def test_log_stream_closes_watch_resources(monkeypatch, termination):
 
         watcher.next = next_line
         logs = manager.logs_streamer(namespace="spark", pod_name="driver")
+        task = None
         try:
             assert await logs.__anext__() == "first line"
             if termination == "consumer_close":
@@ -85,7 +87,7 @@ def test_log_stream_closes_watch_resources(monkeypatch, termination):
                     await logs.__anext__()
             elif termination == "cancelled":
                 task = asyncio.create_task(logs.__anext__())
-                await reading.wait()
+                await asyncio.wait_for(reading.wait(), timeout=5)
                 task.cancel()
                 with pytest.raises(asyncio.CancelledError):
                     await task
@@ -93,8 +95,12 @@ def test_log_stream_closes_watch_resources(monkeypatch, termination):
                 with pytest.raises(StopAsyncIteration):
                     await logs.__anext__()
             response.release.assert_called_once()
+            client_manager.client.return_value.__aexit__.assert_awaited_once()
             assert watcher._api_client.rest_client.pool_manager.closed
         finally:
+            if task is not None:
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
             await logs.aclose()
             await watcher.close()
 

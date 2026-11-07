@@ -4,6 +4,7 @@ import click
 
 from spark_on_k8s.cli.app import app_cli
 from spark_on_k8s.cli.apps import apps_cli
+from spark_on_k8s.cli.connect import connect_cli
 from spark_on_k8s.cli.job import job_cli
 from spark_on_k8s.cli.namespace import namespace_cli
 from spark_on_k8s.cli.sql import sql_cli
@@ -26,6 +27,7 @@ def main():
     cli.add_command(job_cli)
 
     cli.add_command(sql_cli)
+    cli.add_command(connect_cli)
     if api_cli:
         cli.add_command(api_cli)
     cli(max_content_width=120)

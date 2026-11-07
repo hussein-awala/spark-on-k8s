@@ -265,7 +265,8 @@ def test_resource_overflow_and_invalid_flags_remain_unknown_and_json_safe(conf):
 
 
 @pytest.mark.parametrize("failure_stage", ["patch_namespaced_secret", "create_namespaced_service"])
-def test_partial_submission_preserves_uid_phase_and_receipt(tmp_path, capsys, failure_stage):
+@pytest.mark.parametrize("output", ["json", "text"])
+def test_partial_submission_preserves_uid_phase_and_receipt(tmp_path, capsys, failure_stage, output):
     import click
     from kubernetes.client.exceptions import ApiException
 
@@ -288,20 +289,32 @@ def test_partial_submission_preserves_uid_phase_and_receipt(tmp_path, capsys, fa
                 "app_waiter": "wait",
                 "secret_values": {"password": "private-secret"},
             },
-            output="json",
+            output=output,
             receipt_file=destination,
         )
-    result = json.loads(capsys.readouterr().out)
-    assert result["run"] == run_handle().to_dict()
-    assert result["submission_phase"] == "driver_created"
-    assert result["error"]["code"] == "api_error"
+    captured = capsys.readouterr()
+    if output == "json":
+        result = json.loads(captured.out)
+        assert result["run"] == run_handle().to_dict()
+        assert result["submission_phase"] == "driver_created"
+        assert result["error"]["code"] == "api_error"
+    else:
+        assert (
+            "Driver created: job-driver in spark (application job); submission did not complete."
+            in captured.err
+        )
+        assert "Kubernetes API 403: Forbidden" in captured.err
+        assert "Submitted job" not in captured.out
     assert read_receipt(destination) == run_handle()
     api.delete_namespaced_pod.assert_not_called()
-    assert "private-secret" not in json.dumps(result)
+    assert "private-secret" not in captured.out + captured.err
 
 
 @pytest.mark.parametrize("submission_fails", [True, False])
-def test_receipt_io_failure_retains_known_identity_and_primary_error(tmp_path, capsys, submission_fails):
+@pytest.mark.parametrize("output", ["json", "text"])
+def test_receipt_io_failure_retains_known_identity_and_primary_error(
+    tmp_path, capsys, submission_fails, output
+):
     import click
     from kubernetes.client.exceptions import ApiException
 
@@ -315,13 +328,21 @@ def test_receipt_io_failure_retains_known_identity_and_primary_error(tmp_path, c
         execute_submission(
             spark,
             {"namespace": "spark", "app_waiter": "wait"},
-            output="json",
+            output=output,
             receipt_file=tmp_path / "run.json",
         )
-    result = json.loads(capsys.readouterr().out)
-    assert result["run"] == run_handle().to_dict()
-    assert result["receipt_error"]["code"] == "receipt_write_error"
-    assert result["error"]["code"] == ("api_error" if submission_fails else "operation_error")
+    captured = capsys.readouterr()
+    if output == "json":
+        result = json.loads(captured.out)
+        assert result["run"] == run_handle().to_dict()
+        assert result["receipt_error"]["code"] == "receipt_write_error"
+        assert result["error"]["code"] == ("api_error" if submission_fails else "operation_error")
+    else:
+        assert "Could not save receipt for job-driver in spark (application job)." in captured.err
+        expected = "Kubernetes API 403: Forbidden" if submission_fails else "cannot publish"
+        assert f"Error: {expected}" in captured.err
+        assert ("Driver created:" in captured.err) is submission_fails
+        assert "Submitted job" not in captured.out
     spark.app_manager.wait_for_app.assert_not_called()
     assert not list(tmp_path.iterdir())
 

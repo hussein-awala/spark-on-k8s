@@ -294,3 +294,9 @@ def test_ambiguous_template_selection_still_fails_before_kubernetes():
         with pytest.raises(ValueError, match="ambiguous"):
             SparkOnK8S().submit_sql(sql="SELECT 1", image="spark:test", driver_pod_template=template)
     connect.assert_not_called()
+
+
+@pytest.mark.parametrize("source_name", [None, 1, Path("query.sql")])
+def test_source_metadata_requires_explicit_text_name(source_name):
+    with pytest.raises(TypeError, match="SQL source name must be a string"):
+        prepare_sql_configmap("SELECT 1", source_name=source_name)

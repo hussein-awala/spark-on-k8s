@@ -35,7 +35,7 @@ def test_failed_query_propagates_and_stops_later_commands(spark_session, failure
     execute = runpy.run_path(str(SCRIPT))["execute_sql_commands"]
     failing_method = spark_session.sql if failure_stage == "sql" else spark_session.sql.return_value.show
     failing_method.side_effect = RuntimeError("query failed")
-    with pytest.raises(RuntimeError, match="query failed"):
+    with pytest.raises(RuntimeError, match="SQL statement 1 at <inline> failed"):
         execute(spark_session, ["SELECT broken", "INSERT INTO output SELECT 1"])
     spark_session.sql.assert_called_once_with("SELECT broken")
 
@@ -45,7 +45,7 @@ def test_script_stops_session_when_query_fails(spark_session, monkeypatch, tmp_p
     query_file.write_text(json.dumps(["SELECT broken"]))
     monkeypatch.setattr(sys, "argv", [str(SCRIPT), str(query_file)])
     spark_session.sql.side_effect = RuntimeError("query failed")
-    with pytest.raises(RuntimeError, match="query failed"):
+    with pytest.raises(RuntimeError, match="SQL statement 1 at <inline> failed"):
         runpy.run_path(str(SCRIPT), run_name="__main__")
     spark_session.stop.assert_called_once_with()
 
@@ -91,3 +91,45 @@ def test_usage_error_does_not_start_spark(spark_session, monkeypatch, arguments)
         runpy.run_path(str(SCRIPT), run_name="__main__")
     assert error.value.code == 1
     sys.modules["pyspark.sql"].SparkSession.builder.getOrCreate.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "metadata",
+    [
+        {"schema_version": True},
+        {"schema_version": 1, "source": []},
+        {"schema_version": 1, "statements": "private SQL text"},
+        {"schema_version": 1, "statements": ["private SQL text"]},
+        {"schema_version": 1, "statements": [{"line": "private SQL text"}]},
+        {"schema_version": 1, "statements": [{"line": True}]},
+        {"schema_version": 1, "statements": [{"line": 0}]},
+    ],
+)
+def test_invalid_source_metadata_fails_before_sql_without_echoing_values(spark_session, metadata):
+    execute = runpy.run_path(str(SCRIPT))["execute_sql_commands"]
+    with pytest.raises(ValueError, match="SQL source") as error:
+        execute(spark_session, ["SELECT 1"], metadata)
+    assert "private SQL" not in str(error.value)
+    spark_session.sql.assert_not_called()
+
+
+@pytest.mark.parametrize("condition", ["TABLE_OR_VIEW_NOT_FOUND", "secret=private-sentinel", None])
+def test_failure_locations_sanitize_source_and_bound_error_condition(spark_session, condition):
+    class QueryError(Exception):
+        def getCondition(self):
+            return condition
+
+        def getErrorClass(self):
+            raise RuntimeError("private-sentinel")
+
+    execute = runpy.run_path(str(SCRIPT))["execute_sql_commands"]
+    spark_session.sql.side_effect = QueryError("SELECT private-sentinel")
+    metadata = {
+        "schema_version": 1,
+        "source": "/private/customer/query\nname.sql",
+        "statements": [{"line": 8}],
+    }
+    with pytest.raises(RuntimeError, match="SQL statement 1 at query_name.sql:8 failed") as error:
+        execute(spark_session, ["SELECT private-sentinel"], metadata)
+    assert "private" not in str(error.value)
+    assert ("TABLE_OR_VIEW_NOT_FOUND" in str(error.value)) == (condition == "TABLE_OR_VIEW_NOT_FOUND")

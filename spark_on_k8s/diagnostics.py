@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import asdict, dataclass, field
+from datetime import UTC, datetime
 from typing import Any, Literal
 
 from spark_on_k8s.utils.run import WaitDeadline
@@ -32,6 +33,7 @@ class Diagnosis:
     inspected_events: int = 0
     incomplete: bool = False
     schema_version: int = 1
+    collected_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -205,7 +207,7 @@ def _report(driver, namespace: str) -> Diagnosis:
     return Diagnosis(namespace, app_id, driver.metadata.name)
 
 
-def _incomplete(report: Diagnosis, resource: str, message: str) -> None:
+def _incomplete(report: Diagnosis, resource: str, message: str, *, remediation: str | None = None) -> None:
     report.incomplete = True
     report.findings.append(
         DiagnosticFinding(
@@ -214,8 +216,9 @@ def _incomplete(report: Diagnosis, resource: str, message: str) -> None:
             resource,
             "Some diagnostic evidence is unavailable",
             message,
-            "Check read access to pods/events and retry. This report is a bounded snapshot, not a "
-            "complete history.",
+            remediation
+            or "Retry transient read failures; inspect access for denied reads. "
+            "This bounded snapshot cannot recover deleted evidence.",
         )
     )
 
@@ -232,7 +235,15 @@ def _executor_options(driver, report: Diagnosis, limit: int) -> dict:
 
 def _owned_executors(driver, response, report: Diagnosis) -> list:
     if response.metadata and response.metadata._continue:
-        _incomplete(report, report.driver_pod, "Executor limit reached; additional pods were not inspected.")
+        _incomplete(
+            report,
+            report.driver_pod,
+            "Executor limit reached; additional pods were not inspected.",
+            remediation=(
+                "Increase pod_limit within the supported bound or inspect remaining executors "
+                "separately; retrying the same limit does not expand coverage."
+            ),
+        )
     owned = []
     for pod in response.items:
         if driver.metadata.uid and any(
@@ -244,6 +255,10 @@ def _owned_executors(driver, response, report: Diagnosis) -> list:
                 report,
                 report.driver_pod,
                 "An executor label matched, but driver ownership could not be verified; it was excluded.",
+                remediation=(
+                    "Inspect driver and executor UIDs and owner references; "
+                    "do not merge evidence based only on labels."
+                ),
             )
     return owned
 
@@ -259,7 +274,15 @@ def _event_options(pod, namespace: str, limit: int) -> dict:
 def _record(report: Diagnosis, pod, response=None) -> None:
     events = response.items if response is not None else []
     if response is not None and response.metadata and response.metadata._continue:
-        _incomplete(report, pod.metadata.name, "Event limit reached; additional events were not inspected.")
+        _incomplete(
+            report,
+            pod.metadata.name,
+            "Event limit reached; additional events were not inspected.",
+            remediation=(
+                "Increase event_limit within the supported bound or inspect events for this pod UID "
+                "separately. Deleted events cannot be recovered by retrying."
+            ),
+        )
     # Filter again by UID: never mix events from a replaced pod with the same name.
     events = [
         event for event in events if event.involved_object and event.involved_object.uid == pod.metadata.uid
@@ -267,6 +290,23 @@ def _record(report: Diagnosis, pod, response=None) -> None:
     report.inspected_pods += 1
     report.inspected_events += len(events)
     report.findings.extend(classify_pod(pod.to_dict(), [event.to_dict() for event in events]))
+
+
+def _read_remediation(error):
+    if getattr(error, "status", None) in {401, 403}:
+        return (
+            "Inspect the active identity's namespace-scoped read permissions for this resource. "
+            "Retrying unchanged credentials will not restore access."
+        )
+    if getattr(error, "status", None) == 404 or isinstance(error, ValueError):
+        return (
+            "Verify the pod UID and resource existence; evidence may have disappeared "
+            "and cannot be reconstructed from this snapshot."
+        )
+    return (
+        "Retry after resolving transient API or timeout failures; preserve the incomplete report "
+        "and do not infer healthy status from missing evidence."
+    )
 
 
 def collect_diagnosis(api, driver, *, namespace: str, pod_limit=20, event_limit=100, timeout=10) -> Diagnosis:
@@ -284,7 +324,10 @@ def collect_diagnosis(api, driver, *, namespace: str, pod_limit=20, event_limit=
         pods.extend(_owned_executors(driver, response, report))
     except (ApiException, TimeoutError, HTTPTimeoutError) as error:
         _incomplete(
-            report, driver.metadata.name, f"Executor listing failed ({getattr(error, 'status', 'timeout')})."
+            report,
+            driver.metadata.name,
+            f"Executor listing failed ({getattr(error, 'status', 'timeout')}).",
+            remediation=_read_remediation(error),
         )
     for pod in pods:
         response = None
@@ -299,6 +342,7 @@ def collect_diagnosis(api, driver, *, namespace: str, pod_limit=20, event_limit=
                 report,
                 pod.metadata.name,
                 f"Event listing failed ({getattr(error, 'status', 'unavailable')}).",
+                remediation=_read_remediation(error),
             )
         _record(report, pod, response)
     return report
@@ -320,7 +364,10 @@ async def collect_diagnosis_async(
         pods.extend(_owned_executors(driver, response, report))
     except (ApiException, TimeoutError) as error:
         _incomplete(
-            report, driver.metadata.name, f"Executor listing failed ({getattr(error, 'status', 'timeout')})."
+            report,
+            driver.metadata.name,
+            f"Executor listing failed ({getattr(error, 'status', 'timeout')}).",
+            remediation=_read_remediation(error),
         )
     for pod in pods:
         response = None
@@ -335,6 +382,7 @@ async def collect_diagnosis_async(
                 report,
                 pod.metadata.name,
                 f"Event listing failed ({getattr(error, 'status', 'unavailable')}).",
+                remediation=_read_remediation(error),
             )
         _record(report, pod, response)
     return report

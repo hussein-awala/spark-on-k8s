@@ -104,6 +104,7 @@ def test_plan_uses_server_client_offline_and_submit_returns_actual_run(server, m
     assert receipt == {
         "namespace": "analytics",
         "driver_pod": actual.metadata.name,
+        "driver_uid": "driver-uid",
         "app_id": actual.metadata.labels["spark-app-id"],
     }
     assert actual.spec.service_account_name == "spark-worker"

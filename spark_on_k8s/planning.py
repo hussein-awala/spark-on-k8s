@@ -37,6 +37,7 @@ class ApplicationPlan:
     app_id: str
     driver_pod: str
     resources: tuple[dict[str, Any], ...] = field(repr=False)
+    capacity: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         resources = copy.deepcopy(self.resources)
@@ -70,4 +71,5 @@ class ApplicationPlan:
             "app_id": self.app_id,
             "driver_pod": self.driver_pod,
             "resources": [redact(resource) for resource in resources],
+            "capacity": copy.deepcopy(self.capacity),
         }

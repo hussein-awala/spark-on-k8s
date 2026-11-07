@@ -266,11 +266,13 @@ class AsyncSparkAppManager(LoggingMixin):
                 pods = (
                     await api.list_namespaced_pod(
                         namespace=namespace,
-                        label_selector=f"spark-app-id={app_id}",
+                        label_selector=f"spark-app-id={app_id},spark-role=driver",
                     )
                 ).items
                 if len(pods) == 0:
                     raise ValueError(f"No pods found for app {app_id}")
+                if len(pods) > 1:
+                    raise ValueError(f"Multiple driver pods found for app {app_id}; use a run receipt")
                 pod_name = pods[0].metadata.name
             await api.delete_namespaced_pod(
                 name=pod_name,

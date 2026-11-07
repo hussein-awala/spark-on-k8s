@@ -142,6 +142,7 @@ async def metrics():
     if not settings.metrics_enabled:
         raise HTTPException(404, detail="Metrics are disabled.")
     lines = [
+        "# HELP spark_on_k8s_history_enabled Whether optional operational history is configured.\n"
         "# TYPE spark_on_k8s_history_enabled gauge",
         f"spark_on_k8s_history_enabled {int(settings.enabled)}",
     ]
@@ -156,9 +157,15 @@ async def metrics():
         by_status = {(row["namespace"], row["status"]): row["count"] for row in counts}
         lines.extend(
             [
+                "# HELP spark_on_k8s_runs_recorded Retained records by last observed phase; "
+                "includes missing pods; "
+                "not current capacity or an execution success-rate denominator.",
                 "# TYPE spark_on_k8s_runs_recorded gauge",
                 "# TYPE spark_on_k8s_collection_successes_total counter",
                 "# TYPE spark_on_k8s_collection_failures_total counter",
+                "# HELP spark_on_k8s_collection_age_seconds Seconds since last successful "
+                "namespace observation; "
+                "-1 means never observed.",
                 "# TYPE spark_on_k8s_collection_age_seconds gauge",
             ]
         )

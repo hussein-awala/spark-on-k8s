@@ -226,3 +226,26 @@ def test_user_id_is_encoded_and_invalid_text_is_rejected(tmp_path):
     file.write_bytes(b"\xff")
     with pytest.raises(ConnectError, match="Invalid Connect profile TOML"):
         ConnectProfile.from_file(file)
+
+
+@pytest.mark.parametrize("body_error", [False, True])
+def test_session_release_error_preserves_application_failure_and_hides_credentials(monkeypatch, body_error):
+    session = MagicMock()
+    session.stop.side_effect = RuntimeError("PRIVATE_RELEASE_TOKEN")
+    builder = MagicMock()
+    builder.remote.return_value.create.return_value = session
+    monkeypatch.setitem(
+        sys.modules,
+        "pyspark.sql.connect.session",
+        SimpleNamespace(SparkSession=SimpleNamespace(builder=builder)),
+    )
+    original = RuntimeError("application failed")
+    with pytest.raises(RuntimeError if body_error else ConnectError) as raised:
+        with ConnectProfile(endpoint="sc://localhost", tls=False).session():
+            if body_error:
+                raise original
+    if body_error:
+        assert raised.value is original
+        assert "release also failed" in raised.value.__notes__[0]
+    assert "PRIVATE_RELEASE_TOKEN" not in str(raised.value)
+    session.stop.assert_called_once()

@@ -218,15 +218,7 @@ class JobSpec:
 
     @classmethod
     def from_file(cls, path: str | Path, *, profile: str | None = None) -> JobSpec:
-        path = Path(path).expanduser().resolve()
-        with path.open("rb") as stream:
-            content = stream.read(MAX_JOB_BYTES + 1)
-        if len(content) > MAX_JOB_BYTES:
-            raise JobValidationError("Job files must be no larger than 1 MiB.")
-        try:
-            document = yaml.load(content, Loader=_UniqueLoader)
-        except yaml.YAMLError as error:
-            raise JobValidationError("Invalid job YAML.") from error
+        path, document = cls._read_file(path)
         result = cls.from_mapping(document, profile=profile)
         for field in ("driver_pod_template", "executor_pod_template"):
             value = result.spec.get(field)
@@ -241,6 +233,35 @@ class JobSpec:
                 config_path = path.parent / config_path
             result.kubernetes["config_file"] = str(config_path)
         return result
+
+    @staticmethod
+    def _read_file(path):
+        path = Path(path).expanduser().resolve()
+        with path.open("rb") as stream:
+            content = stream.read(MAX_JOB_BYTES + 1)
+        if len(content) > MAX_JOB_BYTES:
+            raise JobValidationError("Job files must be no larger than 1 MiB.")
+        try:
+            document = yaml.load(content, Loader=_UniqueLoader)
+        except yaml.YAMLError as error:
+            raise JobValidationError("Invalid job YAML.") from error
+        return path, document
+
+    @classmethod
+    def validate_profiles(cls, path: str | Path) -> list[dict[str, Any]]:
+        """Validate the base and every named profile offline, reporting every failure."""
+        _, document = cls._read_file(path)
+        _object(document, None, "job")
+        profiles = _object(document.get("profiles", {}), None, "profiles")
+        results = []
+        for profile in [None, *sorted(profiles)]:
+            try:
+                cls.from_file(path, profile=profile).plan()
+            except (ValueError, TypeError, OSError) as error:
+                results.append({"profile": profile, "valid": False, "error": str(error)})
+            else:
+                results.append({"profile": profile, "valid": True, "error": None})
+        return results
 
     def to_submit_kwargs(self) -> dict[str, Any]:
         _validate_spec(self.spec)

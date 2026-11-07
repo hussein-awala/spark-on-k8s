@@ -72,12 +72,15 @@ def execution(operation: str, namespace: str, output: str):
         raise click.exceptions.Exit(code)
 
 
-def execute_submission(spark_client, kwargs: dict, output: str = "text", timeout: float | None = None):
+def execute_submission(
+    spark_client, kwargs: dict, output: str = "text", timeout: float | None = None, receipt_file=None
+):
     """Submit and observe a run using the CLI v1 output and exit-code contract.
 
     kwargs accepts submit_app arguments, including app_waiter. The mapping is copied.
     A timeout limits observation after submission, never deletes the application.
     """
+    from spark_on_k8s.cli.receipts import receipt_writer
     from spark_on_k8s.utils.configuration import Configuration
     from spark_on_k8s.utils.run import WaitDeadline
 
@@ -95,14 +98,38 @@ def execute_submission(spark_client, kwargs: dict, output: str = "text", timeout
     with execution("submit", namespace, output) as result:
         result["run"] = None
         result["status"] = None
-        try:
-            spark_client.submit_app(**options)
-        finally:
-            if spark_client.last_submitted_run is not None:
-                result["run"] = spark_client.last_submitted_run.to_dict()
-        run = spark_client.last_submitted_run
-        if run is None:
-            raise RuntimeError("Submission completed without a run identity")
+        with receipt_writer(receipt_file) as save_receipt:
+            try:
+                spark_client.submit_app(**options)
+            finally:
+                submission_failed = sys.exc_info()[0] is not None
+                run = spark_client.last_submitted_run
+                phase = getattr(spark_client, "last_submission_phase", None)
+                if isinstance(phase, str):
+                    result["submission_phase"] = phase
+                if run is not None:
+                    result["run"] = run.to_dict()
+                    if submission_failed and output == "text":
+                        click.echo(
+                            f"Driver created: {run.driver_pod} in {run.namespace} "
+                            f"(application {run.app_id}); submission did not complete.",
+                            err=True,
+                        )
+                    try:
+                        # A partial submission with a confirmed driver is also recoverable evidence.
+                        save_receipt(run)
+                    except OSError as error:
+                        result["receipt_error"] = {"code": "receipt_write_error", "message": str(error)}
+                        if output == "text":
+                            click.echo(
+                                f"Could not save receipt for {run.driver_pod} in {run.namespace} "
+                                f"(application {run.app_id}).",
+                                err=True,
+                            )
+                        if not submission_failed:
+                            raise
+            if run is None:
+                raise RuntimeError("Submission completed without a run identity")
         if output == "text" and run is not None:
             click.echo(f"Submitted {run.app_id} in {run.namespace} (driver {run.driver_pod})")
         if waiter in {"wait", "log"}:

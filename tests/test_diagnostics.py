@@ -436,3 +436,28 @@ def test_diagnostic_cli_errors_are_nonzero_and_do_not_echo_credentials(monkeypat
     )
     assert result.exit_code != 0 and "Unable to" in result.output
     assert "private bearer token" not in result.output
+
+
+@pytest.mark.parametrize(
+    "message,remediation", [("bounded", "Increase pod_limit"), ("ownership", "Inspect owner references")]
+)
+def test_incomplete_preserves_cause_specific_next_step(message, remediation):
+    from datetime import datetime
+
+    from spark_on_k8s.diagnostics import Diagnosis, _incomplete
+
+    report = Diagnosis("spark", "job", "driver")
+    _incomplete(report, "driver", message, remediation=remediation)
+    assert report.incomplete
+    assert report.findings[0].remediation == remediation
+    assert datetime.fromisoformat(report.collected_at).tzinfo is not None
+
+
+@pytest.mark.parametrize(
+    "status,expected", [(403, "permissions"), (404, "cannot be reconstructed"), (503, "transient")]
+)
+def test_read_failure_guidance_distinguishes_recovery_actions(status, expected):
+    from kubernetes.client import ApiException
+    from spark_on_k8s.diagnostics import _read_remediation
+
+    assert expected in _read_remediation(ApiException(status=status))

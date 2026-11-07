@@ -22,6 +22,7 @@ from spark_on_k8s.cli.options import (
     spark_conf_option,
     wait_option,
 )
+from spark_on_k8s.cli.receipts import receipt_option
 
 
 @click.group(name="sql", help="Submit SQL files or inline statements using a PySpark image.")
@@ -51,9 +52,12 @@ def sql_cli():
 )
 @output_option
 @timeout_option
+@receipt_option
 @click.option("--file", "sql_file", type=click.Path(exists=True, dir_okay=False, path_type=Path))
 @click.option("--sql", type=str, help="Inline SQL; quote this value to protect it from shell expansion.")
-def submit(sql: str | None, sql_file: Path | None, output: str, timeout: float | None, **options):
+def submit(
+    sql: str | None, sql_file: Path | None, output: str, timeout: float | None, receipt_file, **options
+):
     from spark_on_k8s.client import ExecutorInstances, PodResources, SparkOnK8S
     from spark_on_k8s.sql import prepare_sql_options
 
@@ -76,4 +80,4 @@ def submit(sql: str | None, sql_file: Path | None, output: str, timeout: float |
         with execution("submit", options["namespace"], output):
             raise
     else:
-        execute_submission(SparkOnK8S(), prepared, output=output, timeout=timeout)
+        execute_submission(SparkOnK8S(), prepared, output=output, timeout=timeout, receipt_file=receipt_file)

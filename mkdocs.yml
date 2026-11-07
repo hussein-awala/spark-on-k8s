@@ -80,6 +80,7 @@ nav:
       - Automation: user-guide/automation.md
       - Driver pod templates: user-guide/driver_pod_templates.md
       - Spark Compatibility: user-guide/spark_compatibility.md
+      - ETL and Lakehouse Starters: user-guide/starters.md
       - Airflow: user-guide/airflow.md
   - Code Reference: reference/
   - Helm Chart: helm-chart/

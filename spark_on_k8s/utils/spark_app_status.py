@@ -1,11 +1,7 @@
 from __future__ import annotations
 
+from enum import StrEnum
 from typing import TYPE_CHECKING
-
-try:
-    from enum import StrEnum
-except ImportError:
-    from strenum import StrEnum
 
 if TYPE_CHECKING:
     import kubernetes.client as k8s

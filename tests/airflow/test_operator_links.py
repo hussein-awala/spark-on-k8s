@@ -61,11 +61,10 @@ class TestSparkOnK8SOperatorLink:
 
 @pytest.mark.parametrize("history", [False, True])
 def test_running_link_matches_the_serialized_lookup_key(history):
+    from airflow.serialization.serialized_objects import BaseSerialization
     from spark_on_k8s.airflow._compat import AIRFLOW_V_3_0_PLUS
     from spark_on_k8s.airflow.operator_links import SparkOnK8SOperatorLink
     from spark_on_k8s.airflow.operators import SparkOnK8SOperator
-
-    from airflow.serialization.serialized_objects import BaseSerialization
 
     operator = SparkOnK8SOperator(task_id="spark_link", image="spark:test", app_path="local:///job.py")
     stored_xcoms = {}

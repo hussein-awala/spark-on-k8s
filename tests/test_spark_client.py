@@ -5,7 +5,7 @@ import importlib
 import json
 import os
 import re
-from typing import Callable
+from typing import TYPE_CHECKING
 from unittest import mock
 
 import pytest
@@ -16,6 +16,9 @@ from spark_on_k8s import client as client_module
 from spark_on_k8s.client import ExecutorInstances, PodResources, SparkOnK8S, default_app_id_suffix
 from spark_on_k8s.utils import configuration as configuration_module
 from spark_on_k8s.utils.warnings import LongAppNameWarning
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 FAKE_TIME = datetime.datetime(2024, 1, 14, 12, 12, 31)
 

@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING, Any
 
 from airflow.triggers.base import BaseTrigger, TriggerEvent
+
 from spark_on_k8s.k8s.async_client import KubernetesAsyncClientManager
 
 if TYPE_CHECKING:

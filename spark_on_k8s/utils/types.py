@@ -1,12 +1,6 @@
 from __future__ import annotations
 
-from typing import TypedDict, Union
-
-try:
-    # Python 3.11+
-    from typing import NotRequired, Required
-except ImportError:
-    from typing_extensions import NotRequired, Required
+from typing import NotRequired, Required, TypedDict
 
 
 class ArgNotSet:
@@ -26,7 +20,7 @@ class _TextFileConfigMapSource(TypedDict):
     text_path: Required[str]
 
 
-ConfigMapSource = Union[_TextConfigMapSource, _TextFileConfigMapSource]
+ConfigMapSource = _TextConfigMapSource | _TextFileConfigMapSource
 
 
 class ConfigMap(TypedDict):

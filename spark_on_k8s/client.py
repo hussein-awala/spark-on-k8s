@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 import yaml
 from kubernetes import client as k8s
@@ -19,10 +19,9 @@ from spark_on_k8s.utils.logging_mixin import LoggingMixin
 from spark_on_k8s.utils.types import NOTSET, ArgNotSet
 
 if TYPE_CHECKING:
-    from spark_on_k8s.utils.types import ConfigMap
+    from collections.abc import Callable
 
-# For Python 3.9 compatibility
-KW_ONLY_DATACLASS = {"kw_only": True} if "kw_only" in dataclass.__kwdefaults__ else {}
+    from spark_on_k8s.utils.types import ConfigMap
 
 
 def default_app_id_suffix() -> str:
@@ -34,7 +33,8 @@ def default_app_id_suffix() -> str:
     return f"-{datetime.now().strftime('%Y%m%d%H%M%S')}"
 
 
-class SparkAppWait(str, Enum):
+# Keep Enum.__str__ behavior for existing callers.
+class SparkAppWait(str, Enum):  # noqa: UP042
     """Enum for the Spark app waiter options"""
 
     NO_WAIT = "no_wait"
@@ -42,7 +42,7 @@ class SparkAppWait(str, Enum):
     LOG = "log"
 
 
-@dataclass(**KW_ONLY_DATACLASS)
+@dataclass(kw_only=True)
 class PodResources:
     """Resources to request for the Spark driver and executors
 
@@ -57,7 +57,7 @@ class PodResources:
     memory_overhead: int = 512
 
 
-@dataclass(**KW_ONLY_DATACLASS)
+@dataclass(kw_only=True)
 class ExecutorInstances:
     """Number of executors to request
 

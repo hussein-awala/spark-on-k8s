@@ -4,23 +4,19 @@ import contextlib
 import json
 import time
 from dataclasses import replace
+from enum import StrEnum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import sqlparse
-
 from airflow.exceptions import AirflowException
+
 from spark_on_k8s.airflow._compat import BaseOperator, get_current_context
 from spark_on_k8s.airflow.operator_links import SparkOnK8SOperatorLink
 from spark_on_k8s.airflow.triggers import SparkOnK8STrigger
 from spark_on_k8s.k8s.sync_client import KubernetesClientManager
 from spark_on_k8s.utils.app_manager import SparkAppManager
 from spark_on_k8s.utils.spark_app_status import SparkAppStatus
-
-try:
-    from enum import StrEnum
-except ImportError:
-    from strenum import StrEnum
 
 if TYPE_CHECKING:
     from typing import Literal
@@ -489,8 +485,7 @@ class SparkOnK8SOperator(BaseOperator):
             return event["status"]
         if event["status"] == "error":
             raise AirflowException(
-                f"SparkOnK8STrigger failed: with error: {event['error']}\n"
-                f"Stacktrace: {event['stacktrace']}"
+                f"SparkOnK8STrigger failed: with error: {event['error']}\nStacktrace: {event['stacktrace']}"
             )
         raise AirflowException(f"The job finished with status: {event['status']}")
 

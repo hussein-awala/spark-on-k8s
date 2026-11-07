@@ -296,7 +296,7 @@ class SparkOnK8SOperator(BaseOperator):
                     namespace=xcom_driver_namespace,
                     pod_name=xcom_driver_pod_name,
                 )
-                if app_status == SparkAppStatus.Running:
+                if app_status in {SparkAppStatus.Pending, SparkAppStatus.Running}:
                     self._driver_pod_name = xcom_driver_pod_name
                     return True
         return False

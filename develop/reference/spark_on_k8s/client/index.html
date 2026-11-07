@@ -2252,10 +2252,7 @@ dynamic allocation. Defaults to sustained_scheduler_backlog_timeout.</p>
 
               <details class="quote">
                 <summary>Source code in <code>spark_on_k8s/client.py</code></summary>
-                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">57</span>
-<span class="normal">58</span>
-<span class="normal">59</span>
-<span class="normal">60</span>
+                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">60</span>
 <span class="normal">61</span>
 <span class="normal">62</span>
 <span class="normal">63</span>
@@ -2275,7 +2272,10 @@ dynamic allocation. Defaults to sustained_scheduler_backlog_timeout.</p>
 <span class="normal">77</span>
 <span class="normal">78</span>
 <span class="normal">79</span>
-<span class="normal">80</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@dataclass</span><span class="p">(</span><span class="o">**</span><span class="n">KW_ONLY_DATACLASS</span><span class="p">)</span>
+<span class="normal">80</span>
+<span class="normal">81</span>
+<span class="normal">82</span>
+<span class="normal">83</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@dataclass</span><span class="p">(</span><span class="o">**</span><span class="n">KW_ONLY_DATACLASS</span><span class="p">)</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">ExecutorInstances</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Number of executors to request</span>
 
@@ -2397,10 +2397,7 @@ dynamic allocation. Defaults to sustained_scheduler_backlog_timeout.</p>
 
               <details class="quote">
                 <summary>Source code in <code>spark_on_k8s/client.py</code></summary>
-                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">42</span>
-<span class="normal">43</span>
-<span class="normal">44</span>
-<span class="normal">45</span>
+                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">45</span>
 <span class="normal">46</span>
 <span class="normal">47</span>
 <span class="normal">48</span>
@@ -2409,7 +2406,10 @@ dynamic allocation. Defaults to sustained_scheduler_backlog_timeout.</p>
 <span class="normal">51</span>
 <span class="normal">52</span>
 <span class="normal">53</span>
-<span class="normal">54</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@dataclass</span><span class="p">(</span><span class="o">**</span><span class="n">KW_ONLY_DATACLASS</span><span class="p">)</span>
+<span class="normal">54</span>
+<span class="normal">55</span>
+<span class="normal">56</span>
+<span class="normal">57</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@dataclass</span><span class="p">(</span><span class="o">**</span><span class="n">KW_ONLY_DATACLASS</span><span class="p">)</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">PodResources</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Resources to request for the Spark driver and executors</span>
 
@@ -2471,12 +2471,12 @@ dynamic allocation. Defaults to sustained_scheduler_backlog_timeout.</p>
 
               <details class="quote">
                 <summary>Source code in <code>spark_on_k8s/client.py</code></summary>
-                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">34</span>
-<span class="normal">35</span>
-<span class="normal">36</span>
-<span class="normal">37</span>
+                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">37</span>
 <span class="normal">38</span>
-<span class="normal">39</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">SparkAppWait</span><span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="n">Enum</span><span class="p">):</span>
+<span class="normal">39</span>
+<span class="normal">40</span>
+<span class="normal">41</span>
+<span class="normal">42</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">SparkAppWait</span><span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="n">Enum</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Enum for the Spark app waiter options&quot;&quot;&quot;</span>
 
     <span class="n">NO_WAIT</span> <span class="o">=</span> <span class="s2">&quot;no_wait&quot;</span>
@@ -2594,10 +2594,7 @@ dynamic allocation. Defaults to sustained_scheduler_backlog_timeout.</p>
 
               <details class="quote">
                 <summary>Source code in <code>spark_on_k8s/client.py</code></summary>
-                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 83</span>
-<span class="normal"> 84</span>
-<span class="normal"> 85</span>
-<span class="normal"> 86</span>
+                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 86</span>
 <span class="normal"> 87</span>
 <span class="normal"> 88</span>
 <span class="normal"> 89</span>
@@ -3248,7 +3245,94 @@ dynamic allocation. Defaults to sustained_scheduler_backlog_timeout.</p>
 <span class="normal">734</span>
 <span class="normal">735</span>
 <span class="normal">736</span>
-<span class="normal">737</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">SparkOnK8S</span><span class="p">(</span><span class="n">LoggingMixin</span><span class="p">):</span>
+<span class="normal">737</span>
+<span class="normal">738</span>
+<span class="normal">739</span>
+<span class="normal">740</span>
+<span class="normal">741</span>
+<span class="normal">742</span>
+<span class="normal">743</span>
+<span class="normal">744</span>
+<span class="normal">745</span>
+<span class="normal">746</span>
+<span class="normal">747</span>
+<span class="normal">748</span>
+<span class="normal">749</span>
+<span class="normal">750</span>
+<span class="normal">751</span>
+<span class="normal">752</span>
+<span class="normal">753</span>
+<span class="normal">754</span>
+<span class="normal">755</span>
+<span class="normal">756</span>
+<span class="normal">757</span>
+<span class="normal">758</span>
+<span class="normal">759</span>
+<span class="normal">760</span>
+<span class="normal">761</span>
+<span class="normal">762</span>
+<span class="normal">763</span>
+<span class="normal">764</span>
+<span class="normal">765</span>
+<span class="normal">766</span>
+<span class="normal">767</span>
+<span class="normal">768</span>
+<span class="normal">769</span>
+<span class="normal">770</span>
+<span class="normal">771</span>
+<span class="normal">772</span>
+<span class="normal">773</span>
+<span class="normal">774</span>
+<span class="normal">775</span>
+<span class="normal">776</span>
+<span class="normal">777</span>
+<span class="normal">778</span>
+<span class="normal">779</span>
+<span class="normal">780</span>
+<span class="normal">781</span>
+<span class="normal">782</span>
+<span class="normal">783</span>
+<span class="normal">784</span>
+<span class="normal">785</span>
+<span class="normal">786</span>
+<span class="normal">787</span>
+<span class="normal">788</span>
+<span class="normal">789</span>
+<span class="normal">790</span>
+<span class="normal">791</span>
+<span class="normal">792</span>
+<span class="normal">793</span>
+<span class="normal">794</span>
+<span class="normal">795</span>
+<span class="normal">796</span>
+<span class="normal">797</span>
+<span class="normal">798</span>
+<span class="normal">799</span>
+<span class="normal">800</span>
+<span class="normal">801</span>
+<span class="normal">802</span>
+<span class="normal">803</span>
+<span class="normal">804</span>
+<span class="normal">805</span>
+<span class="normal">806</span>
+<span class="normal">807</span>
+<span class="normal">808</span>
+<span class="normal">809</span>
+<span class="normal">810</span>
+<span class="normal">811</span>
+<span class="normal">812</span>
+<span class="normal">813</span>
+<span class="normal">814</span>
+<span class="normal">815</span>
+<span class="normal">816</span>
+<span class="normal">817</span>
+<span class="normal">818</span>
+<span class="normal">819</span>
+<span class="normal">820</span>
+<span class="normal">821</span>
+<span class="normal">822</span>
+<span class="normal">823</span>
+<span class="normal">824</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">SparkOnK8S</span><span class="p">(</span><span class="n">LoggingMixin</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Client for submitting Spark apps to Kubernetes</span>
 
 <span class="sd">    Examples:</span>
@@ -3279,6 +3363,41 @@ dynamic allocation. Defaults to sustained_scheduler_backlog_timeout.</p>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">logger_name</span><span class="o">=</span><span class="n">logger_name</span> <span class="ow">or</span> <span class="s2">&quot;SparkOnK8S&quot;</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">k8s_client_manager</span> <span class="o">=</span> <span class="n">k8s_client_manager</span> <span class="ow">or</span> <span class="n">KubernetesClientManager</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">app_manager</span> <span class="o">=</span> <span class="n">SparkAppManager</span><span class="p">(</span><span class="n">k8s_client_manager</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">k8s_client_manager</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_process_executor_template</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">executor_template</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Process executor template string, reading from file if it&#39;s a file path.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            executor_template: Either template content as string or path to template file</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            Template content as string</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            ValueError: If the resulting content is not valid YAML</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Try to read from file first, if that fails use the string as-is</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">template_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">executor_template</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span>
+            <span class="n">content</span> <span class="o">=</span> <span class="n">template_path</span><span class="o">.</span><span class="n">read_text</span><span class="p">(</span><span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span>
+        <span class="k">except</span> <span class="p">(</span><span class="ne">OSError</span><span class="p">,</span> <span class="ne">PermissionError</span><span class="p">):</span>
+            <span class="c1"># Not a valid file path, use as content</span>
+            <span class="n">content</span> <span class="o">=</span> <span class="n">executor_template</span>
+
+        <span class="c1"># Validate that the content is valid YAML and expected Kubernetes resource</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">parsed</span> <span class="o">=</span> <span class="n">yaml</span><span class="o">.</span><span class="n">safe_load</span><span class="p">(</span><span class="n">content</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">yaml</span><span class="o">.</span><span class="n">YAMLError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Executor template contains invalid YAML: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">e</span>
+
+        <span class="c1"># Check if it&#39;s a proper Kubernetes resource structure</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">parsed</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Executor template must be a Kubernetes resource (YAML object)&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">parsed</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;kind&quot;</span><span class="p">)</span> <span class="o">!=</span> <span class="s2">&quot;Pod&quot;</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Executor template must be a Kubernetes Pod resource (kind: Pod)&quot;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">content</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">submit_app</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
@@ -3314,6 +3433,7 @@ dynamic allocation. Defaults to sustained_scheduler_backlog_timeout.</p>
         <span class="n">executor_labels</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="n">ArgNotSet</span> <span class="o">=</span> <span class="n">NOTSET</span><span class="p">,</span>
         <span class="n">driver_tolerations</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">k8s</span><span class="o">.</span><span class="n">V1Toleration</span><span class="p">]</span> <span class="o">|</span> <span class="n">ArgNotSet</span> <span class="o">=</span> <span class="n">NOTSET</span><span class="p">,</span>
         <span class="n">executor_pod_template_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">ArgNotSet</span> <span class="o">=</span> <span class="n">NOTSET</span><span class="p">,</span>
+        <span class="n">executor_pod_template</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">ArgNotSet</span> <span class="o">=</span> <span class="n">NOTSET</span><span class="p">,</span>
         <span class="n">startup_timeout</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="n">ArgNotSet</span> <span class="o">=</span> <span class="n">NOTSET</span><span class="p">,</span>
         <span class="n">driver_init_containers</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">k8s</span><span class="o">.</span><span class="n">V1Container</span><span class="p">]</span> <span class="o">|</span> <span class="n">ArgNotSet</span> <span class="o">=</span> <span class="n">NOTSET</span><span class="p">,</span>
         <span class="n">driver_host_aliases</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">k8s</span><span class="o">.</span><span class="n">V1HostAlias</span><span class="p">]</span> <span class="o">|</span> <span class="n">ArgNotSet</span> <span class="o">=</span> <span class="n">NOTSET</span><span class="p">,</span>
@@ -3359,6 +3479,8 @@ dynamic allocation. Defaults to sustained_scheduler_backlog_timeout.</p>
 <span class="sd">            executor_node_selector: Node selector for the executors</span>
 <span class="sd">            driver_tolerations: List of tolerations for the driver</span>
 <span class="sd">            executor_pod_template_path: Path to the executor pod template file</span>
+<span class="sd">            executor_pod_template: Executor pod template content as string or local file path. If provided,</span>
+<span class="sd">                a ConfigMap will be created and mounted automatically</span>
 <span class="sd">            startup_timeout: Timeout in seconds to wait for the application to start</span>
 <span class="sd">            driver_init_containers: List of init containers to run before the driver starts</span>
 <span class="sd">            driver_host_aliases: List of host aliases for the driver</span>
@@ -3467,6 +3589,8 @@ dynamic allocation. Defaults to sustained_scheduler_backlog_timeout.</p>
             <span class="n">driver_tolerations</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="k">if</span> <span class="n">executor_pod_template_path</span> <span class="ow">is</span> <span class="n">NOTSET</span> <span class="ow">or</span> <span class="n">executor_pod_template_path</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">executor_pod_template_path</span> <span class="o">=</span> <span class="n">Configuration</span><span class="o">.</span><span class="n">SPARK_ON_K8S_EXECUTOR_POD_TEMPLATE_PATH</span>
+        <span class="k">if</span> <span class="n">executor_pod_template</span> <span class="ow">is</span> <span class="n">NOTSET</span> <span class="ow">or</span> <span class="n">executor_pod_template</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">executor_pod_template</span> <span class="o">=</span> <span class="n">Configuration</span><span class="o">.</span><span class="n">SPARK_ON_K8S_EXECUTOR_TEMPLATE</span>
         <span class="k">if</span> <span class="n">startup_timeout</span> <span class="ow">is</span> <span class="n">NOTSET</span><span class="p">:</span>
             <span class="n">startup_timeout</span> <span class="o">=</span> <span class="n">Configuration</span><span class="o">.</span><span class="n">SPARK_ON_K8S_STARTUP_TIMEOUT</span>
         <span class="k">if</span> <span class="n">driver_init_containers</span> <span class="ow">is</span> <span class="n">NOTSET</span><span class="p">:</span>
@@ -3524,18 +3648,52 @@ dynamic allocation. Defaults to sustained_scheduler_backlog_timeout.</p>
             <span class="n">basic_conf</span><span class="p">[</span><span class="s2">&quot;spark.executor.instances&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
                 <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">executor_instances</span><span class="o">.</span><span class="n">initial</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">executor_instances</span><span class="o">.</span><span class="n">initial</span><span class="w"> </span><span class="ow">is</span><span class="w"> </span><span class="ow">not</span><span class="w"> </span><span class="kc">None</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="mi">2</span><span class="si">}</span><span class="s2">&quot;</span>
             <span class="p">)</span>
-        <span class="k">if</span> <span class="n">executor_volume_mounts</span><span class="p">:</span>
-            <span class="n">basic_conf</span><span class="o">.</span><span class="n">update</span><span class="p">(</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">_executor_volumes_config</span><span class="p">(</span><span class="n">volumes</span><span class="o">=</span><span class="n">volumes</span><span class="p">,</span> <span class="n">volume_mounts</span><span class="o">=</span><span class="n">executor_volume_mounts</span><span class="p">)</span>
-            <span class="p">)</span>
+        <span class="c1"># Note: executor volume mounts will be processed after volumes are created</span>
         <span class="k">if</span> <span class="n">executor_node_selector</span><span class="p">:</span>
             <span class="n">basic_conf</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_executor_node_selector</span><span class="p">(</span><span class="n">node_selector</span><span class="o">=</span><span class="n">executor_node_selector</span><span class="p">))</span>
         <span class="k">if</span> <span class="n">executor_labels</span><span class="p">:</span>
             <span class="n">basic_conf</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_executor_labels</span><span class="p">(</span><span class="n">labels</span><span class="o">=</span><span class="n">executor_labels</span><span class="p">))</span>
         <span class="k">if</span> <span class="n">executor_annotations</span><span class="p">:</span>
             <span class="n">basic_conf</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_executor_annotations</span><span class="p">(</span><span class="n">annotations</span><span class="o">=</span><span class="n">executor_annotations</span><span class="p">))</span>
-        <span class="k">if</span> <span class="n">executor_pod_template_path</span><span class="p">:</span>
+        <span class="c1"># Handle executor template (either string content or local file path)</span>
+        <span class="n">executor_template_configmap</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">executor_pod_template</span> <span class="ow">and</span> <span class="n">executor_pod_template_path</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;Both executor_pod_template and executor_pod_template_path are provided. &quot;</span>
+                <span class="s2">&quot;Please provide only one of them.&quot;</span>
+            <span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">executor_pod_template</span><span class="p">:</span>
+            <span class="c1"># Process the template (read from file if it&#39;s a path, otherwise use as content)</span>
+            <span class="n">template_content</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_process_executor_template</span><span class="p">(</span><span class="n">executor_pod_template</span><span class="p">)</span>
+
+            <span class="c1"># ConfigMap names are reused as volume names, which are limited to 63 characters.</span>
+            <span class="n">template_configmap_name</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">app_id</span><span class="si">}</span><span class="s2">-executor-template&quot;</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">template_configmap_name</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">63</span><span class="p">:</span>
+                <span class="c1"># Hash the full ID so truncating the readable prefix preserves uniqueness.</span>
+                <span class="n">app_id_digest</span> <span class="o">=</span> <span class="n">hashlib</span><span class="o">.</span><span class="n">sha256</span><span class="p">(</span><span class="n">app_id</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s2">&quot;utf-8&quot;</span><span class="p">))</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">()[:</span><span class="mi">32</span><span class="p">]</span>
+                <span class="n">template_configmap_name</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">app_id</span><span class="p">[:</span><span class="mi">12</span><span class="p">]</span><span class="si">}</span><span class="s2">-</span><span class="si">{</span><span class="n">app_id_digest</span><span class="si">}</span><span class="s2">-executor-template&quot;</span>
+            <span class="n">executor_template_configmap</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="n">template_configmap_name</span><span class="p">,</span>
+                <span class="s2">&quot;mount_path&quot;</span><span class="p">:</span> <span class="s2">&quot;/opt/spark/executor-template&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;sources&quot;</span><span class="p">:</span> <span class="p">[{</span><span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;executor-template.yaml&quot;</span><span class="p">,</span> <span class="s2">&quot;text&quot;</span><span class="p">:</span> <span class="n">template_content</span><span class="p">}],</span>
+            <span class="p">}</span>
+
+            <span class="c1"># Set Spark configuration to use the mounted template</span>
+            <span class="n">basic_conf</span><span class="o">.</span><span class="n">update</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_executor_pod_template_path</span><span class="p">(</span><span class="s2">&quot;/opt/spark/executor-template/executor-template.yaml&quot;</span><span class="p">)</span>
+            <span class="p">)</span>
+
+        <span class="k">elif</span> <span class="n">executor_pod_template_path</span><span class="p">:</span>
+            <span class="c1"># Handle external executor pod template path (S3, GCS, etc.)</span>
             <span class="n">basic_conf</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_executor_pod_template_path</span><span class="p">(</span><span class="n">executor_pod_template_path</span><span class="p">))</span>
+
+        <span class="c1"># Process executor volume mounts before building driver command args</span>
+        <span class="k">if</span> <span class="n">executor_volume_mounts</span><span class="p">:</span>
+            <span class="n">basic_conf</span><span class="o">.</span><span class="n">update</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_executor_volumes_config</span><span class="p">(</span><span class="n">volumes</span><span class="o">=</span><span class="n">volumes</span><span class="p">,</span> <span class="n">volume_mounts</span><span class="o">=</span><span class="n">executor_volume_mounts</span><span class="p">)</span>
+            <span class="p">)</span>
+
         <span class="n">driver_command_args</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;driver&quot;</span><span class="p">,</span> <span class="s2">&quot;--master&quot;</span><span class="p">,</span> <span class="s2">&quot;k8s://https://kubernetes.default.svc.cluster.local:443&quot;</span><span class="p">]</span>
         <span class="k">if</span> <span class="n">class_name</span><span class="p">:</span>
             <span class="n">driver_command_args</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="s2">&quot;--class&quot;</span><span class="p">,</span> <span class="n">class_name</span><span class="p">])</span>
@@ -3545,11 +3703,19 @@ dynamic allocation. Defaults to sustained_scheduler_backlog_timeout.</p>
             <span class="bp">self</span><span class="o">.</span><span class="n">_spark_config_to_arguments</span><span class="p">({</span><span class="o">**</span><span class="n">basic_conf</span><span class="p">,</span> <span class="o">**</span><span class="n">spark_conf</span><span class="p">})</span> <span class="o">+</span> <span class="p">[</span><span class="n">app_path</span><span class="p">,</span> <span class="o">*</span><span class="n">main_class_parameters</span><span class="p">]</span>
         <span class="p">)</span>
 
+        <span class="n">all_configmaps</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="k">if</span> <span class="n">driver_ephemeral_configmaps_volumes</span><span class="p">:</span>
+            <span class="n">all_configmaps</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">driver_ephemeral_configmaps_volumes</span><span class="p">)</span>
+
+        <span class="c1"># Add executor template ConfigMap if present</span>
+        <span class="k">if</span> <span class="n">executor_template_configmap</span><span class="p">:</span>
+            <span class="n">all_configmaps</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">executor_template_configmap</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">all_configmaps</span><span class="p">:</span>
             <span class="n">application_configmaps_volumes</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">app_manager</span><span class="o">.</span><span class="n">create_configmap_objects</span><span class="p">(</span>
                 <span class="n">app_name</span><span class="o">=</span><span class="n">app_name</span><span class="p">,</span>
                 <span class="n">app_id</span><span class="o">=</span><span class="n">app_id</span><span class="p">,</span>
-                <span class="n">configmaps</span><span class="o">=</span><span class="n">driver_ephemeral_configmaps_volumes</span><span class="p">,</span>
+                <span class="n">configmaps</span><span class="o">=</span><span class="n">all_configmaps</span><span class="p">,</span>
                 <span class="n">namespace</span><span class="o">=</span><span class="n">namespace</span><span class="p">,</span>
             <span class="p">)</span>
             <span class="k">for</span> <span class="n">ind</span><span class="p">,</span> <span class="n">configmap</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">application_configmaps_volumes</span><span class="p">):</span>
@@ -3559,10 +3725,12 @@ dynamic allocation. Defaults to sustained_scheduler_backlog_timeout.</p>
                         <span class="n">config_map</span><span class="o">=</span><span class="n">k8s</span><span class="o">.</span><span class="n">V1ConfigMapVolumeSource</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">configmap</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">name</span><span class="p">),</span>
                     <span class="p">)</span>
                 <span class="p">)</span>
+
+                <span class="n">configmap_mount_path</span> <span class="o">=</span> <span class="n">all_configmaps</span><span class="p">[</span><span class="n">ind</span><span class="p">][</span><span class="s2">&quot;mount_path&quot;</span><span class="p">]</span>
                 <span class="n">driver_volume_mounts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
                     <span class="n">k8s</span><span class="o">.</span><span class="n">V1VolumeMount</span><span class="p">(</span>
                         <span class="n">name</span><span class="o">=</span><span class="n">configmap</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
-                        <span class="n">mount_path</span><span class="o">=</span><span class="n">driver_ephemeral_configmaps_volumes</span><span class="p">[</span><span class="n">ind</span><span class="p">][</span><span class="s2">&quot;mount_path&quot;</span><span class="p">],</span>
+                        <span class="n">mount_path</span><span class="o">=</span><span class="n">configmap_mount_path</span><span class="p">,</span>
                     <span class="p">)</span>
                 <span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
@@ -3922,7 +4090,7 @@ dynamic allocation. Defaults to sustained_scheduler_backlog_timeout.</p>
 
 
 <h3 id="spark_on_k8s.client.SparkOnK8S.submit_app" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">submit_app</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">image</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">app_path</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">namespace</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">service_account</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">app_name</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">spark_conf</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">class_name</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">packages</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">app_arguments</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">app_id_suffix</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">app_waiter</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">image_pull_policy</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">ui_reverse_proxy</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">driver_resources</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">executor_resources</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">executor_instances</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">should_print</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">secret_values</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">driver_ephemeral_configmaps_volumes</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">driver_env_vars_from_secrets</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">volumes</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">driver_volume_mounts</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">executor_volume_mounts</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">driver_node_selector</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">executor_node_selector</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">driver_annotations</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">executor_annotations</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">driver_labels</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">executor_labels</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">driver_tolerations</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">executor_pod_template_path</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">startup_timeout</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">driver_init_containers</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">driver_host_aliases</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">)</span></code>
+            <code class="highlight language-python"><span class="n">submit_app</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">image</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">app_path</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">namespace</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">service_account</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">app_name</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">spark_conf</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">class_name</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">packages</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">app_arguments</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">app_id_suffix</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">app_waiter</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">image_pull_policy</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">ui_reverse_proxy</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">driver_resources</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">executor_resources</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">executor_instances</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">should_print</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">secret_values</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">driver_ephemeral_configmaps_volumes</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">driver_env_vars_from_secrets</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">volumes</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">driver_volume_mounts</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">executor_volume_mounts</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">driver_node_selector</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">executor_node_selector</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">driver_annotations</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">executor_annotations</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">driver_labels</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">executor_labels</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">driver_tolerations</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">executor_pod_template_path</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">executor_pod_template</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">startup_timeout</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">driver_init_containers</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">,</span> <span class="n">driver_host_aliases</span><span class="o">=</span><span class="n">NOTSET</span><span class="p">)</span></code>
 
 </h3>
 
@@ -4403,6 +4571,23 @@ the driver</p>
           </tr>
           <tr class="doc-section-item">
             <td>
+                <code>executor_pod_template</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span> | <a class="autorefs autorefs-internal" title="&lt;code&gt;ArgNotSet&lt;/code&gt; (&lt;code&gt;spark_on_k8s.utils.types.ArgNotSet&lt;/code&gt;)" href="../utils/types/#spark_on_k8s.utils.types.ArgNotSet">ArgNotSet</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Executor pod template content as string or local file path. If provided,
+a ConfigMap will be created and mounted automatically</p>
+              </div>
+            </td>
+            <td>
+                  <code><span title="spark_on_k8s.utils.types.NOTSET">NOTSET</span></code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
                 <code>startup_timeout</code>
             </td>
             <td>
@@ -4478,45 +4663,7 @@ the driver</p>
 
             <details class="quote">
               <summary>Source code in <code>spark_on_k8s/client.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">115</span>
-<span class="normal">116</span>
-<span class="normal">117</span>
-<span class="normal">118</span>
-<span class="normal">119</span>
-<span class="normal">120</span>
-<span class="normal">121</span>
-<span class="normal">122</span>
-<span class="normal">123</span>
-<span class="normal">124</span>
-<span class="normal">125</span>
-<span class="normal">126</span>
-<span class="normal">127</span>
-<span class="normal">128</span>
-<span class="normal">129</span>
-<span class="normal">130</span>
-<span class="normal">131</span>
-<span class="normal">132</span>
-<span class="normal">133</span>
-<span class="normal">134</span>
-<span class="normal">135</span>
-<span class="normal">136</span>
-<span class="normal">137</span>
-<span class="normal">138</span>
-<span class="normal">139</span>
-<span class="normal">140</span>
-<span class="normal">141</span>
-<span class="normal">142</span>
-<span class="normal">143</span>
-<span class="normal">144</span>
-<span class="normal">145</span>
-<span class="normal">146</span>
-<span class="normal">147</span>
-<span class="normal">148</span>
-<span class="normal">149</span>
-<span class="normal">150</span>
-<span class="normal">151</span>
-<span class="normal">152</span>
-<span class="normal">153</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">153</span>
 <span class="normal">154</span>
 <span class="normal">155</span>
 <span class="normal">156</span>
@@ -4863,7 +5010,94 @@ the driver</p>
 <span class="normal">497</span>
 <span class="normal">498</span>
 <span class="normal">499</span>
-<span class="normal">500</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">submit_app</span><span class="p">(</span>
+<span class="normal">500</span>
+<span class="normal">501</span>
+<span class="normal">502</span>
+<span class="normal">503</span>
+<span class="normal">504</span>
+<span class="normal">505</span>
+<span class="normal">506</span>
+<span class="normal">507</span>
+<span class="normal">508</span>
+<span class="normal">509</span>
+<span class="normal">510</span>
+<span class="normal">511</span>
+<span class="normal">512</span>
+<span class="normal">513</span>
+<span class="normal">514</span>
+<span class="normal">515</span>
+<span class="normal">516</span>
+<span class="normal">517</span>
+<span class="normal">518</span>
+<span class="normal">519</span>
+<span class="normal">520</span>
+<span class="normal">521</span>
+<span class="normal">522</span>
+<span class="normal">523</span>
+<span class="normal">524</span>
+<span class="normal">525</span>
+<span class="normal">526</span>
+<span class="normal">527</span>
+<span class="normal">528</span>
+<span class="normal">529</span>
+<span class="normal">530</span>
+<span class="normal">531</span>
+<span class="normal">532</span>
+<span class="normal">533</span>
+<span class="normal">534</span>
+<span class="normal">535</span>
+<span class="normal">536</span>
+<span class="normal">537</span>
+<span class="normal">538</span>
+<span class="normal">539</span>
+<span class="normal">540</span>
+<span class="normal">541</span>
+<span class="normal">542</span>
+<span class="normal">543</span>
+<span class="normal">544</span>
+<span class="normal">545</span>
+<span class="normal">546</span>
+<span class="normal">547</span>
+<span class="normal">548</span>
+<span class="normal">549</span>
+<span class="normal">550</span>
+<span class="normal">551</span>
+<span class="normal">552</span>
+<span class="normal">553</span>
+<span class="normal">554</span>
+<span class="normal">555</span>
+<span class="normal">556</span>
+<span class="normal">557</span>
+<span class="normal">558</span>
+<span class="normal">559</span>
+<span class="normal">560</span>
+<span class="normal">561</span>
+<span class="normal">562</span>
+<span class="normal">563</span>
+<span class="normal">564</span>
+<span class="normal">565</span>
+<span class="normal">566</span>
+<span class="normal">567</span>
+<span class="normal">568</span>
+<span class="normal">569</span>
+<span class="normal">570</span>
+<span class="normal">571</span>
+<span class="normal">572</span>
+<span class="normal">573</span>
+<span class="normal">574</span>
+<span class="normal">575</span>
+<span class="normal">576</span>
+<span class="normal">577</span>
+<span class="normal">578</span>
+<span class="normal">579</span>
+<span class="normal">580</span>
+<span class="normal">581</span>
+<span class="normal">582</span>
+<span class="normal">583</span>
+<span class="normal">584</span>
+<span class="normal">585</span>
+<span class="normal">586</span>
+<span class="normal">587</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">submit_app</span><span class="p">(</span>
     <span class="bp">self</span><span class="p">,</span>
     <span class="o">*</span><span class="p">,</span>
     <span class="n">image</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">ArgNotSet</span> <span class="o">=</span> <span class="n">NOTSET</span><span class="p">,</span>
@@ -4897,6 +5131,7 @@ the driver</p>
     <span class="n">executor_labels</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="n">ArgNotSet</span> <span class="o">=</span> <span class="n">NOTSET</span><span class="p">,</span>
     <span class="n">driver_tolerations</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">k8s</span><span class="o">.</span><span class="n">V1Toleration</span><span class="p">]</span> <span class="o">|</span> <span class="n">ArgNotSet</span> <span class="o">=</span> <span class="n">NOTSET</span><span class="p">,</span>
     <span class="n">executor_pod_template_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">ArgNotSet</span> <span class="o">=</span> <span class="n">NOTSET</span><span class="p">,</span>
+    <span class="n">executor_pod_template</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">ArgNotSet</span> <span class="o">=</span> <span class="n">NOTSET</span><span class="p">,</span>
     <span class="n">startup_timeout</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="n">ArgNotSet</span> <span class="o">=</span> <span class="n">NOTSET</span><span class="p">,</span>
     <span class="n">driver_init_containers</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">k8s</span><span class="o">.</span><span class="n">V1Container</span><span class="p">]</span> <span class="o">|</span> <span class="n">ArgNotSet</span> <span class="o">=</span> <span class="n">NOTSET</span><span class="p">,</span>
     <span class="n">driver_host_aliases</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">k8s</span><span class="o">.</span><span class="n">V1HostAlias</span><span class="p">]</span> <span class="o">|</span> <span class="n">ArgNotSet</span> <span class="o">=</span> <span class="n">NOTSET</span><span class="p">,</span>
@@ -4942,6 +5177,8 @@ the driver</p>
 <span class="sd">        executor_node_selector: Node selector for the executors</span>
 <span class="sd">        driver_tolerations: List of tolerations for the driver</span>
 <span class="sd">        executor_pod_template_path: Path to the executor pod template file</span>
+<span class="sd">        executor_pod_template: Executor pod template content as string or local file path. If provided,</span>
+<span class="sd">            a ConfigMap will be created and mounted automatically</span>
 <span class="sd">        startup_timeout: Timeout in seconds to wait for the application to start</span>
 <span class="sd">        driver_init_containers: List of init containers to run before the driver starts</span>
 <span class="sd">        driver_host_aliases: List of host aliases for the driver</span>
@@ -5050,6 +5287,8 @@ the driver</p>
         <span class="n">driver_tolerations</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="k">if</span> <span class="n">executor_pod_template_path</span> <span class="ow">is</span> <span class="n">NOTSET</span> <span class="ow">or</span> <span class="n">executor_pod_template_path</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">executor_pod_template_path</span> <span class="o">=</span> <span class="n">Configuration</span><span class="o">.</span><span class="n">SPARK_ON_K8S_EXECUTOR_POD_TEMPLATE_PATH</span>
+    <span class="k">if</span> <span class="n">executor_pod_template</span> <span class="ow">is</span> <span class="n">NOTSET</span> <span class="ow">or</span> <span class="n">executor_pod_template</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">executor_pod_template</span> <span class="o">=</span> <span class="n">Configuration</span><span class="o">.</span><span class="n">SPARK_ON_K8S_EXECUTOR_TEMPLATE</span>
     <span class="k">if</span> <span class="n">startup_timeout</span> <span class="ow">is</span> <span class="n">NOTSET</span><span class="p">:</span>
         <span class="n">startup_timeout</span> <span class="o">=</span> <span class="n">Configuration</span><span class="o">.</span><span class="n">SPARK_ON_K8S_STARTUP_TIMEOUT</span>
     <span class="k">if</span> <span class="n">driver_init_containers</span> <span class="ow">is</span> <span class="n">NOTSET</span><span class="p">:</span>
@@ -5107,18 +5346,52 @@ the driver</p>
         <span class="n">basic_conf</span><span class="p">[</span><span class="s2">&quot;spark.executor.instances&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
             <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">executor_instances</span><span class="o">.</span><span class="n">initial</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">executor_instances</span><span class="o">.</span><span class="n">initial</span><span class="w"> </span><span class="ow">is</span><span class="w"> </span><span class="ow">not</span><span class="w"> </span><span class="kc">None</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="mi">2</span><span class="si">}</span><span class="s2">&quot;</span>
         <span class="p">)</span>
-    <span class="k">if</span> <span class="n">executor_volume_mounts</span><span class="p">:</span>
-        <span class="n">basic_conf</span><span class="o">.</span><span class="n">update</span><span class="p">(</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_executor_volumes_config</span><span class="p">(</span><span class="n">volumes</span><span class="o">=</span><span class="n">volumes</span><span class="p">,</span> <span class="n">volume_mounts</span><span class="o">=</span><span class="n">executor_volume_mounts</span><span class="p">)</span>
-        <span class="p">)</span>
+    <span class="c1"># Note: executor volume mounts will be processed after volumes are created</span>
     <span class="k">if</span> <span class="n">executor_node_selector</span><span class="p">:</span>
         <span class="n">basic_conf</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_executor_node_selector</span><span class="p">(</span><span class="n">node_selector</span><span class="o">=</span><span class="n">executor_node_selector</span><span class="p">))</span>
     <span class="k">if</span> <span class="n">executor_labels</span><span class="p">:</span>
         <span class="n">basic_conf</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_executor_labels</span><span class="p">(</span><span class="n">labels</span><span class="o">=</span><span class="n">executor_labels</span><span class="p">))</span>
     <span class="k">if</span> <span class="n">executor_annotations</span><span class="p">:</span>
         <span class="n">basic_conf</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_executor_annotations</span><span class="p">(</span><span class="n">annotations</span><span class="o">=</span><span class="n">executor_annotations</span><span class="p">))</span>
-    <span class="k">if</span> <span class="n">executor_pod_template_path</span><span class="p">:</span>
+    <span class="c1"># Handle executor template (either string content or local file path)</span>
+    <span class="n">executor_template_configmap</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="n">executor_pod_template</span> <span class="ow">and</span> <span class="n">executor_pod_template_path</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;Both executor_pod_template and executor_pod_template_path are provided. &quot;</span>
+            <span class="s2">&quot;Please provide only one of them.&quot;</span>
+        <span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">executor_pod_template</span><span class="p">:</span>
+        <span class="c1"># Process the template (read from file if it&#39;s a path, otherwise use as content)</span>
+        <span class="n">template_content</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_process_executor_template</span><span class="p">(</span><span class="n">executor_pod_template</span><span class="p">)</span>
+
+        <span class="c1"># ConfigMap names are reused as volume names, which are limited to 63 characters.</span>
+        <span class="n">template_configmap_name</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">app_id</span><span class="si">}</span><span class="s2">-executor-template&quot;</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">template_configmap_name</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">63</span><span class="p">:</span>
+            <span class="c1"># Hash the full ID so truncating the readable prefix preserves uniqueness.</span>
+            <span class="n">app_id_digest</span> <span class="o">=</span> <span class="n">hashlib</span><span class="o">.</span><span class="n">sha256</span><span class="p">(</span><span class="n">app_id</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s2">&quot;utf-8&quot;</span><span class="p">))</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">()[:</span><span class="mi">32</span><span class="p">]</span>
+            <span class="n">template_configmap_name</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">app_id</span><span class="p">[:</span><span class="mi">12</span><span class="p">]</span><span class="si">}</span><span class="s2">-</span><span class="si">{</span><span class="n">app_id_digest</span><span class="si">}</span><span class="s2">-executor-template&quot;</span>
+        <span class="n">executor_template_configmap</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="n">template_configmap_name</span><span class="p">,</span>
+            <span class="s2">&quot;mount_path&quot;</span><span class="p">:</span> <span class="s2">&quot;/opt/spark/executor-template&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;sources&quot;</span><span class="p">:</span> <span class="p">[{</span><span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;executor-template.yaml&quot;</span><span class="p">,</span> <span class="s2">&quot;text&quot;</span><span class="p">:</span> <span class="n">template_content</span><span class="p">}],</span>
+        <span class="p">}</span>
+
+        <span class="c1"># Set Spark configuration to use the mounted template</span>
+        <span class="n">basic_conf</span><span class="o">.</span><span class="n">update</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_executor_pod_template_path</span><span class="p">(</span><span class="s2">&quot;/opt/spark/executor-template/executor-template.yaml&quot;</span><span class="p">)</span>
+        <span class="p">)</span>
+
+    <span class="k">elif</span> <span class="n">executor_pod_template_path</span><span class="p">:</span>
+        <span class="c1"># Handle external executor pod template path (S3, GCS, etc.)</span>
         <span class="n">basic_conf</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_executor_pod_template_path</span><span class="p">(</span><span class="n">executor_pod_template_path</span><span class="p">))</span>
+
+    <span class="c1"># Process executor volume mounts before building driver command args</span>
+    <span class="k">if</span> <span class="n">executor_volume_mounts</span><span class="p">:</span>
+        <span class="n">basic_conf</span><span class="o">.</span><span class="n">update</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_executor_volumes_config</span><span class="p">(</span><span class="n">volumes</span><span class="o">=</span><span class="n">volumes</span><span class="p">,</span> <span class="n">volume_mounts</span><span class="o">=</span><span class="n">executor_volume_mounts</span><span class="p">)</span>
+        <span class="p">)</span>
+
     <span class="n">driver_command_args</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;driver&quot;</span><span class="p">,</span> <span class="s2">&quot;--master&quot;</span><span class="p">,</span> <span class="s2">&quot;k8s://https://kubernetes.default.svc.cluster.local:443&quot;</span><span class="p">]</span>
     <span class="k">if</span> <span class="n">class_name</span><span class="p">:</span>
         <span class="n">driver_command_args</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="s2">&quot;--class&quot;</span><span class="p">,</span> <span class="n">class_name</span><span class="p">])</span>
@@ -5128,11 +5401,19 @@ the driver</p>
         <span class="bp">self</span><span class="o">.</span><span class="n">_spark_config_to_arguments</span><span class="p">({</span><span class="o">**</span><span class="n">basic_conf</span><span class="p">,</span> <span class="o">**</span><span class="n">spark_conf</span><span class="p">})</span> <span class="o">+</span> <span class="p">[</span><span class="n">app_path</span><span class="p">,</span> <span class="o">*</span><span class="n">main_class_parameters</span><span class="p">]</span>
     <span class="p">)</span>
 
+    <span class="n">all_configmaps</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="k">if</span> <span class="n">driver_ephemeral_configmaps_volumes</span><span class="p">:</span>
+        <span class="n">all_configmaps</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">driver_ephemeral_configmaps_volumes</span><span class="p">)</span>
+
+    <span class="c1"># Add executor template ConfigMap if present</span>
+    <span class="k">if</span> <span class="n">executor_template_configmap</span><span class="p">:</span>
+        <span class="n">all_configmaps</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">executor_template_configmap</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">all_configmaps</span><span class="p">:</span>
         <span class="n">application_configmaps_volumes</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">app_manager</span><span class="o">.</span><span class="n">create_configmap_objects</span><span class="p">(</span>
             <span class="n">app_name</span><span class="o">=</span><span class="n">app_name</span><span class="p">,</span>
             <span class="n">app_id</span><span class="o">=</span><span class="n">app_id</span><span class="p">,</span>
-            <span class="n">configmaps</span><span class="o">=</span><span class="n">driver_ephemeral_configmaps_volumes</span><span class="p">,</span>
+            <span class="n">configmaps</span><span class="o">=</span><span class="n">all_configmaps</span><span class="p">,</span>
             <span class="n">namespace</span><span class="o">=</span><span class="n">namespace</span><span class="p">,</span>
         <span class="p">)</span>
         <span class="k">for</span> <span class="n">ind</span><span class="p">,</span> <span class="n">configmap</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">application_configmaps_volumes</span><span class="p">):</span>
@@ -5142,10 +5423,12 @@ the driver</p>
                     <span class="n">config_map</span><span class="o">=</span><span class="n">k8s</span><span class="o">.</span><span class="n">V1ConfigMapVolumeSource</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">configmap</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">name</span><span class="p">),</span>
                 <span class="p">)</span>
             <span class="p">)</span>
+
+            <span class="n">configmap_mount_path</span> <span class="o">=</span> <span class="n">all_configmaps</span><span class="p">[</span><span class="n">ind</span><span class="p">][</span><span class="s2">&quot;mount_path&quot;</span><span class="p">]</span>
             <span class="n">driver_volume_mounts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
                 <span class="n">k8s</span><span class="o">.</span><span class="n">V1VolumeMount</span><span class="p">(</span>
                     <span class="n">name</span><span class="o">=</span><span class="n">configmap</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
-                    <span class="n">mount_path</span><span class="o">=</span><span class="n">driver_ephemeral_configmaps_volumes</span><span class="p">[</span><span class="n">ind</span><span class="p">][</span><span class="s2">&quot;mount_path&quot;</span><span class="p">],</span>
+                    <span class="n">mount_path</span><span class="o">=</span><span class="n">configmap_mount_path</span><span class="p">,</span>
                 <span class="p">)</span>
             <span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
@@ -5303,13 +5586,13 @@ the driver</p>
 
             <details class="quote">
               <summary>Source code in <code>spark_on_k8s/client.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">25</span>
-<span class="normal">26</span>
-<span class="normal">27</span>
-<span class="normal">28</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">28</span>
 <span class="normal">29</span>
 <span class="normal">30</span>
-<span class="normal">31</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">default_app_id_suffix</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="normal">31</span>
+<span class="normal">32</span>
+<span class="normal">33</span>
+<span class="normal">34</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">default_app_id_suffix</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Default function to generate a suffix for the application ID</span>
 
 <span class="sd">    Returns:</span>
@@ -5349,7 +5632,7 @@ the driver</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 7, 2026 10:54:04 UTC">November 7, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 7, 2026 12:15:30 UTC">November 7, 2026</span>
   </span>
 
     

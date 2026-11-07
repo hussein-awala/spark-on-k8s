@@ -309,3 +309,53 @@ def test_planning_does_not_clear_previous_run_identity():
     spark.plan_app(image="spark:test", app_path="local:///job.py")
     assert spark.last_submitted_run is run
     assert spark.last_submitted_app_id == "existing"
+
+
+def test_required_fields_and_conflicting_template_sources_are_rejected():
+    missing = definition()
+    del missing["spec"]["image"]
+    with pytest.raises(JobValidationError, match="image is required"):
+        JobSpec.from_mapping(missing)
+    with pytest.raises(JobValidationError, match="non-empty string"):
+        JobSpec.from_mapping(definition(executor_instances={"scheduler_backlog_timeout": ""}))
+    with pytest.raises(JobValidationError, match="not both"):
+        JobSpec.from_mapping(
+            definition(executor_pod_template={"kind": "Pod"}, executor_pod_template_path="s3a://template")
+        )
+
+
+@pytest.mark.parametrize("command", ["validate", "plan"])
+def test_cli_rejects_invalid_pod_before_accessing_cluster(tmp_path, command):
+    file = tmp_path / "job.yaml"
+    file.write_text(yaml.safe_dump(definition(driver_pod_template={"apiVersion": "v1", "kind": "Service"})))
+    with patch("spark_on_k8s.k8s.sync_client.KubernetesClientManager.create_client") as connect:
+        result = CliRunner().invoke(job_cli, [command, str(file)])
+        connect.assert_not_called()
+    assert result.exit_code == 1
+    assert "must have apiVersion: v1 and kind: Pod" in result.stderr
+    assert "Traceback" not in result.output
+
+
+def test_python_job_submission_forwards_portable_settings():
+    job = JobSpec.from_mapping(definition(namespace="analysis", app_arguments=["one", "two"]))
+    client = MagicMock()
+    client.submit_app.return_value = "daily-etl-driver"
+    with patch.object(JobSpec, "client", return_value=client):
+        assert job.submit() == "daily-etl-driver"
+    kwargs = client.submit_app.call_args.kwargs
+    assert kwargs["namespace"] == "analysis"
+    assert kwargs["app_arguments"] == ["one", "two"]
+    assert kwargs["secret_values"] == {}
+
+
+def test_plan_redacts_literal_environment_values():
+    plan = SparkOnK8S().plan_app(
+        image="spark:test",
+        app_path="local:///job.py",
+        driver_init_containers=[
+            k8s.V1Container(
+                name="init", image="helper", env=[k8s.V1EnvVar(name="ORDINARY_NAME", value="PRIVATE_VALUE")]
+            )
+        ],
+    )
+    assert "PRIVATE_VALUE" not in json.dumps(plan.to_dict())

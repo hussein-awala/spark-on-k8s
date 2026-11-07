@@ -137,6 +137,8 @@ class SparkOnK8SOperator(BaseOperator):
         "executor_resources",
         "executor_instances",
         "secret_values",
+        "driver_env_vars_from_secrets",
+        "executor_pod_template",
         "kubernetes_conn_id",
         "driver_pod_template",
         "driver_container_name",
@@ -172,6 +174,8 @@ class SparkOnK8SOperator(BaseOperator):
         driver_annotations: dict[str, str] | None = None,
         executor_annotations: dict[str, str] | None = None,
         driver_tolerations: list[k8s.V1Toleration] | None = None,
+        driver_env_vars_from_secrets: list[str] | None = None,
+        executor_pod_template: str | None = None,
         executor_pod_template_path: str | None = None,
         driver_ephemeral_configmaps_volumes: list[ConfigMap] | None = None,
         driver_init_containers: list[k8s.V1Container] | None = None,
@@ -215,6 +219,8 @@ class SparkOnK8SOperator(BaseOperator):
         self.executor_labels = executor_labels
         self.driver_annotations = driver_annotations
         self.executor_annotations = executor_annotations
+        self.driver_env_vars_from_secrets = driver_env_vars_from_secrets
+        self.executor_pod_template = executor_pod_template
         self.driver_tolerations = driver_tolerations
         self.executor_pod_template_path = executor_pod_template_path
         self.driver_ephemeral_configmaps_volumes = driver_ephemeral_configmaps_volumes
@@ -383,6 +389,8 @@ class SparkOnK8SOperator(BaseOperator):
             executor_labels=self.executor_labels,
             driver_annotations=self.driver_annotations,
             executor_annotations=self.executor_annotations,
+            driver_env_vars_from_secrets=self.driver_env_vars_from_secrets,
+            executor_pod_template=self.executor_pod_template,
             driver_tolerations=self.driver_tolerations,
             driver_ephemeral_configmaps_volumes=self.driver_ephemeral_configmaps_volumes,
             executor_pod_template_path=self.executor_pod_template_path,

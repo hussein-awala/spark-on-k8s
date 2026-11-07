@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import time
+from threading import Event, Timer
 from typing import TYPE_CHECKING, Literal
 
 from kubernetes import client as k8s, watch
@@ -10,6 +11,7 @@ from kubernetes.stream import stream
 
 from spark_on_k8s.k8s.sync_client import KubernetesClientManager
 from spark_on_k8s.utils.logging_mixin import LoggingMixin
+from spark_on_k8s.utils.run import WaitDeadline
 from spark_on_k8s.utils.spark_app_status import SparkAppStatus, get_app_status
 from spark_on_k8s.utils.warnings import LongAppNameWarning, WarningCache
 
@@ -62,6 +64,7 @@ class SparkAppManager(LoggingMixin):
         pod_name: str | None = None,
         app_id: str | None = None,
         client: k8s.CoreV1Api | None = None,
+        request_timeout: float | None = None,
     ) -> SparkAppStatus:
         """Get app status.
 
@@ -86,11 +89,13 @@ class SparkAppManager(LoggingMixin):
                 _pod = _client.read_namespaced_pod(
                     namespace=namespace,
                     name=pod_name,
+                    **({"_request_timeout": request_timeout} if request_timeout is not None else {}),
                 )
             else:
                 pods = _client.list_namespaced_pod(
                     namespace=namespace,
                     label_selector=f"spark-app-id={app_id}",
+                    **({"_request_timeout": request_timeout} if request_timeout is not None else {}),
                 ).items
                 if not pods:
                     raise ApiException(status=404, reason=f"No pods found for app {app_id}")
@@ -112,6 +117,7 @@ class SparkAppManager(LoggingMixin):
         poll_interval: float = 10,
         should_print: bool = False,
         startup_timeout: float = 0,
+        timeout: float | None = None,
     ):
         """Wait for a Spark app to finish.
 
@@ -122,8 +128,11 @@ class SparkAppManager(LoggingMixin):
             poll_interval (float, optional): Poll interval in seconds. Defaults to 10.
             startup_timeout (float, optional): Timeout in seconds to wait for the app to start.
                 Defaults to 0 (no timeout).
+            timeout (float, optional): Overall observation deadline in seconds, including running jobs.
+                None disables the deadline. Expiration never stops or deletes the application.
             should_print (bool, optional): Whether to print logs instead of logging them.
         """
+        deadline = WaitDeadline(timeout)
         start_time = time.time()
         termination_statuses = {SparkAppStatus.Succeeded, SparkAppStatus.Failed, SparkAppStatus.Unknown}
         with self.k8s_client_manager.client() as client:
@@ -131,8 +140,13 @@ class SparkAppManager(LoggingMixin):
             while True:
                 try:
                     status = self.app_status(
-                        namespace=namespace, pod_name=pod_name, app_id=app_id, client=api
+                        namespace=namespace,
+                        pod_name=pod_name,
+                        app_id=app_id,
+                        client=api,
+                        **({"request_timeout": deadline.remaining()} if timeout is not None else {}),
                     )
+                    deadline.remaining()
                     if status in termination_statuses:
                         break
                     if status == SparkAppStatus.Pending:
@@ -151,7 +165,7 @@ class SparkAppManager(LoggingMixin):
                     level=logging.INFO,
                     should_print=should_print,
                 )
-                time.sleep(poll_interval)
+                deadline.sleep(poll_interval)
             self.log(
                 msg=f"Pod {pod_name} finished with status {status.value}",
                 level=logging.INFO,
@@ -165,6 +179,7 @@ class SparkAppManager(LoggingMixin):
         pod_name: str | None = None,
         app_id: str | None = None,
         startup_timeout: float = 0,
+        timeout: float | None = None,
         should_print: bool = False,
     ):
         """Stream logs from a Spark app.
@@ -175,8 +190,11 @@ class SparkAppManager(LoggingMixin):
             app_id (str): App ID.
             startup_timeout (float, optional): Timeout in seconds to wait for the app to start.
                 Defaults to 0 (no timeout).
+            timeout (float, optional): Overall observation deadline in seconds, including running jobs.
+                None disables the deadline. Expiration never stops or deletes the application.
             should_print (bool, optional): Whether to print logs instead of logging them.
         """
+        deadline = WaitDeadline(timeout)
         start_time = time.time()
         if pod_name is None and app_id is None:
             raise ValueError("Either pod_name or app_id must be specified")
@@ -186,6 +204,7 @@ class SparkAppManager(LoggingMixin):
                 pods = api.list_namespaced_pod(
                     namespace=namespace,
                     label_selector=f"spark-app-id={app_id}",
+                    **deadline.request_options(),
                 ).items
                 if len(pods) == 0:
                     raise ValueError(f"No pods found for app {app_id}")
@@ -196,40 +215,64 @@ class SparkAppManager(LoggingMixin):
                 pod = api.read_namespaced_pod(
                     namespace=namespace,
                     name=pod_name,
+                    **deadline.request_options(),
                 )
                 if pod.status.phase != "Pending":
                     break
                 if startup_timeout and start_time + startup_timeout < time.time():
                     raise TimeoutError("App startup timeout")
-                time.sleep(5)
+                deadline.sleep(5)
             watcher = watch.Watch()
-            # Retry to connect to the pod log stream in case of ApiException
-            # (e.g. TLS handshake error while communicating with kubeapi)
-            # retry only if no logs were received yet
-            nb_retries = 3
-            retry_delay = 5
-            first_attempt = True
-            while True:
-                try:
-                    for line in watcher.stream(
-                        api.read_namespaced_pod_log,
-                        namespace=namespace,
-                        name=pod_name,
-                    ):
-                        self.log(msg=line, level=logging.INFO, should_print=should_print)
-                        first_attempt = False
-                    break
-                except ApiException as e:
-                    if not first_attempt or nb_retries == 0:
-                        raise e
-                    self.log(
-                        msg=f"Failed to connect to the pod log stream: {e}. Retrying in {retry_delay}s",
-                        level=logging.WARNING,
-                        should_print=should_print,
-                    )
-                    nb_retries -= 1
-                    time.sleep(retry_delay)
-            watcher.stop()
+            expired = Event()
+            timer = None
+            if timeout is not None:
+
+                def expire():
+                    expired.set()
+                    watcher.stop()
+
+                timer = Timer(deadline.remaining(), expire)
+                timer.daemon = True
+                timer.start()
+            retries = 3
+            received = False
+            stream = None
+            try:
+                while True:
+                    try:
+                        stream = watcher.stream(
+                            api.read_namespaced_pod_log,
+                            namespace=namespace,
+                            name=pod_name,
+                            **deadline.request_options(),
+                        )
+                        for line in stream:
+                            deadline.remaining()
+                            self.log(msg=line, level=logging.INFO, should_print=should_print)
+                            received = True
+                        deadline.remaining()
+                        break
+                    except ApiException as error:
+                        if received or retries == 0:
+                            raise
+                        self.log(
+                            msg=f"Failed to connect to the pod log stream: {error}. Retrying in 5s",
+                            level=logging.WARNING,
+                            should_print=should_print,
+                        )
+                        retries -= 1
+                        deadline.sleep(5)
+                    finally:
+                        close = getattr(stream, "close", None)
+                        if close is not None:
+                            close()
+            finally:
+                if timer is not None:
+                    timer.cancel()
+                    timer.join()
+                watcher.stop()
+                if expired.is_set():
+                    raise TimeoutError("Application wait timeout exceeded")
 
     def list_apps(self, namespace: str) -> list[str]:
         """List apps.

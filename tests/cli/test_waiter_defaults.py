@@ -27,13 +27,26 @@ import sys
 from unittest import mock
 from click.testing import CliRunner
 from spark_on_k8s.cli.app import submit
+from spark_on_k8s.utils.run import RunHandle
+from spark_on_k8s.utils.spark_app_status import SparkAppStatus
 
 with mock.patch("spark_on_k8s.client.SparkOnK8S") as client_class:
+    instance = client_class.return_value
+    instance.last_submitted_run = RunHandle(
+        namespace="default", app_id="example", driver_pod="example-driver"
+    )
+    instance.app_manager.app_status.return_value = SparkAppStatus.Succeeded
     result = CliRunner().invoke(
         submit, ["--image", "spark:test", "--path", "local:///app.py", *sys.argv[1:]]
     )
     assert result.exit_code == 0, result.output
-    print(json.dumps(client_class.return_value.submit_app.call_args.kwargs["app_waiter"]))
+    assert instance.submit_app.call_args.kwargs["app_waiter"] == "no_wait"
+    actual = "no_wait"
+    if instance.app_manager.wait_for_app.called:
+        actual = "wait"
+    if instance.app_manager.stream_logs.called:
+        actual = "log"
+    print(json.dumps(actual))
 """
 
     result = subprocess.run(

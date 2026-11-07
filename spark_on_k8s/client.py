@@ -16,6 +16,7 @@ from spark_on_k8s.k8s.sync_client import KubernetesClientManager
 from spark_on_k8s.utils.app_manager import SparkAppManager
 from spark_on_k8s.utils.configuration import Configuration
 from spark_on_k8s.utils.logging_mixin import LoggingMixin
+from spark_on_k8s.utils.run import RunHandle, WaitDeadline
 from spark_on_k8s.utils.types import NOTSET, ArgNotSet
 
 if TYPE_CHECKING:
@@ -113,7 +114,18 @@ class SparkOnK8S(LoggingMixin):
     ):
         super().__init__(logger_name=logger_name or "SparkOnK8S")
         self.k8s_client_manager = k8s_client_manager or KubernetesClientManager()
+        self.last_submitted_app_id: str | None = None
+        self.last_submitted_run: RunHandle | None = None
         self.app_manager = SparkAppManager(k8s_client_manager=self.k8s_client_manager)
+
+    def submit_run(self, **kwargs) -> RunHandle:
+        """Submit using the same arguments as submit_app, returning a structured run identity."""
+        if kwargs.get("dry_run"):
+            raise ValueError("submit_run requires a real submission and does not support dry_run")
+        self.submit_app(**kwargs)
+        if self.last_submitted_run is None:
+            raise RuntimeError("Submission completed without a run identity")
+        return self.last_submitted_run
 
     def _process_executor_template(self, executor_template: str) -> str:
         """Process executor template string, reading from file if it's a file path.
@@ -186,6 +198,7 @@ class SparkOnK8S(LoggingMixin):
         executor_pod_template_path: str | ArgNotSet = NOTSET,
         executor_pod_template: str | ArgNotSet = NOTSET,
         startup_timeout: int | ArgNotSet = NOTSET,
+        wait_timeout: float | None = None,
         driver_init_containers: list[k8s.V1Container] | ArgNotSet = NOTSET,
         driver_host_aliases: list[k8s.V1HostAlias] | ArgNotSet = NOTSET,
     ) -> str:
@@ -237,8 +250,14 @@ class SparkOnK8S(LoggingMixin):
             driver_host_aliases: List of host aliases for the driver
 
         Returns:
-            Name of the Spark application pod
+            Name of the Spark application pod. The same identity is available as last_submitted_run.
+
+        The optional wait_timeout bounds observation after resource creation, in seconds.
+        It does not stop or delete the application. None preserves unlimited waiting.
         """
+        self.last_submitted_run = None
+        self.last_submitted_app_id = None
+        WaitDeadline(wait_timeout)
         if image is NOTSET:
             if Configuration.SPARK_ON_K8S_DOCKER_IMAGE is None:
                 raise ValueError(
@@ -571,20 +590,25 @@ class SparkOnK8S(LoggingMixin):
                     extra_labels=extra_labels,
                 ),
             )
+        self.last_submitted_app_id = app_id
+        self.last_submitted_run = RunHandle(namespace=namespace, app_id=app_id, driver_pod=pod.metadata.name)
+        deadline = WaitDeadline(wait_timeout)
         if app_waiter == SparkAppWait.LOG:
             self.app_manager.stream_logs(
                 namespace=namespace,
                 pod_name=pod.metadata.name,
                 startup_timeout=startup_timeout,
                 should_print=should_print,
+                **({"timeout": deadline.remaining()} if wait_timeout is not None else {}),
             )
-        elif app_waiter == SparkAppWait.WAIT:
+        if app_waiter == SparkAppWait.WAIT or (app_waiter == SparkAppWait.LOG and wait_timeout is not None):
             self.app_manager.wait_for_app(
                 namespace=namespace,
                 pod_name=pod.metadata.name,
                 poll_interval=5,
                 startup_timeout=startup_timeout,
                 should_print=should_print,
+                **({"timeout": deadline.remaining()} if wait_timeout is not None else {}),
             )
         return pod.metadata.name
 

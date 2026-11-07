@@ -37,14 +37,21 @@ def test_app_submit_forwards_executor_template(configured_template, flags, expec
     script = """
 import json
 import sys
+import io
+from contextlib import redirect_stdout
 from unittest import mock
 from spark_on_k8s.cli import main
+from spark_on_k8s.utils.run import RunHandle
 
 flags = sys.argv[1:]
 sys.argv = ["spark-on-k8s", "app", "submit", "--image", "spark:test", "--path", "local:///app.py", *flags]
 with mock.patch("spark_on_k8s.client.SparkOnK8S", autospec=True) as client_class:
+    client_class.return_value.last_submitted_run = RunHandle(
+        namespace="default", app_id="example", driver_pod="example-driver"
+    )
     try:
-        main()
+        with redirect_stdout(io.StringIO()):
+            main()
     except SystemExit as error:
         assert error.code == 0, error.code
     client_class.return_value.submit_app.assert_called_once()

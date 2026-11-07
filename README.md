@@ -176,6 +176,10 @@ spark-on-k8s app --help
 spark-on-k8s apps --help
 ```
 
+Use `--output json` for versioned submission receipts and machine-readable list/status results.
+Waiting commands report failed workloads with nonzero exit codes; `--timeout` bounds observation.
+See the [automation guide](docs/user-guide/automation.md) for exit codes and Python run handles.
+
 ### REST API
 
 Install the `api` extra before starting the REST API and web UI. For local access:

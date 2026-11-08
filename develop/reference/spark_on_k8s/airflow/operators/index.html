@@ -68,7 +68,7 @@
   <meta name="documentation-channel" content="develop">
   <meta name="documentation-version" content="develop">
   
-    <meta name="documentation-source" content="15656c17eee9e13c1ab9b725a49ff81672de10d7">
+    <meta name="documentation-source" content="193ffc1f0b768d3ab335462ab5238ab49a331842">
   
 
   </head>
@@ -108,7 +108,7 @@
     <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
   
   
-    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/15656c17eee9e13c1ab9b725a49ff81672de10d7"><code>15656c17eee9</code></a>.
+    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/193ffc1f0b768d3ab335462ab5238ab49a331842"><code>193ffc1f0b76</code></a>.
   
 
           </div>
@@ -6252,7 +6252,19 @@ Defaults to 0 (no timeout).</p>
 <span class="normal">637</span>
 <span class="normal">638</span>
 <span class="normal">639</span>
-<span class="normal">640</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">SparkOnK8SOperator</span><span class="p">(</span><span class="n">BaseOperator</span><span class="p">):</span>
+<span class="normal">640</span>
+<span class="normal">641</span>
+<span class="normal">642</span>
+<span class="normal">643</span>
+<span class="normal">644</span>
+<span class="normal">645</span>
+<span class="normal">646</span>
+<span class="normal">647</span>
+<span class="normal">648</span>
+<span class="normal">649</span>
+<span class="normal">650</span>
+<span class="normal">651</span>
+<span class="normal">652</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">SparkOnK8SOperator</span><span class="p">(</span><span class="n">BaseOperator</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">"""Submit a Spark application on Kubernetes.</span>
 
 <span class="sd">    Args:</span>
@@ -6780,25 +6792,37 @@ Defaults to 0 (no timeout).</p>
         <span class="p">)</span>
         <span class="k">if</span> <span class="n">event</span><span class="p">[</span><span class="s2">"status"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"startup_timeout"</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Deleting Spark application due to startup timeout..."</span><span class="p">)</span>
-            <span class="n">spark_app_manager</span><span class="o">.</span><span class="n">delete_app</span><span class="p">(</span>
-                <span class="n">namespace</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">namespace</span><span class="p">,</span>
-                <span class="n">pod_name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_driver_pod_name</span><span class="p">,</span>
-            <span class="p">)</span>
-            <span class="k">raise</span> <span class="n">AirflowException</span><span class="p">(</span><span class="s2">"Spark application startup timeout exceeded"</span><span class="p">)</span>
+            <span class="n">failure</span> <span class="o">=</span> <span class="n">AirflowException</span><span class="p">(</span><span class="s2">"Spark application startup timeout exceeded"</span><span class="p">)</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">spark_app_manager</span><span class="o">.</span><span class="n">delete_app</span><span class="p">(</span>
+                    <span class="n">namespace</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">namespace</span><span class="p">,</span>
+                    <span class="n">pod_name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_driver_pod_name</span><span class="p">,</span>
+                <span class="p">)</span>
+            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">cleanup_error</span><span class="p">:</span>
+                <span class="c1"># Report the timeout; the trigger event is its only record.</span>
+                <span class="k">raise</span> <span class="n">failure</span> <span class="kn">from</span><span class="w"> </span><span class="nn">cleanup_error</span>
+            <span class="k">raise</span> <span class="n">failure</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">app_waiter</span> <span class="o">==</span> <span class="n">AppWaiter</span><span class="o">.</span><span class="n">LOG</span> <span class="ow">and</span> <span class="n">event</span><span class="p">[</span><span class="s2">"status"</span><span class="p">]</span> <span class="o">!=</span> <span class="s2">"error"</span><span class="p">:</span>
             <span class="n">spark_app_manager</span><span class="o">.</span><span class="n">stream_logs</span><span class="p">(</span>
                 <span class="n">namespace</span><span class="o">=</span><span class="n">event</span><span class="p">[</span><span class="s2">"namespace"</span><span class="p">],</span>
                 <span class="n">pod_name</span><span class="o">=</span><span class="n">event</span><span class="p">[</span><span class="s2">"pod_name"</span><span class="p">],</span>
             <span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_persist_spark_history_ui_link</span><span class="p">(</span><span class="n">context</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_clean_up</span><span class="p">(</span><span class="n">spark_app_manager</span><span class="p">,</span> <span class="n">event</span><span class="p">[</span><span class="s2">"status"</span><span class="p">])</span>
         <span class="k">if</span> <span class="n">event</span><span class="p">[</span><span class="s2">"status"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"Succeeded"</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_clean_up</span><span class="p">(</span><span class="n">spark_app_manager</span><span class="p">,</span> <span class="n">event</span><span class="p">[</span><span class="s2">"status"</span><span class="p">])</span>
             <span class="k">return</span> <span class="n">event</span><span class="p">[</span><span class="s2">"status"</span><span class="p">]</span>
         <span class="k">if</span> <span class="n">event</span><span class="p">[</span><span class="s2">"status"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"error"</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="n">AirflowException</span><span class="p">(</span>
+            <span class="n">failure</span> <span class="o">=</span> <span class="n">AirflowException</span><span class="p">(</span>
                 <span class="sa">f</span><span class="s2">"SparkOnK8STrigger failed: with error: </span><span class="si">{</span><span class="n">event</span><span class="p">[</span><span class="s1">'error'</span><span class="p">]</span><span class="si">}</span><span class="se">\n</span><span class="s2">Stacktrace: </span><span class="si">{</span><span class="n">event</span><span class="p">[</span><span class="s1">'stacktrace'</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span>
             <span class="p">)</span>
-        <span class="k">raise</span> <span class="n">AirflowException</span><span class="p">(</span><span class="sa">f</span><span class="s2">"The job finished with status: </span><span class="si">{</span><span class="n">event</span><span class="p">[</span><span class="s1">'status'</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">failure</span> <span class="o">=</span> <span class="n">AirflowException</span><span class="p">(</span><span class="sa">f</span><span class="s2">"The job finished with status: </span><span class="si">{</span><span class="n">event</span><span class="p">[</span><span class="s1">'status'</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_clean_up</span><span class="p">(</span><span class="n">spark_app_manager</span><span class="p">,</span> <span class="n">event</span><span class="p">[</span><span class="s2">"status"</span><span class="p">])</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">cleanup_error</span><span class="p">:</span>
+            <span class="c1"># A failed cleanup must not replace the trigger diagnostics or Spark outcome.</span>
+            <span class="k">raise</span> <span class="n">failure</span> <span class="kn">from</span><span class="w"> </span><span class="nn">cleanup_error</span>
+        <span class="k">raise</span> <span class="n">failure</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">on_kill</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">on_kill_action</span> <span class="o">==</span> <span class="n">OnKillAction</span><span class="o">.</span><span class="n">KEEP</span><span class="p">:</span>
@@ -6916,19 +6940,7 @@ internal runner receives a JSON statement list and does not require a SQL parser
 
               <details class="mkdocstrings-source">
                 <summary>Source code in <code>spark_on_k8s/airflow/operators.py</code></summary>
-                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">643</span>
-<span class="normal">644</span>
-<span class="normal">645</span>
-<span class="normal">646</span>
-<span class="normal">647</span>
-<span class="normal">648</span>
-<span class="normal">649</span>
-<span class="normal">650</span>
-<span class="normal">651</span>
-<span class="normal">652</span>
-<span class="normal">653</span>
-<span class="normal">654</span>
-<span class="normal">655</span>
+                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">655</span>
 <span class="normal">656</span>
 <span class="normal">657</span>
 <span class="normal">658</span>
@@ -6947,7 +6959,26 @@ internal runner receives a JSON statement list and does not require a SQL parser
 <span class="normal">671</span>
 <span class="normal">672</span>
 <span class="normal">673</span>
-<span class="normal">674</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">SparkSqlOnK8SOperator</span><span class="p">(</span><span class="n">SparkOnK8SOperator</span><span class="p">):</span>
+<span class="normal">674</span>
+<span class="normal">675</span>
+<span class="normal">676</span>
+<span class="normal">677</span>
+<span class="normal">678</span>
+<span class="normal">679</span>
+<span class="normal">680</span>
+<span class="normal">681</span>
+<span class="normal">682</span>
+<span class="normal">683</span>
+<span class="normal">684</span>
+<span class="normal">685</span>
+<span class="normal">686</span>
+<span class="normal">687</span>
+<span class="normal">688</span>
+<span class="normal">689</span>
+<span class="normal">690</span>
+<span class="normal">691</span>
+<span class="normal">692</span>
+<span class="normal">693</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">SparkSqlOnK8SOperator</span><span class="p">(</span><span class="n">SparkOnK8SOperator</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">"""Execute Spark SQL commands on Kubernetes.</span>
 
 <span class="sd">    This operator passes the SQL commands to a Python script that runs them on Spark,</span>
@@ -6977,7 +7008,14 @@ internal runner receives a JSON statement list and does not require a SQL parser
         <span class="bp">self</span><span class="o">.</span><span class="n">sql</span> <span class="o">=</span> <span class="n">sql</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">execute</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">context</span><span class="p">:</span> <span class="n">Context</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">driver_ephemeral_configmaps_volumes</span> <span class="o">=</span> <span class="p">[</span><span class="n">prepare_sql_configmap</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sql</span><span class="p">,</span> <span class="n">allow_empty</span><span class="o">=</span><span class="kc">True</span><span class="p">)]</span>
+        <span class="c1"># Like the SDK and CLI SQL paths, keep user ConfigMaps and add the generated statements.</span>
+        <span class="n">configmaps</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">driver_ephemeral_configmaps_volumes</span> <span class="ow">or</span> <span class="p">[])</span>
+        <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">reserves_sql_mount</span><span class="p">(</span><span class="n">configmap</span><span class="p">[</span><span class="s2">"mount_path"</span><span class="p">])</span> <span class="k">for</span> <span class="n">configmap</span> <span class="ow">in</span> <span class="n">configmaps</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"SQL submission reserves the </span><span class="si">{</span><span class="n">SQL_MOUNT_PATH</span><span class="si">}</span><span class="s2"> mount path and its descendants"</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">driver_ephemeral_configmaps_volumes</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="o">*</span><span class="n">configmaps</span><span class="p">,</span>
+            <span class="n">prepare_sql_configmap</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sql</span><span class="p">,</span> <span class="n">allow_empty</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span>
+        <span class="p">]</span>
         <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">context</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
               </details>
@@ -7031,7 +7069,7 @@ internal runner receives a JSON statement list and does not require a SQL parser
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 8, 2026 22:42:19 UTC">November 8, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 8, 2026 22:43:20 UTC">November 8, 2026</span>
   </span>
 
     

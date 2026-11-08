@@ -12,6 +12,7 @@ from dbt.adapters.exceptions import FailedToConnectError
 from dbt.adapters.spark.connections import PyhiveConnectionWrapper, _is_retryable_error
 from dbt_common.exceptions import DbtRuntimeError
 from pyhive import hive
+from TCLIService.ttypes import TCloseSessionReq
 from thrift.transport.TSocket import TSocket
 from thrift_sasl import TSaslClientTransport
 
@@ -162,7 +163,15 @@ class ManagedPyhiveConnectionWrapper(PyhiveConnectionWrapper):
             self._guard.abort()
             return
         try:
-            super().close()
+            if self._cursor is not None:
+                self._cursor.close()
+            # Match pinned PyHive Connection.close's RPC, but keep ALL local
+            # transport closure in the once-only guard. Calling raw.close would
+            # perform an unguarded close after releasing the RPC lock.
+            response = self.handle.client.CloseSession(
+                TCloseSessionReq(sessionHandle=self.handle.sessionHandle)
+            )
+            hive._check_status(response)
         finally:
             self._guard.close_unless_cancelling()
 

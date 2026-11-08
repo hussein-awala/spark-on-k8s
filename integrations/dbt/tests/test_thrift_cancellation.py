@@ -306,3 +306,15 @@ def test_custom_open_preserves_retry_username_and_session_parameters(monkeypatch
     }
     assert socket_factory.return_value.setTimeout.call_args.args == (15000,)
     assert wrapper.query_retries == 0
+
+
+def test_normal_close_uses_session_rpc_and_only_guarded_local_transport_close():
+    client = FakeClient()
+    wrapper, transport = wrapper_for(client)
+    wrapper._cursor.execute("SELECT 1", async_=True)
+    wrapper.handle.close = Mock(side_effect=AssertionError("unguarded upstream close must not run"))
+    wrapper.close()
+    wrapper.close()
+    assert client.calls == ["execute", "close_operation", "close_session"]
+    transport.close.assert_called_once()
+    wrapper.handle.close.assert_not_called()

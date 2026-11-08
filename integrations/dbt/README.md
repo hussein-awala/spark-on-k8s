@@ -5,7 +5,7 @@ Spark Connect. `spark-on-k8s-dbt run -- build` creates the server lazily, shares
 it across dbt threads, and deletes owned compute when the command finishes.
 
 This is an opt-in, separately installed experimental distribution. Its API and
-profile format may change. See the repository's
-[managed dbt guide](../../docs/user-guide/dbt.md) for installation, profiles,
+profile format may change. See the
+[managed dbt guide](https://hussein.awala.fr/spark-on-k8s/latest/user-guide/dbt/) for installation, profiles,
 recovery and support limits. This distribution is not published by the main
 package release workflow.

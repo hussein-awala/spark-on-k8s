@@ -101,6 +101,15 @@ def test_pending_waits_then_passes_all_four_workflows(release_modules, monkeypat
     assert clock["now"] == 2
 
 
+def test_separate_distribution_requires_only_its_workflows(release_modules):
+    module = release_modules["eligibility"]
+    client = api([run()])
+    deadline = module.time.monotonic() + 10
+    results = module.wait_for_checks(client, COMMIT, deadline, 2, ("dbt-kubernetes.yml",))
+    assert [result["workflow"] for result in results] == ["dbt-kubernetes.yml"]
+    client.runs.assert_called_once_with("dbt-kubernetes.yml", COMMIT)
+
+
 def test_missing_checks_have_finite_deadline(release_modules, monkeypatch):
     module = release_modules["eligibility"]
     clock = {"now": 0.0}

@@ -108,6 +108,7 @@ class InvocationOwner:
         self.handle = None
         self._inputs = None
         self._lock = threading.RLock()
+        self._cancelled = threading.Event()
         self._closed = False
         self._save()
 
@@ -271,8 +272,13 @@ class InvocationOwner:
                     )
                 raise
 
-    @staticmethod
-    def _remaining(deadline):
+    def cancel(self):
+        """Stop an in-progress startup at its next bounded wait; never deletes compute."""
+        self._cancelled.set()
+
+    def _remaining(self, deadline):
+        if self._cancelled.is_set():
+            raise RuntimeError("Managed Spark startup was cancelled")
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             raise TimeoutError("Managed Spark startup timed out")
@@ -292,7 +298,7 @@ class InvocationOwner:
                 raise RuntimeError("Managed Spark driver terminated before becoming ready")
             if observed.status.phase == "Running":
                 return
-            time.sleep(min(self.config.poll_interval, self._remaining(deadline)))
+            self._cancelled.wait(min(self.config.poll_interval, self._remaining(deadline)))
 
     def _refresh_tunnel(self, port, deadline):
         # kubectl can exit after publishing its local listener if Spark has not
@@ -338,7 +344,7 @@ finally:
                     return port
             except subprocess.TimeoutExpired:
                 pass
-            time.sleep(min(self.config.poll_interval, self._remaining(deadline)))
+            self._cancelled.wait(min(self.config.poll_interval, self._remaining(deadline)))
 
     def _connect_remaining(self, handle):
         # Persist transitive ownership before deletion: executor ConfigMaps may
@@ -413,6 +419,9 @@ finally:
             self._lock.release()
 
     def close(self, *, dbt_exit_code=None):
+        # A worker can still hold the lock while waiting for a slow driver. Make it
+        # stop at its next poll so cleanup can delete what it created.
+        self.cancel()
         with self._cleanup_lock(dbt_exit_code):
             if self._closed:
                 return
@@ -497,6 +506,7 @@ finally:
         owner.config = owner.endpoint = owner.forward = owner.backend = owner.handle = None
         owner._inputs = None
         owner._lock = threading.RLock()
+        owner._cancelled = threading.Event()
         owner._closed = False
         owner._validate_identity()
         if cluster["in_cluster"] and (

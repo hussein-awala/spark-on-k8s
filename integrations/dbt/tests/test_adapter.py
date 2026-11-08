@@ -334,6 +334,22 @@ def test_runtime_sql_parameters_remain_supported():
     }
 
 
+def test_release_version_and_package_description_are_publishable():
+    import re
+    from importlib.metadata import version as distribution_version
+    from pathlib import Path
+
+    import spark_on_k8s_dbt
+    from dbt.adapters.spark_on_k8s.__version__ import version
+
+    # dbt reports __version__.version; the CLI package and wheel metadata must agree.
+    assert version == spark_on_k8s_dbt.__version__ == distribution_version("dbt-spark-on-k8s")
+    # The README is the PyPI description, where repository-relative links do not resolve.
+    readme = (Path(__file__).parents[1] / "README.md").read_text()
+    links = re.findall(r"\]\(([^)]+)\)", readme)
+    assert links and all(link.startswith("https://") for link in links)
+
+
 def test_registered_adapter_run_metadata_uses_explicit_package_name():
     from dbt.adapters.factory import get_adapter_class_by_name, load_plugin
     from dbt.task.run import _get_adapter_info

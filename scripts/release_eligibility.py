@@ -118,11 +118,13 @@ def inspect_workflow(api, workflow: str, commit: str) -> dict:
     return {**evidence, "state": "passed", "jobs": [job["name"] for job in jobs]}
 
 
-def wait_for_checks(api, commit: str, deadline: float, interval: float) -> list[dict]:
+def wait_for_checks(
+    api, commit: str, deadline: float, interval: float, workflows: tuple[str, ...] = REQUIRED_WORKFLOWS
+) -> list[dict]:
     while True:
         if time.monotonic() >= deadline:
             raise TimeoutError("Required exact-commit workflow evidence is missing or unfinished")
-        results = [inspect_workflow(api, workflow, commit) for workflow in REQUIRED_WORKFLOWS]
+        results = [inspect_workflow(api, workflow, commit) for workflow in workflows]
         if all(result["state"] == "passed" for result in results):
             return results
         pending = ", ".join(f"{result['workflow']}={result['state']}" for result in results)
@@ -142,6 +144,12 @@ def main() -> int:
     parser.add_argument("--poll-seconds", type=int, default=20)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--github-output", type=Path)
+    parser.add_argument(
+        "--workflow",
+        action="append",
+        dest="workflows",
+        help="Require this workflow file instead of the package release set; repeat for several.",
+    )
     args = parser.parse_args()
     try:
         prerelease = validate_version(args.version)
@@ -149,9 +157,12 @@ def main() -> int:
             raise ValueError("Release commit must be a full lowercase Git SHA")
         if not 1 <= args.timeout_seconds <= 3600 or not 1 <= args.poll_seconds <= 60:
             raise ValueError("Timeout must be 1–3600 seconds and polling 1–60 seconds")
+        required = tuple(args.workflows or REQUIRED_WORKFLOWS)
+        if not all(re.fullmatch(r"[A-Za-z0-9_.-]+\.ya?ml", workflow) for workflow in required):
+            raise ValueError("Workflows must be file names in .github/workflows")
         deadline = time.monotonic() + args.timeout_seconds
         api = GitHub(args.repository, os.environ.get("GH_TOKEN", ""), deadline)
-        workflows = wait_for_checks(api, args.commit, deadline, args.poll_seconds)
+        workflows = wait_for_checks(api, args.commit, deadline, args.poll_seconds, required)
         channels = channel_promotions(args.version, api.tags())
         payload = {
             "schema_version": 1,

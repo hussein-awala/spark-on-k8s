@@ -25,7 +25,12 @@ def run(receipt_dir, dbt_args):
     """Provision lazily, run dbt arguments after --, then delete owned compute."""
     from dbt.cli.main import dbtRunner
 
-    owner = InvocationOwner(receipt_dir)
+    try:
+        owner = InvocationOwner(receipt_dir)
+    except Exception as error:
+        # Exit 1 is reserved for a dbt execution failure; dbt has not started.
+        click.echo(f"Managed dbt failed: {error}", err=True)
+        sys.exit(2)
     click.echo(f"Experimental managed dbt; recovery receipt: {owner.receipt}", err=True)
     exit_code = 2
     interrupted = None
@@ -34,6 +39,9 @@ def run(receipt_dir, dbt_args):
     def interrupt(signum, frame):
         nonlocal interrupted
         interrupted = signum
+        # dbt waits for its worker threads after an interrupt; one may still be
+        # waiting for the driver. Stop that wait rather than finishing startup.
+        owner.cancel()
         raise KeyboardInterrupt
 
     try:

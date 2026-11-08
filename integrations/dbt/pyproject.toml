@@ -2,10 +2,18 @@
 name = "dbt-spark-on-k8s"
 version = "0.1.0a1"
 description = "Experimental invocation-scoped Spark on Kubernetes adapter for dbt Core"
+authors = [{name = "Hussein Awala", email = "hussein@awala.fr"}]
 requires-python = ">=3.11,<3.14"
 readme = "README.md"
+keywords = ["dbt", "dbt-core", "spark", "kubernetes", "spark-connect", "spark-on-k8s"]
 license = "Apache-2.0"
 license-files = ["LICENSE"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
 dependencies = [
     "spark-on-k8s[connect]==0.11.0.dev0",
     "dbt-core==1.12.6",
@@ -16,6 +24,11 @@ dependencies = [
     "thrift>=0.25.0,<0.26",
     "pyspark-client==4.3.0",
 ]
+
+[project.urls]
+Repository = "https://github.com/hussein-awala/spark-on-k8s"
+"Bug Tracker" = "https://github.com/hussein-awala/spark-on-k8s/issues"
+Documentation = "https://hussein.awala.fr/spark-on-k8s/latest/user-guide/dbt/"
 
 [project.scripts]
 spark-on-k8s-dbt = "spark_on_k8s_dbt.cli:main"

@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light">
+    <title>Spark on Kubernetes</title>
+    <link href="{{ url_for('static', path='/ui/console.css') }}" rel="stylesheet">
+    <style>body { margin: 0; background: #f6f7f9; }</style>
+</head>
+<body>
+    <div id="spark-console-root"></div>
+    <noscript>This console requires JavaScript. The Spark on Kubernetes REST API remains available.</noscript>
+    <script id="spark-console-config" type="application/json">{{ config | tojson }}</script>
+    <script type="module" src="{{ url_for('static', path='/ui/console.js') }}"></script>
+</body>
+</html>

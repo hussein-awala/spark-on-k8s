@@ -3,13 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ title }}</title>
-    <link href="{{ url_for('static', path='/apps.css') }}" rel="stylesheet">
+    <title>{{ title }} · Spark on Kubernetes</title>
+    <style>
+        body { margin: 0; padding: 48px 24px; font: 16px/1.6 system-ui, sans-serif; color: #202836; background: #f6f7f9; }
+        main { max-width: 640px; margin: 48px auto; background: white; padding: 32px; border: 1px solid #e3e6eb; border-radius: 12px; }
+        p { overflow-wrap: anywhere; white-space: pre-wrap; }
+        a { color: #b94313; }
+    </style>
 </head>
-<body>
-<div class="error-container">
+<body><main>
+    <p>Spark on Kubernetes</p>
     <h1>{{ title }}</h1>
-    <p>{{ message }}</p>
-</div>
-</body>
+    <p>{{ message or 'The requested resource could not be loaded.' }}</p>
+    <a href="{{ url_for('apps') }}">Back to applications</a>
+</main></body>
 </html>

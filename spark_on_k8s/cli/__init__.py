@@ -4,7 +4,12 @@ import click
 
 from spark_on_k8s.cli.app import app_cli
 from spark_on_k8s.cli.apps import apps_cli
+from spark_on_k8s.cli.connect import connect_cli
+from spark_on_k8s.cli.diagnostics import doctor
+from spark_on_k8s.cli.job import job_cli
 from spark_on_k8s.cli.namespace import namespace_cli
+from spark_on_k8s.cli.remote import remote_cli
+from spark_on_k8s.cli.sql import sql_cli
 
 try:
     from spark_on_k8s.cli.api import api_cli
@@ -21,6 +26,11 @@ def main():
     cli.add_command(app_cli)
     cli.add_command(apps_cli)
     cli.add_command(namespace_cli)
+    cli.add_command(job_cli)
+    cli.add_command(sql_cli)
+    cli.add_command(connect_cli)
+    cli.add_command(remote_cli)
+    cli.add_command(doctor)
     if api_cli:
         cli.add_command(api_cli)
     cli(max_content_width=120)

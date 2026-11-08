@@ -1,22 +1,21 @@
 from __future__ import annotations
 
 import contextlib
-from pathlib import Path
+import time
+from dataclasses import replace
+from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
 from airflow.exceptions import AirflowException
-from airflow.models import BaseOperator
-from airflow.utils.template import literal
+from kubernetes.client import ApiException
+
+from spark_on_k8s.airflow._compat import BaseOperator, get_current_context
 from spark_on_k8s.airflow.operator_links import SparkOnK8SOperatorLink
 from spark_on_k8s.airflow.triggers import SparkOnK8STrigger
 from spark_on_k8s.k8s.sync_client import KubernetesClientManager
+from spark_on_k8s.sql import prepare_sql_configmap
 from spark_on_k8s.utils.app_manager import SparkAppManager
 from spark_on_k8s.utils.spark_app_status import SparkAppStatus
-
-try:
-    from enum import StrEnum
-except ImportError:
-    from strenum import StrEnum
 
 if TYPE_CHECKING:
     from typing import Literal
@@ -24,7 +23,7 @@ if TYPE_CHECKING:
     import jinja2
     from kubernetes import client as k8s
 
-    from airflow.utils.context import Context
+    from spark_on_k8s.airflow._compat import Context
     from spark_on_k8s.client import ExecutorInstances, PodResources
     from spark_on_k8s.utils.types import ConfigMap
 
@@ -97,6 +96,8 @@ class SparkOnK8SOperator(BaseOperator):
         driver_ephemeral_configmaps_volumes: List of ConfigMaps to mount as ephemeral volumes to the driver.
         driver_init_containers: List of init containers for the driver pod.
         driver_host_aliases: List of host aliases for the driver pod.
+        driver_pod_template: Driver Pod YAML text, local file path, or mapping.
+        driver_container_name: Driver container to select from the template.
         spark_on_k8s_service_url: URL of the Spark On K8S service. Defaults to None.
         kubernetes_conn_id (str, optional): Kubernetes connection ID. Defaults to
             "kubernetes_default".
@@ -116,6 +117,7 @@ class SparkOnK8SOperator(BaseOperator):
     XCOM_SPARK_UI_LINK = "spark_ui_link"
 
     _driver_pod_name: str | None = None
+    _spark_app_id: str | None = None
 
     operator_extra_links = (SparkOnK8SOperatorLink(),)
 
@@ -128,14 +130,23 @@ class SparkOnK8SOperator(BaseOperator):
         "app_id_suffix",
         "spark_conf",
         "class_name",
+        "packages",
         "app_arguments",
         "app_waiter",
         "image_pull_policy",
         "driver_resources",
         "executor_resources",
+        "driver_labels",
+        "executor_labels",
+        "driver_annotations",
+        "executor_annotations",
         "executor_instances",
         "secret_values",
+        "driver_env_vars_from_secrets",
+        "executor_pod_template",
         "kubernetes_conn_id",
+        "driver_pod_template",
+        "driver_container_name",
     )
 
     def __init__(
@@ -168,10 +179,14 @@ class SparkOnK8SOperator(BaseOperator):
         driver_annotations: dict[str, str] | None = None,
         executor_annotations: dict[str, str] | None = None,
         driver_tolerations: list[k8s.V1Toleration] | None = None,
+        driver_env_vars_from_secrets: list[str] | None = None,
+        executor_pod_template: str | None = None,
         executor_pod_template_path: str | None = None,
         driver_ephemeral_configmaps_volumes: list[ConfigMap] | None = None,
         driver_init_containers: list[k8s.V1Container] | None = None,
         driver_host_aliases: list[k8s.V1HostAlias] | None = None,
+        driver_pod_template: str | dict[str, Any] | None = None,
+        driver_container_name: str | None = None,
         spark_on_k8s_service_url: str | None = None,
         kubernetes_conn_id: str = "kubernetes_default",
         poll_interval: int = 10,
@@ -209,11 +224,15 @@ class SparkOnK8SOperator(BaseOperator):
         self.executor_labels = executor_labels
         self.driver_annotations = driver_annotations
         self.executor_annotations = executor_annotations
+        self.driver_env_vars_from_secrets = driver_env_vars_from_secrets
+        self.executor_pod_template = executor_pod_template
         self.driver_tolerations = driver_tolerations
         self.executor_pod_template_path = executor_pod_template_path
         self.driver_ephemeral_configmaps_volumes = driver_ephemeral_configmaps_volumes
         self.driver_init_containers = driver_init_containers
         self.driver_host_aliases = driver_host_aliases
+        self.driver_pod_template = driver_pod_template
+        self.driver_container_name = driver_container_name
         self.spark_on_k8s_service_url = spark_on_k8s_service_url
         self.kubernetes_conn_id = kubernetes_conn_id
         self.poll_interval = poll_interval
@@ -253,6 +272,41 @@ class SparkOnK8SOperator(BaseOperator):
         context["ti"].xcom_push(key=self._XCOM_DRIVER_POD_NAMESPACE, value=self.namespace)
         context["ti"].xcom_push(key=self._XCOM_DRIVER_POD_NAME, value=self._driver_pod_name)
 
+    def _restore_console_metadata(self, context: Context):
+        from spark_on_k8s.airflow.ui_config import CONSOLE_XCOM_KEY
+
+        if not context.get("ti"):
+            return
+        # Legacy tasks have no console record. Their existing links remain available.
+        with contextlib.suppress(Exception):
+            metadata = context["ti"].xcom_pull(
+                key=CONSOLE_XCOM_KEY, task_ids=self.task_id, map_indexes=context["ti"].map_index
+            )
+            if (
+                isinstance(metadata, dict)
+                and metadata.get("version") == 1
+                and metadata.get("namespace") == self.namespace
+                and metadata.get("driver_pod") == self._driver_pod_name
+                and isinstance(metadata.get("app_id"), str)
+            ):
+                self._spark_app_id = metadata["app_id"]
+
+    def _persist_console_metadata(self, context: Context):
+        from spark_on_k8s.airflow.ui_config import CONSOLE_XCOM_KEY
+
+        try_number = getattr(context["ti"], "try_number", 1)
+        context["ti"].xcom_push(
+            key=CONSOLE_XCOM_KEY,
+            value={
+                "version": 1,
+                "namespace": self.namespace,
+                "driver_pod": self._driver_pod_name,
+                "try_number": try_number if isinstance(try_number, int) else 1,
+                "service_url": self.spark_on_k8s_service_url,
+                **({"app_id": self._spark_app_id} if self._spark_app_id else {}),
+            },
+        )
+
     def _persist_spark_ui_link(self, context: Context):
         if self.spark_on_k8s_service_url:
             SparkOnK8SOperatorLink.persist_spark_ui_link(
@@ -260,7 +314,7 @@ class SparkOnK8SOperator(BaseOperator):
                 self,
                 spark_on_k8s_service_url=self.spark_on_k8s_service_url,
                 namespace=self.namespace,
-                spark_app_id=self._driver_pod_name[: -len("-driver")],
+                spark_app_id=self._spark_app_id or self._driver_pod_name[: -len("-driver")],
             )
 
     def _persist_spark_history_ui_link(self, context: Context):
@@ -269,7 +323,7 @@ class SparkOnK8SOperator(BaseOperator):
                 context,
                 self,
                 spark_on_k8s_service_url=self.spark_on_k8s_service_url,
-                spark_app_id=self._driver_pod_name[: -len("-driver")],
+                spark_app_id=self._spark_app_id or self._driver_pod_name[: -len("-driver")],
             )
 
     def _try_to_adopt_job(self, context: Context, spark_app_manager: SparkAppManager) -> bool:
@@ -289,19 +343,76 @@ class SparkOnK8SOperator(BaseOperator):
             key=self._XCOM_DRIVER_POD_NAME,
             include_prior_dates=False,
         )
-        if xcom_driver_pod_name:
-            with contextlib.suppress(Exception):
-                app_status = spark_app_manager.app_status(
-                    namespace=xcom_driver_namespace,
-                    pod_name=xcom_driver_pod_name,
+        if not xcom_driver_pod_name:
+            return False
+        try:
+            app_status = spark_app_manager.app_status(
+                namespace=xcom_driver_namespace,
+                pod_name=xcom_driver_pod_name,
+            )
+        except ApiException as error:
+            if error.status == 404:
+                self.log.info(
+                    "Previously recorded Spark driver %s/%s is absent", self.namespace, xcom_driver_pod_name
                 )
-                if app_status == SparkAppStatus.Running:
-                    self._driver_pod_name = xcom_driver_pod_name
-                    return True
-        return False
+                return False
+            raise AirflowException(
+                f"Cannot verify previously recorded Spark driver {self.namespace}/{xcom_driver_pod_name}; "
+                "refusing to submit another application. Restore Kubernetes access before retrying."
+            ) from error
+        except Exception as error:
+            raise AirflowException(
+                f"Cannot verify previously recorded Spark driver {self.namespace}/{xcom_driver_pod_name}; "
+                "refusing to submit another application. Restore Kubernetes access before retrying."
+            ) from error
+        if app_status in {SparkAppStatus.Pending, SparkAppStatus.Running}:
+            self._driver_pod_name = xcom_driver_pod_name
+            self._restore_console_metadata(context)
+            self.log.info(
+                "Reattaching to Spark driver %s/%s (%s)", self.namespace, xcom_driver_pod_name, app_status
+            )
+            return True
+        if app_status in {SparkAppStatus.Succeeded, SparkAppStatus.Failed}:
+            self.log.info(
+                "Previously recorded Spark driver %s/%s is terminal (%s)",
+                self.namespace,
+                xcom_driver_pod_name,
+                app_status,
+            )
+            return False
+        raise AirflowException(
+            f"Previously recorded Spark driver {self.namespace}/{xcom_driver_pod_name} "
+            f"has indeterminate status {app_status}; refusing to submit another application."
+        )
+
+    def _task_driver_annotations(self, context: Context) -> dict[str, str]:
+        from pydantic import ValidationError
+
+        from spark_on_k8s.utils.console_models import AIRFLOW_TASK_ANNOTATION, AirflowTaskContext
+
+        annotations = dict(self.driver_annotations or {})
+        # This reserved annotation cannot be supplied through user annotations.
+        annotations.pop(AIRFLOW_TASK_ANNOTATION, None)
+        ti = context.get("ti")
+        try:
+            identity = AirflowTaskContext(
+                dag_id=getattr(ti, "dag_id", None),
+                run_id=getattr(ti, "run_id", None),
+                task_id=getattr(ti, "task_id", None),
+                map_index=getattr(ti, "map_index", -1),
+                try_number=getattr(ti, "try_number", 1),
+                region_id=getattr(ti, "region_id", None),
+                region_index=getattr(ti, "region_index", None),
+            )
+        except ValidationError:
+            # Legacy/manual operator invocations without task context remain supported;
+            # the task UI will refuse live actions on their unbound pods.
+            return annotations
+        annotations[AIRFLOW_TASK_ANNOTATION] = identity.model_dump_json(exclude_none=True)
+        return annotations
 
     def _submit_new_job(self, context: Context):
-        from spark_on_k8s.client import ExecutorInstances, PodResources, SparkOnK8S
+        from spark_on_k8s.client import PodResources, SparkOnK8S
 
         # post-process template fields
         if self.driver_resources:
@@ -323,7 +434,8 @@ class SparkOnK8SOperator(BaseOperator):
                 memory_overhead=int(self.executor_resources.memory_overhead),
             )
         if self.executor_instances:
-            self.executor_instances = ExecutorInstances(
+            self.executor_instances = replace(
+                self.executor_instances,
                 min=int(self.executor_instances.min) if self.executor_instances.min is not None else None,
                 max=int(self.executor_instances.max) if self.executor_instances.max is not None else None,
                 initial=int(self.executor_instances.initial)
@@ -344,6 +456,10 @@ class SparkOnK8SOperator(BaseOperator):
             submit_app_kwargs["driver_init_containers"] = self.driver_init_containers
         if self.driver_host_aliases is not None:
             submit_app_kwargs["driver_host_aliases"] = self.driver_host_aliases
+        if self.driver_pod_template is not None:
+            submit_app_kwargs["driver_pod_template"] = self.driver_pod_template
+        if self.driver_container_name is not None:
+            submit_app_kwargs["driver_container_name"] = self.driver_container_name
         self._driver_pod_name = spark_client.submit_app(
             image=self.image,
             app_path=self.app_path,
@@ -368,13 +484,16 @@ class SparkOnK8SOperator(BaseOperator):
             executor_node_selector=self.executor_node_selector,
             driver_labels=self.driver_labels,
             executor_labels=self.executor_labels,
-            driver_annotations=self.driver_annotations,
+            driver_annotations=self._task_driver_annotations(context),
             executor_annotations=self.executor_annotations,
+            driver_env_vars_from_secrets=self.driver_env_vars_from_secrets,
+            executor_pod_template=self.executor_pod_template,
             driver_tolerations=self.driver_tolerations,
             driver_ephemeral_configmaps_volumes=self.driver_ephemeral_configmaps_volumes,
             executor_pod_template_path=self.executor_pod_template_path,
             **submit_app_kwargs,
         )
+        self._spark_app_id = spark_client.last_submitted_app_id
 
     def _clean_up(self, spark_app_manager: SparkAppManager, app_status: SparkAppStatus):
         if self.on_finish_action == OnFinishAction.KEEP or (
@@ -407,6 +526,7 @@ class SparkOnK8SOperator(BaseOperator):
             self._submit_new_job(context)
             self._persist_pod_name(context)
         self._persist_spark_ui_link(context)
+        self._persist_console_metadata(context)
         if self.app_waiter == AppWaiter.NO_WAIT:
             return
         if self.deferrable:
@@ -416,6 +536,7 @@ class SparkOnK8SOperator(BaseOperator):
                     namespace=self.namespace,
                     kubernetes_conn_id=self.kubernetes_conn_id,
                     poll_interval=self.poll_interval,
+                    startup_deadline=time.time() + self.startup_timeout if self.startup_timeout else None,
                 ),
                 method_name="execute_complete",
             )
@@ -459,13 +580,21 @@ class SparkOnK8SOperator(BaseOperator):
     def execute_complete(self, context: Context, event: dict, **kwargs):
         self.namespace = event["namespace"]
         self._driver_pod_name = event["pod_name"]
+        self._restore_console_metadata(context)
         k8s_client_manager = _AirflowKubernetesClientManager(
             kubernetes_conn_id=self.kubernetes_conn_id,
         )
         spark_app_manager = SparkAppManager(
             k8s_client_manager=k8s_client_manager,
         )
-        if self.app_waiter == AppWaiter.LOG:
+        if event["status"] == "startup_timeout":
+            self.log.info("Deleting Spark application due to startup timeout...")
+            spark_app_manager.delete_app(
+                namespace=self.namespace,
+                pod_name=self._driver_pod_name,
+            )
+            raise AirflowException("Spark application startup timeout exceeded")
+        if self.app_waiter == AppWaiter.LOG and event["status"] != "error":
             spark_app_manager.stream_logs(
                 namespace=event["namespace"],
                 pod_name=event["pod_name"],
@@ -476,14 +605,11 @@ class SparkOnK8SOperator(BaseOperator):
             return event["status"]
         if event["status"] == "error":
             raise AirflowException(
-                f"SparkOnK8STrigger failed: with error: {event['error']}\n"
-                f"Stacktrace: {event['stacktrace']}"
+                f"SparkOnK8STrigger failed: with error: {event['error']}\nStacktrace: {event['stacktrace']}"
             )
         raise AirflowException(f"The job finished with status: {event['status']}")
 
     def on_kill(self) -> None:
-        from airflow.operators.python import get_current_context
-
         if self.on_kill_action == OnKillAction.KEEP:
             return
         self.log.warning(self._driver_pod_name)
@@ -518,7 +644,9 @@ class SparkSqlOnK8SOperator(SparkOnK8SOperator):
     """Execute Spark SQL commands on Kubernetes.
 
     This operator passes the SQL commands to a Python script that runs them on Spark,
-    that's why it requires a PySpark docker image.
+    that's why it requires a PySpark docker image. SQL is split into statements before
+    submission, so semicolons inside quoted strings or comments remain intact. The
+    internal runner receives a JSON statement list and does not require a SQL parser.
 
     Args:
         sql (str): SQL commands to execute.
@@ -536,25 +664,11 @@ class SparkSqlOnK8SOperator(SparkOnK8SOperator):
     def __init__(self, sql: str, **kwargs):
         super().__init__(
             app_path="/configmap/spark_sql.py",
-            app_arguments=literal(["/configmap/queries.sql"]),
+            app_arguments=["/configmap/queries.json"],
             **kwargs,
         )
         self.sql = sql
 
     def execute(self, context: Context):
-        self.driver_ephemeral_configmaps_volumes = [
-            {
-                "mount_path": "/configmap",
-                "sources": [
-                    {
-                        "name": "spark_sql.py",
-                        "text_path": f"{Path(__file__).parent}/scripts/spark_sql.py",
-                    },
-                    {
-                        "name": "queries.sql",
-                        "text": self.sql,
-                    },
-                ],
-            }
-        ]
+        self.driver_ephemeral_configmaps_volumes = [prepare_sql_configmap(self.sql, allow_empty=True)]
         return super().execute(context)

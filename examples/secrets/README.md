@@ -1,7 +1,10 @@
 ## Submit a Spark application with secrets
 
-This example shows how to submit a Spark application with secrets.
+This example shows how to submit a Spark application with secrets. From the repository root,
+change into the example directory before running the commands below:
+
 ```bash
+cd examples/secrets
 docker build -t pyspark-job:with-secrets .
 ```
 ```bash

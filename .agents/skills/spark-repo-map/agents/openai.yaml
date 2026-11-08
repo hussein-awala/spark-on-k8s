@@ -1,0 +1,4 @@
+interface:
+  display_name: "Spark repository map"
+  short_description: "Locate Spark implementation and contract boundaries"
+  default_prompt: "Use $spark-repo-map for this spark-on-k8s task."

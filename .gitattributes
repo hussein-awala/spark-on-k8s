@@ -1,0 +1,3 @@
+# Rebuilt from frontend/ and verified by CI.
+spark_on_k8s/api/webserver/static/ui/** linguist-generated=true
+spark_on_k8s/airflow/ui/static/** linguist-generated=true

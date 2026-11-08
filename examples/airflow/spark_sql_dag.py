@@ -2,10 +2,9 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from spark_on_k8s.airflow._compat import DAG
 from spark_on_k8s.airflow.operators import SparkSqlOnK8SOperator
 from spark_on_k8s.client import ExecutorInstances, PodResources
-
-from airflow.models.dag import DAG
 
 with DAG(
     dag_id="spark_sql_on_k8s",
@@ -18,11 +17,11 @@ with DAG(
 
     SparkSqlOnK8SOperator(
         task_id="spark_sql_application",
-        sql="CREATE TABLE test_table (key INT, value STRING) AS SELECT 1 AS key, 'value' AS value",
+        sql="CREATE TABLE test_table USING PARQUET AS SELECT 1 AS key, 'value' AS value",
         namespace="spark",
         image="pyspark-job",
         image_pull_policy="Never",
-        app_name="spark-sql-job-example",
+        app_name="spark-sql-inline-example",
         service_account="spark",
         app_waiter="log",
         driver_resources=PodResources(cpu=1, memory=1024, memory_overhead=512),
@@ -33,11 +32,11 @@ with DAG(
 
     SparkSqlOnK8SOperator(
         task_id="spark_multiple_sql_application",
-        sql="SELECT 1; SELECT 2; SELECT {{ ds }}",
+        sql="SELECT 1; SELECT 2; SELECT DATE '{{ ds }}'",
         namespace="spark",
         image="pyspark-job",
         image_pull_policy="Never",
-        app_name="spark-sql-job-example",
+        app_name="spark-sql-multiple-example",
         service_account="spark",
         app_waiter="log",
         driver_resources=PodResources(cpu=1, memory=1024, memory_overhead=512),
@@ -52,7 +51,7 @@ with DAG(
         namespace="spark",
         image="pyspark-job",
         image_pull_policy="Never",
-        app_name="spark-sql-job-example",
+        app_name="spark-sql-file-example",
         service_account="spark",
         app_waiter="log",
         driver_resources=PodResources(cpu=1, memory=1024, memory_overhead=512),
@@ -77,7 +76,7 @@ with DAG(
         namespace="spark",
         image="pyspark-job",
         image_pull_policy="Never",
-        app_name="spark-sql-job-example",
+        app_name="spark-sql-iceberg-example",
         service_account="spark",
         app_waiter="log",
         driver_resources=PodResources(cpu=1, memory=1024, memory_overhead=512),

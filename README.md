@@ -12,253 +12,434 @@ It provides a Python client that can be used to submit apps in your API or sched
 that can be used to submit apps from the command line, instead of  using spark-submit.
 
 It also provides an optional REST API with a web UI that can be used to list and manage apps, and access the
-spark UI through the reverse proxy.
+spark UI through the reverse proxy. The optional Airflow 3.4+ task tab reuses the
+same React console components inside Airflow; see the [Airflow guide](docs/user-guide/airflow.md).
+
+Choose your route in the [start-here guide](https://hussein.awala.fr/spark-on-k8s/develop/user-guide/start-here/) and check the [support boundaries](https://hussein.awala.fr/spark-on-k8s/develop/user-guide/support/) before adopting a new integration.
 
 ## Installation
-To install the core python package (only the Python client and the helpers), run:
+
+### Published releases
+
+The following commands install a published package from PyPI. Choose the
+extra for the functionality you need, inside a virtual environment:
+
 ```bash
-pip install spark-on-k8s
-```
-If you want to use the REST API and the web UI, you will also need to install the api package:
-```bash
-pip install spark-on-k8s[api]
+python -m pip install spark-on-k8s # Python client, CLI and helpers
+python -m pip install "spark-on-k8s[sql]" # Also submit SQL files without Airflow
+python -m pip install "spark-on-k8s[api]" # Also install the REST API and web UI
+python -m pip install "spark-on-k8s[airflow]" # Also install the Airflow integration
 ```
 
-You can also install the package from source with pip or poetry:
-```bash
-# With pip
-pip install . # For the core package
-pip install ".[api]" # For the API package
+Published releases can have different Python requirements and features from the
+unreleased `main` branch. Check the selected release's metadata on
+[PyPI](https://pypi.org/project/spark-on-k8s/) and its version of the documentation.
+The source requirements and examples below describe `main`; installing from PyPI
+does not install unreleased changes.
 
-# With poetry
-poetry install # For the core package
-poetry install -E api # For the API package
+### Current source
+
+The current source requires Python 3.11 or newer. The core client and API are
+tested on Python 3.11–3.15. The Airflow integration is tested with Airflow 3.4 on
+Python 3.11–3.14 and Airflow 2.11.2 on Python 3.11–3.12. Airflow 2 is end-of-life
+and retains dependency versions with known security advisories; use Airflow 3 for
+new deployments. The optional `airflow-ui` extra adds a native task tab for
+Airflow 3.4 or newer, below Airflow 4. The `airflow` and `airflow-ui` extras are
+not supported on Python 3.15.
+
+Clone the repository to use the source instructions and example files in this guide:
+
+```bash
+git clone https://github.com/hussein-awala/spark-on-k8s.git
+cd spark-on-k8s
 ```
+
+With [uv](https://docs.astral.sh/uv/), choose one environment profile. These commands
+use the committed lockfile and create a project-local `.venv`:
+
+```bash
+uv sync --locked --no-default-groups # Core package
+uv sync --locked --no-default-groups --extra api # API and web UI
+uv sync --python 3.12 --locked --no-default-groups --extra airflow # Airflow 3 integration
+uv sync --python 3.12 --locked --no-default-groups --extra airflow-ui # Also install the native task tab
+```
+
+Run commands from the selected environment with `uv run --no-sync spark-on-k8s`,
+or activate it with `source .venv/bin/activate` before using the commands below.
+To install the API and Airflow integration together, select `--extra api --extra airflow`,
+or `--extra api --extra airflow-ui` to include the task tab. A later `uv sync`
+selects a new profile and can remove unselected extras.
+
+Alternatively, install from the checkout with pip in an activated virtual environment:
+
+```bash
+python -m pip install . # Core package
+python -m pip install ".[api]" # API and web UI
+python -m pip install ".[airflow]" # Airflow integration
+python -m pip install ".[airflow-ui]" # Airflow 3.4+ integration and native task tab
+```
+
+See [CONTRIBUTING.md](https://github.com/hussein-awala/spark-on-k8s/blob/main/CONTRIBUTING.md)
+for development dependencies and the separate Airflow 2.11 compatibility environment.
+See the [Airflow guide](docs/user-guide/airflow.md) for provider installation, connections and DAG examples.
 
 ## Usage
 
-### Setup the Kubernetes namespace
+### Set up the Kubernetes namespace
 
-When submitting a Spark application to Kubernetes, we only create the driver pod, which is responsible for creating and
-managing the executors pods. To give the driver pod the permissions to create the executors pods, we can give it a
-service account with the required permissions. To simplify this process, we provide a helper function that creates
-a namespace if needed, and a service account with the required permissions:
+The client creates the Spark driver pod. The driver uses its Kubernetes service
+account to create and manage executor pods. The following examples use namespace
+`spark` and service account `spark`; the submitting client also needs permission
+to create the application resources in that namespace.
+
+The setup helper creates the namespace if needed, a service account named `spark`,
+and a **ClusterRoleBinding to the built-in `edit` ClusterRole**. This grants that
+service account edit access across all namespaces. It is broader than a
+namespace-scoped Spark driver role. On a shared cluster, ask the cluster
+administrator to provision a suitably scoped service account instead.
+
+Running the helper requires credentials that can list namespaces, service accounts
+and ClusterRoleBindings, create missing resources, and bind the `edit` role.
+Use it only when that cluster-wide grant is intended. See the
+[Kubernetes RBAC documentation](https://kubernetes.io/docs/reference/access-authn-authz/rbac/#rolebinding-and-clusterrolebinding)
+for the difference between RoleBindings and ClusterRoleBindings.
 
 With Python:
+
 ```python
 from spark_on_k8s.utils.setup_namespace import SparkOnK8SNamespaceSetup
 
-spark_on_k8s_setuper = SparkOnK8SNamespaceSetup()
-spark_on_k8s_setuper.setup_namespace(namespace="<namespace name>")
+namespace_setup = SparkOnK8SNamespaceSetup()
+namespace_setup.setup_namespace(namespace="spark")
 ```
 
 With the CLI:
+
 ```bash
-spark-on-k8s namespace setup -n <namespace name>
+spark-on-k8s namespace setup -n spark
 ```
 
-### Python Client
-The Python client can be used to submit apps from your Python code, instead of using spark-submit:
+### Python client
+
+Replace the image and application path with an image accessible to your cluster
+and an application file included in that image:
 
 ```python
 from spark_on_k8s.client import SparkOnK8S
 
 client = SparkOnK8S()
-client.submit_app(
+driver_pod_name = client.submit_app(
     image="my-registry/my-image:latest",
     app_path="local:///opt/spark/work-dir/my-app.py",
     app_arguments=["arg1", "arg2"],
     app_name="my-app",
-    namespace="spark-namespace",
-    service_account="spark-service-account",
+    namespace="spark",
+    service_account="spark",
     app_waiter="log",
-    image_pull_policy="Never",
+    image_pull_policy="IfNotPresent",
     ui_reverse_proxy=True,
 )
 ```
 
-### CLI
-The CLI can be used to submit apps from the command line, instead of using spark-submit, it can also be used to
-manage apps submitted with the Python client (list, get, delete, logs, etc.):
+`submit_app` returns the driver pod name. The application ID is generated from the
+application name with a timestamp suffix and is available in the application list.
+For a private registry, configure image-pull credentials for the pods in your cluster.
 
-Submit a app:
+### CLI
+
+The CLI can submit applications and manage applications created by either the CLI
+or the Python client. Submit an application and stream its logs:
+
 ```bash
 spark-on-k8s app submit \
   --image my-registry/my-image:latest \
   --path local:///opt/spark/work-dir/my-app.py \
-  -n spark \
+  --namespace spark \
+  --service-account spark \
   --name my-app \
-  --image-pull-policy Never \
+  --image-pull-policy IfNotPresent \
   --ui-reverse-proxy \
-  --log \
+  --logs \
   param1 param2
 ```
-Kill a app:
+
+List applications to find their generated IDs:
+
 ```bash
-spark-on-k8s app kill -n spark-namespace --app-id my-app
+spark-on-k8s apps list -n spark
 ```
 
-List apps:
+To kill a running application, copy its actual ID from that output. The following
+ID is illustrative; `my-app` alone is the application name, not the generated ID:
+
 ```bash
-spark-on-k8s apps list -n spark-namespace
+APP_ID="my-app-20261107120000" # Replace with the ID from the application list
+spark-on-k8s app kill -n spark --app-id "$APP_ID"
 ```
 
-You can check the help for more information:
+Check the help for further commands and options:
+
 ```bash
 spark-on-k8s --help
 spark-on-k8s app --help
 spark-on-k8s apps --help
 ```
 
+Use `--output json` for versioned submission receipts and machine-readable list/status results.
+Waiting commands report failed workloads with nonzero exit codes; `--timeout` bounds observation.
+See the [automation guide](docs/user-guide/automation.md) for exit codes and Python run handles.
+
 ### REST API
 
-The REST API implements some of the same functionality as the CLI but in async way, and also provides a web UI
-that can be used to list the apps in the cluster and access the spark UI through a reverse proxy. The UI will be
-improved in the future and more functionality will be added to both UI and API.
+Install the `api` extra before starting the REST API and web UI. For local access:
 
-To run the API, you can use the CLI:
 ```bash
 spark-on-k8s api start \
-    --host "0.0.0.0" \
+    --host "127.0.0.1" \
     --port 8080 \
     --workers 4 \
     --log-level error \
     --limit-concurrency 100
 ```
 
-To list the apps, you can use the API:
+List applications in the `spark` namespace:
+
 ```bash
-curl -X 'GET' \
-  'http://0.0.0.0:8080/apps/list_apps/spark-namespace' \
+curl 'http://127.0.0.1:8080/apps/list_apps/spark' \
   -H 'accept: application/json'
 ```
 
-To access the spark UI of the app APP_ID, in the namespace NAMESPACE, you can use the web UI link:
-`http://0.0.0.0:8080/webserver/ui/NAMESPACE/APP_ID`, or getting all the application and then clicking
-on the button `Open Spark UI` from the link `http://0.0.0.0:8080/webserver/apps?namespace=NAMESPACE`.
+The console provides a searchable application list, status filters, namespace selection,
+application details, and confirmed stop/delete actions. It refreshes in the background
+without resetting your filters. Counts and filters describe the applications loaded so far;
+use **Load more** when additional pages are available. Completed applications from the
+configured history server appear as archive entries without live-driver actions.
 
-### API in production
+The driver-log view supports search, copying, download, a configurable tail, and pausing
+auto-scroll. It keeps the most recent 10,000 lines in the browser. Connection failures
+are shown separately from log text, and a history-server outage leaves live applications
+available. JavaScript and CSS are packaged with the Python distribution; no CDN is needed.
 
-To deploy the API in production, you can use the project helm chart, that setups all the required resources in the
-cluster, including the API deployment, the service, the ingress and the RBAC resources. The API has a configuration
-class that loads the configuration from environment variables, so you can use the helm chart `env` values to configure
-the API and its Kubernetes client.
+Open `http://127.0.0.1:8080/webserver/apps?namespace=spark` and use **Open Spark UI**
+for an application submitted with UI reverse proxy enabled. Its direct URL is
+`http://127.0.0.1:8080/webserver/ui/spark/APP_ID`; replace `APP_ID` with the actual
+application ID. The API process must be able to reach the driver's service.
 
-To install the helm chart, you can run:
+Use `--host 0.0.0.0` to listen on all network interfaces when deploying behind an
+appropriate service or proxy. Client URLs should use the server's reachable host
+or address, not the wildcard bind address `0.0.0.0`.
+
+### Deploy the API with Helm
+
+The chart deploys the API, its Service and RBAC resources. Ingress and the optional
+Spark History Server are controlled by chart values. The chart's `env` list sets
+environment variables for the API and its Kubernetes client.
+
+The **published chart** is released independently from this source checkout.
+Inspect the selected published chart's values before deploying it; unreleased
+chart fixes and defaults described below may not be present:
+
 ```bash
-helm repo add spark-on-k8s http://hussein.awala.fr/spark-on-k8s-chart
+helm repo add spark-on-k8s https://hussein.awala.fr/spark-on-k8s-chart
 helm repo update
-helm install spark-on-k8s-release spark-on-k8s/spark-on-k8s --values examples/helm/values.yaml
+helm show values spark-on-k8s/spark-on-k8s
+helm install spark-on-k8s-release spark-on-k8s/spark-on-k8s \
+  --values examples/helm/values.yaml
 ```
+
+To use the **chart from this checkout**, render it for review first, then install
+that local chart:
+
+```bash
+helm template spark-on-k8s-release ./chart --values examples/helm/values.yaml
+helm install spark-on-k8s-release ./chart --values examples/helm/values.yaml
+```
+
+Choose one chart source for a release. The commands above use example values from
+this checkout; adapt them to your cluster and selected chart version.
+The source chart defaults to `readOnly: true`, `namespaces: "*"`, a ClusterIP Service
+on port `8000`, and disabled ingress. Set `namespaces` to a comma-separated string
+such as `"spark"` or `"spark,analytics"` to scope the chart-created Kubernetes
+permissions to those namespaces.
+Enable `readOnly: false` only if the API should be able to kill or
+delete applications. The separate web UI button settings control visibility,
+not Kubernetes authorization. The API has no built-in user authentication, and
+`namespaces` does not restrict the HTTP reverse proxy. Expose the API through
+access-controlled networking or an authenticating proxy.
+
+The source chart supplies in-cluster Kubernetes configuration and the API bind
+address and port. Its default API image tag is `latest` for development; using a local chart does
+not build or install the Python source into that image. Set `image.repository`
+and `image.digest` to a verified production image digest (`image.tag` remains available
+for named releases), independently of Spark application images passed to `submit_app`.
+Digest selection takes precedence over the tag. See [chart deployment guidance](docs/user-guide/chart-deployments.md)
+for scoped permissions, externally owned identities and release qualification.
 
 ## Configuration
 
-The Python client and the CLI can be configured with environment variables to avoid passing the same arguments every
-time if you have a common configuration for all your apps. The environment variables are the same for both the client
-and the CLI. Here is a list of the available environment variables:
+Set environment variables before starting the CLI/API process or importing the
+Python client: configuration values are read at module import time. The table
+below lists defaults in the current source, before chart or caller overrides.
+`unset` means no environment default (`None`); `{}`, `[]` and an empty string are
+distinct empty defaults. Use lowercase `true` or `false` for boolean settings.
 
-| Environment Variable                              | Description                                                      | Default                                |
-|---------------------------------------------------|------------------------------------------------------------------|----------------------------------------|
-| SPARK_ON_K8S_DOCKER_IMAGE                         | The docker image to use for the spark pods                       |                                        |
-| SPARK_ON_K8S_APP_PATH                             | The path to the app file                                         |                                        |
-| SPARK_ON_K8S_NAMESPACE                            | The namespace to use                                             | default                                |
-| SPARK_ON_K8S_SERVICE_ACCOUNT                      | The service account to use                                       | spark                                  |
-| SPARK_ON_K8S_SPARK_CONF                           | The spark configuration to use                                   | {}                                     |
-| SPARK_ON_K8S_CLASS_NAME                           | The class name to use                                            |                                        |
-| SPARK_ON_K8S_PACKAGES                             | The maven packages list to add to the classpath                  |              
-| SPARK_ON_K8S_APP_ARGUMENTS                        | The arguments to pass to the app                                 | []                                     |
-| SPARK_ON_K8S_APP_WAITER                           | The waiter to use to wait for the app to finish                  | no_wait                                |
-| SPARK_ON_K8S_IMAGE_PULL_POLICY                    | The image pull policy to use                                     | IfNotPresent                           |
-| SPARK_ON_K8S_UI_REVERSE_PROXY                     | Whether to use a reverse proxy to access the spark UI            | false                                  |
-| SPARK_ON_K8S_DRIVER_CPU                           | The driver CPU                                                   | 1                                      |
-| SPARK_ON_K8S_DRIVER_MEMORY                        | The driver memory                                                | 1024                                   |
-| SPARK_ON_K8S_DRIVER_MEMORY_OVERHEAD               | The driver memory overhead                                       | 512                                    |
-| SPARK_ON_K8S_EXECUTOR_CPU                         | The executor CPU                                                 | 1                                      |
-| SPARK_ON_K8S_EXECUTOR_MEMORY                      | The executor memory                                              | 1024                                   |
-| SPARK_ON_K8S_EXECUTOR_MEMORY_OVERHEAD             | The executor memory overhead                                     | 512                                    |
-| SPARK_ON_K8S_EXECUTOR_MIN_INSTANCES               | The minimum number of executor instances                         |                                        |
-| SPARK_ON_K8S_EXECUTOR_MAX_INSTANCES               | The maximum number of executor instances                         |                                        |
-| SPARK_ON_K8S_EXECUTOR_INITIAL_INSTANCES           | The initial number of executor instances                         |                                        |
-| SPARK_ON_K8S_EXECUTOR_ALLOCATION_RATIO            | The executor allocation ratio                                    | 1                                      |
-| SPARK_ON_K8S_SCHEDULER_BACKLOG_TIMEOUT            | The scheduler backlog timeout for dynamic allocation             | 1s                                     |
-| SPARK_ON_K8S_SUSTAINED_SCHEDULER_BACKLOG_TIMEOUT  | The sustained scheduler backlog timeout for dynamic allocation   | SPARK_ON_K8S_SCHEDULER_BACKLOG_TIMEOUT |
-| SPARK_ON_K8S_CONFIG_FILE                          | The path to the config file                                      |                                        |
-| SPARK_ON_K8S_CONTEXT                              | The context to use                                               |                                        |
-| SPARK_ON_K8S_CLIENT_CONFIG                        | The sync Kubernetes client configuration to use                  |                                        |
-| SPARK_ON_K8S_ASYNC_CLIENT_CONFIG                  | The async Kubernetes client configuration to use                 |                                        |
-| SPARK_ON_K8S_IN_CLUSTER                           | Whether to use the in cluster Kubernetes config                  | false                                  |
-| SPARK_ON_K8S_API_DEFAULT_NAMESPACE                | The default namespace to use for the API                         | default                                |
-| SPARK_ON_K8S_API_HOST                             | The host to use for the API                                      | 127.0.0.1                              |
-| SPARK_ON_K8S_API_PORT                             | The port to use for the API                                      | 8000                                   |
-| SPARK_ON_K8S_API_WORKERS                          | The number of workers to use for the API                         | 4                                      |
-| SPARK_ON_K8S_API_LOG_LEVEL                        | The log level to use for the API                                 | info                                   |
-| SPARK_ON_K8S_API_LIMIT_CONCURRENCY                | The limit concurrency to use for the API                         | 1000                                   |
-| SPARK_ON_K8S_API_SPARK_HISTORY_HOST               | The host to use for the spark history server                     |                                        |
-| SPARK_ON_K8S_API_WEBSERVER_APPS_KILL_BUTTON       | Whether to show the kill button in the apps page in the web UI   | true                                   |
-| SPARK_ON_K8S_API_WEBSERVER_APPS_DELETE_BUTTON     | Whether to show the delete button in the apps page in the web UI | true                                   |
-| SPARK_ON_K8S_API_WEBSERVER_APPS_REFRESH_INTERVAL  | The interval to refresh the apps list (provide < 0 to disable)   | 10s                                    |
-| SPARK_ON_K8S_SPARK_DRIVER_NODE_SELECTOR           | The node selector to use for the driver pod                      | {}                                     |
-| SPARK_ON_K8S_SPARK_EXECUTOR_NODE_SELECTOR         | The node selector to use for the executor pods                   | {}                                     |
-| SPARK_ON_K8S_SPARK_DRIVER_LABELS                  | The labels to use for the driver pod                             | {}                                     |
-| SPARK_ON_K8S_SPARK_EXECUTOR_LABELS                | The labels to use for the executor pods                          | {}                                     |
-| SPARK_ON_K8S_SPARK_DRIVER_ANNOTATIONS             | The annotations to use for the driver pod                        | {}                                     |
-| SPARK_ON_K8S_SPARK_EXECUTOR_ANNOTATIONS           | The annotations to use for the executor pods                     | {}                                     |
-| SPARK_ON_K8S_EXECUTOR_POD_TEMPLATE_PATH           | The path to the executor pod template                            |                                        |
-| SPARK_ON_K8S_STARTUP_TIMEOUT                      | The timeout to wait for the app to start in seconds              | 0 (no timeout)                         |
+Most client defaults also apply to the CLI. The six node-selector, label and
+annotation variables marked **CLI** are CLI defaults; Python callers should pass
+the corresponding `driver_*` or `executor_*` dictionaries to `submit_app`.
+If all three executor-count variables are unset, applications use two executors
+with dynamic allocation disabled. The two executor-template settings are mutually
+exclusive, including when supplied through environment variables.
+
+| Environment variable | Description | Default |
+| --- | --- | --- |
+| `SPARK_ON_K8S_DOCKER_IMAGE` | Spark driver and executor image; required unless passed explicitly | unset |
+| `SPARK_ON_K8S_APP_PATH` | Application file URI; required unless passed explicitly | unset |
+| `SPARK_ON_K8S_NAMESPACE` | Application namespace | `default` |
+| `SPARK_ON_K8S_SERVICE_ACCOUNT` | Driver service account | `spark` |
+| `SPARK_ON_K8S_APP_NAME` | Application name; generated when unset | unset |
+| `SPARK_ON_K8S_SPARK_CONF` | Spark properties as a JSON object | `{}` |
+| `SPARK_ON_K8S_CLASS_NAME` | Main class for a JVM application | unset |
+| `SPARK_ON_K8S_PACKAGES` | Maven coordinates separated by commas | empty string |
+| `SPARK_ON_K8S_APP_ARGUMENTS` | Application arguments as a JSON array of strings | `[]` |
+| `SPARK_ON_K8S_APP_WAITER` | Wait mode: `no_wait`, `wait` or `log` | `no_wait` |
+| `SPARK_ON_K8S_IMAGE_PULL_POLICY` | Pod image pull policy: `Always`, `IfNotPresent` or `Never` | `IfNotPresent` |
+| `SPARK_ON_K8S_UI_REVERSE_PROXY` | Configure the application for Spark UI reverse proxy access | `false` |
+| `SPARK_ON_K8S_DRIVER_CPU` | Driver CPU cores (integer) | `1` |
+| `SPARK_ON_K8S_DRIVER_MEMORY` | Driver memory in MiB (integer) | `1024` |
+| `SPARK_ON_K8S_DRIVER_MEMORY_OVERHEAD` | Driver memory overhead in MiB (integer) | `512` |
+| `SPARK_ON_K8S_EXECUTOR_CPU` | Executor CPU cores (integer) | `1` |
+| `SPARK_ON_K8S_EXECUTOR_MEMORY` | Executor memory in MiB (integer) | `1024` |
+| `SPARK_ON_K8S_EXECUTOR_MEMORY_OVERHEAD` | Executor memory overhead in MiB (integer) | `512` |
+| `SPARK_ON_K8S_EXECUTOR_MIN_INSTANCES` | Minimum executor count; enables dynamic allocation when set | unset |
+| `SPARK_ON_K8S_EXECUTOR_MAX_INSTANCES` | Maximum executor count; enables dynamic allocation when set | unset |
+| `SPARK_ON_K8S_EXECUTOR_INITIAL_INSTANCES` | Initial executor count; fixed count when minimum and maximum are unset | unset |
+| `SPARK_ON_K8S_EXECUTOR_ALLOCATION_RATIO` | Dynamic allocation ratio (number) | `1.0` |
+| `SPARK_ON_K8S_SCHEDULER_BACKLOG_TIMEOUT` | Backlog duration before requesting executors | `1s` |
+| `SPARK_ON_K8S_SUSTAINED_SCHEDULER_BACKLOG_TIMEOUT` | Backlog duration for subsequent executor requests | value of `SPARK_ON_K8S_SCHEDULER_BACKLOG_TIMEOUT` |
+| `SPARK_ON_K8S_SECRET_ENV_VAR` | Driver and executor environment values as a JSON object; stored in an application-owned Secret | `{}` |
+| `SPARK_ON_K8S_DRIVER_ENV_VARS_FROM_SECRET` | Existing Secret names separated by commas; import their keys as driver environment variables | empty list |
+| `SPARK_ON_K8S_STARTUP_TIMEOUT` | Driver startup timeout in seconds when waiting or streaming logs (integer); `0` disables it | `0` |
+| `SPARK_ON_K8S_CONFIG_FILE` | Kubeconfig file path | unset |
+| `SPARK_ON_K8S_CONTEXT` | Kubeconfig context | unset |
+| `SPARK_ON_K8S_CLIENT_CONFIG` | JSON object of synchronous `kubernetes.client.Configuration` constructor arguments | unset |
+| `SPARK_ON_K8S_ASYNC_CLIENT_CONFIG` | JSON object of `kubernetes_asyncio.client.Configuration` constructor arguments; requires the `api` or `airflow` extra | unset |
+| `SPARK_ON_K8S_IN_CLUSTER` | Load Kubernetes credentials from the running pod | `false` |
+| `SPARK_ON_K8S_SPARK_DRIVER_NODE_SELECTOR` | CLI driver node selector as a JSON object | `{}` |
+| `SPARK_ON_K8S_SPARK_EXECUTOR_NODE_SELECTOR` | CLI executor node selector as a JSON object | `{}` |
+| `SPARK_ON_K8S_SPARK_DRIVER_LABELS` | CLI driver labels as a JSON object | `{}` |
+| `SPARK_ON_K8S_SPARK_EXECUTOR_LABELS` | CLI executor labels as a JSON object | `{}` |
+| `SPARK_ON_K8S_SPARK_DRIVER_ANNOTATIONS` | CLI driver annotations as a JSON object | `{}` |
+| `SPARK_ON_K8S_SPARK_EXECUTOR_ANNOTATIONS` | CLI executor annotations as a JSON object | `{}` |
+| `SPARK_ON_K8S_EXECUTOR_POD_TEMPLATE_PATH` | Executor template path already available to the driver | unset |
+| `SPARK_ON_K8S_EXECUTOR_TEMPLATE` | Executor template YAML or local file path; creates and mounts a ConfigMap | unset |
+| `SPARK_ON_K8S_API_DEFAULT_NAMESPACE` | Default namespace displayed by the API/web UI | `default` |
+| `SPARK_ON_K8S_API_HOST` | API bind address | `127.0.0.1` |
+| `SPARK_ON_K8S_API_PORT` | API listen port (integer) | `8000` |
+| `SPARK_ON_K8S_API_WORKERS` | API worker count (integer) | `4` |
+| `SPARK_ON_K8S_API_LOG_LEVEL` | API server log level | `info` |
+| `SPARK_ON_K8S_API_LIMIT_CONCURRENCY` | Maximum concurrent API connections/tasks (integer) | `1000` |
+| `SPARK_ON_K8S_API_SPARK_HISTORY_HOST` | Spark History Server host and port, optionally with an HTTP(S) scheme | unset |
+| `SPARK_ON_K8S_API_WEBSERVER_APPS_KILL_BUTTON` | Show the kill button in the applications page | `true` |
+| `SPARK_ON_K8S_API_WEBSERVER_APPS_DELETE_BUTTON` | Show the delete button in the applications page | `true` |
+| `SPARK_ON_K8S_API_WEBSERVER_APPS_REFRESH_INTERVAL` | Applications-page refresh interval in whole seconds; `0` or a negative value disables it | `10` |
+
+JSON settings use JSON syntax, including double-quoted keys and strings. Packages
+and existing Secret names use comma-separated strings instead of JSON arrays:
+
+```bash
+export SPARK_ON_K8S_SPARK_CONF='{"spark.sql.shuffle.partitions": "8"}'
+export SPARK_ON_K8S_APP_ARGUMENTS='["--input", "s3a://example/input"]'
+export SPARK_ON_K8S_DRIVER_ENV_VARS_FROM_SECRET='spark-storage,spark-catalog'
+export SPARK_ON_K8S_API_WEBSERVER_APPS_REFRESH_INTERVAL='10'
+```
+
+The named Secrets must exist in the application's namespace. Refresh values such
+as `10s` are invalid because the setting is parsed as an integer.
 
 ## Examples
 
-Here are some examples of how to package and submit spark apps with this package. In the examples, the base image is
-built with the spark image tool, as described in the
-[spark documentation](https://spark.apache.org/docs/latest/running-on-kubernetes.html#docker-images).
+Run the following commands from a source checkout. The examples use namespace
+`spark` and service account `spark`, which must already be configured as described
+above. See the [examples guide](docs/user-guide/examples.md) for the application
+code, driver configuration and executor templates, and the
+[Airflow guide](docs/user-guide/airflow.md) for DAG examples.
+The [ETL and Iceberg starters](docs/user-guide/starters.md) include real data checks
+and portable job definitions for shared-storage deployments.
+[SQL jobs](docs/user-guide/sql.md) can be submitted from the CLI or Python without Airflow.
+[Spark compatibility](docs/user-guide/spark_compatibility.md) describes the Spark 3.5
+and Spark 4 runtime matrix, image build arguments, and execution tests.
 
 ### Python
-First, build the docker image and push it to a registry accessible by your cluster,
-or load it into your cluster's local registry if you're using minikube or kind:
+
+Build the image from the repository root:
+
 ```bash
 docker build -t pyspark-job examples/python
-
-# For minikube
-minikube image load pyspark-job
-# For kind
-kind load docker-image pyspark-job
-# For remote clusters, you will need to change the image name to match your registry,
-# and then push it to that registry
-docker push pyspark-job
 ```
-Then, submit the job:
+
+For a local cluster, load the image into **one** of the following cluster runtimes:
+
+```bash
+# Minikube
+minikube image load pyspark-job
+# Or kind
+kind load docker-image pyspark-job
+```
+
+The supplied submission scripts use `image_pull_policy="Never"` (CLI:
+`--image-pull-policy Never`) for these preloaded images. For a remote cluster,
+replace the example registry below, push the tagged image, and update the script's
+image to that same name and its pull policy to `IfNotPresent`:
+
+```bash
+docker tag pyspark-job registry.example.com/team/pyspark-job:example
+docker push registry.example.com/team/pyspark-job:example
+```
+
+Submit with the Python client or the CLI script:
+
 ```bash
 python examples/python/submit.py
-```
-Or via the bash script:
-```bash
-./examples/python/submit.sh
+# Or
+bash examples/python/submit.sh
 ```
 
 ### Java
-Same as above, but with the java example:
+
+Build the image from the repository root:
+
 ```bash
 docker build -t java-spark-job examples/java
-
-# For minikube
-minikube image load java-spark-job
-# For kind
-kind load docker-image java-spark-job
-# For remote clusters, you will need to change the image name to match your registry,
-# and then push it to that registry
-docker push java-spark-job
 ```
-Then, submit the job:
+
+For a local cluster, load the image into **one** of the following cluster runtimes:
+
+```bash
+# Minikube
+minikube image load java-spark-job
+# Or kind
+kind load docker-image java-spark-job
+```
+
+The supplied submission scripts use `image_pull_policy="Never"` (CLI:
+`--image-pull-policy Never`) for these preloaded images. For a remote cluster,
+replace the example registry below, push the tagged image, and update the script's
+image to that same name and its pull policy to `IfNotPresent`:
+
+```bash
+docker tag java-spark-job registry.example.com/team/java-spark-job:example
+docker push registry.example.com/team/java-spark-job:example
+```
+
+Submit with the Python client or the CLI script:
+
 ```bash
 python examples/java/submit.py
-```
-
-Or via the bash script:
-```bash
-./examples/java/submit.sh
+# Or
+bash examples/java/submit.sh
 ```
 
 ## What's next
 
-You can check the [TODO](https://github.com/hussein-awala/spark-on-k8s/blob/main/TODO.md) list for the things that we
-will work on in the future. All contributions are welcome!
+See the [TODO list](https://github.com/hussein-awala/spark-on-k8s/blob/main/TODO.md)
+for future work. Contributions are welcome!

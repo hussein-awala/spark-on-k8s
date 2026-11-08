@@ -1,79 +1,391 @@
 name: test
 
 on:
+  workflow_dispatch:
   pull_request:
-    types:
-      - opened
-      - reopened
-      - synchronize
+    types: [opened, reopened, synchronize]
   push:
-    branches:
-      - main
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   changed-files:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: read
+      pull-requests: read
     outputs:
-      should_run_pytest: ${{ steps.check-pytest.outputs.src }}
+      tests: ${{ steps.filter.outputs.tests }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - id: check-pytest
-        name: Should run pytest
-        uses: dorny/paths-filter@v3
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: filter
         with:
           filters: |
-            src:
+            tests:
               - "spark_on_k8s/**"
               - "tests/**"
-              - "poetry.lock"
+              - "scripts/**"
+              - "frontend/**"
+              - "chart/**"
+              - "examples/**"
+              - "uv.lock"
+              - "pyproject.toml"
+              - ".github/workflows/**"
 
-  pytest:
+  core-api:
+    name: Core/API (${{ matrix.os }}, Python ${{ matrix.python-version }})
     needs: changed-files
-    if: ${{ needs.changed-files.outputs.should_run_pytest == 'true' }}
-    strategy:
-      fail-fast: true
-      matrix:
-        os: [ "ubuntu-latest", "macos-latest" ]
-        python-version: [ "3.9", "3.10", "3.11", "3.12", "3.13" ]
+    if: github.event_name == 'workflow_dispatch' || needs.changed-files.outputs.tests == 'true'
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-26.04]
+        python-version: ["3.11", "3.12", "3.13", "3.14", "3.15"]
+        include:
+          - os: macos-26
+            python-version: "3.11"
+          - os: macos-26
+            python-version: "3.14"
+          - os: macos-26
+            python-version: "3.15"
+    env:
+      PYTHON_VERSION: ${{ matrix.python-version }}
+      COVERAGE_FILE: .coverage.core-api
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up python ${{ matrix.python-version }}
-        id: setup-python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
-          python-version: ${{ matrix.python-version }}
-
-      - name: Install Poetry
-        uses: snok/install-poetry@v1
-        with:
-          virtualenvs-create: true
-          virtualenvs-in-project: true
-
-      - name: Load cached venv
-        id: cached-poetry-dependencies
-        uses: actions/cache@v4
-        with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
-
-      - name: Install dependencies
-        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction --no-root --all-extras
-
-      - name: Install library
-        run: poetry install --no-interaction --all-extras
-
-      - name: Run tests
+          version: "0.13.7"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - name: Create isolated Python environment
+        shell: bash
         run: |
-          source .venv/bin/activate
-          pytest tests/ --cov spark_on_k8s --cov-report=json
+          unset CONDA_DEFAULT_ENV CONDA_PREFIX VIRTUAL_ENV
+          uv python install "$PYTHON_VERSION"
+          python_path="$(uv python find --managed-python "$PYTHON_VERSION")"
+          uv venv --python "$python_path" .venv
+          .venv/bin/python - <<'PYTHON'
+          import sys
+          from pathlib import Path
+          assert sys.prefix != sys.base_prefix, "Expected an isolated virtual environment"
+          assert Path(sys.prefix).resolve() == Path(".venv").resolve(), sys.prefix
+          PYTHON
+          echo "CONDA_DEFAULT_ENV=" >> "$GITHUB_ENV"
+          echo "CONDA_PREFIX=" >> "$GITHUB_ENV"
+          echo "VIRTUAL_ENV=$GITHUB_WORKSPACE/.venv" >> "$GITHUB_ENV"
+          echo "UV_PROJECT_ENVIRONMENT=$GITHUB_WORKSPACE/.venv" >> "$GITHUB_ENV"
+          echo "AIRFLOW_HOME=$RUNNER_TEMP/airflow" >> "$GITHUB_ENV"
+          .venv/bin/python --version
+      - name: Install locked core/API dependencies
+        run: |
+          uv lock --check
+          uv sync --locked --no-default-groups --group test --extra api --extra sql
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: v4.3.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "26"
+      - name: Verify core/API integration and test tools
+        run: |
+          helm version --short
+          node --version
+          .venv/bin/python - <<'PY'
+          import os
+          import sys
+          from importlib.metadata import PackageNotFoundError, version
+          from fastapi import FastAPI
+          from spark_on_k8s.api.main import app
+          from spark_on_k8s.client import SparkOnK8S
+          expected_python = tuple(map(int, os.environ["PYTHON_VERSION"].split(".")))
+          assert sys.version_info[:2] == expected_python, sys.version
+          assert isinstance(app, FastAPI)
+          for distribution in ("apache-airflow", "apache-airflow-core", "apache-airflow-task-sdk"):
+              try:
+                  version(distribution)
+              except PackageNotFoundError:
+                  continue
+              raise AssertionError(f"{distribution} must not be installed in the core/API environment")
+          print(f"Python {sys.version}")
+          print(f"FastAPI {version('fastapi')}")
+          PY
+      - name: Run core/API tests
+        run: .venv/bin/python -m pytest tests --ignore=tests/airflow --cov=spark_on_k8s --cov-report=term-missing --junitxml=test-results.xml
+      - name: Require executed core/API tests without skips
+        run: |
+          .venv/bin/python - <<'PY'
+          import xml.etree.ElementTree as ET
+          cases = list(ET.parse("test-results.xml").iter("testcase"))
+          assert cases, "No core/API tests were collected"
+          skipped = [case.attrib["name"] for case in cases if case.find("skipped") is not None]
+          assert not skipped, f"Core/API tests were skipped: {skipped}"
+          PY
+      - name: Save core/API coverage
+        if: matrix.os == 'ubuntu-26.04' && matrix.python-version == '3.15'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage-core-api
+          path: .coverage.core-api
+          include-hidden-files: true
+          if-no-files-found: error
 
-      - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@v4.0.1
+  airflow:
+    name: Airflow ${{ matrix.airflow-version }} (Python ${{ matrix.python-version }})
+    needs: changed-files
+    if: github.event_name == 'workflow_dispatch' || needs.changed-files.outputs.tests == 'true'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
+        airflow-version: ["3.4.0"]
+        include:
+          - python-version: "3.12"
+            airflow-version: "2.11.2"
+    env:
+      PYTHON_VERSION: ${{ matrix.python-version }}
+      AIRFLOW_VERSION: ${{ matrix.airflow-version }}
+      COVERAGE_FILE: .coverage.airflow-${{ matrix.airflow-version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.7"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - name: Create isolated Python environment
+        run: |
+          unset CONDA_DEFAULT_ENV CONDA_PREFIX VIRTUAL_ENV
+          uv python install "$PYTHON_VERSION"
+          python_path="$(uv python find --managed-python "$PYTHON_VERSION")"
+          uv venv --python "$python_path" .venv
+          .venv/bin/python - <<'PYTHON'
+          import sys
+          from pathlib import Path
+          assert sys.prefix != sys.base_prefix, "Expected an isolated virtual environment"
+          assert Path(sys.prefix).resolve() == Path(".venv").resolve(), sys.prefix
+          PYTHON
+          echo "CONDA_DEFAULT_ENV=" >> "$GITHUB_ENV"
+          echo "CONDA_PREFIX=" >> "$GITHUB_ENV"
+          echo "VIRTUAL_ENV=$GITHUB_WORKSPACE/.venv" >> "$GITHUB_ENV"
+          echo "UV_PROJECT_ENVIRONMENT=$GITHUB_WORKSPACE/.venv" >> "$GITHUB_ENV"
+          echo "AIRFLOW_HOME=$RUNNER_TEMP/airflow" >> "$GITHUB_ENV"
+      - name: Install Airflow dependencies
+        run: |
+          uv lock --check
+          if [[ "$AIRFLOW_VERSION" == "2.11.2" ]]; then
+            # Start without Airflow 3's separate core/task-sdk distributions.
+            uv sync --locked --no-default-groups --group test
+            uv pip install --python .venv/bin/python -e '.[airflow]' "apache-airflow==$AIRFLOW_VERSION"
+          else
+            uv sync --locked --no-default-groups --group test --extra airflow-ui
+          fi
+      - name: Build and install the wheel without changing Airflow dependencies
+        run: |
+          uv build --wheel
+          uv pip install --python .venv/bin/python --no-deps --reinstall dist/*.whl
+      - name: Verify the requested Airflow integration is installed
+        run: |
+          .venv/bin/python -I - <<'PY'
+          import os
+          import sys
+          from importlib.metadata import distribution, version
+          from pathlib import Path
+          # Configure before the first Airflow import; retain its default lazy discovery.
+          os.environ.pop("AIRFLOW__CORE__LAZY_DISCOVER_PROVIDERS", None)
+          if os.environ["AIRFLOW_VERSION"].startswith("3."):
+              os.environ["SPARK_ON_K8S_AIRFLOW_SERVICE_URL"] = "http://spark.invalid"
+          else:
+              os.environ.pop("SPARK_ON_K8S_AIRFLOW_SERVICE_URL", None)
+          import airflow
+          from airflow import plugins_manager, settings
+          expected_python = tuple(map(int, os.environ["PYTHON_VERSION"].split(".")))
+          assert sys.version_info[:2] == expected_python, sys.version
+          assert version("apache-airflow") == os.environ["AIRFLOW_VERSION"]
+          assert airflow.__version__ == os.environ["AIRFLOW_VERSION"], airflow.__version__
+          assert settings.LAZY_LOAD_PROVIDERS, "Expected Airflow's default lazy provider discovery"
+          entrypoints = [
+              entry for entry in distribution("spark-on-k8s").entry_points
+              if entry.group == "airflow.plugins" and entry.name == "spark_on_k8s_ui"
+          ]
+          assert len(entrypoints) == 1, "Missing or duplicate installed Airflow plugin entry point"
+          assert entrypoints[0].value == "spark_on_k8s.airflow.ui.plugin:SparkTaskUIPlugin"
+          # The manager must discover the plugin itself, without a direct plugin import.
+          plugins_manager.ensure_plugins_loaded()
+          if os.environ["AIRFLOW_VERSION"].startswith("3."):
+              import httpx
+              from websockets.asyncio.client import connect
+              apps, _ = plugins_manager.get_fastapi_plugins()
+              assert any(app["url_prefix"] == "/spark-on-k8s" for app in apps), "Plugin API was not registered"
+              registrations = [
+                  plugin for plugin in plugins_manager.get_plugin_info(attrs_to_dump=["react_apps"])
+                  if plugin["name"] == "spark_on_k8s_ui"
+              ]
+              assert len(registrations) == 1, "Native UI plugin was not discovered"
+              assert registrations[0]["react_apps"][0]["destination"] == "task_instance"
+              assets = Path(distribution("spark-on-k8s").locate_file("spark_on_k8s/airflow/ui/static"))
+              for name in ("airflow.js", "console.css"):
+                  assert (assets / name).is_file(), f"Missing packaged Airflow asset: {name}"
+          else:
+              registrations = [plugin for plugin in plugins_manager.plugins if plugin.name == "spark_on_k8s_ui"]
+              assert len(registrations) == 1, "Gated plugin entry point was not discovered"
+              assert not registrations[0].fastapi_apps and not registrations[0].react_apps
+              assert "spark_on_k8s.airflow.ui.backend" not in sys.modules
+          assert "spark_on_k8s.api" not in sys.modules
+          from airflow.providers.cncf.kubernetes.hooks.kubernetes import AsyncKubernetesHook, KubernetesHook
+          from spark_on_k8s.airflow.operators import SparkOnK8SOperator, SparkSqlOnK8SOperator
+          print(f"Testing Airflow {airflow.__version__} with native plugin discovery")
+          print(f"Kubernetes provider {version('apache-airflow-providers-cncf-kubernetes')}")
+          PY
+      - name: Test the installed wheel with the requested Airflow version
+        # Direct Python execution preserves the legacy Airflow override and wheel install.
+        run: |
+          installed_package="$(.venv/bin/python -I -c 'from pathlib import Path; import spark_on_k8s; print(Path(spark_on_k8s.__file__).parent)')"
+          airflow_tests=(tests/airflow)
+          if [[ "$AIRFLOW_VERSION" == "2.11.2" ]]; then
+            airflow_tests+=(--ignore=tests/airflow/ui)
+          fi
+          .venv/bin/python -I tests/run_installed_tests.py "${airflow_tests[@]}" --cov="$installed_package" --cov-report=term-missing --junitxml=airflow-results.xml
+      - name: Require executed Airflow tests without skips
+        run: |
+          .venv/bin/python - <<'PY'
+          import xml.etree.ElementTree as ET
+          cases = list(ET.parse("airflow-results.xml").iter("testcase"))
+          assert cases, "No Airflow tests were collected"
+          skipped = [case.attrib["name"] for case in cases if case.find("skipped") is not None]
+          assert not skipped, f"Airflow tests were skipped: {skipped}"
+          PY
+      - name: Save Airflow coverage
+        if: matrix.python-version == '3.14' || matrix.airflow-version == '2.11.2'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage-airflow-${{ matrix.airflow-version }}
+          path: .coverage.airflow-${{ matrix.airflow-version }}
+          include-hidden-files: true
+          if-no-files-found: error
+
+  quality:
+    name: Lint, build, and documentation
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.7"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - name: Create tooling environment
+        run: |
+          unset CONDA_DEFAULT_ENV CONDA_PREFIX VIRTUAL_ENV
+          uv python install 3.12
+          python_path="$(uv python find --managed-python 3.12)"
+          uv venv --python "$python_path" .venv
+          .venv/bin/python - <<'PYTHON'
+          import sys
+          from pathlib import Path
+          assert sys.prefix != sys.base_prefix, "Expected an isolated virtual environment"
+          assert Path(sys.prefix).resolve() == Path(".venv").resolve(), sys.prefix
+          PYTHON
+          echo "CONDA_DEFAULT_ENV=" >> "$GITHUB_ENV"
+          echo "CONDA_PREFIX=" >> "$GITHUB_ENV"
+          echo "VIRTUAL_ENV=$GITHUB_WORKSPACE/.venv" >> "$GITHUB_ENV"
+          echo "UV_PROJECT_ENVIRONMENT=$GITHUB_WORKSPACE/.venv" >> "$GITHUB_ENV"
+          echo "AIRFLOW_HOME=$RUNNER_TEMP/airflow" >> "$GITHUB_ENV"
+      - name: Install locked tooling and documentation dependencies
+        run: |
+          uv lock --check
+          uv sync --locked --no-default-groups --group lint --group docs --all-extras
+      - name: Lint Python
+        run: |
+          .venv/bin/ruff check .
+          .venv/bin/ruff format --check .
+          .venv/bin/sqlfluff lint examples/airflow
+      - name: Build distributions
+        run: uv build
+      - name: Build documentation
+        run: |
+          .venv/bin/helm-mkdocs chart -o docs/helm-chart
+          .venv/bin/mkdocs build --strict
+          .venv/bin/python scripts/check_docs.py site
+
+  frontend:
+    name: UI build and browser tests
+    needs: changed-files
+    if: github.event_name == 'workflow_dispatch' || needs.changed-files.outputs.tests == 'true'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "26"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install locked UI dependencies
+        run: npm ci
+      - name: Check types and rebuild packaged assets
+        run: |
+          npm run format:check
+          npm run build
+          git -C .. diff --exit-code -- spark_on_k8s/api/webserver/static/ui spark_on_k8s/airflow/ui/static
+          test -z "$(git -C .. ls-files --others --exclude-standard -- spark_on_k8s/api/webserver/static/ui spark_on_k8s/airflow/ui/static)"
+      - name: Install test browser
+        run: npx playwright install --with-deps chromium
+      - name: Test browser interactions
+        run: npm test
+      - name: Save browser failure details
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: browser-test-results
+          path: |
+            frontend/test-results/
+            frontend/playwright-report/
+          retention-days: 7
+
+  coverage:
+    name: Combined coverage
+    needs: [changed-files, core-api, airflow]
+    if: github.event_name == 'workflow_dispatch' || needs.changed-files.outputs.tests == 'true'
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.7"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: coverage-*
+          path: coverage-data
+          merge-multiple: true
+      - name: Require and combine all coverage profiles
+        run: |
+          test -s coverage-data/.coverage.core-api
+          test -s coverage-data/.coverage.airflow-3.4.0
+          test -s coverage-data/.coverage.airflow-2.11.2
+          uv tool run --from coverage==7.17.2 coverage combine coverage-data
+          uv tool run --from coverage==7.17.2 coverage report
+          uv tool run --from coverage==7.17.2 coverage xml
+      - uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage.xml
+          disable_search: true
+          fail_ci_if_error: true

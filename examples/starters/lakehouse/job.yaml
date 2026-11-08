@@ -1,0 +1,27 @@
+apiVersion: spark-on-k8s/v1
+kind: SparkJob
+metadata:
+  name: orders-lakehouse
+spec:
+  image: starter-lakehouse:4.0.5
+  image_pull_policy: Never
+  app_path: local:///opt/spark/work-dir/starters/lakehouse/job.py
+  app_arguments:
+    - --initial
+    - /opt/spark/work-dir/starters/lakehouse/initial.json
+    - --updates
+    - /opt/spark/work-dir/starters/lakehouse/updates.json
+  namespace: spark
+  service_account: spark
+  app_waiter: log
+  executor_instances:
+    initial: 1
+  driver_pod_template: ../driver.yaml
+  executor_pod_template: ../executor.yaml
+  spark_conf:
+    spark.sql.shuffle.partitions: 2
+    spark.sql.session.timeZone: UTC
+    spark.sql.extensions: org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
+    spark.sql.catalog.lakehouse: org.apache.iceberg.spark.SparkCatalog
+    spark.sql.catalog.lakehouse.type: hadoop
+    spark.sql.catalog.lakehouse.warehouse: file:///data/lakehouse

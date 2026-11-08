@@ -1,11 +1,12 @@
-FROM maven:3.9-amazoncorretto-11 AS builder
+ARG SPARK_IMAGE=apache/spark:3.5.9-scala2.12-java17-python3-ubuntu
+FROM maven:3.9-eclipse-temurin-17 AS builder
 
-ADD job /job
-
+ARG SPARK_VERSION=3.5.9
+ARG SCALA_BINARY_VERSION=2.12
+COPY job /job
 WORKDIR /job
+RUN mvn --batch-mode -Dspark.version="${SPARK_VERSION}" \
+    -Dscala.binary.version="${SCALA_BINARY_VERSION}" clean package
 
-RUN mvn clean package
-
-FROM husseinawala/spark:v3.5.0
-
+FROM ${SPARK_IMAGE}
 COPY --from=builder /job/target/java-job-1.0-SNAPSHOT.jar /java-job.jar

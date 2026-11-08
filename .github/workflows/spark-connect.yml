@@ -1,0 +1,234 @@
+name: Spark Connect compatibility
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "spark_on_k8s/*.py"
+      - "spark_on_k8s/k8s/**"
+      - "spark_on_k8s/utils/**"
+      - "spark_on_k8s/cli/**"
+      - "tests/run_installed_tests.py"
+      - "tests/test_connect*.py"
+      - "tests/cli/test_connect*.py"
+      - "tests/integration/connect/**"
+      - "tests/integration/jupyter/**"
+      - "examples/jupyter/**"
+      - "docs/user-guide/jupyter.md"
+      - "docs/gen_jupyter_examples.py"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "scripts/install-kind.sh"
+      - ".github/workflows/spark-connect.yml"
+  push:
+    branches: [main]
+    paths:
+      - "spark_on_k8s/*.py"
+      - "spark_on_k8s/k8s/**"
+      - "spark_on_k8s/utils/**"
+      - "spark_on_k8s/cli/**"
+      - "tests/run_installed_tests.py"
+      - "tests/integration/connect/**"
+      - "tests/integration/jupyter/**"
+      - "examples/jupyter/**"
+      - "docs/user-guide/jupyter.md"
+      - "docs/gen_jupyter_examples.py"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "scripts/install-kind.sh"
+      - ".github/workflows/spark-connect.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: spark-connect-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  connect:
+    name: Spark Connect 4.3 / Python ${{ matrix.python }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.14"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.7"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Install the client wheel and a separate server runtime
+        env:
+          CLIENT_PYTHON: ${{ matrix.python }}
+        run: |
+          unset CONDA_DEFAULT_ENV CONDA_PREFIX VIRTUAL_ENV
+          uv python install "$CLIENT_PYTHON" 3.11
+          uv venv --python "$(uv python find --managed-python "$CLIENT_PYTHON")" .venv
+          .venv/bin/python -I - <<'PY'
+          import sys
+          from pathlib import Path
+          assert sys.prefix != sys.base_prefix
+          assert Path(sys.prefix).resolve() == Path('.venv').resolve()
+          PY
+          UV_PROJECT_ENVIRONMENT="$GITHUB_WORKSPACE/.venv" uv sync --locked --extra connect --group test
+          uv build --wheel --out-dir "$RUNNER_TEMP/wheel"
+          uv pip install --python .venv/bin/python --no-deps --reinstall "$RUNNER_TEMP"/wheel/*.whl
+          uv venv --python "$(uv python find --managed-python 3.11)" "$RUNNER_TEMP/server"
+          uv pip install --python "$RUNNER_TEMP/server/bin/python" 'pyspark==4.3.0'
+          uv pip check --python .venv/bin/python
+      - name: Test installed profiles and real client/server execution
+        run: |
+          .venv/bin/python -I tests/run_installed_tests.py tests/test_connect.py
+          server_home=$("$RUNNER_TEMP/server/bin/python" -I -c 'import pathlib,pyspark; print(pathlib.Path(pyspark.__file__).parent)')
+          .venv/bin/python -I tests/integration/connect/run.py --spark-home "$server_home" \
+            --java-home "$JAVA_HOME" --artifacts "$RUNNER_TEMP/connect-results"
+      - name: Upload execution evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: spark-connect-python-${{ matrix.python }}
+          path: ${{ runner.temp }}/connect-results/
+          retention-days: 7
+
+
+  kubernetes:
+    name: Spark Connect ${{ matrix.spark }} on Kubernetes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - spark: "4.0.5"
+            image: "apache/spark:4.0.5-scala2.13-java17-python3-ubuntu@sha256:45eb1b8261a89bc7692be05aa4664676856f1c886cecc7b97b4e10f635b45b3c"
+          - spark: "4.3.0"
+            image: "apache/spark:4.3.0-scala2.13-java21-python3-ubuntu@sha256:3dedc5c8665a6f472e2f0a3a828207a79a30785090ef325d3af219cb90a73d63"
+    env:
+      SPARK_IMAGE: ${{ matrix.image }}
+      SPARK_VERSION: ${{ matrix.spark }}
+      KIND_NODE: "kindest/node:v1.35.8@sha256:07b2536e30b803ed61d1677a79df6115f798ce64c80f9e22f6ed45afd09323c0"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.7"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - name: Install the client wheel in an isolated Python environment
+        run: |
+          unset CONDA_DEFAULT_ENV CONDA_PREFIX VIRTUAL_ENV
+          uv python install 3.12
+          uv venv --python "$(uv python find --managed-python 3.12)" .venv
+          .venv/bin/python -I - <<'PYTHON'
+          import sys
+          from pathlib import Path
+          assert sys.prefix != sys.base_prefix
+          assert Path(sys.prefix).resolve() == Path('.venv').resolve()
+          PYTHON
+          UV_PROJECT_ENVIRONMENT="$GITHUB_WORKSPACE/.venv" uv sync --locked --no-default-groups --extra connect --group notebook
+          uv build --wheel --out-dir "$RUNNER_TEMP/connect-wheel"
+          uv pip install --python .venv/bin/python --no-deps --reinstall "$RUNNER_TEMP"/connect-wheel/*.whl
+          # Pair the notebook client with the server: new local-data APIs may
+          # require server features absent from an older Spark release.
+          uv pip install --python .venv/bin/python --no-deps "pyspark-client==$SPARK_VERSION"
+          .venv/bin/python -I - <<'PYTHON'
+          import os
+          from importlib.metadata import version
+          assert version("pyspark-client") == os.environ["SPARK_VERSION"]
+          PYTHON
+          uv pip check --python .venv/bin/python
+      - name: Create a disposable kind cluster
+        run: |
+          bash scripts/install-kind.sh "$RUNNER_TEMP/bin/kind"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/bin/kind" create cluster --name spark-connect-ci --image "$KIND_NODE" \
+            --kubeconfig "$RUNNER_TEMP/connect-kubeconfig" --wait 120s
+      - name: Verify and load the pinned Spark image with its bundled Connect JAR
+        run: |
+          mkdir -p "$RUNNER_TEMP/connect-kubernetes-results"
+          docker pull --platform linux/amd64 "$SPARK_IMAGE"
+          docker run --rm --network none --entrypoint /bin/sh "$SPARK_IMAGE" -ec \
+            'test -f "$1"; ls -l "$1"; cat /opt/spark/RELEASE; java -version' \
+            -- "/opt/spark/jars/spark-connect_2.13-$SPARK_VERSION.jar" \
+            > "$RUNNER_TEMP/connect-kubernetes-results/image.txt" 2>&1
+          docker tag "$SPARK_IMAGE" "spark-connect-test:$SPARK_VERSION"
+          # Docker's containerd store may retain a multi-platform index with only
+          # one platform downloaded. Export that platform explicitly for kind.
+          docker image save --platform linux/amd64 --output "$RUNNER_TEMP/connect-image.tar" \
+            "spark-connect-test:$SPARK_VERSION"
+          kind load image-archive --name spark-connect-ci "$RUNNER_TEMP/connect-image.tar"
+      - name: Exercise provisioning, distributed queries, CLI lifecycle, and safe cleanup
+        run: |
+          .venv/bin/python -I tests/integration/connect/run_kubernetes.py \
+            --kubeconfig "$RUNNER_TEMP/connect-kubeconfig" --context kind-spark-connect-ci \
+            --image "spark-connect-test:$SPARK_VERSION" --spark-version "$SPARK_VERSION" \
+            --server-jar "local:///opt/spark/jars/spark-connect_2.13-$SPARK_VERSION.jar" \
+            --artifacts "$RUNNER_TEMP/connect-kubernetes-results"
+      - name: Execute the documented Jupyter notebook with a real kernel restart
+        run: |
+          .venv/bin/python -I tests/integration/jupyter/run_kubernetes.py \
+            --kubeconfig "$RUNNER_TEMP/connect-kubeconfig" --context kind-spark-connect-ci \
+            --image "spark-connect-test:$SPARK_VERSION" --spark-version "$SPARK_VERSION" \
+            --server-jar "local:///opt/spark/jars/spark-connect_2.13-$SPARK_VERSION.jar" \
+            --artifacts "$RUNNER_TEMP/jupyter-kubernetes-results"
+      - name: Verify cleanup after an interrupted notebook run
+        if: matrix.spark == '4.3.0'
+        run: |
+          .venv/bin/python -I - <<'PYTHON'
+          import json
+          import os
+          from pathlib import Path
+          import subprocess
+          import sys
+
+          temporary = Path(os.environ["RUNNER_TEMP"])
+          artifacts = temporary / "jupyter-interruption-results"
+          version = os.environ["SPARK_VERSION"]
+          result = subprocess.run([
+              sys.executable, "-I", "tests/integration/jupyter/run_kubernetes.py",
+              "--kubeconfig", str(temporary / "connect-kubeconfig"),
+              "--context", "kind-spark-connect-ci",
+              "--image", f"spark-connect-test:{version}", "--spark-version", version,
+              "--server-jar", f"local:///opt/spark/jars/spark-connect_2.13-{version}.jar",
+              "--artifacts", str(artifacts), "--interrupt-after-cell", "open-tunnel",
+          ], timeout=600)
+          assert result.returncode != 0, "The injected interruption must fail the notebook run"
+          def read(name):
+              return json.loads((artifacts / name).read_text())
+          failure = read("failure.json")
+          assert failure["type"] == "KeyboardInterrupt" and failure["injected_interruption"]
+          assert read("result.json")["status"] == "failed"
+          assert read("cleanup-errors.json") == []
+          assert read("fallback-server-cleanup.json")["owned_resources_garbage_collected"]
+          assert read("fixture-cleanup.json")["namespace_absence_observed"]
+          tunnels = read("tunnel-cleanup.json")
+          assert not tunnels["errors"] and tunnels["processes"]
+          assert all(process["status"] == "closed" for process in tunnels["processes"])
+          print("Expected notebook interruption verified; server, tunnel, and namespace cleanup passed.")
+          PYTHON
+      - name: Save cluster diagnostics and stop the disposable cluster
+        if: always()
+        run: |
+          if command -v kind >/dev/null 2>&1; then
+            kind export logs --name spark-connect-ci "$RUNNER_TEMP/connect-kind-logs" || true
+            kind delete cluster --name spark-connect-ci
+          fi
+      - name: Upload Kubernetes execution evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: spark-connect-${{ matrix.spark }}-kubernetes
+          path: |
+            ${{ runner.temp }}/connect-kubernetes-results/
+            ${{ runner.temp }}/jupyter-kubernetes-results/
+            ${{ runner.temp }}/jupyter-interruption-results/
+            ${{ runner.temp }}/connect-kind-logs/
+          retention-days: 7

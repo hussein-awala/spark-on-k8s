@@ -1,25 +1,33 @@
 from __future__ import annotations
 
+import hashlib
 import logging
+import math
 import re
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Callable, Literal
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Literal
 
+import yaml
 from kubernetes import client as k8s
 
 from spark_on_k8s.k8s.sync_client import KubernetesClientManager
+from spark_on_k8s.planning import ApplicationPlan
 from spark_on_k8s.utils.app_manager import SparkAppManager
 from spark_on_k8s.utils.configuration import Configuration
+from spark_on_k8s.utils.driver_pod_template import load_driver_pod_template, merge_driver_pod_template
 from spark_on_k8s.utils.logging_mixin import LoggingMixin
+from spark_on_k8s.utils.run import RunHandle, WaitDeadline
 from spark_on_k8s.utils.types import NOTSET, ArgNotSet
 
 if TYPE_CHECKING:
-    from spark_on_k8s.utils.types import ConfigMap
+    from collections.abc import Callable, Mapping
 
-# For Python 3.9 compatibility
-KW_ONLY_DATACLASS = {"kw_only": True} if "kw_only" in dataclass.__kwdefaults__ else {}
+    from spark_on_k8s.connect import ConnectProfile
+    from spark_on_k8s.connect_server import ConnectServerConfig, ConnectServerHandle
+    from spark_on_k8s.utils.types import ConfigMap
 
 
 def default_app_id_suffix() -> str:
@@ -31,7 +39,8 @@ def default_app_id_suffix() -> str:
     return f"-{datetime.now().strftime('%Y%m%d%H%M%S')}"
 
 
-class SparkAppWait(str, Enum):
+# Keep Enum.__str__ behavior for existing callers.
+class SparkAppWait(str, Enum):  # noqa: UP042
     """Enum for the Spark app waiter options"""
 
     NO_WAIT = "no_wait"
@@ -39,7 +48,7 @@ class SparkAppWait(str, Enum):
     LOG = "log"
 
 
-@dataclass(**KW_ONLY_DATACLASS)
+@dataclass(kw_only=True)
 class PodResources:
     """Resources to request for the Spark driver and executors
 
@@ -54,7 +63,7 @@ class PodResources:
     memory_overhead: int = 512
 
 
-@dataclass(**KW_ONLY_DATACLASS)
+@dataclass(kw_only=True)
 class ExecutorInstances:
     """Number of executors to request
 
@@ -110,7 +119,157 @@ class SparkOnK8S(LoggingMixin):
     ):
         super().__init__(logger_name=logger_name or "SparkOnK8S")
         self.k8s_client_manager = k8s_client_manager or KubernetesClientManager()
+        self.last_submitted_app_id: str | None = None
+        self.last_submitted_run: RunHandle | None = None
+        self.last_submission_phase: str | None = None
         self.app_manager = SparkAppManager(k8s_client_manager=self.k8s_client_manager)
+
+    def submit_run(self, **kwargs) -> RunHandle:
+        """Submit using the same arguments as submit_app, returning a structured run identity."""
+        if kwargs.get("dry_run"):
+            raise ValueError("submit_run requires a real submission and does not support dry_run")
+        self.submit_app(**kwargs)
+        if self.last_submitted_run is None:
+            raise RuntimeError("Submission completed without a run identity")
+        return self.last_submitted_run
+
+    def create_connect_server(self, config: ConnectServerConfig) -> ConnectServerHandle:
+        """Create a private Spark Connect server; return identity before checking readiness."""
+        from spark_on_k8s.connect_server import create_connect_server
+
+        return create_connect_server(self, config)
+
+    def connect_server_status(self, handle: ConnectServerHandle, *, timeout: float = 10) -> dict:
+        """Observe exactly the recorded server resources without importing PySpark."""
+        from spark_on_k8s.connect_server import connect_server_status
+
+        return connect_server_status(self, handle, timeout=timeout)
+
+    def wait_connect_server_ready(
+        self,
+        handle: ConnectServerHandle,
+        *,
+        profile: ConnectProfile,
+        timeout: float = 60,
+        poll_interval: float = 1,
+    ) -> dict:
+        """Verify a real Connect query, remote application identity and current resource UIDs."""
+        from spark_on_k8s.connect_server import wait_connect_server_ready
+
+        return wait_connect_server_ready(
+            self, handle, profile=profile, timeout=timeout, poll_interval=poll_interval
+        )
+
+    def delete_connect_server(self, handle: ConnectServerHandle, *, timeout: float = 10) -> dict:
+        """Request deletion only after validating all recorded server resource identities."""
+        from spark_on_k8s.connect_server import delete_connect_server
+
+        return delete_connect_server(self, handle, timeout=timeout)
+
+    def submit_sql(
+        self,
+        *,
+        sql: str | None = None,
+        sql_file: str | Path | None = None,
+        **submit_options: Any,
+    ) -> str | ApplicationPlan:
+        """Submit inline SQL or a local SQL file using a PySpark image.
+
+        Exactly one of ``sql`` and ``sql_file`` is required. Other keyword arguments
+        are passed to :meth:`submit_app`, including image, resources, namespace,
+        service account, packages, and waiter options. SQL runs in statement order;
+        the first failed statement fails the application. This is not a transaction.
+        Set ``dry_run=True`` to return an offline :class:`ApplicationPlan` instead of submitting.
+        """
+        from spark_on_k8s.sql import prepare_sql_options
+
+        return self.submit_app(**prepare_sql_options(sql=sql, sql_file=sql_file, **submit_options))
+
+    def diagnose_app(
+        self,
+        *,
+        namespace: str,
+        app_id: str | None = None,
+        pod_name: str | None = None,
+        pod_limit: int = 20,
+        event_limit: int = 100,
+        timeout: float = 10,
+    ):
+        """Read bounded pod/event evidence without changing the application."""
+        from spark_on_k8s.diagnostics import _limits, collect_diagnosis, validate_target
+
+        if (app_id is None) == (pod_name is None):
+            raise ValueError("Provide exactly one of app_id or pod_name")
+        validate_target(namespace, app_id if app_id is not None else pod_name, label=app_id is not None)
+        deadline = _limits(pod_limit, event_limit, timeout)
+        with self.k8s_client_manager.client() as client:
+            api = k8s.CoreV1Api(client)
+            if pod_name is not None:
+                driver = api.read_namespaced_pod(
+                    namespace=namespace, name=pod_name, **deadline.request_options()
+                )
+            else:
+                response = api.list_namespaced_pod(
+                    namespace=namespace,
+                    label_selector=f"spark-role=driver,spark-app-id={app_id}",
+                    limit=2,
+                    **deadline.request_options(),
+                )
+                if len(response.items) != 1:
+                    raise ValueError("Expected one Spark driver; use pod_name to select an existing driver")
+                driver = response.items[0]
+            return collect_diagnosis(
+                api,
+                driver,
+                namespace=namespace,
+                pod_limit=pod_limit,
+                event_limit=event_limit,
+                timeout=deadline.remaining(),
+            )
+
+    def doctor(self, *, namespace: str, service_account: str = "spark", timeout: float = 10):
+        """Check caller access and driver service-account existence without applying changes."""
+        from spark_on_k8s.doctor import check_cluster
+
+        with self.k8s_client_manager.client() as client:
+            return check_cluster(
+                client, namespace=namespace, service_account=service_account, timeout=timeout
+            )
+
+    def _process_executor_template(self, executor_template: str) -> str:
+        """Process executor template string, reading from file if it's a file path.
+
+        Args:
+            executor_template: Either template content as string or path to template file
+
+        Returns:
+            Template content as string
+
+        Raises:
+            ValueError: If the resulting content is not valid YAML
+        """
+        # Try to read from file first, if that fails use the string as-is
+        try:
+            template_path = Path(executor_template).expanduser()
+            content = template_path.read_text(encoding="utf-8")
+        except (OSError, PermissionError):
+            # Not a valid file path, use as content
+            content = executor_template
+
+        # Validate that the content is valid YAML and expected Kubernetes resource
+        try:
+            parsed = yaml.safe_load(content)
+        except yaml.YAMLError as e:
+            raise ValueError(f"Executor template contains invalid YAML: {e}") from e
+
+        # Check if it's a proper Kubernetes resource structure
+        if not isinstance(parsed, dict):
+            raise ValueError("Executor template must be a Kubernetes resource (YAML object)")
+
+        if parsed.get("kind") != "Pod":
+            raise ValueError("Executor template must be a Kubernetes Pod resource (kind: Pod)")
+
+        return content
 
     def submit_app(
         self,
@@ -146,10 +305,15 @@ class SparkOnK8S(LoggingMixin):
         executor_labels: dict[str, str] | ArgNotSet = NOTSET,
         driver_tolerations: list[k8s.V1Toleration] | ArgNotSet = NOTSET,
         executor_pod_template_path: str | ArgNotSet = NOTSET,
+        executor_pod_template: str | ArgNotSet = NOTSET,
         startup_timeout: int | ArgNotSet = NOTSET,
+        wait_timeout: float | None = None,
         driver_init_containers: list[k8s.V1Container] | ArgNotSet = NOTSET,
         driver_host_aliases: list[k8s.V1HostAlias] | ArgNotSet = NOTSET,
-    ) -> str:
+        driver_pod_template: str | Path | Mapping[str, Any] | None = None,
+        driver_container_name: str | None = None,
+        dry_run: bool = False,
+    ) -> str | ApplicationPlan:
         """Submit a Spark app to Kubernetes
 
         Args:
@@ -191,24 +355,42 @@ class SparkOnK8S(LoggingMixin):
             executor_node_selector: Node selector for the executors
             driver_tolerations: List of tolerations for the driver
             executor_pod_template_path: Path to the executor pod template file
+            executor_pod_template: Executor pod template content as string or local file path. If provided,
+                a ConfigMap will be created and mounted automatically
             startup_timeout: Timeout in seconds to wait for the application to start
             driver_init_containers: List of init containers to run before the driver starts
             driver_host_aliases: List of host aliases for the driver
+            driver_pod_template: Driver Pod YAML text, a local file path, or a mapping.
+                Generated identity and launch settings override the template; other fields are preserved.
+            driver_container_name: Container to use as the driver in the template. Defaults to the
+                container named "driver", or the sole container. Ambiguous templates are rejected.
+            dry_run: Build an offline plan without opening a Kubernetes connection or creating resources.
 
         Returns:
-            Name of the Spark application pod
+            Name of the Spark application pod. The same identity is available as last_submitted_run.
+
+        The optional wait_timeout bounds observation after resource creation, in seconds.
+        It does not stop or delete the application. None preserves unlimited waiting.
         """
+        if not dry_run:
+            self.last_submitted_run = None
+            self.last_submitted_app_id = None
+            self.last_submission_phase = "preparing"
+        WaitDeadline(wait_timeout)
+        if driver_container_name is not None and driver_pod_template is None:
+            raise ValueError("driver_container_name requires driver_pod_template")
+        template = load_driver_pod_template(driver_pod_template) if driver_pod_template is not None else None
         if image is NOTSET:
             if Configuration.SPARK_ON_K8S_DOCKER_IMAGE is None:
                 raise ValueError(
-                    "Docker image is not set."
+                    "Docker image is not set. "
                     "Please set the image argument or the environment variable SPARK_ON_K8S_DOCKER_IMAGE"
                 )
             image = Configuration.SPARK_ON_K8S_DOCKER_IMAGE
         if app_path is NOTSET:
             if Configuration.SPARK_ON_K8S_APP_PATH is None:
                 raise ValueError(
-                    "Application path is not set."
+                    "Application path is not set. "
                     "Please set the app_path argument or the environment variable SPARK_ON_K8S_APP_PATH"
                 )
             app_path = Configuration.SPARK_ON_K8S_APP_PATH
@@ -263,11 +445,13 @@ class SparkOnK8S(LoggingMixin):
                 and executor_instances.initial is None
             ):
                 executor_instances.initial = 2
+        if should_print is NOTSET:
+            should_print = False
         app_name, app_id = self._parse_app_name_and_id(
             app_name=app_name, app_id_suffix=app_id_suffix, should_print=should_print
         )
-        if secret_values is not NOTSET and secret_values:
-            env_from_secrets = [app_id]
+        if secret_values is not NOTSET and secret_values is not None:
+            env_from_secrets = [app_id] if secret_values else []
         else:
             secret_values = Configuration.SPARK_ON_K8S_SECRET_ENV_VAR
             env_from_secrets = [app_id] if secret_values else []
@@ -283,6 +467,9 @@ class SparkOnK8S(LoggingMixin):
             driver_volume_mounts = []
         if executor_volume_mounts is NOTSET or executor_volume_mounts is None:
             executor_volume_mounts = []
+        volumes = list(volumes)
+        driver_volume_mounts = list(driver_volume_mounts)
+        executor_volume_mounts = list(executor_volume_mounts)
         if driver_node_selector is NOTSET or driver_node_selector is None:
             driver_node_selector = {}
         if executor_node_selector is NOTSET or executor_node_selector is None:
@@ -299,6 +486,8 @@ class SparkOnK8S(LoggingMixin):
             driver_tolerations = []
         if executor_pod_template_path is NOTSET or executor_pod_template_path is None:
             executor_pod_template_path = Configuration.SPARK_ON_K8S_EXECUTOR_POD_TEMPLATE_PATH
+        if executor_pod_template is NOTSET or executor_pod_template is None:
+            executor_pod_template = Configuration.SPARK_ON_K8S_EXECUTOR_TEMPLATE
         if startup_timeout is NOTSET:
             startup_timeout = Configuration.SPARK_ON_K8S_STARTUP_TIMEOUT
         if driver_init_containers is NOTSET:
@@ -307,6 +496,7 @@ class SparkOnK8S(LoggingMixin):
             driver_host_aliases = []
 
         spark_conf = spark_conf or {}
+        driver_environment = self._driver_environment(spark_conf)
         main_class_parameters = app_arguments or []
 
         driver_resources = driver_resources or PodResources()
@@ -356,18 +546,52 @@ class SparkOnK8S(LoggingMixin):
             basic_conf["spark.executor.instances"] = (
                 f"{executor_instances.initial if executor_instances.initial is not None else 2}"
             )
-        if executor_volume_mounts:
-            basic_conf.update(
-                self._executor_volumes_config(volumes=volumes, volume_mounts=executor_volume_mounts)
-            )
+        # Note: executor volume mounts will be processed after volumes are created
         if executor_node_selector:
             basic_conf.update(self._executor_node_selector(node_selector=executor_node_selector))
         if executor_labels:
             basic_conf.update(self._executor_labels(labels=executor_labels))
         if executor_annotations:
             basic_conf.update(self._executor_annotations(annotations=executor_annotations))
-        if executor_pod_template_path:
+        # Handle executor template (either string content or local file path)
+        executor_template_configmap = None
+        if executor_pod_template and executor_pod_template_path:
+            raise ValueError(
+                "Both executor_pod_template and executor_pod_template_path are provided. "
+                "Please provide only one of them."
+            )
+
+        if executor_pod_template:
+            # Process the template (read from file if it's a path, otherwise use as content)
+            template_content = self._process_executor_template(executor_pod_template)
+
+            # ConfigMap names are reused as volume names, which are limited to 63 characters.
+            template_configmap_name = f"{app_id}-executor-template"
+            if len(template_configmap_name) > 63:
+                # Hash the full ID so truncating the readable prefix preserves uniqueness.
+                app_id_digest = hashlib.sha256(app_id.encode("utf-8")).hexdigest()[:32]
+                template_configmap_name = f"{app_id[:12]}-{app_id_digest}-executor-template"
+            executor_template_configmap = {
+                "name": template_configmap_name,
+                "mount_path": "/opt/spark/executor-template",
+                "sources": [{"name": "executor-template.yaml", "text": template_content}],
+            }
+
+            # Set Spark configuration to use the mounted template
+            basic_conf.update(
+                self._executor_pod_template_path("/opt/spark/executor-template/executor-template.yaml")
+            )
+
+        elif executor_pod_template_path:
+            # Handle external executor pod template path (S3, GCS, etc.)
             basic_conf.update(self._executor_pod_template_path(executor_pod_template_path))
+
+        # Process executor volume mounts before building driver command args
+        if executor_volume_mounts:
+            basic_conf.update(
+                self._executor_volumes_config(volumes=volumes, volume_mounts=executor_volume_mounts)
+            )
+
         driver_command_args = ["driver", "--master", "k8s://https://kubernetes.default.svc.cluster.local:443"]
         if class_name:
             driver_command_args.extend(["--class", class_name])
@@ -377,11 +601,19 @@ class SparkOnK8S(LoggingMixin):
             self._spark_config_to_arguments({**basic_conf, **spark_conf}) + [app_path, *main_class_parameters]
         )
 
+        all_configmaps = []
         if driver_ephemeral_configmaps_volumes:
+            all_configmaps.extend(driver_ephemeral_configmaps_volumes)
+
+        # Add executor template ConfigMap if present
+        if executor_template_configmap:
+            all_configmaps.append(executor_template_configmap)
+
+        if all_configmaps:
             application_configmaps_volumes = self.app_manager.create_configmap_objects(
                 app_name=app_name,
                 app_id=app_id,
-                configmaps=driver_ephemeral_configmaps_volumes,
+                configmaps=all_configmaps,
                 namespace=namespace,
             )
             for ind, configmap in enumerate(application_configmaps_volumes):
@@ -391,10 +623,12 @@ class SparkOnK8S(LoggingMixin):
                         config_map=k8s.V1ConfigMapVolumeSource(name=configmap.metadata.name),
                     )
                 )
+
+                configmap_mount_path = all_configmaps[ind]["mount_path"]
                 driver_volume_mounts.append(
                     k8s.V1VolumeMount(
                         name=configmap.metadata.name,
-                        mount_path=driver_ephemeral_configmaps_volumes[ind]["mount_path"],
+                        mount_path=configmap_mount_path,
                     )
                 )
         else:
@@ -408,7 +642,14 @@ class SparkOnK8S(LoggingMixin):
             namespace=namespace,
             service_account=service_account,
             args=driver_command_args,
-            extra_labels={**extra_labels, **driver_labels},
+            env_variables=driver_environment,
+            extra_labels={
+                **{key: value for key, value in driver_labels.items() if key != "spark-ui-proxy"},
+                **extra_labels,
+                "spark-app-name": app_name,
+                "spark-app-id": app_id,
+                "spark-role": "driver",
+            },
             annotations=driver_annotations,
             pod_resources={
                 "requests": {
@@ -428,6 +669,51 @@ class SparkOnK8S(LoggingMixin):
             init_containers=driver_init_containers,
             host_aliases=driver_host_aliases,
         )
+        if template is not None:
+            pod = merge_driver_pod_template(pod, template, driver_container_name)
+        if dry_run:
+            objects = [("ConfigMap", item) for item in application_configmaps_volumes]
+            if secret_values:
+                objects.insert(
+                    0,
+                    (
+                        "Secret",
+                        self.app_manager.create_secret_object(
+                            app_name=app_name,
+                            app_id=app_id,
+                            secrets_values=secret_values,
+                            namespace=namespace,
+                        ),
+                    ),
+                )
+            objects.extend(
+                [
+                    ("Pod", pod),
+                    (
+                        "Service",
+                        SparkAppManager.create_headless_service_object(
+                            app_name=app_name, app_id=app_id, namespace=namespace, extra_labels=extra_labels
+                        ),
+                    ),
+                ]
+            )
+            with k8s.ApiClient() as serializer:
+                resources = tuple(
+                    {**serializer.sanitize_for_serialization(item), "apiVersion": "v1", "kind": kind}
+                    for kind, item in objects
+                )
+            pod_name = pod["metadata"]["name"] if isinstance(pod, dict) else pod.metadata.name
+            from spark_on_k8s.resource_plan import resource_envelope
+
+            planned_pod = next(item for item in resources if item["kind"] == "Pod")
+            return ApplicationPlan(
+                namespace,
+                app_id,
+                pod_name,
+                resources,
+                resource_envelope(planned_pod, {**basic_conf, **spark_conf}),
+            )
+        self.last_submission_phase = "creating_resources"
         with self.k8s_client_manager.client() as client:
             api = k8s.CoreV1Api(client)
             if secret_values:
@@ -444,6 +730,12 @@ class SparkOnK8S(LoggingMixin):
                 namespace=namespace,
                 body=pod,
             )
+            # Preserve the confirmed driver identity before later resource operations can fail.
+            self.last_submitted_app_id = app_id
+            self.last_submitted_run = RunHandle(
+                namespace=namespace, app_id=app_id, driver_pod=pod.metadata.name, driver_uid=pod.metadata.uid
+            )
+            self.last_submission_phase = "driver_created"
             if secret_values:
                 application_secret.metadata.owner_references = [
                     k8s.V1OwnerReference(
@@ -482,22 +774,39 @@ class SparkOnK8S(LoggingMixin):
                     extra_labels=extra_labels,
                 ),
             )
+        self.last_submission_phase = "resources_created"
+        deadline = WaitDeadline(wait_timeout)
         if app_waiter == SparkAppWait.LOG:
             self.app_manager.stream_logs(
                 namespace=namespace,
                 pod_name=pod.metadata.name,
                 startup_timeout=startup_timeout,
                 should_print=should_print,
+                **({"timeout": deadline.remaining()} if wait_timeout is not None else {}),
             )
-        elif app_waiter == SparkAppWait.WAIT:
+        if app_waiter == SparkAppWait.WAIT or (app_waiter == SparkAppWait.LOG and wait_timeout is not None):
             self.app_manager.wait_for_app(
                 namespace=namespace,
                 pod_name=pod.metadata.name,
                 poll_interval=5,
                 startup_timeout=startup_timeout,
                 should_print=should_print,
+                **({"timeout": deadline.remaining()} if wait_timeout is not None else {}),
             )
         return pod.metadata.name
+
+    def cancel_run(self, run: RunHandle, *, force: bool = False) -> None:
+        """Request deletion of exactly the recorded driver; does not wait for cleanup."""
+        self.app_manager.cancel_run(run, force=force)
+
+    def plan_app(self, **kwargs) -> ApplicationPlan:
+        """Render a deterministic offline preview using the same builder as submission."""
+        kwargs.setdefault("app_id_suffix", lambda: "-preview")
+        kwargs["dry_run"] = True
+        kwargs["should_print"] = False
+        result = self.submit_app(**kwargs)
+        assert isinstance(result, ApplicationPlan)
+        return result
 
     def _parse_app_name_and_id(
         self,
@@ -539,15 +848,14 @@ class SparkOnK8S(LoggingMixin):
             app_name = re.sub(r"[^0-9a-zA-Z]+", "-", app_name)
             # Remove leading non-alphabetic characters
             app_name = re.sub(r"^[^a-zA-Z]*", "", app_name)
-            # Remove leading and trailing dashes
-            app_name = re.sub(r"^-*", "", app_name)
+            # Remove trailing dashes
             app_name = re.sub(r"-*$", "", app_name)
             app_id = app_name + app_id_suffix_str
             if app_name != original_app_name:
                 self.log(
                     msg=(
-                        f"Application name {original_app_name} is too long"
-                        f" and will be truncated to {app_name}"
+                        f"Application name {original_app_name!r} has been sanitized"
+                        f" to {app_name!r} to comply with Kubernetes naming conventions"
                     ),
                     level=logging.WARNING,
                     should_print=should_print,
@@ -559,6 +867,33 @@ class SparkOnK8S(LoggingMixin):
         if isinstance(value, bool):
             return str(value).lower()
         return str(value)
+
+    @staticmethod
+    def _driver_environment(spark_conf: dict[str, Any]) -> dict[str, str]:
+        """Apply driver environment properties before this client creates the Pod."""
+        prefix = "spark.kubernetes.driverEnv."
+        environment = {}
+        for key, value in spark_conf.items():
+            if not isinstance(key, str) or not key.startswith(prefix):
+                continue
+            name = key.removeprefix(prefix)
+            if not name or any(ord(char) < 32 or ord(char) > 126 or char == "=" for char in name):
+                raise ValueError(f"Invalid driver environment variable name in Spark property {key!r}")
+            if name == "SPARK_DRIVER_BIND_ADDRESS":
+                raise ValueError(
+                    "SPARK_DRIVER_BIND_ADDRESS is managed and cannot be set via Spark properties"
+                )
+            if not isinstance(value, (str, bool, int, float)) or (
+                isinstance(value, float) and not math.isfinite(value)
+            ):
+                raise ValueError(
+                    f"Driver environment property {key!r} must have a string or finite scalar value"
+                )
+            rendered = SparkOnK8S._value_to_str(value)
+            if "\0" in rendered:
+                raise ValueError(f"Driver environment property {key!r} cannot contain NUL")
+            environment[name] = rendered
+        return environment
 
     @staticmethod
     def _spark_config_to_arguments(spark_conf: dict[str, str] | None) -> list[str]:
@@ -617,13 +952,14 @@ class SparkOnK8S(LoggingMixin):
         config = {}
         # https://spark.apache.org/docs/latest/running-on-kubernetes.html#using-kubernetes-volumes
         supported_volume_types = {
-            "hostPath",
-            "emptyDir",
-            "nfs",
-            "persistentVolumeClaim",
+            "hostPath": {"path"},
+            "emptyDir": {"medium", "sizeLimit"},
+            "nfs": {"path", "server"},
+            "persistentVolumeClaim": {"claimName"},
         }
         loaded_volumes = {}
         volumes_config = {}
+        read_only_volumes = set()
         for volume in volumes:
             volume_name = volume.name
             volume_mapped_type: str | None = None
@@ -634,16 +970,21 @@ class SparkOnK8S(LoggingMixin):
                     volume_type_str = k8s.V1Volume.openapi_types[attr]
                     volume = getattr(volume, attr)
                     break
-            volume_type = getattr(k8s, volume_type_str)
             if volume_mapped_type not in supported_volume_types:
                 continue
+            volume_type = getattr(k8s, volume_type_str)
             loaded_volumes[volume_name] = volume_mapped_type
+            if getattr(volume, "read_only", False):
+                read_only_volumes.add(volume_name)
             volumes_config[volume_name] = {}
             for attr in volume_type.attribute_map:
-                if getattr(volume, attr) is not None:
-                    option_name = volume_type.attribute_map[attr]
+                option_name = volume_type.attribute_map[attr]
+                if (
+                    option_name in supported_volume_types[volume_mapped_type]
+                    and getattr(volume, attr) is not None
+                ):
                     volumes_config[volume_name][
-                        f"spark.kubernetes.executor.volumes.{volume_mapped_type}.{volume_name}.{option_name}"
+                        f"spark.kubernetes.executor.volumes.{volume_mapped_type}.{volume_name}.options.{option_name}"
                     ] = getattr(volume, attr)
         for volume_mount in volume_mounts:
             if volume_mount.name not in loaded_volumes:
@@ -660,7 +1001,7 @@ class SparkOnK8S(LoggingMixin):
             config[f"{volume_config_prefix}.path"] = volume_mount.mount_path
             if volume_mount.sub_path:
                 config[f"{volume_config_prefix}.subPath"] = volume_mount.sub_path
-            if volume_mount.read_only:
+            if volume_mount.read_only or volume_mount.name in read_only_volumes:
                 config[f"{volume_config_prefix}.readOnly"] = True
         return config
 

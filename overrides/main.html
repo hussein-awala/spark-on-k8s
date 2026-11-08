@@ -1,8 +1,39 @@
 {% extends "base.html" %}
 
-{% block outdated %}
-  You're not viewing the latest version.
-  <a href="{{ '../' ~ base_url }}">
-    <strong>Click here to go to latest.</strong>
-  </a>
+{% block extrahead %}
+  {{ super() }}
+  {% set docs = config.extra.documentation %}
+  <meta name="documentation-channel" content="{{ docs.channel }}">
+  <meta name="documentation-version" content="{{ docs.version }}">
+  {% if docs.source_sha %}
+    <meta name="documentation-source" content="{{ docs.source_sha }}">
+  {% endif %}
 {% endblock %}
+
+{% block announce %}
+  {% set docs = config.extra.documentation %}
+  {% if docs.channel == "develop" %}
+    <strong>Development documentation — unreleased.</strong>
+    Features and commands may differ from the installed release.
+    <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
+  {% elif docs.channel == "prerelease" %}
+    <strong>Prerelease {{ docs.version }} documentation.</strong>
+    <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
+  {% elif docs.channel == "release" %}
+    <strong>Release {{ docs.version }} documentation.</strong>
+  {% else %}
+    <strong>Local documentation preview.</strong>
+  {% endif %}
+  {% if docs.source_sha %}
+    Source: <a href="{{ config.repo_url }}/tree/{{ docs.source_sha }}"><code>{{ docs.source_sha[:12] }}</code></a>.
+  {% endif %}
+{% endblock %}
+
+{% block outdated -%}
+  {%- if config.extra.documentation.channel == "release" -%}
+    A newer stable release is available.
+    <a href="https://hussein.awala.fr/spark-on-k8s/latest/">
+      <strong>Read the latest stable documentation.</strong>
+    </a>
+  {%- endif -%}
+{%- endblock %}

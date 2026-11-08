@@ -1,0 +1,34 @@
+[project]
+name = "dbt-spark-on-k8s"
+version = "0.1.0a1"
+description = "Experimental invocation-scoped Spark on Kubernetes adapter for dbt Core"
+requires-python = ">=3.11,<3.14"
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+dependencies = [
+    "spark-on-k8s[connect]==0.11.0.dev0",
+    "dbt-core==1.12.6",
+    "dbt-spark==1.11.0",
+    # Own the transport dependencies: dbt-spark's optional extra caps Thrift
+    # below the releases that fix the public Python protocol advisories.
+    "PyHive[hive-pure-sasl]==0.7.0",
+    "thrift>=0.25.0,<0.26",
+    "pyspark-client==4.3.0",
+]
+
+[project.scripts]
+spark-on-k8s-dbt = "spark_on_k8s_dbt.cli:main"
+
+[dependency-groups]
+test = ["pytest>=9.2.0,<10"]
+
+[build-system]
+requires = ["uv_build==0.13.7"]
+build-backend = "uv_build"
+
+[tool.uv.sources]
+spark-on-k8s = {path = "../.."}
+
+[tool.uv.build-backend]
+module-name = ["spark_on_k8s_dbt", "dbt.adapters.spark_on_k8s", "dbt.include.spark_on_k8s"]

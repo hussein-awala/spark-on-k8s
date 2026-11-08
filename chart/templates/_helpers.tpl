@@ -24,7 +24,7 @@ If release name contains chart name it will be used as a full name.
 {{- end }}
 
 {{- define "spark-on-k8s.sparkHistory.fullname" -}}
-{{- printf "%s-%s" (include "spark-on-k8s.fullname" .) "history" | trunc 63 | trimSuffix "-" }}
+{{- printf "%s-history" (include "spark-on-k8s.fullname" . | trunc 55 | trimSuffix "-") }}
 {{- end }}
 
 {{/*
@@ -58,7 +58,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 Spark history Selector labels
 */}}
 {{- define "spark-on-k8s.sparkHistory.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "spark-on-k8s.name" . }}-history
+app.kubernetes.io/name: {{ include "spark-on-k8s.name" . | trunc 55 | trimSuffix "-" }}-history
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
@@ -82,4 +82,23 @@ Create the name of the service account to use for the history server
 {{- else }}
 {{- default "default" .Values.sparkHistory.serviceAccount.name }}
 {{- end }}
+{{- end }}
+
+{{/* Preserve the legacy ownership default when rbac.create is null/absent. */}}
+{{- define "spark-on-k8s.rbacCreate" -}}
+{{- if kindIs "bool" .Values.rbac.create -}}
+{{- .Values.rbac.create -}}
+{{- else -}}
+{{- .Values.serviceAccount.create -}}
+{{- end -}}
+{{- end }}
+
+{{/* Digest selection is shared by the API and independently versioned History Server. */}}
+{{- define "spark-on-k8s.image" -}}
+{{- if .image.digest -}}
+{{- printf "%s@%s" .image.repository .image.digest -}}
+{{- else -}}
+{{- $tag := default .defaultTag .image.tag -}}
+{{- printf "%s:%s" .image.repository (required .error $tag) -}}
+{{- end -}}
 {{- end }}

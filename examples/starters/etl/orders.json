@@ -1,0 +1,9 @@
+{"order_id":"o1","country":"FR","amount_cents":1000,"updated_at":"2026-01-01T10:00:00Z","status":"paid","ordered_at":"2026-01-01T09:00:00Z"}
+{"order_id":"o1","country":"FR","amount_cents":1250,"updated_at":"2026-01-03T11:00:00Z","status":"paid","ordered_at":"2026-01-01T09:00:00Z"}
+{"order_id":"o2","country":" fr ","amount_cents":500,"updated_at":"2026-01-01T12:00:00Z","status":"paid","ordered_at":"2026-01-01T09:00:00Z"}
+{"order_id":"o3","country":"US","amount_cents":2000,"updated_at":"2026-01-02T09:00:00Z","status":"paid","ordered_at":"2026-01-02T08:00:00Z"}
+{"order_id":"o4","country":"US","amount_cents":1000,"updated_at":"2026-01-02T10:00:00Z","status":"cancelled","ordered_at":"2026-01-02T08:00:00Z"}
+{"order_id":"o5","country":"FR","amount_cents":-100,"updated_at":"2026-01-02T10:00:00Z","status":"paid","ordered_at":"2026-01-02T08:00:00Z"}
+{"order_id":"o6","country":null,"amount_cents":100,"updated_at":"2026-01-02T10:00:00Z","status":"paid","ordered_at":"2026-01-02T08:00:00Z"}
+{"order_id":"o7","country":"FR","amount_cents":100,"updated_at":"invalid","status":"paid","ordered_at":"2026-01-02T08:00:00Z"}
+{"order_id":"o8","country":"FR","amount_cents":100,"ordered_at":"invalid","updated_at":"2026-01-02T10:00:00Z","status":"paid"}

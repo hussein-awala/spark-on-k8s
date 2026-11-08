@@ -1,0 +1,121 @@
+name: Airflow lifecycle on Kubernetes
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "spark_on_k8s/**"
+      - "tests/integration/airflow/**"
+      - "tests/airflow/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "scripts/install-kind.sh"
+      - ".github/workflows/airflow-kubernetes.yml"
+  push:
+    branches: [main]
+    paths:
+      - "spark_on_k8s/**"
+      - "tests/integration/airflow/**"
+      - "tests/airflow/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "scripts/install-kind.sh"
+      - ".github/workflows/airflow-kubernetes.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: airflow-kubernetes-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  airflow-on-kind:
+    name: Airflow ${{ matrix.airflow }} DAG lifecycle in a Kubernetes pod
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        airflow: ["2.11.2", "3.4.0"]
+    env:
+      AIRFLOW_VERSION: ${{ matrix.airflow }}
+      SPARK_VERSION: "4.0.5"
+      SPARK_IMAGE: "apache/spark:4.0.5-scala2.13-java17-python3-ubuntu@sha256:45eb1b8261a89bc7692be05aa4664676856f1c886cecc7b97b4e10f635b45b3c"
+      KIND_NODE: "kindest/node:v1.35.8@sha256:07b2536e30b803ed61d1677a79df6115f798ce64c80f9e22f6ed45afd09323c0"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.7"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - name: Prepare the installed wheel and an exact Airflow dependency inventory
+        run: |
+          set -euo pipefail
+          unset CONDA_DEFAULT_ENV CONDA_PREFIX VIRTUAL_ENV
+          uv python install 3.12
+          uv venv --python "$(uv python find --managed-python 3.12)" .venv
+          export UV_PROJECT_ENVIRONMENT="$GITHUB_WORKSPACE/.venv"
+          if [[ "$AIRFLOW_VERSION" == "2.11.2" ]]; then
+            uv sync --locked --no-default-groups
+            uv pip install --python .venv/bin/python -e '.[airflow]' "apache-airflow==$AIRFLOW_VERSION"
+          else
+            uv sync --locked --no-default-groups --extra airflow-ui
+          fi
+          build_dir="$RUNNER_TEMP/airflow-build"
+          mkdir -p "$build_dir/dist"
+          uv build --wheel --out-dir "$build_dir/dist"
+          uv pip install --python .venv/bin/python --no-deps --reinstall "$build_dir"/dist/*.whl
+          uv pip check --python .venv/bin/python
+          uv pip freeze --python .venv/bin/python > "$RUNNER_TEMP/airflow-freeze.txt"
+          .venv/bin/python -I - "$RUNNER_TEMP/airflow-freeze.txt" "$build_dir/requirements.txt" <<'PY'
+          import sys
+          from importlib.metadata import version
+          from pathlib import Path
+          import os
+          assert version("apache-airflow") == os.environ["AIRFLOW_VERSION"]
+          lines = Path(sys.argv[1]).read_text().splitlines()
+          Path(sys.argv[2]).write_text("\n".join(line for line in lines if not line.lower().startswith("spark-on-k8s")) + "\n")
+          PY
+          cp tests/integration/airflow/Dockerfile tests/integration/airflow/Spark.Dockerfile \
+            tests/integration/airflow/run_suite.py tests/integration/airflow/spark_job.py "$build_dir/"
+          cp -R tests/integration/airflow/dags "$build_dir/dags"
+      - name: Install verified kind and create a disposable cluster
+        run: |
+          bash scripts/install-kind.sh "$RUNNER_TEMP/bin/kind"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/bin/kind" create cluster --name airflow-compat --image "$KIND_NODE" \
+            --kubeconfig "$RUNNER_TEMP/airflow-kubeconfig" --wait 120s
+      - name: Build and load Airflow runner and Spark fixture images
+        run: |
+          docker build --build-arg "AIRFLOW_VERSION=$AIRFLOW_VERSION" \
+            -t "airflow-compat:$AIRFLOW_VERSION" "$RUNNER_TEMP/airflow-build"
+          docker build --build-arg "SPARK_IMAGE=$SPARK_IMAGE" \
+            -f "$RUNNER_TEMP/airflow-build/Spark.Dockerfile" \
+            -t "airflow-spark:$SPARK_VERSION" "$RUNNER_TEMP/airflow-build"
+          kind load docker-image --name airflow-compat "airflow-compat:$AIRFLOW_VERSION" "airflow-spark:$SPARK_VERSION"
+      - name: Run real DAG tasks and deferred triggers inside Kubernetes
+        run: |
+          .venv/bin/python -I tests/integration/airflow/run_kubernetes.py \
+            --kubeconfig "$RUNNER_TEMP/airflow-kubeconfig" \
+            --airflow-image "airflow-compat:$AIRFLOW_VERSION" --airflow-version "$AIRFLOW_VERSION" \
+            --spark-image "airflow-spark:$SPARK_VERSION" --spark-version "$SPARK_VERSION" \
+            --artifacts "$RUNNER_TEMP/airflow-kubernetes-results"
+      - name: Collect cluster evidence and remove the disposable cluster
+        if: always()
+        run: |
+          if command -v kind >/dev/null 2>&1; then
+            kind export logs --name airflow-compat "$RUNNER_TEMP/kind-logs" || true
+            kind delete cluster --name airflow-compat
+          fi
+      - name: Upload Airflow and Kubernetes execution evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: airflow-${{ matrix.airflow }}-kubernetes
+          path: |
+            ${{ runner.temp }}/airflow-kubernetes-results/
+            ${{ runner.temp }}/kind-logs/
+            ${{ runner.temp }}/airflow-build/requirements.txt
+          retention-days: 7

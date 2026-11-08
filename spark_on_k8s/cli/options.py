@@ -77,7 +77,7 @@ spark_conf_option = click.Option(
     type=str,
     multiple=True,
     callback=validate_dictionary_option,
-    default=Configuration.SPARK_ON_K8S_SPARK_CONF,
+    default=[f"{key}={value}" for key, value in Configuration.SPARK_ON_K8S_SPARK_CONF.items()],
     show_default=True,
     help="Spark configuration property in key=value format. Can be repeated.",
 )
@@ -100,7 +100,7 @@ logs_option = click.Option(
     ("--logs",),
     type=bool,
     is_flag=True,
-    default=Configuration.SPARK_ON_K8S_APP_WAITER == "logs",
+    default=Configuration.SPARK_ON_K8S_APP_WAITER == "log",
     show_default=True,
     help="Print the app logs.",
 )
@@ -190,7 +190,7 @@ executor_initial_instances_option = click.Option(
 )
 executor_allocation_ratio_option = click.Option(
     ("--executor-allocation-ratio",),
-    type=int,
+    type=float,
     default=Configuration.SPARK_ON_K8S_EXECUTOR_ALLOCATION_RATIO,
     show_default=True,
     help=(
@@ -229,8 +229,8 @@ secret_env_var_option = click.Option(
     type=str,
     multiple=True,
     callback=validate_dictionary_option,
-    default=Configuration.SPARK_ON_K8S_SECRET_ENV_VAR,
-    show_default=True,
+    default=[f"{key}={value}" for key, value in Configuration.SPARK_ON_K8S_SECRET_ENV_VAR.items()],
+    show_default=False,
     help="Secret environment variable in key=value format. Can be repeated.",
 )
 driver_env_vars_from_secrets_option = click.Option(
@@ -246,7 +246,9 @@ driver_node_selector_option = click.Option(
     type=str,
     multiple=True,
     callback=validate_dictionary_option,
-    default=Configuration.SPARK_ON_K8S_SPARK_DRIVER_NODE_SELECTOR,
+    default=[
+        f"{key}={value}" for key, value in Configuration.SPARK_ON_K8S_SPARK_DRIVER_NODE_SELECTOR.items()
+    ],
     show_default=True,
     help="Node selector for the driver in key=value format. Can be repeated.",
 )
@@ -255,7 +257,9 @@ executor_node_selector_option = click.Option(
     type=str,
     multiple=True,
     callback=validate_dictionary_option,
-    default=Configuration.SPARK_ON_K8S_SPARK_EXECUTOR_NODE_SELECTOR,
+    default=[
+        f"{key}={value}" for key, value in Configuration.SPARK_ON_K8S_SPARK_EXECUTOR_NODE_SELECTOR.items()
+    ],
     show_default=True,
     help="Node selector for the executor in key=value format. Can be repeated.",
 )
@@ -264,7 +268,7 @@ driver_labels_option = click.Option(
     type=str,
     multiple=True,
     callback=validate_dictionary_option,
-    default=Configuration.SPARK_ON_K8S_SPARK_DRIVER_LABELS,
+    default=[f"{key}={value}" for key, value in Configuration.SPARK_ON_K8S_SPARK_DRIVER_LABELS.items()],
     show_default=True,
     help="Labels for the driver in key=value format. Can be repeated.",
 )
@@ -273,7 +277,7 @@ executor_labels_option = click.Option(
     type=str,
     multiple=True,
     callback=validate_dictionary_option,
-    default=Configuration.SPARK_ON_K8S_SPARK_EXECUTOR_LABELS,
+    default=[f"{key}={value}" for key, value in Configuration.SPARK_ON_K8S_SPARK_EXECUTOR_LABELS.items()],
     show_default=True,
     help="Labels for the executor in key=value format. Can be repeated.",
 )
@@ -282,7 +286,7 @@ driver_annotations_option = click.Option(
     type=str,
     multiple=True,
     callback=validate_dictionary_option,
-    default=Configuration.SPARK_ON_K8S_SPARK_DRIVER_ANNOTATIONS,
+    default=[f"{key}={value}" for key, value in Configuration.SPARK_ON_K8S_SPARK_DRIVER_ANNOTATIONS.items()],
     show_default=True,
     help="Annotations for the driver in key=value format. Can be repeated.",
 )
@@ -291,7 +295,9 @@ executor_annotations_option = click.Option(
     type=str,
     multiple=True,
     callback=validate_dictionary_option,
-    default=Configuration.SPARK_ON_K8S_SPARK_EXECUTOR_ANNOTATIONS,
+    default=[
+        f"{key}={value}" for key, value in Configuration.SPARK_ON_K8S_SPARK_EXECUTOR_ANNOTATIONS.items()
+    ],
     show_default=True,
     help="Annotations for the executor in key=value format. Can be repeated.",
 )
@@ -301,4 +307,23 @@ executor_pod_template_path_option = click.Option(
     default=Configuration.SPARK_ON_K8S_EXECUTOR_POD_TEMPLATE_PATH,
     show_default=True,
     help="The path to the executor pod template file.",
+)
+executor_template_option = click.Option(
+    ("--executor-template", "executor_pod_template"),
+    type=str,
+    default=Configuration.SPARK_ON_K8S_EXECUTOR_TEMPLATE,
+    show_default=False,
+    help="Executor pod template content as string or local file path.",
+)
+
+
+driver_pod_template_option = click.Option(
+    ("--driver-pod-template",),
+    type=str,
+    help="Driver Pod YAML text or local template file path.",
+)
+driver_container_name_option = click.Option(
+    ("--driver-container-name",),
+    type=str,
+    help="Driver container to select from the template; defaults to driver or the sole container.",
 )

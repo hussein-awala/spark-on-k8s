@@ -68,7 +68,7 @@
   <meta name="documentation-channel" content="develop">
   <meta name="documentation-version" content="develop">
   
-    <meta name="documentation-source" content="100bdeac66ec107e0af0b8fd71d7c0ca02723596">
+    <meta name="documentation-source" content="2798963201f38a89d24a807dda59a9d91adfe283">
   
 
   </head>
@@ -108,7 +108,7 @@
     <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
   
   
-    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/100bdeac66ec107e0af0b8fd71d7c0ca02723596"><code>100bdeac66ec</code></a>.
+    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/2798963201f38a89d24a807dda59a9d91adfe283"><code>2798963201f3</code></a>.
   
 
           </div>
@@ -5069,11 +5069,12 @@ HTTP and WebSocket request. Ordinary browser WebSockets cannot attach a custom a
 header themselves. The application does not accept query-string tokens or bearer cookies and
 does not place a token in the dashboard bootstrap. The gateway must remove client-supplied
 identity headers before injecting its own and keep the backend unreachable directly.
-In remote mode, the Spark UI and History Server proxies forward only content-negotiation,
-range and conditional-cache request headers. Bearer tokens, cookies, gateway identity headers
-and other credentials are not sent to application services. Log WebSockets use the server's
-Kubernetes client and do not forward browser authorization headers to pods.
-Standalone mode with remote submission disabled keeps its existing UI behavior.</p>
+With or without remote mode, the Spark UI and History Server proxies forward only
+content-negotiation, content-type, range and conditional-cache request headers. Bearer tokens,
+cookies, gateway identity headers and other credentials are not sent to application services.
+Log WebSockets use the server's Kubernetes client and do not forward browser authorization headers
+to pods. Standalone mode with remote submission disabled does not require bearer authentication.
+See <a href="../../security-boundaries/#proxy-request-headers">browser and gateway security boundaries</a>.</p>
 <p>The Airflow task UI also makes server-to-server console requests. It does not have a bearer-token
 configuration option. When the Spark API uses remote mode, set
 <code>SPARK_ON_K8S_AIRFLOW_SERVICE_URL</code> to an administrator-controlled gateway that authenticates the
@@ -5156,7 +5157,8 @@ or the submitted driver pod name. A successful submission returns HTTP 201 and t
 <span class="w">  </span><span class="nt">"run"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="nt">"namespace"</span><span class="p">:</span><span class="w"> </span><span class="s2">"analytics"</span><span class="p">,</span>
 <span class="w">    </span><span class="nt">"app_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"report-0123456789abcdef0123456789abcdef"</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">"driver_pod"</span><span class="p">:</span><span class="w"> </span><span class="s2">"report-0123456789abcdef0123456789abcdef-driver"</span>
+<span class="w">    </span><span class="nt">"driver_pod"</span><span class="p">:</span><span class="w"> </span><span class="s2">"report-0123456789abcdef0123456789abcdef-driver"</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"driver_uid"</span><span class="p">:</span><span class="w"> </span><span class="s2">"5bdceeb0-7fa8-4f72-823b-80f26e6195c4"</span>
 <span class="w">  </span><span class="p">},</span>
 <span class="w">  </span><span class="nt">"status"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
 <span class="w">  </span><span class="nt">"error"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span>
@@ -5184,9 +5186,10 @@ duplicates; partial resources may require operator cleanup. <code>Idempotency-Ke
 rejected until a durable, shared idempotency implementation is available. In-memory deduplication
 would not be reliable across API workers or replicas.</p>
 <p>Authentication failures return 401, admission denials 403, disabled routes 404, unsupported
-idempotency or invalid JSON 400, oversized bodies 413, unsupported content types 415, and invalid
-job schemas 422. Kubernetes conflicts return 409; other Kubernetes failures return 502. Errors
-contain a stable code and a human-readable message, never the Kubernetes response body.</p>
+idempotency or invalid JSON 400, bodies not received within the deadline 408, oversized bodies 413,
+unsupported content types 415, and invalid job schemas 422. Kubernetes conflicts return 409; other
+Kubernetes failures return 502, and unexpected server failures 500. Errors contain a stable code
+and a human-readable message, never the Kubernetes response body.</p>
 <p>Admission limits apply to each submitted job. They do not reserve shared capacity
 or account for concurrent accepted jobs. Enforce aggregate resources with
 Kubernetes ResourceQuota or your external admission system. A policy rejection,
@@ -5215,7 +5218,7 @@ trust boundaries where independent authorization is required.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 7, 2026 23:37:11 UTC">November 7, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 8, 2026 23:03:17 UTC">November 8, 2026</span>
   </span>
 
     

@@ -9,7 +9,11 @@ license-files = ["LICENSE"]
 dependencies = [
     "spark-on-k8s[connect]==0.11.0.dev0",
     "dbt-core==1.12.6",
-    "dbt-spark[pyhive]==1.11.0",
+    "dbt-spark==1.11.0",
+    # Own the transport dependencies: dbt-spark's optional extra caps Thrift
+    # below the releases that fix the public Python protocol advisories.
+    "PyHive[hive-pure-sasl]==0.7.0",
+    "thrift>=0.25.0,<0.26",
     "pyspark-client==4.3.0",
 ]
 

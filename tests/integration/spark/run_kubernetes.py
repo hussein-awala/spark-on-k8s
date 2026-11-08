@@ -132,11 +132,13 @@ def run_case(api, submitter: SparkOnK8S, args, namespace: str, scenario: str):
             }
         )
     submit = submitter.submit_sql if scenario.startswith("sql") else submitter.submit_app
+    # The Java run uses a 63-character app ID, so its driver name is shortened with a hash.
+    app_name = "compat-java-with-a-long-name-that-requires-a-hashed-driver" if scenario == "java" else None
     pod_name = submit(
         image=args.image,
         namespace=namespace,
         service_account="spark",
-        app_name=f"compat-{scenario}",
+        app_name=app_name or f"compat-{scenario}",
         app_id_suffix=lambda: "-" + uuid4().hex[:8],
         image_pull_policy="Never",
         app_waiter="no_wait",
@@ -148,6 +150,9 @@ def run_case(api, submitter: SparkOnK8S, args, namespace: str, scenario: str):
     )
     run = submitter.last_submitted_run
     assert run is not None and run.driver_uid, "The installed client must return a UID-bearing receipt"
+    if app_name:
+        assert len(run.app_id) == 63 and run.driver_pod == pod_name, run
+        assert len(pod_name) <= 63 and pod_name != f"{run.app_id}-driver", pod_name
     receipt_path = args.artifacts / f"{scenario}-receipt.json"
     with receipt_writer(receipt_path) as save:
         save(run)
@@ -290,6 +295,46 @@ def run_pending_case(api, submitter, args, namespace):
     }
 
 
+def run_rejected_case(api, submitter, args, namespace):
+    """A definitively rejected driver must not leave the Secret and ConfigMap created before it."""
+    suffix = "-" + uuid4().hex[:8]
+    app_id = "rejected" + suffix
+    status = None
+    try:
+        submitter.submit_app(
+            image=args.image,
+            namespace=namespace,
+            service_account="spark",
+            app_name="rejected",
+            app_id_suffix=lambda: suffix,
+            image_pull_policy="Never",
+            app_waiter="no_wait",
+            app_path="local:///opt/spark/work-dir/runtime_job.py",
+            app_arguments=[args.spark_version],
+            secret_values={"SPARK_COMPAT_SENTINEL": "present"},
+            driver_ephemeral_configmaps_volumes=[
+                {"mount_path": "/etc/spark-compat", "sources": [{"name": "marker", "text": "present"}]}
+            ],
+            # Priority admission rejects an unknown class after the Secret and ConfigMap exist.
+            driver_pod_template={
+                "apiVersion": "v1",
+                "kind": "Pod",
+                "spec": {
+                    "priorityClassName": "spark-on-k8s-missing-" + uuid4().hex[:8],
+                    "containers": [{"name": "driver"}],
+                },
+            },
+            executor_instances=ExecutorInstances(initial=1),
+        )
+    except k8s.ApiException as error:
+        status = error.status
+    assert status is not None and 400 <= status < 500 and status != 408, f"Unexpected outcome: {status}"
+    assert submitter.last_submitted_run is None
+    assert submitter.last_submission_phase == "creating_resources"
+    await_cleanup(api, namespace, app_id + "-driver", app_id, set())
+    return {"scenario": "rejected-driver", "status": status, "unowned_resources_removed": True}
+
+
 def main():
     parser = argparse.ArgumentParser(description="Run real Spark submissions on a disposable kind cluster")
     parser.add_argument("--kubeconfig", required=True)
@@ -332,11 +377,12 @@ def main():
             )
             submitter = SparkOnK8S(k8s_client_manager=manager)
             results = []
-            for scenario in ("python", "sql", "sql-failure", "java", "pending-timeout"):
+            special_cases = {"pending-timeout": run_pending_case, "rejected-driver": run_rejected_case}
+            for scenario in ("python", "sql", "sql-failure", "java", "pending-timeout", "rejected-driver"):
                 try:
                     result = (
-                        run_pending_case(api, submitter, args, namespace)
-                        if scenario == "pending-timeout"
+                        special_cases[scenario](api, submitter, args, namespace)
+                        if scenario in special_cases
                         else run_case(api, submitter, args, namespace, scenario)
                     )
                     results.append({**result, "test_status": "passed"})

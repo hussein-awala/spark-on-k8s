@@ -88,6 +88,9 @@ driver_pod_name = client.submit_app(
 
 `submit_app` returns the driver pod name. The application ID is generated from the
 application name with a timestamp suffix and is available in the application list.
+The driver pod is usually named `<application ID>-driver`; an ID longer than 56
+characters instead keeps a readable prefix followed by a hash of the full ID, so
+use the returned name or run receipt rather than deriving it.
 For a private registry, configure image-pull credentials for the pods in your cluster.
 
 ## CLI

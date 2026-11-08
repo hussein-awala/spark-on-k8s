@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import datetime
-import importlib
+import importlib.util
 import json
-import os
 import re
 from typing import TYPE_CHECKING
 from unittest import mock
@@ -319,15 +318,15 @@ class TestSparkOnK8s:
 
         expected_app_name = "just-a-very-long-application-name-that-needs-to"
         expected_app_id = f"{expected_app_name}-20240114121231"
-        # A part of the app name is truncated to fit the 63 characters limit
-        # and a `LongAppNameWarning` warning should be issued
-        expected_pod_name = "just-a-very-long-application-name-that-needs-to-20240114-driver"
+        # The pod name keeps a readable prefix and a hash of the full app ID to fit 63 characters
+        # without dropping the timestamp that distinguishes reruns; a warning is still issued.
+        expected_pod_name = "just-a-very-long-applic-dcabcb209f8f8721c637a892b008d664-driver"
 
         spark_client = SparkOnK8S()
         with pytest.warns(
             LongAppNameWarning,
             match="The used app name or app id suffix is too long,"
-            " pod name will be truncated and may not be unique",
+            " pod name will be shortened with a hash of the app id",
         ):
             spark_client.submit_app(
                 image="pyspark-job",
@@ -417,37 +416,45 @@ class TestSparkOnK8s:
         mock_create_namespaced_pod,
         mock_stream_logs,
         mock_create_client,
+        monkeypatch,
     ):
         """Test the method submit_app with env configurations"""
-        os.environ["SPARK_ON_K8S_DOCKER_IMAGE"] = "test-spark-on-k8s-docker-image"
-        os.environ["SPARK_ON_K8S_APP_PATH"] = "/path/to/app.py"
-        os.environ["SPARK_ON_K8S_NAMESPACE"] = "test-namespace"
-        os.environ["SPARK_ON_K8S_SERVICE_ACCOUNT"] = "test-service-account"
-        os.environ["SPARK_ON_K8S_APP_NAME"] = "test-spark-app"
-        os.environ["SPARK_ON_K8S_APP_ARGUMENTS"] = '["arg1","arg2"]'
-        os.environ["SPARK_ON_K8S_APP_WAITER"] = "log"
-        os.environ["SPARK_ON_K8S_IMAGE_PULL_POLICY"] = "Always"
-        os.environ["SPARK_ON_K8S_UI_REVERSE_PROXY"] = "true"
-        os.environ["SPARK_ON_K8S_DRIVER_CPU"] = "1"
-        os.environ["SPARK_ON_K8S_DRIVER_MEMORY"] = "1024"
-        os.environ["SPARK_ON_K8S_DRIVER_MEMORY_OVERHEAD"] = "512"
-        os.environ["SPARK_ON_K8S_EXECUTOR_CPU"] = "1"
-        os.environ["SPARK_ON_K8S_EXECUTOR_MEMORY"] = "718"
-        os.environ["SPARK_ON_K8S_EXECUTOR_MEMORY_OVERHEAD"] = "512"
-        os.environ["SPARK_ON_K8S_EXECUTOR_MIN_INSTANCES"] = "2"
-        os.environ["SPARK_ON_K8S_EXECUTOR_MAX_INSTANCES"] = "5"
-        os.environ["SPARK_ON_K8S_EXECUTOR_INITIAL_INSTANCES"] = "5"
-        os.environ["SPARK_ON_K8S_EXECUTOR_ALLOCATION_RATIO"] = "0.5"
-        os.environ["SPARK_ON_K8S_SCHEDULER_BACKLOG_TIMEOUT"] = "10s"
-        os.environ["SPARK_ON_K8S_SUSTAINED_SCHEDULER_BACKLOG_TIMEOUT"] = "20s"
-        os.environ["SPARK_ON_K8S_SPARK_CONF"] = json.dumps(
-            {"spark.conf1.key": "spark.conf1.value", "spark.conf2.key": "spark.conf2.value"}
-        )
-        os.environ["SPARK_ON_K8S_SECRET_ENV_VAR"] = json.dumps({"KEY1": "VALUE1", "KEY2": "VALUE2"})
-        os.environ["SPARK_ON_K8S_DRIVER_ENV_VARS_FROM_SECRET"] = "SECRET1,SECRET2"
-
-        importlib.reload(configuration_module)
-        importlib.reload(client_module)
+        environment = {
+            "SPARK_ON_K8S_DOCKER_IMAGE": "test-spark-on-k8s-docker-image",
+            "SPARK_ON_K8S_APP_PATH": "/path/to/app.py",
+            "SPARK_ON_K8S_NAMESPACE": "test-namespace",
+            "SPARK_ON_K8S_SERVICE_ACCOUNT": "test-service-account",
+            "SPARK_ON_K8S_APP_NAME": "test-spark-app",
+            "SPARK_ON_K8S_APP_ARGUMENTS": '["arg1","arg2"]',
+            "SPARK_ON_K8S_APP_WAITER": "log",
+            "SPARK_ON_K8S_IMAGE_PULL_POLICY": "Always",
+            "SPARK_ON_K8S_UI_REVERSE_PROXY": "true",
+            "SPARK_ON_K8S_DRIVER_CPU": "1",
+            "SPARK_ON_K8S_DRIVER_MEMORY": "1024",
+            "SPARK_ON_K8S_DRIVER_MEMORY_OVERHEAD": "512",
+            "SPARK_ON_K8S_EXECUTOR_CPU": "1",
+            "SPARK_ON_K8S_EXECUTOR_MEMORY": "718",
+            "SPARK_ON_K8S_EXECUTOR_MEMORY_OVERHEAD": "512",
+            "SPARK_ON_K8S_EXECUTOR_MIN_INSTANCES": "2",
+            "SPARK_ON_K8S_EXECUTOR_MAX_INSTANCES": "5",
+            "SPARK_ON_K8S_EXECUTOR_INITIAL_INSTANCES": "5",
+            "SPARK_ON_K8S_EXECUTOR_ALLOCATION_RATIO": "0.5",
+            "SPARK_ON_K8S_SCHEDULER_BACKLOG_TIMEOUT": "10s",
+            "SPARK_ON_K8S_SUSTAINED_SCHEDULER_BACKLOG_TIMEOUT": "20s",
+            "SPARK_ON_K8S_SPARK_CONF": json.dumps(
+                {"spark.conf1.key": "spark.conf1.value", "spark.conf2.key": "spark.conf2.value"}
+            ),
+            "SPARK_ON_K8S_SECRET_ENV_VAR": json.dumps({"KEY1": "VALUE1", "KEY2": "VALUE2"}),
+            "SPARK_ON_K8S_DRIVER_ENV_VARS_FROM_SECRET": "SECRET1,SECRET2",
+        }
+        for name, value in environment.items():
+            monkeypatch.setenv(name, value)
+        # Evaluate a private copy: reloading shared modules would leak this environment into
+        # later tests and leave other importers holding a different Configuration class.
+        spec = importlib.util.find_spec(configuration_module.__name__)
+        configuration_copy = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(configuration_copy)
+        monkeypatch.setattr(client_module, "Configuration", configuration_copy.Configuration)
 
         spark_client = SparkOnK8S()
         spark_client.submit_app()

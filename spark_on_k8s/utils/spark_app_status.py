@@ -30,3 +30,28 @@ def get_app_status(pod: k8s.V1Pod | k8s_async.V1Pod) -> SparkAppStatus:
         return SparkAppStatus.Failed
     else:
         return SparkAppStatus.Unknown
+
+
+def driver_pod_selector(app_id: str) -> str:
+    """Select only driver pods: other pods may carry an application's ID label."""
+    return f"spark-app-id={app_id},spark-role=driver"
+
+
+def select_driver_pod(pods: list, app_id: str):
+    """Return the only driver for an application ID instead of acting on an arbitrary match."""
+    if len(pods) == 0:
+        raise ValueError(f"No pods found for app {app_id}")
+    if len(pods) > 1:
+        raise ValueError(f"Multiple driver pods found for app {app_id}; use a run receipt")
+    return pods[0]
+
+
+def driver_container_name(pod: k8s.V1Pod | k8s_async.V1Pod) -> str:
+    """Name the submitted driver container, even if an admission webhook prepended a sidecar."""
+    names = [container.name for container in pod.spec.containers]
+    metadata = getattr(pod, "metadata", None)
+    selected = (getattr(metadata, "annotations", None) or {}).get("kubectl.kubernetes.io/default-container")
+    for candidate in (selected, "driver"):
+        if candidate in names:
+            return candidate
+    return names[0]

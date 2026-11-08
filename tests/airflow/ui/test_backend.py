@@ -256,6 +256,22 @@ def test_older_service_does_not_guess_history_from_driver_logs(harness, deleted)
         assert not any(request.url.path.endswith("/history") for request in h.requests)
 
 
+@pytest.mark.parametrize("upstream_status,expected_status", [(403, 403), (503, 502)])
+def test_failed_capability_lookup_is_not_reported_as_disabled(harness, upstream_status, expected_status):
+    import httpx
+
+    with harness() as h:
+        h.responses["/service/webserver/api/capabilities"] = httpx.Response(
+            upstream_status, text="private service details"
+        )
+        response = h.client.get("/api/capabilities", params=QUERY)
+        assert response.status_code == expected_status
+        assert response.json()["detail"]["code"] == "service_error"
+        assert "spark_history_url" not in response.json()
+        assert "private" not in response.text
+        assert not any(request.url.path.endswith("/history") for request in h.requests)
+
+
 @pytest.mark.parametrize("body", [{"history_configured": "false"}, {}, ["private detail"]])
 def test_invalid_capability_response_is_sanitized(harness, body):
     import httpx

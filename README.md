@@ -248,11 +248,14 @@ helm install spark-on-k8s-release spark-on-k8s/spark-on-k8s \
 ```
 
 To use the **chart from this checkout**, render it for review first, then install
-that local chart:
+that local chart. Set `API_IMAGE_TAG` to a compatible, tested image from the
+current source; the old `0.12.1` API does not implement the readiness endpoint:
 
 ```bash
-helm template spark-on-k8s-release ./chart --values examples/helm/values.yaml
-helm install spark-on-k8s-release ./chart --values examples/helm/values.yaml
+helm template spark-on-k8s-release ./chart --values examples/helm/values.yaml \
+  --set-string image.tag="${API_IMAGE_TAG:?Set a qualified API image tag}"
+helm install spark-on-k8s-release ./chart --values examples/helm/values.yaml \
+  --set-string image.tag="$API_IMAGE_TAG"
 ```
 
 Choose one chart source for a release. The commands above use example values from
@@ -268,8 +271,9 @@ not Kubernetes authorization. The API has no built-in user authentication, and
 access-controlled networking or an authenticating proxy.
 
 The source chart supplies in-cluster Kubernetes configuration and the API bind
-address and port. Its default API image tag is `latest` for development; using a local chart does
-not build or install the Python source into that image. Set `image.repository`
+address and port. It requires an explicit API image tag or digest; a published
+chart defaults to its `appVersion` tag. Using a local chart does not build or
+install the Python source into an image. Set `image.repository`
 and `image.digest` to a verified production image digest (`image.tag` remains available
 for named releases), independently of Spark application images passed to `submit_app`.
 Digest selection takes precedence over the tag. See [chart deployment guidance](docs/user-guide/chart-deployments.md)

@@ -4,10 +4,10 @@ on:
   workflow_dispatch:
     inputs:
       app_version:
-        description: 'The current latest version of spark-on-k8s python package'
+        description: 'Published spark-on-k8s API image version (bare X.Y.Z, 0.13.0 or newer)'
         required: true
       chart_version:
-        description: 'The version of the chart to be released'
+        description: 'New chart version (X.Y.Z); published versions are rejected'
         required: true
 
 concurrency:
@@ -23,6 +23,15 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # The chart's default image tag is its appVersion: refuse an image that does not
+      # exist yet or lacks /ready, and never replace an already published chart version.
+      - name: Check release inputs and the published API image
+        env:
+          APP_VERSION: ${{ inputs.app_version }}
+          CHART_VERSION: ${{ inputs.chart_version }}
+        run: |
+          python3 scripts/chart_release.py --app-version "$APP_VERSION" --chart-version "$CHART_VERSION"
+          docker buildx imagetools inspect "ghcr.io/$GITHUB_REPOSITORY_OWNER/spark-on-k8s:$APP_VERSION"
       - name: Set explicit package metadata before publisher lint
         env:
           APP_VERSION: ${{ inputs.app_version }}

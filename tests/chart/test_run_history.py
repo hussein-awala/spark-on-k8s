@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 import yaml
+from spark_on_k8s.api.run_history import READY_TIMEOUT
 
 HELM = shutil.which("helm")
 CHART = Path(__file__).resolve().parents[2] / "chart"
@@ -29,6 +30,8 @@ def test_default_deployment_uses_separate_liveness_and_readiness_without_databas
     container = spec["containers"][0]
     assert container["livenessProbe"]["httpGet"]["path"] == "/health"
     assert container["readinessProbe"]["httpGet"]["path"] == "/ready"
+    # The kubelet default (1s) would mark the pod unready inside the API's own check budget.
+    assert container["readinessProbe"]["timeoutSeconds"] >= READY_TIMEOUT
     assert "volumes" not in spec
     assert all(entry["name"] != "SPARK_ON_K8S_RUN_HISTORY_ENABLED" for entry in container["env"])
 

@@ -225,8 +225,9 @@ not Kubernetes authorization. The API has no built-in user authentication, and
 access-controlled networking or an authenticating proxy.
 
 The source chart supplies in-cluster Kubernetes configuration and the API bind
-address and port. Its default API image tag is `latest`; using a local chart does
-not build or install the Python source into that image. Set `image.repository`
+address and port. It requires an explicit API image tag or digest; a published
+chart defaults to its `appVersion` tag. Using a local chart does not build or
+install the Python source into an image. Set `image.repository`
 and `image.tag` to the API image version you intend to deploy, or use
 `image.digest` to select verified image contents; the digest takes precedence over
 the tag. This is independent of the Spark application image passed to `submit_app`.

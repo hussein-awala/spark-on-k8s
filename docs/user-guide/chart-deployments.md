@@ -12,13 +12,10 @@ The API image uses `image.digest` when set. Otherwise it uses `image.tag`; an
 explicitly empty tag opts into that chart's `appVersion` fallback. A version tag
 is clearer than `latest`, but only a verified digest fixes the image contents.
 
-The source chart retains `image.tag: latest` as its development default. Its
-historical `appVersion` has not been qualified against the current templates, so
-silently switching the default to that older image would be unsafe. A default
-aligned with a release is deferred until the chart release is qualified. Set an
-explicit approved tag or digest for deployments; do not infer the Python version
-from your checkout or assume `latest` provides unreleased features. Building or
-rendering the local chart does not build an API image.
+The source chart requires an explicit compatible image tag or digest while its
+`appVersion` is `unreleased`. Release packaging sets a qualified application
+version, which becomes the default image tag. Building or rendering the local
+chart does not build an API image.
 
 The optional History Server has a separate image lifecycle. Enabling
 `sparkHistory.enabled` requires an explicit `sparkHistory.image.tag` or
@@ -150,3 +147,26 @@ access or API server admission. Raw `env` overrides still take precedence over
 chart-generated environment settings and remain the operator's responsibility.
 Use the [development guide](../development.md) for the Helm regression suite and
 [release guidance](../releases.md) for the artifact publication boundary.
+
+## Preparing the next chart release
+
+The source chart marks `appVersion` as `unreleased` and requires an explicit
+compatible `image.tag` or `image.digest`. The release publisher sets the package's
+qualified application version; an empty image tag then selects that version.
+API 0.12.1 does not implement `/ready` and is not compatible with these probes.
+Do not publish this chart against that older API image.
+
+Shared RBAC resource names now include the release namespace identity. Existing
+installations can set `rbac.legacyNames: true` to retain their old names during an
+upgrade. New installations should use the default `false`, allowing identical
+release names in separate namespaces. To migrate existing installations, render
+and review both RBAC sets, ensure the new bindings exist before removing old
+bindings, and verify access under the service account. Switching the value in a
+normal Helm upgrade replaces the old resources; schedule that transition if a
+brief permissions interruption is unacceptable. Never reuse legacy names for two
+releases managing the same shared scope.
+
+History configuration updates now roll its Deployment automatically. History
+`affinity` and `tolerations` are passed to the Pod. The rare long-name suffix
+collision is disambiguated; existing installations using those colliding names
+need a reviewed recreation because Deployment selectors are immutable.

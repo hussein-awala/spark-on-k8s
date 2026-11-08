@@ -6,10 +6,21 @@ metadata:
     {{- include "spark-on-k8s.labels" . | nindent 4 }}
   annotations:
     "helm.sh/hook": test
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 spec:
+  activeDeadlineSeconds: 90
   containers:
     - name: wget
       image: busybox
-      command: ['wget']
-      args: ['{{ include "spark-on-k8s.fullname" . }}:{{ .Values.service.port }}']
+      command: ['sh', '-ec']
+      args:
+        - |
+          for attempt in $(seq 1 12); do
+            if wget -T 5 -q -O /dev/null 'http://{{ include "spark-on-k8s.fullname" . }}:{{ .Values.service.port }}/ready'; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "API readiness did not recover within the bounded test window" >&2
+          exit 1
   restartPolicy: Never

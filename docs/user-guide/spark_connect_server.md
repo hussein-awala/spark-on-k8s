@@ -4,7 +4,8 @@ Create a private Spark Connect server when you want notebooks or Python tools to
 share a long-running Spark driver. The server launches real Kubernetes executors
 using the existing submission machinery. The separate
 [connection profiles guide](spark_connect.md) covers client sessions and existing
-services.
+services. For the complete local notebook workflow, including an isolated kernel,
+planned restart and cleanup, use [Jupyter notebooks on Kubernetes](jupyter.md).
 
 This feature creates one driver and its private Services in an existing namespace.
 It does not restart a failed driver or restore sessions after a driver replacement.

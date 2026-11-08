@@ -12,6 +12,10 @@ on:
       - "tests/test_connect*.py"
       - "tests/cli/test_connect*.py"
       - "tests/integration/connect/**"
+      - "tests/integration/jupyter/**"
+      - "examples/jupyter/**"
+      - "docs/user-guide/jupyter.md"
+      - "docs/gen_jupyter_examples.py"
       - "pyproject.toml"
       - "uv.lock"
       - "scripts/install-kind.sh"
@@ -25,6 +29,10 @@ on:
       - "spark_on_k8s/cli/**"
       - "tests/run_installed_tests.py"
       - "tests/integration/connect/**"
+      - "tests/integration/jupyter/**"
+      - "examples/jupyter/**"
+      - "docs/user-guide/jupyter.md"
+      - "docs/gen_jupyter_examples.py"
       - "pyproject.toml"
       - "uv.lock"
       - "scripts/install-kind.sh"
@@ -125,9 +133,17 @@ jobs:
           assert sys.prefix != sys.base_prefix
           assert Path(sys.prefix).resolve() == Path('.venv').resolve()
           PYTHON
-          UV_PROJECT_ENVIRONMENT="$GITHUB_WORKSPACE/.venv" uv sync --locked --no-default-groups --extra connect
+          UV_PROJECT_ENVIRONMENT="$GITHUB_WORKSPACE/.venv" uv sync --locked --no-default-groups --extra connect --group notebook
           uv build --wheel --out-dir "$RUNNER_TEMP/connect-wheel"
           uv pip install --python .venv/bin/python --no-deps --reinstall "$RUNNER_TEMP"/connect-wheel/*.whl
+          # Pair the notebook client with the server: new local-data APIs may
+          # require server features absent from an older Spark release.
+          uv pip install --python .venv/bin/python --no-deps "pyspark-client==$SPARK_VERSION"
+          .venv/bin/python -I - <<'PYTHON'
+          import os
+          from importlib.metadata import version
+          assert version("pyspark-client") == os.environ["SPARK_VERSION"]
+          PYTHON
           uv pip check --python .venv/bin/python
       - name: Create a disposable kind cluster
         run: |
@@ -156,6 +172,48 @@ jobs:
             --image "spark-connect-test:$SPARK_VERSION" --spark-version "$SPARK_VERSION" \
             --server-jar "local:///opt/spark/jars/spark-connect_2.13-$SPARK_VERSION.jar" \
             --artifacts "$RUNNER_TEMP/connect-kubernetes-results"
+      - name: Execute the documented Jupyter notebook with a real kernel restart
+        run: |
+          .venv/bin/python -I tests/integration/jupyter/run_kubernetes.py \
+            --kubeconfig "$RUNNER_TEMP/connect-kubeconfig" --context kind-spark-connect-ci \
+            --image "spark-connect-test:$SPARK_VERSION" --spark-version "$SPARK_VERSION" \
+            --server-jar "local:///opt/spark/jars/spark-connect_2.13-$SPARK_VERSION.jar" \
+            --artifacts "$RUNNER_TEMP/jupyter-kubernetes-results"
+      - name: Verify cleanup after an interrupted notebook run
+        if: matrix.spark == '4.3.0'
+        run: |
+          .venv/bin/python -I - <<'PYTHON'
+          import json
+          import os
+          from pathlib import Path
+          import subprocess
+          import sys
+
+          temporary = Path(os.environ["RUNNER_TEMP"])
+          artifacts = temporary / "jupyter-interruption-results"
+          version = os.environ["SPARK_VERSION"]
+          result = subprocess.run([
+              sys.executable, "-I", "tests/integration/jupyter/run_kubernetes.py",
+              "--kubeconfig", str(temporary / "connect-kubeconfig"),
+              "--context", "kind-spark-connect-ci",
+              "--image", f"spark-connect-test:{version}", "--spark-version", version,
+              "--server-jar", f"local:///opt/spark/jars/spark-connect_2.13-{version}.jar",
+              "--artifacts", str(artifacts), "--interrupt-after-cell", "open-tunnel",
+          ], timeout=600)
+          assert result.returncode != 0, "The injected interruption must fail the notebook run"
+          def read(name):
+              return json.loads((artifacts / name).read_text())
+          failure = read("failure.json")
+          assert failure["type"] == "KeyboardInterrupt" and failure["injected_interruption"]
+          assert read("result.json")["status"] == "failed"
+          assert read("cleanup-errors.json") == []
+          assert read("fallback-server-cleanup.json")["owned_resources_garbage_collected"]
+          assert read("fixture-cleanup.json")["namespace_absence_observed"]
+          tunnels = read("tunnel-cleanup.json")
+          assert not tunnels["errors"] and tunnels["processes"]
+          assert all(process["status"] == "closed" for process in tunnels["processes"])
+          print("Expected notebook interruption verified; server, tunnel, and namespace cleanup passed.")
+          PYTHON
       - name: Save cluster diagnostics and stop the disposable cluster
         if: always()
         run: |
@@ -170,5 +228,7 @@ jobs:
           name: spark-connect-${{ matrix.spark }}-kubernetes
           path: |
             ${{ runner.temp }}/connect-kubernetes-results/
+            ${{ runner.temp }}/jupyter-kubernetes-results/
+            ${{ runner.temp }}/jupyter-interruption-results/
             ${{ runner.temp }}/connect-kind-logs/
           retention-days: 7

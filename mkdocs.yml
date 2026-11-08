@@ -51,6 +51,7 @@ plugins:
   - gen-files:
       scripts:
         - docs/gen_ref_pages.py
+        - docs/gen_jupyter_examples.py
   - literate-nav:
       nav_file: SUMMARY.md
   - mkdocstrings:
@@ -98,6 +99,7 @@ nav:
           - CLI automation and recovery: user-guide/automation.md
           - Spark Connect: user-guide/spark_connect.md
           - Connect server setup: user-guide/spark_connect_server.md
+          - Jupyter notebooks: user-guide/jupyter.md
           - Airflow: user-guide/airflow.md
           - Remote submission: user-guide/remote-submission.md
   - Operate:

@@ -35,6 +35,7 @@ See [support boundaries](user-guide/support.md) before adding a public contract.
 | Helm | `tests/chart/` with Helm installed; regenerate chart documentation and strict docs build |
 | Dependencies/build/release | Lock check, applicable installed-wheel profiles, package build and affected runtime workflows |
 | Connect | `tests/test_connect.py` plus real Connect workflow for client/protocol changes |
+| Jupyter example or helper | Exact notebook kernel/Kubernetes runner in the Connect workflow, helper failure-path checks, strict docs and download parity |
 | Starter/example runtime | Its output assertions in the advertised runtime; extend the corresponding workflow when support claims change |
 
 Do not run every expensive matrix locally for a small change. Do not omit a
@@ -190,6 +191,25 @@ at an arbitrary current kubeconfig context.
   Kubernetes job additionally creates Spark 4.0.5/4.3.0 servers with real executors
   and exercises SDK/CLI receipts, query readiness, session independence, failure
   handling and ownership-safe deletion using `tests/integration/connect/run_kubernetes.py`.
+  The same image matrix runs `tests/integration/jupyter/run_kubernetes.py`, executing
+  the canonical `examples/jupyter/spark_connect.ipynb` with a real IPython kernel.
+  It performs a planned kernel restart, reconnects to the same driver, verifies
+  distributed results and notebook table output, then observes owned cleanup.
+  This covers kernel execution, not manual JupyterLab browser interaction or an
+  abrupt kernel/driver crash. Use the locked `notebook` group plus `connect` extra
+  in its isolated Python 3.12 environment; the workflow installs the built wheel.
+  Each Kubernetes row intentionally overrides the locked thin client with
+  `uv pip install --python .venv/bin/python --no-deps "pyspark-client==$SPARK_VERSION"`,
+  then runs `uv pip check`, pairing clients and servers at 4.0.5 and 4.3.0.
+  Run the environment's Python directly after that override: a subsequent sync
+  can restore the locked client or editable package. Preserve the notebook's
+  local-row DataFrame case; passing range queries alone does not establish that
+  newer client APIs work against an older server.
+  The notebook writes `notebook-result.json`; the runner publishes aggregate
+  `result.json` after fixture and tunnel cleanup, so passing cells alone do not
+  establish a passing integration run. Keep the executed notebook and cleanup
+  evidence with the result. The [Jupyter guide](user-guide/jupyter.md) documents
+  interactive use.
 - `tests/integration/starters/check.py` verifies ETL/Iceberg output and replay in
   the selected Spark image. Its container-local results do not validate shared
   storage provisioning on a target cluster.

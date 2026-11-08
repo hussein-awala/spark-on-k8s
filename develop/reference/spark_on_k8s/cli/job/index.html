@@ -68,7 +68,7 @@
   <meta name="documentation-channel" content="develop">
   <meta name="documentation-version" content="develop">
   
-    <meta name="documentation-source" content="b4b4fe1c6fcbce3ce60e3992bbeb5025465ada53">
+    <meta name="documentation-source" content="75eef91e3361556ace70a581eeed79f2e9d5ca81">
   
 
   </head>
@@ -108,7 +108,7 @@
     <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
   
   
-    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/b4b4fe1c6fcbce3ce60e3992bbeb5025465ada53"><code>b4b4fe1c6fcb</code></a>.
+    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/75eef91e3361556ace70a581eeed79f2e9d5ca81"><code>75eef91e3361</code></a>.
   
 
           </div>
@@ -5196,7 +5196,13 @@
 <span class="normal">109</span>
 <span class="normal">110</span>
 <span class="normal">111</span>
-<span class="normal">112</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@job_cli</span><span class="o">.</span><span class="n">command</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">"submit"</span><span class="p">)</span>
+<span class="normal">112</span>
+<span class="normal">113</span>
+<span class="normal">114</span>
+<span class="normal">115</span>
+<span class="normal">116</span>
+<span class="normal">117</span>
+<span class="normal">118</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@job_cli</span><span class="o">.</span><span class="n">command</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">"submit"</span><span class="p">)</span>
 <span class="nd">@click</span><span class="o">.</span><span class="n">argument</span><span class="p">(</span><span class="s2">"file"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">click</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="n">exists</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">dir_okay</span><span class="o">=</span><span class="kc">False</span><span class="p">))</span>
 <span class="nd">@click</span><span class="o">.</span><span class="n">option</span><span class="p">(</span><span class="s2">"--profile"</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">"Select environment overrides from the job file."</span><span class="p">)</span>
 <span class="nd">@click</span><span class="o">.</span><span class="n">option</span><span class="p">(</span><span class="s2">"--output"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">click</span><span class="o">.</span><span class="n">Choice</span><span class="p">([</span><span class="s2">"text"</span><span class="p">,</span> <span class="s2">"json"</span><span class="p">]),</span> <span class="n">default</span><span class="o">=</span><span class="s2">"text"</span><span class="p">,</span> <span class="n">show_default</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
@@ -5209,9 +5215,15 @@
 <span class="nd">@receipt_option</span>
 <span class="k">def</span><span class="w"> </span><span class="nf">submit</span><span class="p">(</span><span class="n">file</span><span class="p">,</span> <span class="n">profile</span><span class="p">,</span> <span class="n">output</span><span class="p">,</span> <span class="n">timeout</span><span class="p">,</span> <span class="n">receipt_file</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">"""Submit a job using the same automation result contract as app submit."""</span>
-    <span class="kn">from</span><span class="w"> </span><span class="nn">spark_on_k8s.cli.automation</span><span class="w"> </span><span class="kn">import</span> <span class="n">execute_submission</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">spark_on_k8s.cli.automation</span><span class="w"> </span><span class="kn">import</span> <span class="n">execute_submission</span><span class="p">,</span> <span class="n">execution</span>
 
-    <span class="n">job</span> <span class="o">=</span> <span class="n">_load</span><span class="p">(</span><span class="n">file</span><span class="p">,</span> <span class="n">profile</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">job</span> <span class="o">=</span> <span class="n">JobSpec</span><span class="o">.</span><span class="n">from_file</span><span class="p">(</span><span class="n">file</span><span class="p">,</span> <span class="n">profile</span><span class="o">=</span><span class="n">profile</span><span class="p">)</span>
+    <span class="k">except</span> <span class="p">(</span><span class="n">JobValidationError</span><span class="p">,</span> <span class="ne">OSError</span><span class="p">):</span>
+        <span class="c1"># Keep one submit document on stdout; the namespace is unknown until the job loads.</span>
+        <span class="k">with</span> <span class="n">execution</span><span class="p">(</span><span class="s2">"submit"</span><span class="p">,</span> <span class="s2">""</span><span class="p">,</span> <span class="n">output</span><span class="p">)</span> <span class="k">as</span> <span class="n">result</span><span class="p">:</span>
+            <span class="n">result</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">run</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">status</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+            <span class="k">raise</span>
     <span class="n">execute_submission</span><span class="p">(</span>
         <span class="n">job</span><span class="o">.</span><span class="n">client</span><span class="p">(),</span> <span class="n">job</span><span class="o">.</span><span class="n">to_submit_kwargs</span><span class="p">(),</span> <span class="n">output</span><span class="o">=</span><span class="n">output</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="n">timeout</span><span class="p">,</span> <span class="n">receipt_file</span><span class="o">=</span><span class="n">receipt_file</span>
     <span class="p">)</span>
@@ -5333,7 +5345,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 8, 2026 22:38:48 UTC">November 8, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 8, 2026 22:40:02 UTC">November 8, 2026</span>
   </span>
 
     

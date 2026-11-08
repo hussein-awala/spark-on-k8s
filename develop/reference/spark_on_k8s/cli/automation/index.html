@@ -68,7 +68,7 @@
   <meta name="documentation-channel" content="develop">
   <meta name="documentation-version" content="develop">
   
-    <meta name="documentation-source" content="b4b4fe1c6fcbce3ce60e3992bbeb5025465ada53">
+    <meta name="documentation-source" content="75eef91e3361556ace70a581eeed79f2e9d5ca81">
   
 
   </head>
@@ -108,7 +108,7 @@
     <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
   
   
-    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/b4b4fe1c6fcbce3ce60e3992bbeb5025465ada53"><code>b4b4fe1c6fcb</code></a>.
+    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/75eef91e3361556ace70a581eeed79f2e9d5ca81"><code>75eef91e3361</code></a>.
   
 
           </div>
@@ -3201,6 +3201,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#spark_on_k8s.cli.automation.is_transport_timeout" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        is_transport_timeout
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -4995,6 +5006,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#spark_on_k8s.cli.automation.is_transport_timeout" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        is_transport_timeout
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -5069,14 +5091,7 @@ A timeout limits observation after submission, never deletes the application.</p
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>spark_on_k8s/cli/automation.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 82</span>
-<span class="normal"> 83</span>
-<span class="normal"> 84</span>
-<span class="normal"> 85</span>
-<span class="normal"> 86</span>
-<span class="normal"> 87</span>
-<span class="normal"> 88</span>
-<span class="normal"> 89</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 89</span>
 <span class="normal"> 90</span>
 <span class="normal"> 91</span>
 <span class="normal"> 92</span>
@@ -5153,7 +5168,14 @@ A timeout limits observation after submission, never deletes the application.</p
 <span class="normal">163</span>
 <span class="normal">164</span>
 <span class="normal">165</span>
-<span class="normal">166</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">execute_submission</span><span class="p">(</span>
+<span class="normal">166</span>
+<span class="normal">167</span>
+<span class="normal">168</span>
+<span class="normal">169</span>
+<span class="normal">170</span>
+<span class="normal">171</span>
+<span class="normal">172</span>
+<span class="normal">173</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">execute_submission</span><span class="p">(</span>
     <span class="n">spark_client</span><span class="p">,</span> <span class="n">kwargs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">output</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"text"</span><span class="p">,</span> <span class="n">timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">receipt_file</span><span class="o">=</span><span class="kc">None</span>
 <span class="p">):</span>
 <span class="w">    </span><span class="sd">"""Submit and observe a run using the CLI v1 output and exit-code contract.</span>
@@ -5260,13 +5282,7 @@ A timeout limits observation after submission, never deletes the application.</p
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>spark_on_k8s/cli/automation.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">40</span>
-<span class="normal">41</span>
-<span class="normal">42</span>
-<span class="normal">43</span>
-<span class="normal">44</span>
-<span class="normal">45</span>
-<span class="normal">46</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">46</span>
 <span class="normal">47</span>
 <span class="normal">48</span>
 <span class="normal">49</span>
@@ -5299,7 +5315,14 @@ A timeout limits observation after submission, never deletes the application.</p
 <span class="normal">76</span>
 <span class="normal">77</span>
 <span class="normal">78</span>
-<span class="normal">79</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@contextmanager</span>
+<span class="normal">79</span>
+<span class="normal">80</span>
+<span class="normal">81</span>
+<span class="normal">82</span>
+<span class="normal">83</span>
+<span class="normal">84</span>
+<span class="normal">85</span>
+<span class="normal">86</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@contextmanager</span>
 <span class="k">def</span><span class="w"> </span><span class="nf">execution</span><span class="p">(</span><span class="n">operation</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">namespace</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">output</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">"""Keep JSON stdout to one versioned document, including runtime failures."""</span>
     <span class="n">result</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"schema_version"</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">"operation"</span><span class="p">:</span> <span class="n">operation</span><span class="p">,</span> <span class="s2">"namespace"</span><span class="p">:</span> <span class="n">namespace</span><span class="p">,</span> <span class="s2">"error"</span><span class="p">:</span> <span class="kc">None</span><span class="p">}</span>
@@ -5317,9 +5340,10 @@ A timeout limits observation after submission, never deletes the application.</p
                 <span class="k">else</span> <span class="s2">"Interrupted; the application was not stopped."</span>
             <span class="p">),</span>
         <span class="p">}</span>
-    <span class="k">except</span> <span class="p">(</span><span class="ne">TimeoutError</span><span class="p">,</span> <span class="n">HTTPTimeoutError</span><span class="p">)</span> <span class="k">as</span> <span class="n">error</span><span class="p">:</span>
-        <span class="n">code</span> <span class="o">=</span> <span class="mi">5</span>
-        <span class="n">result</span><span class="p">[</span><span class="s2">"error"</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"code"</span><span class="p">:</span> <span class="s2">"timeout"</span><span class="p">,</span> <span class="s2">"message"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">error</span><span class="p">)}</span>
+    <span class="k">except</span> <span class="p">(</span><span class="ne">TimeoutError</span><span class="p">,</span> <span class="n">HTTPTimeoutError</span><span class="p">,</span> <span class="n">MaxRetryError</span><span class="p">)</span> <span class="k">as</span> <span class="n">error</span><span class="p">:</span>
+        <span class="n">timed_out</span> <span class="o">=</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">error</span><span class="p">,</span> <span class="ne">TimeoutError</span><span class="p">)</span> <span class="ow">or</span> <span class="n">is_transport_timeout</span><span class="p">(</span><span class="n">error</span><span class="p">)</span>
+        <span class="n">code</span> <span class="o">=</span> <span class="mi">5</span> <span class="k">if</span> <span class="n">timed_out</span> <span class="k">else</span> <span class="mi">1</span>
+        <span class="n">result</span><span class="p">[</span><span class="s2">"error"</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"code"</span><span class="p">:</span> <span class="s2">"timeout"</span> <span class="k">if</span> <span class="n">timed_out</span> <span class="k">else</span> <span class="s2">"operation_error"</span><span class="p">,</span> <span class="s2">"message"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">error</span><span class="p">)}</span>
     <span class="k">except</span> <span class="n">ApiException</span> <span class="k">as</span> <span class="n">error</span><span class="p">:</span>
         <span class="n">code</span> <span class="o">=</span> <span class="mi">4</span> <span class="k">if</span> <span class="n">error</span><span class="o">.</span><span class="n">status</span> <span class="o">==</span> <span class="mi">404</span> <span class="k">else</span> <span class="mi">1</span>
         <span class="n">result</span><span class="p">[</span><span class="s2">"error"</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
@@ -5339,6 +5363,35 @@ A timeout limits observation after submission, never deletes the application.</p
         <span class="n">click</span><span class="o">.</span><span class="n">echo</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Error: </span><span class="si">{</span><span class="n">result</span><span class="p">[</span><span class="s1">'error'</span><span class="p">][</span><span class="s1">'message'</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="n">err</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">code</span><span class="p">:</span>
         <span class="k">raise</span> <span class="n">click</span><span class="o">.</span><span class="n">exceptions</span><span class="o">.</span><span class="n">Exit</span><span class="p">(</span><span class="n">code</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="spark_on_k8s.cli.automation.is_transport_timeout" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">is_transport_timeout</span><span class="p">(</span><span class="n">error</span><span class="p">)</span></code>
+
+<a href="#spark_on_k8s.cli.automation.is_transport_timeout" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Kubernetes request timeouts arrive wrapped in MaxRetryError; refused connections are not timeouts.</p>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>spark_on_k8s/cli/automation.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">34</span>
+<span class="normal">35</span>
+<span class="normal">36</span>
+<span class="normal">37</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">is_transport_timeout</span><span class="p">(</span><span class="n">error</span><span class="p">:</span> <span class="ne">BaseException</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Kubernetes request timeouts arrive wrapped in MaxRetryError; refused connections are not timeouts."""</span>
+    <span class="n">reason</span> <span class="o">=</span> <span class="n">error</span><span class="o">.</span><span class="n">reason</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">error</span><span class="p">,</span> <span class="n">MaxRetryError</span><span class="p">)</span> <span class="k">else</span> <span class="n">error</span>
+    <span class="k">return</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">reason</span><span class="p">,</span> <span class="n">HTTPTimeoutError</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">reason</span><span class="p">,</span> <span class="n">NewConnectionError</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -5372,7 +5425,7 @@ A timeout limits observation after submission, never deletes the application.</p
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 8, 2026 22:38:48 UTC">November 8, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 8, 2026 22:40:02 UTC">November 8, 2026</span>
   </span>
 
     

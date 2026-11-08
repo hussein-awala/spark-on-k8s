@@ -68,7 +68,7 @@
   <meta name="documentation-channel" content="develop">
   <meta name="documentation-version" content="develop">
   
-    <meta name="documentation-source" content="b4b4fe1c6fcbce3ce60e3992bbeb5025465ada53">
+    <meta name="documentation-source" content="75eef91e3361556ace70a581eeed79f2e9d5ca81">
   
 
   </head>
@@ -108,7 +108,7 @@
     <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
   
   
-    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/b4b4fe1c6fcbce3ce60e3992bbeb5025465ada53"><code>b4b4fe1c6fcb</code></a>.
+    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/75eef91e3361556ace70a581eeed79f2e9d5ca81"><code>75eef91e3361</code></a>.
   
 
           </div>
@@ -5966,9 +5966,7 @@ ClusterIP service requires a trusted network or a separately managed gateway.</p
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>spark_on_k8s/connect_server.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">544</span>
-<span class="normal">545</span>
-<span class="normal">546</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">546</span>
 <span class="normal">547</span>
 <span class="normal">548</span>
 <span class="normal">549</span>
@@ -6002,7 +6000,9 @@ ClusterIP service requires a trusted network or a separately managed gateway.</p
 <span class="normal">577</span>
 <span class="normal">578</span>
 <span class="normal">579</span>
-<span class="normal">580</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">connect_server_status</span><span class="p">(</span><span class="n">client</span><span class="p">:</span> <span class="n">SparkOnK8S</span><span class="p">,</span> <span class="n">handle</span><span class="p">:</span> <span class="n">ConnectServerHandle</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">10</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="normal">580</span>
+<span class="normal">581</span>
+<span class="normal">582</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">connect_server_status</span><span class="p">(</span><span class="n">client</span><span class="p">:</span> <span class="n">SparkOnK8S</span><span class="p">,</span> <span class="n">handle</span><span class="p">:</span> <span class="n">ConnectServerHandle</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">10</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Read matching resource state. Only confirmed 404 means missing; errors propagate."""</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">handle</span><span class="p">,</span> <span class="n">ConnectServerHandle</span><span class="p">):</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"handle must be ConnectServerHandle"</span><span class="p">)</span>
@@ -6064,9 +6064,7 @@ The raised error retains the planned/confirmed run and rollback outcome.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>spark_on_k8s/connect_server.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">424</span>
-<span class="normal">425</span>
-<span class="normal">426</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">426</span>
 <span class="normal">427</span>
 <span class="normal">428</span>
 <span class="normal">429</span>
@@ -6170,7 +6168,9 @@ The raised error retains the planned/confirmed run and rollback outcome.</p>
 <span class="normal">527</span>
 <span class="normal">528</span>
 <span class="normal">529</span>
-<span class="normal">530</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">create_connect_server</span><span class="p">(</span><span class="n">client</span><span class="p">:</span> <span class="n">SparkOnK8S</span><span class="p">,</span> <span class="n">config</span><span class="p">:</span> <span class="n">ConnectServerConfig</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ConnectServerHandle</span><span class="p">:</span>
+<span class="normal">530</span>
+<span class="normal">531</span>
+<span class="normal">532</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">create_connect_server</span><span class="p">(</span><span class="n">client</span><span class="p">:</span> <span class="n">SparkOnK8S</span><span class="p">,</span> <span class="n">config</span><span class="p">:</span> <span class="n">ConnectServerConfig</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ConnectServerHandle</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Create a driver and private gRPC Service, without claiming query readiness.</span>
 
 <span class="sd">    A failed create attempts rollback only after receiving a confirmed driver UID.</span>
@@ -6302,9 +6302,7 @@ a partially applied deletion; UID preconditions protect replacement resources.</
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>spark_on_k8s/connect_server.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">636</span>
-<span class="normal">637</span>
-<span class="normal">638</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">638</span>
 <span class="normal">639</span>
 <span class="normal">640</span>
 <span class="normal">641</span>
@@ -6337,7 +6335,9 @@ a partially applied deletion; UID preconditions protect replacement resources.</
 <span class="normal">668</span>
 <span class="normal">669</span>
 <span class="normal">670</span>
-<span class="normal">671</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">delete_connect_server</span><span class="p">(</span><span class="n">client</span><span class="p">:</span> <span class="n">SparkOnK8S</span><span class="p">,</span> <span class="n">handle</span><span class="p">:</span> <span class="n">ConnectServerHandle</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">10</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="normal">671</span>
+<span class="normal">672</span>
+<span class="normal">673</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">delete_connect_server</span><span class="p">(</span><span class="n">client</span><span class="p">:</span> <span class="n">SparkOnK8S</span><span class="p">,</span> <span class="n">handle</span><span class="p">:</span> <span class="n">ConnectServerHandle</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">10</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Verify all three resource identities before requesting UID-conditional deletion.</span>
 
 <span class="sd">    Missing resources are idempotent. Success means deletion was requested, not that</span>
@@ -6395,9 +6395,7 @@ a partially applied deletion; UID preconditions protect replacement resources.</
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>spark_on_k8s/connect_server.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">583</span>
-<span class="normal">584</span>
-<span class="normal">585</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">585</span>
 <span class="normal">586</span>
 <span class="normal">587</span>
 <span class="normal">588</span>
@@ -6445,7 +6443,9 @@ a partially applied deletion; UID preconditions protect replacement resources.</
 <span class="normal">630</span>
 <span class="normal">631</span>
 <span class="normal">632</span>
-<span class="normal">633</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">wait_connect_server_ready</span><span class="p">(</span>
+<span class="normal">633</span>
+<span class="normal">634</span>
+<span class="normal">635</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">wait_connect_server_ready</span><span class="p">(</span>
     <span class="n">client</span><span class="p">:</span> <span class="n">SparkOnK8S</span><span class="p">,</span>
     <span class="n">handle</span><span class="p">:</span> <span class="n">ConnectServerHandle</span><span class="p">,</span>
     <span class="o">*</span><span class="p">,</span>
@@ -6529,7 +6529,7 @@ a partially applied deletion; UID preconditions protect replacement resources.</
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 8, 2026 22:38:48 UTC">November 8, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 8, 2026 22:40:02 UTC">November 8, 2026</span>
   </span>
 
     

@@ -112,7 +112,7 @@ exit "$exit_code"
 
 Existing callers can continue using `submit_app(...)`, which returns the driver
 pod name as a string. `submit_run(...)` accepts the same arguments and returns an
-immutable `RunHandle` with `namespace`, `app_id`, and `driver_pod` fields:
+immutable `RunHandle` with `namespace`, `app_id`, `driver_pod`, and `driver_uid` fields:
 
 ```python
 from spark_on_k8s.client import SparkOnK8S

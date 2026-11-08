@@ -76,7 +76,7 @@ command and Spark's executor command.
 The [Spark runtime compatibility workflow](https://github.com/hussein-awala/spark-on-k8s/actions/workflows/spark-compatibility.yml)
 creates an isolated kind cluster for each of the three versions. It installs the
 built client wheel, compiles a Java job against the image's exact Spark jars, and
-submits four small applications through `SparkOnK8S`:
+submits five small applications through `SparkOnK8S`:
 
 - Python worker computation and a DataFrame aggregation, including Secret-backed
   environment variables in both driver and executor.
@@ -84,12 +84,14 @@ submits four small applications through `SparkOnK8S`:
   semicolon and a checked aggregation.
 - A SQL error that must fail the driver and prevent the next statement from running.
 - A Java class entrypoint that performs and checks a distributed aggregation.
+- An unschedulable driver whose bounded wait must time out while the Pending driver
+  is retained, diagnosed and then cancelled through its receipt.
 
 Successful jobs must create executor Pods owned by the driver. After every job,
 the test deletes the driver and checks that its Pods, Services, Secrets, and
 ConfigMaps are garbage collected. The workflow uploads logs, Pod status, events,
 and the execution result, including on failure. Each job uses one executor,
-a four-minute application deadline, and a 25-minute overall deadline. At most
+a four-minute application deadline, and a 30-minute overall deadline. At most
 two matrix jobs run concurrently. The harness accepts only a kind context and
 creates and deletes its own uniquely named namespace.
 

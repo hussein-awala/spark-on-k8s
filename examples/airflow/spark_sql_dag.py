@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from spark_on_k8s.airflow._compat import DAG
 from spark_on_k8s.airflow.operators import SparkSqlOnK8SOperator
 from spark_on_k8s.client import ExecutorInstances, PodResources
+
+from airflow import DAG
 
 with DAG(
     dag_id="spark_sql_on_k8s",

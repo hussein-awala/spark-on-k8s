@@ -37,11 +37,12 @@ HTTP and WebSocket request. Ordinary browser WebSockets cannot attach a custom a
 header themselves. The application does not accept query-string tokens or bearer cookies and
 does not place a token in the dashboard bootstrap. The gateway must remove client-supplied
 identity headers before injecting its own and keep the backend unreachable directly.
-In remote mode, the Spark UI and History Server proxies forward only content-negotiation,
-range and conditional-cache request headers. Bearer tokens, cookies, gateway identity headers
-and other credentials are not sent to application services. Log WebSockets use the server's
-Kubernetes client and do not forward browser authorization headers to pods.
-Standalone mode with remote submission disabled keeps its existing UI behavior.
+With or without remote mode, the Spark UI and History Server proxies forward only
+content-negotiation, content-type, range and conditional-cache request headers. Bearer tokens,
+cookies, gateway identity headers and other credentials are not sent to application services.
+Log WebSockets use the server's Kubernetes client and do not forward browser authorization headers
+to pods. Standalone mode with remote submission disabled does not require bearer authentication.
+See [browser and gateway security boundaries](../security-boundaries.md#proxy-request-headers).
 
 The Airflow task UI also makes server-to-server console requests. It does not have a bearer-token
 configuration option. When the Spark API uses remote mode, set
@@ -141,7 +142,8 @@ or the submitted driver pod name. A successful submission returns HTTP 201 and t
   "run": {
     "namespace": "analytics",
     "app_id": "report-0123456789abcdef0123456789abcdef",
-    "driver_pod": "report-0123456789abcdef0123456789abcdef-driver"
+    "driver_pod": "report-0123456789abcdef0123456789abcdef-driver",
+    "driver_uid": "5bdceeb0-7fa8-4f72-823b-80f26e6195c4"
   },
   "status": null,
   "error": null
@@ -176,9 +178,10 @@ rejected until a durable, shared idempotency implementation is available. In-mem
 would not be reliable across API workers or replicas.
 
 Authentication failures return 401, admission denials 403, disabled routes 404, unsupported
-idempotency or invalid JSON 400, oversized bodies 413, unsupported content types 415, and invalid
-job schemas 422. Kubernetes conflicts return 409; other Kubernetes failures return 502. Errors
-contain a stable code and a human-readable message, never the Kubernetes response body.
+idempotency or invalid JSON 400, bodies not received within the deadline 408, oversized bodies 413,
+unsupported content types 415, and invalid job schemas 422. Kubernetes conflicts return 409; other
+Kubernetes failures return 502, and unexpected server failures 500. Errors contain a stable code
+and a human-readable message, never the Kubernetes response body.
 
 Admission limits apply to each submitted job. They do not reserve shared capacity
 or account for concurrent accepted jobs. Enforce aggregate resources with

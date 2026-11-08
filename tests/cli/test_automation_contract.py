@@ -14,6 +14,7 @@ from spark_on_k8s.cli.app import app_cli
 from spark_on_k8s.cli.apps import apps_cli
 from spark_on_k8s.utils import app_manager
 from spark_on_k8s.utils.run import RunHandle
+from urllib3.exceptions import ConnectTimeoutError, MaxRetryError, NewConnectionError, ReadTimeoutError
 
 
 @pytest.fixture
@@ -125,6 +126,18 @@ def test_json_list_and_status_preserve_identity(cluster):
         (ApiException(status=404, reason="Missing"), 4, "not_found"),
         (ApiException(status=403, reason="Forbidden"), 1, "api_error"),
         (TimeoutError("budget elapsed"), 5, "timeout"),
+        # The Kubernetes client surfaces request timeouts wrapped by urllib3's retry layer.
+        (
+            MaxRetryError(None, "/api/v1/pods", reason=ReadTimeoutError(None, "/api/v1/pods", "slow")),
+            5,
+            "timeout",
+        ),
+        (MaxRetryError(None, "/api/v1/pods", reason=ConnectTimeoutError("connect timed out")), 5, "timeout"),
+        (
+            MaxRetryError(None, "/api/v1/pods", reason=NewConnectionError(None, "refused")),
+            1,
+            "operation_error",
+        ),
         (KeyboardInterrupt(), 130, "interrupted"),
     ],
 )

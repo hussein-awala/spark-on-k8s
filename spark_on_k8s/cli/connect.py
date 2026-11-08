@@ -4,6 +4,7 @@ import json
 
 import click
 
+from spark_on_k8s.cli.automation import validate_timeout
 from spark_on_k8s.cli.connect_server import server_cli
 from spark_on_k8s.connect import ConnectError, ConnectProfile
 
@@ -16,7 +17,13 @@ def connect_cli():
 @connect_cli.command(name="check")
 @click.argument("file", type=click.Path(exists=True, dir_okay=False))
 @click.option("--profile", default="default", show_default=True)
-@click.option("--timeout", type=click.FloatRange(min=0, min_open=True), default=15, show_default=True)
+@click.option(
+    "--timeout",
+    type=click.FloatRange(min=0, min_open=True),
+    callback=validate_timeout,
+    default=15,
+    show_default=True,
+)
 @click.option("--output", type=click.Choice(["text", "json"]), default="text", show_default=True)
 def check(file, profile, timeout, output):
     """Run a tiny remote query, then close only the check's session."""

@@ -273,6 +273,31 @@ def test_job_submit_uses_automation_receipts_and_workload_exit_codes(tmp_path, s
     assert spark.app_manager.wait_for_app.call_args.kwargs["timeout"] <= 5
 
 
+@pytest.mark.parametrize("output", ["json", "text"])
+def test_job_submit_load_failure_keeps_the_submission_output_contract(tmp_path, output):
+    file = tmp_path / "job.yaml"
+    file.write_text(yaml.safe_dump(definition()))
+    with patch.object(JobSpec, "client") as client:
+        result = CliRunner().invoke(
+            job_cli, ["submit", str(file), "--profile", "missing", "--output", output]
+        )
+    assert result.exit_code == 1, result.output
+    client.assert_not_called()
+    if output == "json":
+        assert json.loads(result.stdout) == {
+            "schema_version": 1,
+            "operation": "submit",
+            "namespace": "",
+            "error": {"code": "operation_error", "message": "Unknown profile: missing."},
+            "run": None,
+            "status": None,
+        }
+        assert result.stderr == ""
+    else:
+        assert result.stdout == ""
+        assert result.stderr == "Error: Unknown profile: missing.\n"
+
+
 def test_driver_template_in_job_plan_is_offline_and_sidecar_args_are_redacted(tmp_path):
     template = {
         "apiVersion": "v1",

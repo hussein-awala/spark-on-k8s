@@ -88,6 +88,21 @@ def test_sdk_reads_local_file_preserves_options_and_additional_configmaps(tmp_pa
     assert json.loads(sources[1]["text"]) == ["SELECT 'café;value'", "SELECT 2"]
 
 
+def test_sql_file_byte_order_mark_is_not_sent_to_spark(tmp_path):
+    # Editors on Windows commonly save "UTF-8 with BOM"; Spark's parser rejects U+FEFF.
+    queries = tmp_path / "queries.sql"
+    queries.write_text("SELECT 1;\nSELECT 2;", encoding="utf-8-sig")
+    with mock.patch.object(SparkOnK8S, "submit_app", autospec=True) as submit:
+        SparkOnK8S().submit_sql(sql_file=queries, image="spark:4.3.0")
+    sources = submit.call_args.kwargs["driver_ephemeral_configmaps_volumes"][0]["sources"]
+    assert json.loads(sources[1]["text"]) == ["SELECT 1", "SELECT 2"]
+    assert [item["line"] for item in json.loads(sources[2]["text"])["statements"]] == [1, 2]
+    comment_only = tmp_path / "empty.sql"
+    comment_only.write_text("-- nothing to run", encoding="utf-8-sig")
+    with pytest.raises(ValueError, match="at least one statement"):
+        SparkOnK8S().submit_sql(sql_file=comment_only, image="spark:4.3.0")
+
+
 def test_sdk_rejects_configmap_mount_collision():
     with mock.patch.object(SparkOnK8S, "submit_app", autospec=True) as submit:
         with pytest.raises(ValueError, match="reserves the /configmap"):

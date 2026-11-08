@@ -104,9 +104,15 @@ def plan(file, profile, output, max_cpu, max_memory_mib):
 @receipt_option
 def submit(file, profile, output, timeout, receipt_file):
     """Submit a job using the same automation result contract as app submit."""
-    from spark_on_k8s.cli.automation import execute_submission
+    from spark_on_k8s.cli.automation import execute_submission, execution
 
-    job = _load(file, profile)
+    try:
+        job = JobSpec.from_file(file, profile=profile)
+    except (JobValidationError, OSError):
+        # Keep one submit document on stdout; the namespace is unknown until the job loads.
+        with execution("submit", "", output) as result:
+            result.update(run=None, status=None)
+            raise
     execute_submission(
         job.client(), job.to_submit_kwargs(), output=output, timeout=timeout, receipt_file=receipt_file
     )

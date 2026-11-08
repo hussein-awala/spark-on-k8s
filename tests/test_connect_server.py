@@ -268,6 +268,26 @@ def test_service_creation_failure_retains_identity_and_requests_scoped_rollback(
     assert api.delete_namespaced_pod.call_args.kwargs["body"].preconditions.uid == error.value.run.driver_uid
 
 
+def test_service_failure_rolls_back_driver_when_submission_normalizes_the_name(cluster):
+    sdk, api, objects = cluster
+    original = api.create_namespaced_service.side_effect
+
+    def create(**kwargs):
+        if kwargs["body"].metadata.name.endswith("-connect"):
+            raise ApiException(status=403)
+        return original(**kwargs)
+
+    api.create_namespaced_service.side_effect = create
+    with pytest.raises(ConnectServerCreateError) as error:
+        # Valid configuration; submission collapses repeated separators in the application ID.
+        sdk.create_connect_server(config(app_name="team--notebook"))
+    assert error.value.cleanup["status"] == "requested"
+    assert error.value.run.driver_uid
+    assert error.value.run.app_id.startswith("team-notebook-")
+    assert objects["pod"] == {}
+    assert api.delete_namespaced_pod.call_args.kwargs["name"] == error.value.run.driver_pod
+
+
 @pytest.mark.parametrize("value", [True, 0, -1, float("nan"), float("inf"), None])
 def test_timeout_validation_happens_before_requests(cluster, value):
     sdk, api, _ = cluster

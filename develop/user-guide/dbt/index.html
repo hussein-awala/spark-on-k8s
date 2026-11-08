@@ -68,7 +68,7 @@
   <meta name="documentation-channel" content="develop">
   <meta name="documentation-version" content="develop">
   
-    <meta name="documentation-source" content="701cc5f5a6464020c032f13b700552508683a1df">
+    <meta name="documentation-source" content="077070266f5f80579164fd8d161d37caa309bd06">
   
 
   </head>
@@ -108,7 +108,7 @@
     <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
   
   
-    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/701cc5f5a6464020c032f13b700552508683a1df"><code>701cc5f5a646</code></a>.
+    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/077070266f5f80579164fd8d161d37caa309bd06"><code>077070266f5f</code></a>.
   
 
           </div>
@@ -5037,8 +5037,8 @@ profile; you do not create the server yourself.</p>
 <p>This feature lives in <code>integrations/dbt</code> and is not part of a normal
 <code>spark-on-k8s</code> installation. Its profile and Python interfaces may change.
 The initial compatibility target is dbt Core <strong>1.12.6</strong>, dbt-spark <strong>1.11.0</strong>,
-and Spark/client <strong>4.3.0</strong>. It is a Python dbt Core adapter, not a dbt Fusion,
-dbt Cloud or dbt v2 integration. SQL models, seeds and data tests are supported;
+Spark/client <strong>4.3.0</strong>, PyHive <strong>0.7.0</strong>, and Thrift <strong>0.25.0</strong>. It is a Python
+dbt Core adapter, not a dbt Fusion, dbt Cloud or dbt v2 integration. SQL models, seeds and data tests are supported;
 Python models are explicitly rejected. <code>dbt clone</code> is explicitly rejected in this experiment.</p>
 </div>
 <h2 id="prepare-the-platform">Prepare the platform<a class="headerlink" href="#prepare-the-platform" title="Permanent link">&para;</a></h2>
@@ -5079,6 +5079,11 @@ uv<span class="w"> </span>pip<span class="w"> </span>check<span class="w"> </spa
 <div class="highlight"><pre><span></span><code><span class="nv">UV_PROJECT_ENVIRONMENT</span><span class="o">=</span><span class="s2">"</span><span class="nv">$PWD</span><span class="s2">/.venv-dbt"</span><span class="w"> </span>uv<span class="w"> </span>sync<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--project<span class="w"> </span>integrations/dbt<span class="w"> </span>--locked<span class="w"> </span>--python<span class="w"> </span><span class="m">3</span>.12<span class="w"> </span>--group<span class="w"> </span><span class="nb">test</span>
 </code></pre></div>
+<p>The integration declares PyHive and patched Thrift directly instead of selecting
+<code>dbt-spark[pyhive]</code>, whose current extra caps Thrift below the patched releases.
+Do not add that extra to this environment: let the normal dependency resolver
+keep the transport compatible. Thrift's protocol size/recursion protections remain
+enabled; unusually large individual result fields can be rejected by those limits.</p>
 <p>The package accepts Python 3.11–3.13. Kubernetes execution is tested with Python
 3.12. The independent lockfile prevents dbt's dependencies from changing the
 normal SDK, API or Airflow environments.</p>
@@ -5150,9 +5155,13 @@ there is no unbounded background server hidden behind a connection-close hook.</
 is not transactional: failure and cancellation can leave successfully written
 tables or rows. Review dbt's normal incremental/idempotency behavior before retrying.
 Connect supports cancellation but does not accept <code>query_timeout</code> in this initial
-version; Thrift retains dbt-spark's query timeout setting. Connect buffers SQL
-results for dbt metadata/seed/materialization operations; it is not a streaming
-query-results interface.</p>
+version; Thrift retains dbt-spark's query timeout setting. Thrift serializes
+requests on each connection and limits acquisition of the request lock and
+individual blocking socket operations to 15 seconds. These transport limits do not cap the full SQL
+execution time: queries run asynchronously and the adapter polls for completion.
+A failed transport is closed rather than reused, and statements are not replayed.
+Connect buffers SQL results for dbt metadata/seed/materialization operations; it
+is not a streaming query-results interface.</p>
 <h2 id="receipts-failure-and-recovery">Receipts, failure and recovery<a class="headerlink" href="#receipts-failure-and-recovery" title="Permanent link">&para;</a></h2>
 <p>The wrapper prints the recovery receipt path to stderr. By default each invocation
 gets a unique directory under <code>.spark-on-k8s/dbt/</code> in the working directory. Set
@@ -5204,7 +5213,7 @@ is temporary and is not a production storage deployment recipe.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 8, 2026 15:11:44 UTC">November 8, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 8, 2026 16:03:53 UTC">November 8, 2026</span>
   </span>
 
     

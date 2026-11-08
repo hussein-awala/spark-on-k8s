@@ -91,6 +91,19 @@ def test_unsafe_or_ephemeral_chart_history_configuration_is_rejected(tmp_path, e
     assert message in result.stderr
 
 
+def test_history_namespaces_need_chart_managed_access_when_chart_manages_rbac(tmp_path):
+    history = {"enabled": True, "namespaces": ["analytics", "ml"], "existingClaim": "history"}
+    # Chart-managed Roles cover only `namespaces`; the recorder would never become ready in "ml".
+    result = render(tmp_path, {"namespaces": "analytics, batch", "runHistory": history})
+    assert result.returncode != 0
+    assert '"ml" is not in namespaces' in result.stderr
+    covered = {"namespaces": "analytics,ml", "runHistory": history}
+    assert render(tmp_path, covered).returncode == 0
+    assert render(tmp_path, {"namespaces": "*", "runHistory": history}).returncode == 0
+    external = {"namespaces": "analytics", "rbac": {"create": False}, "runHistory": history}
+    assert render(tmp_path, external).returncode == 0
+
+
 def test_explicit_environment_overrides_are_preserved_without_duplicates(tmp_path):
     result = render(
         tmp_path,

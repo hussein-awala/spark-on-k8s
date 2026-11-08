@@ -127,7 +127,10 @@ one positive target.
 The [metadata recorder](run-history.md) is separate from the Spark History
 Server. Enabling `runHistory` requires exactly one API replica, no API autoscaling,
 an existing writable persistent claim, and one to twenty explicit namespace
-entries. The chart uses a `Recreate` rollout. It neither provisions the claim nor
+entries. With chart-managed RBAC and an explicit `namespaces` list, every
+`runHistory.namespaces` entry must also appear in `namespaces`; otherwise the API
+cannot list its driver pods and never becomes ready, so rendering fails. The chart
+uses a `Recreate` rollout. It neither provisions the claim nor
 validates its filesystem locking behavior; use supported block/local storage,
 rehearse backups and allow for rollout downtime.
 

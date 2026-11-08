@@ -12,6 +12,18 @@
 {{- range .Values.volumeMounts }}
 {{- if eq .name "run-history" }}{{- fail "run-history is a reserved volume mount name" }}{{- end }}
 {{- end }}
+{{- /* Chart-managed Roles exist only for listed namespaces; the recorder would stay unready elsewhere. */}}
+{{- if and (eq (include "spark-on-k8s.rbacCreate" .) "true") (ne .Values.namespaces "*") }}
+{{- $managed := list }}
+{{- range (splitList "," .Values.namespaces) }}
+{{- $managed = append $managed (trim .) }}
+{{- end }}
+{{- range .Values.runHistory.namespaces }}
+{{- if not (has . $managed) }}
+{{- fail (printf "runHistory.namespaces entry %q is not in namespaces, so chart-managed RBAC cannot grant its pod reads; add it to namespaces or manage RBAC externally" .) }}
+{{- end }}
+{{- end }}
+{{- end }}
 {{- end }}
 {{- if and .Values.autoscaling.enabled (not .Values.autoscaling.targetCPUUtilizationPercentage) (not .Values.autoscaling.targetMemoryUtilizationPercentage) }}
 {{- fail "autoscaling requires a positive CPU or memory utilization target" }}

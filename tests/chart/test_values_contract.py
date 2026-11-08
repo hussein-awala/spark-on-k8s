@@ -40,9 +40,9 @@ def container(documents, name="spark-on-k8s"):
     )
 
 
-def test_development_default_retains_legacy_image_and_read_only_access(tmp_path):
+def test_release_default_uses_app_version_and_read_only_access(tmp_path):
     docs = resources(tmp_path, {})
-    assert container(docs)["image"] == "ghcr.io/hussein-awala/spark-on-k8s:latest"
+    assert container(docs)["image"] == "ghcr.io/hussein-awala/spark-on-k8s:0.0.0-test"
     binding = next(item for item in docs if item["kind"] == "ClusterRoleBinding")
     assert binding["roleRef"]["name"] == "view"
     assert invoke(tmp_path, {}, command="lint").returncode == 0
@@ -83,6 +83,8 @@ def test_explicit_tags_and_digests_select_both_images(tmp_path):
         ({"service": {"port": 70000}}, "port"),
         ({"image": {"digest": "sha256:incomplete"}}, "digest"),
         ({"image": {"pullPolicy": "Sometimes"}}, "pullPolicy"),
+        ({"image": {"repository": "registry.example/app:old"}}, "repository"),
+        ({"ingress": {"hosts": [{"paths": [{"path": "/"}]}]}}, "pathType"),
         ({"sparkHistory": {"enabled": True}}, "sparkHistory"),
         ({"runHistory": {"namespaces": ["*"]}}, "namespaces"),
         ({"runHistory": {"namespaces": ["a", "a"]}}, "namespaces"),

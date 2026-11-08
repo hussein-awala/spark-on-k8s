@@ -7,9 +7,9 @@ image:
   repository: ghcr.io/hussein-awala/spark-on-k8s
   # The deployment docker image pull policy
   pullPolicy: IfNotPresent
-  # Development default retained until chart appVersion is qualified for these templates.
-  # Set an explicit release tag/digest for deployment. Empty opts into Chart.appVersion.
-  tag: latest
+  # Source previews require an explicit compatible image tag or digest.
+  # Published packages use their qualified appVersion when this is empty.
+  tag: ""
   # Optional sha256 digest; takes precedence over tag and Chart.appVersion.
   digest: ""
 
@@ -38,6 +38,8 @@ rbac:
   # null preserves legacy behavior: follow serviceAccount.create.
   # true manages roles/bindings even for an existing named account; false manages none.
   create: null
+  # Preserve old shared RBAC names only for an existing installation.
+  legacyNames: false
 
 # Annotations to be added to the Spark-on-K8S deployment pods
 podAnnotations: {}
@@ -178,6 +180,8 @@ sparkHistory:
         type: ClusterIP
         # The port to expose the service on
         port: 18080
+    affinity: {}
+    tolerations: []
     # The Spark configuration for the Spark History Server
     configuration: ""
 

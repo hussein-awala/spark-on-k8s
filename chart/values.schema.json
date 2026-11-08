@@ -10,7 +10,7 @@
         "repository": {
           "type": "string",
           "minLength": 1,
-          "pattern": "^[^\\s@]+$"
+          "pattern": "^[^\\s@]+/[^\\s@:]+$|^[^\\s@:]+$"
         },
         "tag": {
           "type": "string",
@@ -153,6 +153,9 @@
             "boolean",
             "null"
           ]
+        },
+        "legacyNames": {
+          "type": "boolean"
         }
       }
     },
@@ -290,6 +293,37 @@
       "properties": {
         "enabled": {
           "type": "boolean"
+        },
+        "hosts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "paths": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "path",
+                    "pathType"
+                  ],
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "pattern": "^/"
+                    },
+                    "pathType": {
+                      "enum": [
+                        "Exact",
+                        "Prefix",
+                        "ImplementationSpecific"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
         }
       }
     },

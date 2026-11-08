@@ -1,0 +1,1 @@
+{"schema_version":1,"namespaces":{"analytics":["spark-worker"]},"applications":[{"image":"spark:test","app_path":"local:///jobs/test.py","arguments":[[]]}],"limits":{"driver_cpu":2,"driver_memory_mb":2048,"executor_cpu":2,"executor_memory_mb":2048,"executors":4},"spark_conf":{}}

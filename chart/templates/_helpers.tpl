@@ -24,7 +24,7 @@ If release name contains chart name it will be used as a full name.
 {{- end }}
 
 {{- define "spark-on-k8s.sparkHistory.fullname" -}}
-{{- printf "%s-history" (include "spark-on-k8s.fullname" . | trunc 55 | trimSuffix "-") }}
+{{- include "spark-on-k8s.historyName" (include "spark-on-k8s.fullname" .) }}
 {{- end }}
 
 {{/*
@@ -58,7 +58,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 Spark history Selector labels
 */}}
 {{- define "spark-on-k8s.sparkHistory.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "spark-on-k8s.name" . | trunc 55 | trimSuffix "-" }}-history
+app.kubernetes.io/name: {{ include "spark-on-k8s.historyName" (include "spark-on-k8s.name" .) }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
@@ -99,6 +99,24 @@ Create the name of the service account to use for the history server
 {{- printf "%s@%s" .image.repository .image.digest -}}
 {{- else -}}
 {{- $tag := default .defaultTag .image.tag -}}
+{{- if eq $tag "unreleased" -}}{{- fail "Source chart requires an explicit qualified image.tag or image.digest" -}}{{- end -}}
 {{- printf "%s:%s" .image.repository (required .error $tag) -}}
 {{- end -}}
 {{- end }}
+
+{{/* Preserve normal existing names; disambiguate the suffix collision. */}}
+{{- define "spark-on-k8s.historyName" -}}
+{{- $candidate := printf "%s-history" (. | trunc 55 | trimSuffix "-") -}}
+{{- if eq $candidate . -}}
+{{- printf "%s-%s-history" (. | trunc 46 | trimSuffix "-") (. | sha256sum | trunc 8) -}}
+{{- else -}}{{ $candidate }}{{- end -}}
+{{- end -}}
+
+{{/* Shared RBAC objects must identify both release name and namespace. */}}
+{{- define "spark-on-k8s.rbacName" -}}
+{{- $name := include "spark-on-k8s.fullname" . -}}
+{{- if .Values.rbac.legacyNames -}}{{ $name }}
+{{- else -}}
+{{- printf "%s-%s" ($name | trunc 49 | trimSuffix "-") (printf "%s/%s" .Release.Namespace $name | sha256sum | trunc 8) -}}
+{{- end -}}
+{{- end -}}

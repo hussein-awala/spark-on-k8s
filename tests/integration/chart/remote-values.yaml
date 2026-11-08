@@ -1,0 +1,15 @@
+env:
+  - name: SPARK_ON_K8S_SUBMISSION_ENABLED
+    value: "true"
+  - name: SPARK_ON_K8S_SUBMISSION_TOKEN_FILE
+    value: /run/chart-test/token
+  - name: SPARK_ON_K8S_SUBMISSION_POLICY_FILE
+    value: /run/chart-test/policy.json
+volumes:
+  - name: remote-test
+    secret:
+      secretName: remote-test
+volumeMounts:
+  - name: remote-test
+    mountPath: /run/chart-test
+    readOnly: true

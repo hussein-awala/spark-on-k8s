@@ -1,0 +1,54 @@
+name: Helm install and upgrade
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: ["chart/**", "tests/integration/chart/**", ".github/workflows/chart-kubernetes.yml"]
+  push:
+    branches: [main]
+    paths: ["chart/**", "tests/integration/chart/**", ".github/workflows/chart-kubernetes.yml"]
+permissions:
+  contents: read
+concurrency:
+  group: chart-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  chart:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+    env:
+      KUBECONFIG: ${{ runner.temp }}/chart-kubeconfig
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2
+        with:
+          version: "0.13.7"
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310
+        with:
+          version: v4.3.1
+      - name: Build the current API wheel with locked dependencies
+        run: |
+          uv export --locked --no-default-groups --extra api --no-emit-project --output-file tests/integration/chart/requirements.txt
+          uv build --wheel --out-dir tests/integration/chart/dist
+          docker build -t ghcr.io/hussein-awala/spark-on-k8s:chart-ci tests/integration/chart
+      - name: Create disposable Kubernetes cluster
+        run: |
+          bash scripts/install-kind.sh "$RUNNER_TEMP/bin/kind"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/bin/kind" create cluster --name chart-ci --image kindest/node:v1.35.8@sha256:07b2536e30b803ed61d1677a79df6115f798ce64c80f9e22f6ed45afd09323c0 --wait 120s
+          "$RUNNER_TEMP/bin/kind" load docker-image --name chart-ci ghcr.io/hussein-awala/spark-on-k8s:chart-ci
+      - name: Install, upgrade and verify permissions
+        run: bash tests/integration/chart/check.sh
+      - name: Diagnostics and cleanup
+        if: always()
+        run: |
+          kubectl get pods -A -o wide || true
+          kubectl get events -A --sort-by=.metadata.creationTimestamp || true
+          if command -v kind >/dev/null; then
+            kind export logs --name chart-ci "$RUNNER_TEMP/chart-logs" || true
+            kind delete cluster --name chart-ci
+          fi
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: chart-kubernetes-logs
+          path: ${{ runner.temp }}/chart-logs

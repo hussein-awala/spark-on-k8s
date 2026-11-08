@@ -458,3 +458,35 @@ test("empty and filtered lists remain actionable and stopping a driver refreshes
       .getByRole("button", { name: "Stop application", exact: true }),
   ).toHaveCount(0);
 });
+
+test("all console navigation items fit when a log page resizes to a narrow screen", async ({
+  page,
+}) => {
+  await page.goto("/tests/fixture.html?view=logs&runs=true&demo=true");
+  await expect(page.getByTestId("log-text")).toContainText("SparkContext");
+  await page
+    .getByRole("button", { name: "Prepare excerpt", exact: true })
+    .click();
+  await page.keyboard.press("Escape");
+  const navigation = page.getByRole("navigation");
+  for (const width of [390, 320, 600, 768]) {
+    await page.setViewportSize({ width, height: 844 });
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth),
+    ).toBeLessThanOrEqual(width);
+    for (const name of ["Applications", "Recorded runs"]) {
+      const link = navigation.getByRole("link", { name, exact: true });
+      await expect(link).toBeInViewport();
+      const bounds = (await link.boundingBox())!;
+      expect(bounds.x).toBeGreaterThanOrEqual(0);
+      expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
+      await link.focus();
+      await expect(link).toBeFocused();
+    }
+    const current = navigation.getByText("Driver logs", { exact: true });
+    await expect(current).toBeInViewport();
+    const bounds = (await current.boundingBox())!;
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
+    expect(await page.evaluate(() => window.scrollX)).toBe(0);
+  }
+});

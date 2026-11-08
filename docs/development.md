@@ -138,6 +138,12 @@ external sites and version-switcher destinations need a published-site review.
 Keep instructions canonical and link them from the README rather than
 maintaining additional command copies.
 
+A user-visible change also adds its PR link to the planned file in `release-notes/`
+when one exists, under the matching section. Published release bodies are
+historical records; see [release notes](releases.md#release-notes) before editing
+one. `python scripts/release_notes.py check` validates the files without building
+the site.
+
 Repository skills are small Markdown packages. If the installed skill-creator
 validator is available, run its `scripts/quick_validate.py` against each edited
 folder in `.agents/skills/`. Also read every relative reference and dry-run a

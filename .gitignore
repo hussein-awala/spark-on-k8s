@@ -136,6 +136,7 @@ venv.bak/
 # mkdocs documentation
 /site
 /docs/helm-chart/
+/release-notes-site/
 
 # mypy
 .mypy_cache/

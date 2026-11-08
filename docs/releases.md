@@ -42,6 +42,79 @@ be newer than the development version string in `pyproject.toml` (the inspected
 source had `0.11.0-dev` while historical releases include `0.12.1`). Never select
 the next version by incrementing that development string alone.
 
+## Packages and release order
+
+One project release can involve up to four independently versioned artifacts. They
+are published by different workflows and must not be forced to share a number:
+
+| Artifact | Version source | Publication | Depends on |
+| --- | --- | --- | --- |
+| `spark-on-k8s` wheel/sdist and API image | Bare `X.Y.Z` tag | `release.yml` on the tag push | Exact qualified commit |
+| Versioned documentation | Same tag | `deploy-doc.yml` on the tag push | Same eligibility record |
+| Helm chart | `chart_version` input; `appVersion` from `app_version` | Manual `helm-release.yml` | Published API image for `app_version` |
+| Experimental `dbt-spark-on-k8s` | `integrations/dbt/pyproject.toml` | Not automated yet | Published `spark-on-k8s` on PyPI |
+
+Publish in that order. The chart's default image tag is its `appVersion`, so
+releasing the chart before the matching API image exists produces an install that
+cannot pull its image. The dbt adapter's metadata must name a released SDK
+version, which only exists after the package upload. Record a chart or adapter that
+is intentionally not released with the package as such, rather than leaving it
+implied.
+
+## Release notes
+
+Canonical release notes live in `release-notes/X.Y.Z.md`, one file per GitHub
+release. Each file contains YAML metadata followed by the exact GitHub release body:
+
+```markdown
+---
+version: "0.13.0"
+title: "Spark On K8S 0.13.0"
+date: null
+status: "planned"
+github_url: "https://github.com/hussein-awala/spark-on-k8s/releases/tag/0.13.0"
+---
+
+Release body …
+```
+
+`scripts/release_notes.py check` validates the metadata, filename/version match and
+LF line endings, and rejects a planned release older than the newest published one.
+Bodies of releases published before this page existed were copied from GitHub
+without rewording. Draft the next release as `status: "planned"` while changes
+merge; keep significant/migration changes first, then features, fixes, other
+packages, maintenance, contributors and the exact comparison link.
+
+The [release-notes page](https://hussein.awala.fr/spark-on-k8s/release-notes/) is
+a separate small site shared by every documentation version, and every version's
+navigation links to that permanent URL. Main-branch documentation deployments
+rebuild it from `release-notes/*.md` and commit it to `gh-pages` under
+`release-notes/`; tag deployments leave it untouched, so publishing an older
+maintenance release cannot replace newer history. It is not a mike version and
+does not appear in the version selector. Planned releases are labeled
+**In preparation**, and their documentation and comparison links open the
+`develop` documentation and a comparison with `main` until the release exists.
+Preview it locally with:
+
+```bash
+.venv-quality/bin/python scripts/release_notes.py build --output-dir release-notes-site
+.venv-quality/bin/python scripts/check_docs.py release-notes-site
+```
+
+When publishing, export the reviewed body instead of maintaining a second copy.
+Extraction only writes a local file:
+
+```bash
+.venv-quality/bin/python scripts/release_notes.py extract "$RELEASE_VERSION" \
+  --output "/tmp/spark-on-k8s-$RELEASE_VERSION-notes.md"
+```
+
+After the package and GitHub release are confirmed, set the file's `status` to
+`published` and its `date` to the GitHub publication date in a signed
+documentation PR. Its main deployment updates the shared page without rebuilding
+archived version documentation. Correct historical bodies only deliberately, and
+edit the GitHub release in the same change so the two stay identical.
+
 ## Separate experimental dbt distribution
 
 `integrations/dbt` is an opt-in experiment with an independent version and lockfile.
@@ -163,10 +236,11 @@ merged changes, and that the version is unused. Do not guess a release number wh
 it has not been selected by the maintainer.
 
 Compare from the previous actual release, not from an arbitrary development version.
-Prepare notes in the observed grouped format: significant/migration changes first,
-then fixes, features, maintenance, contributors where applicable, and the exact
-comparison link. Include support retirements, changed defaults and operational
-limitations. Keep notes as a local reviewable draft until publication is authorized.
+Prepare notes in `release-notes/X.Y.Z.md` as described in [Release notes](#release-notes):
+significant/migration changes first, then features, fixes, other packages,
+maintenance, contributors where applicable, and the exact comparison link. Include
+support retirements, changed defaults and operational limitations. The planned file
+is a reviewable draft; merging it does not publish a release.
 
 ### 2. Qualify the exact commit and artifacts
 
@@ -221,9 +295,12 @@ Before a prerelease or maintenance release, inspect the eligibility record's
 `promote_latest` and `promote_minor` decisions and establish the intended destinations.
 The version itself can publish without advancing either mutable channel.
 
-Publish the GitHub release against that tag with the reviewed notes, without
-creating a second tag at a different commit. Publish an updated chart only when
-requested and needed, using the independent workflow's explicit app/chart versions.
+Publish the GitHub release against that tag with the body extracted from its
+release-notes file, without creating a second tag at a different commit. For
+example, `gh release create "$RELEASE_VERSION" --verify-tag --title "Spark On K8S
+$RELEASE_VERSION" --notes-file "/tmp/spark-on-k8s-$RELEASE_VERSION-notes.md"`.
+Publish an updated chart only when requested and needed, after the matching API
+image exists, using the independent workflow's explicit app/chart versions.
 Do not force all channels to increment together. Do not dispatch a workflow from a
 different default-branch commit while claiming it validated the tagged candidate.
 

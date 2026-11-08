@@ -16,9 +16,10 @@ minikube image load pyspark-job:with-secrets
 kind load docker-image pyspark-job:with-secrets
 ```
 ```bash
-# For remote clusters, you will need to change the image name to match your registry,
-# and then push it to that registry
-docker push pyspark-job:with-secrets
+# For a remote cluster, replace the example registry and push the tagged image. Then use
+# that image name and the IfNotPresent pull policy in submit.py and submit.sh.
+docker tag pyspark-job:with-secrets registry.example.com/team/pyspark-job:with-secrets
+docker push registry.example.com/team/pyspark-job:with-secrets
 ```
 Then, submit the job:
 ```bash

@@ -1,3 +1,4 @@
-FROM husseinawala/spark-py:v3.5.0
+ARG SPARK_IMAGE=apache/spark:3.5.9-scala2.12-java17-python3-ubuntu
+FROM ${SPARK_IMAGE}
 
-ADD job.py /opt/spark/work-dir/
+COPY job.py /opt/spark/work-dir/

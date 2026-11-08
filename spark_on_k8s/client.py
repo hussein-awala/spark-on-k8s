@@ -95,8 +95,8 @@ class SparkOnK8S(LoggingMixin):
         >>> from spark_on_k8s.client import SparkOnK8S
         >>> spark = SparkOnK8S()
         >>> spark.submit_app(
-        ...     image="husseinawala/spark:v3.5.0",
-        ...     app_path="local:///opt/spark/examples/jars/spark-examples_2.12-3.5.0.jar",
+        ...     image="apache/spark:3.5.9-scala2.12-java17-python3-ubuntu",
+        ...     app_path="local:///opt/spark/examples/jars/spark-examples_2.12-3.5.9.jar",
         ...     class_name="org.apache.spark.examples.SparkPi",
         ...     app_name="spark-pi",
         ...     app_arguments=["1000"],

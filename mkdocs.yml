@@ -2,6 +2,8 @@ site_name: Spark on Kubernetes
 site_url: https://hussein.awala.fr/spark-on-k8s/
 strict: true
 validation:
+  nav:
+    omitted_files: warn
   links:
     anchors: warn
     unrecognized_links: warn
@@ -32,11 +34,15 @@ theme:
         icon: material/weather-night
         name: Switch to light mode
   features:
+    - content.action.edit
     - content.tooltips
     - content.code.annotate
     - content.code.copy
+    - content.tabs.link
     - search.highlight
+    - search.share
     - search.suggest
+    - navigation.footer
     - navigation.indexes
     - navigation.instant
     - navigation.sections
@@ -44,6 +50,7 @@ theme:
     - navigation.tabs.sticky
     - navigation.top
     - navigation.tracking
+    - toc.follow
 watch:
   - spark_on_k8s
 plugins:
@@ -71,14 +78,24 @@ plugins:
       javascript_dir: js
 markdown_extensions:
   - admonition
+  - attr_list
+  - md_in_html
   - toc:
       permalink: true
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
   - pymdownx.magiclink
   - pymdownx.highlight:
       use_pygments: true
   - pymdownx.inlinehilite
   - pymdownx.snippets
-  - pymdownx.superfences
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
   - pymdownx.tabbed:
       alternate_style: true
 nav:
@@ -113,6 +130,7 @@ nav:
   - Reference:
       - Python API: reference/
       - Helm values: helm-chart/
+  - Release notes: https://hussein.awala.fr/spark-on-k8s/release-notes/
   - Contributing:
       - Development and testing: development.md
       - Releases: releases.md

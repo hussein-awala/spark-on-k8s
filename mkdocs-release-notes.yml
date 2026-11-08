@@ -1,0 +1,35 @@
+INHERIT: mkdocs.yml
+site_url: https://hussein.awala.fr/spark-on-k8s/release-notes/
+site_description: Published Spark on Kubernetes releases and the next release in preparation.
+edit_uri: ''
+watch: []
+plugins:
+  - search
+markdown_extensions:
+  - admonition
+  - toc:
+      permalink: true
+      # List releases, not every repeated section heading inside their bodies.
+      toc_depth: 2
+  - pymdownx.highlight:
+      use_pygments: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.magiclink:
+      repo_url_shortener: true
+      repo_url_shorthand: true
+      normalize_issue_symbols: true
+      provider: github
+      user: hussein-awala
+      repo: spark-on-k8s
+nav:
+  - Release notes: index.md
+  - Documentation: https://hussein.awala.fr/spark-on-k8s/
+extra:
+  version: null
+  documentation:
+    channel: project
+    version: ''
+    source_sha: !ENV [DOCS_SOURCE_SHA, '']

@@ -102,6 +102,23 @@ jobs:
             "${options[@]}" "$DOCS_VERSION" "${aliases[@]}"
       - name: Check the generated pages before publication
         run: .venv/bin/python scripts/check_docs.py site
+      # Release notes are shared by every documentation version. Only main rebuilds
+      # them, so deploying an older tag cannot replace newer release history.
+      - name: Add the shared release notes to the local archive
+        if: github.ref == 'refs/heads/main'
+        run: |
+          notes="$RUNNER_TEMP/release-notes"
+          archive="$RUNNER_TEMP/gh-pages"
+          .venv/bin/python scripts/release_notes.py build --output-dir "$notes"
+          .venv/bin/python scripts/check_docs.py "$notes"
+          git worktree add "$archive" gh-pages
+          rm -rf "$archive/release-notes"
+          cp -R "$notes" "$archive/release-notes"
+          git -C "$archive" add --all release-notes
+          if ! git -C "$archive" diff --cached --quiet; then
+            git -C "$archive" commit -m "Update release notes from $(git rev-parse HEAD)"
+          fi
+          git worktree remove "$archive"
       - name: Preserve the checked documentation
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

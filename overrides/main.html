@@ -12,7 +12,10 @@
 
 {% block announce %}
   {% set docs = config.extra.documentation %}
-  {% if docs.channel == "develop" %}
+  {% if docs.channel == "project" %}
+    <strong>Release notes for all versions.</strong>
+    <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
+  {% elif docs.channel == "develop" %}
     <strong>Development documentation — unreleased.</strong>
     Features and commands may differ from the installed release.
     <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.

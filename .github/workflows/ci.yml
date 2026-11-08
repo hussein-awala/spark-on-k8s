@@ -321,6 +321,8 @@ jobs:
           .venv/bin/helm-mkdocs chart -o docs/helm-chart
           .venv/bin/mkdocs build --strict
           .venv/bin/python scripts/check_docs.py site
+          .venv/bin/python scripts/release_notes.py build --output-dir release-notes-site
+          .venv/bin/python scripts/check_docs.py release-notes-site
 
   frontend:
     name: UI build and browser tests

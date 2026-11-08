@@ -16,6 +16,8 @@ spark UI through the reverse proxy. The optional Airflow 3.4+ task tab reuses th
 same React console components inside Airflow; see the [Airflow guide](docs/user-guide/airflow.md).
 
 Choose your route in the [start-here guide](https://hussein.awala.fr/spark-on-k8s/develop/user-guide/start-here/) and check the [support boundaries](https://hussein.awala.fr/spark-on-k8s/develop/user-guide/support/) before adopting a new integration.
+The [release notes](https://hussein.awala.fr/spark-on-k8s/release-notes/) describe every published
+release and the release in preparation.
 
 ## Installation
 

@@ -5,7 +5,7 @@ import re
 from contextlib import aclosing
 from functools import wraps
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import urljoin, urlsplit, urlunsplit
 
 import httpx
 from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
@@ -50,6 +50,33 @@ def _proxy_headers(request: Request) -> list[tuple[bytes, bytes]]:
     # The API/gateway identity is never a credential for application or history services.
     # An allowlist also excludes vendor-specific gateway token/identity headers.
     return [(key, value) for key, value in request.headers.raw if key.lower() in _PROXY_HEADERS]
+
+
+def _proxy_response_headers(
+    response: httpx.Response, upstream: httpx.URL, request: Request, proxy_path: str
+) -> httpx.Headers:
+    """Keep upstream redirects on the browser-facing proxy, including mounted deployments."""
+    headers = response.headers.copy()
+    location = headers.get("location")
+    if response.status_code not in {301, 302, 303, 307, 308} or not location:
+        return headers
+    try:
+        target = httpx.URL(urljoin(str(upstream), location))
+        if (target.scheme, target.host, target.port) != (upstream.scheme, upstream.host, upstream.port):
+            return headers
+        parsed = urlsplit(str(target))
+    except (httpx.InvalidURL, ValueError):
+        return headers
+    prefix = request.scope.get("root_path", "").rstrip("/") + proxy_path
+    path = parsed.path
+    if path == prefix or path.startswith(prefix + "/"):
+        pass
+    elif path == proxy_path or path.startswith(proxy_path + "/"):
+        path = prefix + path.removeprefix(proxy_path)
+    else:
+        path = prefix + path
+    headers["location"] = urlunsplit(("", "", path, parsed.query, parsed.fragment))
+    return headers
 
 
 def _origin(value: str) -> tuple[str, str, int] | None:
@@ -141,7 +168,9 @@ async def ui_reverse_proxy(request: Request, path: str):
     return StreamingResponse(
         reverse_proxy_resp.aiter_raw(),
         status_code=reverse_proxy_resp.status_code,
-        headers=reverse_proxy_resp.headers,
+        headers=_proxy_response_headers(
+            reverse_proxy_resp, url, request, f"/webserver/ui/{namespace}/{service_name}"
+        ),
         background=BackgroundTask(reverse_proxy_resp.aclose),
     )
 
@@ -165,26 +194,10 @@ async def spark_history_reverse_proxy(request: Request, path: str):
         request.method, url=url, headers=_proxy_headers(request), content=request.stream()
     )
     reverse_proxy_resp = await async_http_client.send(reverse_proxy_req, stream=True)
-    response_headers = reverse_proxy_resp.headers
-    response_status_code = reverse_proxy_resp.status_code
-    if response_status_code == 302:
-        # this is a workaround to fix the location header in the response
-        location = response_headers.get("location")
-        if location:
-            proxy_prefix = request.scope.get("root_path", "").rstrip("/") + "/webserver/ui-history"
-            location_path = location.split("?", 1)[0].split("#", 1)[0]
-            if location_path == proxy_prefix or location_path.startswith(proxy_prefix + "/"):
-                pass
-            elif location_path == "/webserver/ui-history" or location_path.startswith(
-                "/webserver/ui-history/"
-            ):
-                response_headers["location"] = proxy_prefix + location.removeprefix("/webserver/ui-history")
-            elif location.startswith("/") and not location.startswith("//"):
-                response_headers["location"] = proxy_prefix + location
     return StreamingResponse(
         reverse_proxy_resp.aiter_raw(),
-        status_code=response_status_code,
-        headers=response_headers,
+        status_code=reverse_proxy_resp.status_code,
+        headers=_proxy_response_headers(reverse_proxy_resp, url, request, "/webserver/ui-history"),
         background=BackgroundTask(reverse_proxy_resp.aclose),
     )
 

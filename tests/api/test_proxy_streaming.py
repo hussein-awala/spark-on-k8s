@@ -234,3 +234,88 @@ def test_remote_proxy_never_forwards_operator_or_gateway_credentials(monkeypatch
         assert token not in str(seen[0].headers)
     finally:
         asyncio.run(transport.aclose())
+
+
+@pytest.mark.parametrize("status_code", [301, 302, 303, 307, 308])
+@pytest.mark.parametrize("root_path", ["", "/platform/spark"])
+@pytest.mark.parametrize("history", [False, True])
+def test_absolute_upstream_redirect_keeps_public_proxy_origin(monkeypatch, status_code, root_path, history):
+    monkeypatch.setattr(APIConfiguration, "SPARK_ON_K8S_API_SPARK_HISTORY_HOST", "history:18080")
+    proxy_path = "/webserver/ui-history" if history else "/webserver/ui/analytics/app-1"
+    host = "http://history:18080" if history else "http://app-1.analytics.svc.cluster.local:4040"
+    # Spark 4 emits an absolute internal URL containing its configured proxy base.
+    location = host + proxy_path + "/jobs/?description=a%2Bb&stage=1&stage=2#job-0"
+    body = UpstreamBody()
+    transport = httpx.AsyncClient(
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(status_code, headers={"location": location}, stream=body)
+        )
+    )
+    app = FastAPI(root_path=root_path)
+    app.include_router(router)
+    try:
+        with mock.patch("spark_on_k8s.api.webserver.AsyncHttpClientSingleton.client", return_value=transport):
+            response = TestClient(app).get(
+                root_path + proxy_path + ("/history/app-1" if history else ""), follow_redirects=False
+            )
+        assert response.status_code == status_code
+        assert response.headers["location"] == (
+            root_path + proxy_path + "/jobs/?description=a%2Bb&stage=1&stage=2#job-0"
+        )
+        assert response.content == b"".join(body.chunks)
+        assert body.closed
+    finally:
+        asyncio.run(transport.aclose())
+
+
+@pytest.mark.parametrize(
+    "location, expected",
+    [
+        ("jobs/?show=all", "/platform/spark/webserver/ui/analytics/app-1/jobs/?show=all"),
+        ("/jobs/", "/platform/spark/webserver/ui/analytics/app-1/jobs/"),
+        (
+            "//app-1.analytics.svc.cluster.local:4040/jobs/",
+            "/platform/spark/webserver/ui/analytics/app-1/jobs/",
+        ),
+        (
+            "/platform/spark/webserver/ui/analytics/app-1/jobs/",
+            "/platform/spark/webserver/ui/analytics/app-1/jobs/",
+        ),
+        ("https://external.example/jobs/", "https://external.example/jobs/"),
+        ("//external.example/jobs/", "//external.example/jobs/"),
+        (None, None),
+    ],
+)
+def test_driver_redirect_paths_and_external_origins(location, expected):
+    headers = {"location": location} if location else {}
+    transport = httpx.AsyncClient(
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(302, headers=headers, stream=UpstreamBody())
+        )
+    )
+    app = FastAPI(root_path="/platform/spark")
+    app.include_router(router)
+    try:
+        with mock.patch("spark_on_k8s.api.webserver.AsyncHttpClientSingleton.client", return_value=transport):
+            response = TestClient(app).get(
+                "/platform/spark/webserver/ui/analytics/app-1", follow_redirects=False
+            )
+        assert response.status_code == 302
+        assert response.headers.get("location") == expected
+    finally:
+        asyncio.run(transport.aclose())
+
+
+def test_malformed_upstream_location_is_not_rewritten():
+    from spark_on_k8s.api.webserver import _proxy_response_headers
+    from starlette.requests import Request
+
+    location = "http://upstream:invalid/jobs/"
+    response = httpx.Response(302, headers={"location": location})
+    headers = _proxy_response_headers(
+        response,
+        httpx.URL("http://app-1.analytics.svc.cluster.local:4040/"),
+        Request({"type": "http", "root_path": ""}),
+        "/webserver/ui/analytics/app-1",
+    )
+    assert headers["location"] == location

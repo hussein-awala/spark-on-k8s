@@ -45,10 +45,10 @@ def cluster(monkeypatch):
         if name not in objects[kind]:
             raise ApiException(status=404)
         value = objects[kind][name]
-        if (value.metadata.uid, value.metadata.resource_version) != (
-            body.preconditions.uid,
-            body.preconditions.resource_version,
-        ):
+        # Like the API server, check only the preconditions the request sets, but
+        # require a UID: this backend must never delete by name alone.
+        uid, version = body.preconditions.uid, body.preconditions.resource_version
+        if uid != value.metadata.uid or version not in {None, value.metadata.resource_version}:
             raise ApiException(status=409)
         del objects[kind][name]
 
@@ -177,20 +177,106 @@ def test_lost_creation_response_records_partial_identity_without_retry_or_adopti
         return value
 
     method.side_effect = uncertain
+    driver_uid = None
+    original_pod = api.create_namespaced_pod.side_effect
+
+    def remember_driver(**kwargs):
+        nonlocal driver_uid
+        try:
+            return original_pod(**kwargs)
+        finally:
+            driver_uid = next(iter(objects["pod"].values())).metadata.uid
+
+    if phase != "pod":
+        api.create_namespaced_pod.side_effect = remember_driver
     with pytest.raises(ThriftServerError) as caught:
         server.create()
     handle = caught.value.handle
     assert handle["stage"] == "creation_uncertain" and records[-1] == handle
-    assert len(objects["pod"]) == 1
     assert len(objects["service"]) == {"pod": 0, "driver_service": 1, "thrift_service": 2}[phase]
     assert ("driver_uid" in handle["run"]) == (phase != "pod")
     assert ("driver_service" in handle) == (phase == "thrift_service")
     assert "service" not in handle
+    if phase == "pod":
+        # Without a confirmed UID nothing may be deleted; the receipt is the evidence.
+        assert len(objects["pod"]) == 1
+        assert handle["creation_cleanup"]["status"] == "not_attempted"
+        no_deletion(api)
+    else:
+        # A confirmed driver is rolled back by UID only; both Services name that
+        # UID as owner, so Kubernetes garbage-collects them with it.
+        assert not objects["pod"] and handle["run"]["driver_uid"] == driver_uid
+        assert handle["creation_cleanup"]["status"] == "requested"
+        delete = api.delete_namespaced_pod.call_args.kwargs
+        assert delete["name"] == handle["run"]["driver_pod"]
+        assert delete["body"].preconditions.uid == driver_uid
+        assert delete["body"].propagation_policy == "Foreground"
+        api.delete_namespaced_service.assert_not_called()
+    deletions = api.delete_namespaced_pod.call_count
     with pytest.raises(ThriftServerError):
         server.delete(handle)
     with pytest.raises(RuntimeError, match="already attempted"):
         server.create()
     assert api.create_namespaced_pod.call_count == 1
+    assert api.delete_namespaced_pod.call_count == deletions
+    api.delete_namespace.assert_not_called()
+    api.delete_namespaced_service_account.assert_not_called()
+
+
+def test_rollback_never_deletes_a_replaced_driver(cluster):
+    server, _ = backend(cluster)
+    _, api, objects, _ = cluster
+    original = api.create_namespaced_service.side_effect
+
+    def replace_driver_then_fail(**kwargs):
+        if not kwargs["body"].metadata.name.endswith("-thrift"):
+            return original(**kwargs)
+        next(iter(objects["pod"].values())).metadata.uid = "replacement"
+        raise TimeoutError("response lost after resource creation")
+
+    api.create_namespaced_service.side_effect = replace_driver_then_fail
+    with pytest.raises(ThriftServerError) as caught:
+        server.create()
+    assert caught.value.handle["creation_cleanup"]["status"] == "failed"
+    assert len(objects["pod"]) == 1
+    no_deletion(api)
+
+
+def test_interrupted_rollback_is_recorded_as_unknown(cluster):
+    server, records = backend(cluster)
+    _, api, _, _ = cluster
+    original = api.create_namespaced_service.side_effect
+
+    def fail_thrift_service(**kwargs):
+        if kwargs["body"].metadata.name.endswith("-thrift"):
+            raise ApiException(status=403)
+        return original(**kwargs)
+
+    api.create_namespaced_service.side_effect = fail_thrift_service
+    api.delete_namespaced_pod.side_effect = KeyboardInterrupt
+    with pytest.raises(KeyboardInterrupt) as caught:
+        server.create()
+    assert caught.value.handle["creation_cleanup"]["status"] == "unknown"
+    assert records[-1] == caught.value.handle and records[-1]["stage"] == "creation_uncertain"
+
+
+def test_interrupted_creation_is_not_rolled_back(cluster):
+    server, _ = backend(cluster)
+    _, api, objects, _ = cluster
+    original = api.create_namespaced_service.side_effect
+
+    def interrupt(**kwargs):
+        if kwargs["body"].metadata.name.endswith("-thrift"):
+            raise KeyboardInterrupt
+        return original(**kwargs)
+
+    api.create_namespaced_service.side_effect = interrupt
+    with pytest.raises(KeyboardInterrupt) as caught:
+        server.create()
+    # Matches Connect: only an ordinary failure triggers rollback.
+    assert caught.value.handle["stage"] == "creation_uncertain"
+    assert "creation_cleanup" not in caught.value.handle
+    assert len(objects["pod"]) == 1
     no_deletion(api)
 
 
@@ -213,10 +299,25 @@ def test_confirmed_driver_identity_survives_receipt_write_failure(cluster):
             raise OSError("disk became unavailable")
 
     server = ThriftServer(cluster[0], configuration(), fail_after_submission)
+    create = cluster[1].create_namespaced_pod.side_effect
+    driver = []
+
+    def record_driver(**kwargs):
+        driver.append(create(**kwargs))
+        return driver[-1]
+
+    cluster[1].create_namespaced_pod.side_effect = record_driver
     with pytest.raises(ThriftServerError) as caught:
         server.create()
-    assert caught.value.handle["run"]["driver_uid"] == next(iter(cluster[2]["pod"].values())).metadata.uid
-    no_deletion(cluster[1])
+    assert caught.value.handle["run"]["driver_uid"] == driver[0].metadata.uid
+    # The durable receipt never learned this UID, so the driver would otherwise be
+    # unrecoverable: it is rolled back by that UID (as Connect does).
+    assert caught.value.handle["creation_cleanup"]["status"] == "requested"
+    assert not cluster[2]["pod"]
+    body = cluster[1].delete_namespaced_pod.call_args.kwargs["body"]
+    assert body.preconditions.uid == driver[0].metadata.uid
+    cluster[1].delete_namespace.assert_not_called()
+    cluster[1].delete_namespaced_service_account.assert_not_called()
 
 
 @pytest.mark.parametrize(
@@ -369,3 +470,52 @@ def test_missing_namespace_is_absence_but_is_never_deleted(cluster):
     server.delete(handle)
     assert server.wait_deleted(handle, timeout=1)["status"] == "deleted"
     no_deletion(cluster[1])
+
+
+def test_managed_invocation_records_thrift_rollback_and_keeps_incomplete_cleanup_refused(
+    cluster, tmp_path, monkeypatch
+):
+    import json
+
+    from spark_on_k8s_dbt.lifecycle import InvocationOwner
+
+    sdk, api, objects, namespace = cluster
+    api.read_namespace.side_effect = lambda *args, **kwargs: deepcopy(namespace)
+    original = api.create_namespaced_service.side_effect
+
+    def fail_thrift_service(**kwargs):
+        if kwargs["body"].metadata.name.endswith("-thrift"):
+            raise ApiException(status=403)
+        return original(**kwargs)
+
+    api.create_namespaced_service.side_effect = fail_thrift_service
+    monkeypatch.setattr(InvocationOwner, "_manager", lambda self: sdk.k8s_client_manager)
+    kubeconfig = tmp_path / "kubeconfig"
+    kubeconfig.touch()
+    owner = InvocationOwner(tmp_path / "receipt")
+    compute = {
+        "kube_config_file": str(kubeconfig),
+        "kube_context": "test",
+        "image": "spark-test:4.3.0",
+        "server_jar": "local:///opt/spark/jars/spark-hive-thriftserver_2.13-4.3.0.jar",
+        "namespace": "dbt-test",
+        "service_account": "spark",
+        "spark_conf": {
+            "spark.sql.catalogImplementation": "hive",
+            "spark.sql.warehouse.dir": "hdfs://warehouse:8020/user/hive/warehouse",
+            "spark.hadoop.hive.metastore.uris": "thrift://metastore:9083",
+        },
+    }
+    with pytest.raises(ThriftServerError):
+        owner.ensure_endpoint("thrift", compute)
+    receipt = json.loads(owner.receipt.read_text())
+    assert receipt["creation_cleanup"]["status"] == "requested"
+    assert receipt["server"]["run"]["driver_uid"] == receipt["run"]["driver_uid"]
+    assert not objects["pod"]
+    # Disappearance was never observed and the record is incomplete, so cleanup
+    # still refuses to claim success or to delete anything by name.
+    with pytest.raises(RuntimeError, match="cleanup failed"):
+        owner.close(dbt_exit_code=2)
+    assert json.loads(owner.receipt.read_text())["stage"] == "cleanup_failed"
+    assert api.delete_namespaced_pod.call_count == 1
+    api.delete_namespaced_service.assert_not_called()

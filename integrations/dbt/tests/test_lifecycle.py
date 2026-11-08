@@ -351,3 +351,18 @@ def test_cleanup_stops_a_pending_driver_wait_instead_of_leaking_busy_compute(tmp
     state = json.loads(owner.receipt.read_text())
     assert state["stage"] == "cleaned" and state["dbt_exit_code"] == 130
     owner._namespace.assert_called_once_with()
+
+
+def test_thrift_cleanup_polls_at_the_configured_interval(tmp_path):
+    owner = InvocationOwner(tmp_path / "receipt")
+    server = {"run": {"namespace": "test", "driver_uid": "driver"}}
+    owner.state.update(method="thrift", server=server, cleanup_timeout=30, poll_interval=7)
+    owner.sdk = Mock()
+    owner.backend = Mock()
+    owner._validate_identity = Mock()
+    owner._namespace = Mock(return_value=True)
+    owner.close(dbt_exit_code=0)
+    owner.backend.delete.assert_called_once_with(server)
+    # Connect cleanup already honours compute.poll_interval; Thrift must too.
+    owner.backend.wait_deleted.assert_called_once_with(server, timeout=30, poll_interval=7)
+    assert json.loads(owner.receipt.read_text())["stage"] == "cleaned"

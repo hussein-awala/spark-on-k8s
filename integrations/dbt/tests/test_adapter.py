@@ -9,7 +9,6 @@ from unittest.mock import Mock
 import pytest
 from dbt.adapters.contracts.connection import Connection, ConnectionState, LazyHandle
 from dbt.adapters.spark import SparkAdapter
-from dbt.adapters.spark.connections import SparkConnectionManager
 from dbt.adapters.spark_on_k8s import Plugin
 from dbt.adapters.spark_on_k8s.connections import ManagedPyhiveConnectionWrapper, SparkOnK8SConnectionManager
 from dbt.adapters.spark_on_k8s.credentials import SparkOnK8SCredentials
@@ -117,14 +116,12 @@ def test_thrift_endpoint_does_not_mutate_shared_credentials(monkeypatch):
     owner.ensure_endpoint.return_value = Endpoint("127.0.0.1", 34123)
     raw = Mock()
 
-    def spark_open(cls, conn):
-        assert conn.credentials.host == "127.0.0.1"
-        assert conn.credentials.port == 34123
-        conn.handle = SimpleNamespace(handle=raw)
-        conn.state = ConnectionState.OPEN
-        return conn
+    def spark_open(creds):
+        assert creds.host == "127.0.0.1"
+        assert creds.port == 34123
+        return ManagedPyhiveConnectionWrapper(raw, query_retries=0)
 
-    monkeypatch.setattr(SparkConnectionManager, "open", classmethod(spark_open))
+    monkeypatch.setattr("dbt.adapters.spark_on_k8s.connections.open_thrift_connection", spark_open)
     connections = manager(profile, owner)
     first, second = connection(profile), connection(profile, "other-thread")
     connections.open(first)

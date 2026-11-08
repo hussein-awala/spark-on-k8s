@@ -10,8 +10,8 @@ profile; you do not create the server yourself.
     This feature lives in `integrations/dbt` and is not part of a normal
     `spark-on-k8s` installation. Its profile and Python interfaces may change.
     The initial compatibility target is dbt Core **1.12.6**, dbt-spark **1.11.0**,
-    and Spark/client **4.3.0**. It is a Python dbt Core adapter, not a dbt Fusion,
-    dbt Cloud or dbt v2 integration. SQL models, seeds and data tests are supported;
+    Spark/client **4.3.0**, PyHive **0.7.0**, and Thrift **0.25.0**. It is a Python
+    dbt Core adapter, not a dbt Fusion, dbt Cloud or dbt v2 integration. SQL models, seeds and data tests are supported;
     Python models are explicitly rejected. `dbt clone` is explicitly rejected in this experiment.
 
 ## Prepare the platform
@@ -60,6 +60,12 @@ For reproducible development/testing, use the separate lockfile instead:
 UV_PROJECT_ENVIRONMENT="$PWD/.venv-dbt" uv sync \
   --project integrations/dbt --locked --python 3.12 --group test
 ```
+
+The integration declares PyHive and patched Thrift directly instead of selecting
+`dbt-spark[pyhive]`, whose current extra caps Thrift below the patched releases.
+Do not add that extra to this environment: let the normal dependency resolver
+keep the transport compatible. Thrift's protocol size/recursion protections remain
+enabled; unusually large individual result fields can be rejected by those limits.
 
 The package accepts Python 3.11–3.13. Kubernetes execution is tested with Python
 3.12. The independent lockfile prevents dbt's dependencies from changing the
@@ -150,9 +156,13 @@ Statements are not automatically replayed (`query_retries` must be 0). Spark SQL
 is not transactional: failure and cancellation can leave successfully written
 tables or rows. Review dbt's normal incremental/idempotency behavior before retrying.
 Connect supports cancellation but does not accept `query_timeout` in this initial
-version; Thrift retains dbt-spark's query timeout setting. Connect buffers SQL
-results for dbt metadata/seed/materialization operations; it is not a streaming
-query-results interface.
+version; Thrift retains dbt-spark's query timeout setting. Thrift serializes
+requests on each connection and limits acquisition of the request lock and
+individual blocking socket operations to 15 seconds. These transport limits do not cap the full SQL
+execution time: queries run asynchronously and the adapter polls for completion.
+A failed transport is closed rather than reused, and statements are not replayed.
+Connect buffers SQL results for dbt metadata/seed/materialization operations; it
+is not a streaming query-results interface.
 
 ## Receipts, failure and recovery
 

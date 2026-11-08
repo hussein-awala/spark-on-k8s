@@ -21,8 +21,10 @@ installed release for its available features and tested versions.
 Kubernetes administrators own cluster access, admission, workload identities,
 capacity, storage and network boundaries. Application owners own dependencies,
 input/output correctness, replay safety and external side effects. A successful
-pod is not a data-quality certification. Spark Connect support targets an existing
-endpoint; this project does not operate the server lifecycle.
+pod is not a data-quality certification. Spark Connect profiles support existing
+endpoints. The optional [server lifecycle helper](spark_connect_server.md) creates
+and deletes private single-driver servers; administrators retain responsibility
+for network access, authentication, capacity and replacement after failure.
 
 ## Compatibility and retirement
 

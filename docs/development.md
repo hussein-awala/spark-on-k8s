@@ -186,8 +186,10 @@ at an arbitrary current kubeconfig context.
   or durable reattachment after XCom clearing. Retained-XCom adoption failures
   remain covered by operator regression tests.
 - `.github/workflows/spark-connect.yml` runs `tests/integration/connect/run.py`
-  against a separate real Spark Connect server. This validates a client connection,
-  not a Kubernetes Connect-server manager.
+  against a separate local Spark Connect server for client compatibility. Its
+  Kubernetes job additionally creates Spark 4.0.5/4.3.0 servers with real executors
+  and exercises SDK/CLI receipts, query readiness, session independence, failure
+  handling and ownership-safe deletion using `tests/integration/connect/run_kubernetes.py`.
 - `tests/integration/starters/check.py` verifies ETL/Iceberg output and replay in
   the selected Spark image. Its container-local results do not validate shared
   storage provisioning on a target cluster.

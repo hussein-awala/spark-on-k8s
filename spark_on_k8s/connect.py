@@ -128,15 +128,23 @@ class ConnectProfile:
                     "Spark Connect session release failed; server expiry may be required."
                 ) from None
 
-    def probe(self, *, timeout: float = 15) -> dict:
+    def probe(self, *, timeout: float = 15, expected_app_id: str | None = None) -> dict:
         """Execute a tiny remote query in a child process with a hard total timeout."""
         if type(timeout) not in {int, float} or not math.isfinite(timeout) or timeout <= 0:
             raise ConnectError("timeout must be a positive finite number of seconds.")
+        if expected_app_id is not None and (
+            not isinstance(expected_app_id, str)
+            or not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,62}", expected_app_id)
+        ):
+            raise ConnectError("expected_app_id must be a valid Spark application identifier")
+        request = asdict(self)
+        if expected_app_id is not None:
+            request["expected_app_id"] = expected_app_id
         # Credentials remain in the environment/stdin, never process arguments or a temporary file.
         try:
             result = subprocess.run(
                 [sys.executable, "-I", "-m", "spark_on_k8s.connect"],
-                input=json.dumps(asdict(self)),
+                input=json.dumps(request),
                 capture_output=True,
                 text=True,
                 timeout=timeout,
@@ -154,6 +162,8 @@ class ConnectProfile:
             payload = json.loads(result.stdout)
             if payload.get("schema_version") != 1 or payload.get("status") != "ok":
                 raise ValueError
+            if expected_app_id is not None and payload.get("app_id") != expected_app_id:
+                raise ValueError
             return payload
         except (ValueError, AttributeError):
             raise ConnectError("Spark Connect check returned an invalid response.") from None
@@ -161,12 +171,20 @@ class ConnectProfile:
 
 def _probe_worker():
     try:
-        profile = ConnectProfile(**json.loads(sys.stdin.read(1024 * 1024)))
+        request = json.loads(sys.stdin.read(1024 * 1024))
+        expected_app_id = request.pop("expected_app_id", None)
+        profile = ConnectProfile(**request)
         # PySpark diagnostics must not corrupt the machine-readable result.
         with redirect_stdout(sys.stderr), profile.session() as session:
+            if expected_app_id is not None:
+                app_id = session.conf.get("spark.app.id")
+                if app_id != expected_app_id:
+                    raise ConnectError("The endpoint is not the expected Spark application")
             assert session.range(1).count() == 1
             version = session.version
         payload = {"schema_version": 1, "status": "ok", "spark_version": version}
+        if expected_app_id is not None:
+            payload["app_id"] = app_id
         code = 0
     except Exception:
         payload = {

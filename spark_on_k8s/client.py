@@ -24,6 +24,8 @@ from spark_on_k8s.utils.types import NOTSET, ArgNotSet
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
 
+    from spark_on_k8s.connect import ConnectProfile
+    from spark_on_k8s.connect_server import ConnectServerConfig, ConnectServerHandle
     from spark_on_k8s.utils.types import ConfigMap
 
 
@@ -129,6 +131,39 @@ class SparkOnK8S(LoggingMixin):
         if self.last_submitted_run is None:
             raise RuntimeError("Submission completed without a run identity")
         return self.last_submitted_run
+
+    def create_connect_server(self, config: ConnectServerConfig) -> ConnectServerHandle:
+        """Create a private Spark Connect server; return identity before checking readiness."""
+        from spark_on_k8s.connect_server import create_connect_server
+
+        return create_connect_server(self, config)
+
+    def connect_server_status(self, handle: ConnectServerHandle, *, timeout: float = 10) -> dict:
+        """Observe exactly the recorded server resources without importing PySpark."""
+        from spark_on_k8s.connect_server import connect_server_status
+
+        return connect_server_status(self, handle, timeout=timeout)
+
+    def wait_connect_server_ready(
+        self,
+        handle: ConnectServerHandle,
+        *,
+        profile: ConnectProfile,
+        timeout: float = 60,
+        poll_interval: float = 1,
+    ) -> dict:
+        """Verify a real Connect query, remote application identity and current resource UIDs."""
+        from spark_on_k8s.connect_server import wait_connect_server_ready
+
+        return wait_connect_server_ready(
+            self, handle, profile=profile, timeout=timeout, poll_interval=poll_interval
+        )
+
+    def delete_connect_server(self, handle: ConnectServerHandle, *, timeout: float = 10) -> dict:
+        """Request deletion only after validating all recorded server resource identities."""
+        from spark_on_k8s.connect_server import delete_connect_server
+
+        return delete_connect_server(self, handle, timeout=timeout)
 
     def submit_sql(
         self,

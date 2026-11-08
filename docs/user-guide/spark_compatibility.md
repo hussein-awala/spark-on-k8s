@@ -20,7 +20,9 @@ requirements for [3.5.9](https://spark.apache.org/docs/3.5.9/),
 [4.0.5](https://spark.apache.org/docs/4.0.5/), and
 [4.3.0](https://spark.apache.org/docs/4.3.0/). Other Spark releases and custom
 images need their own validation. Spark Connect, custom schedulers, GPU workloads,
-and third-party connectors are outside this matrix.
+and third-party connectors are outside this matrix. Connect has a separate
+[server lifecycle matrix](spark_connect_server.md#prerequisites) for Spark 4.0.5
+and 4.3.0.
 
 ## Client and application runtimes
 

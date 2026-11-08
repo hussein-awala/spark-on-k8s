@@ -27,6 +27,7 @@ rules in the linked guides before automating retries or cleanup.
 | Inspect an offline submission plan | [`ApplicationPlan`](spark_on_k8s/planning.md#spark_on_k8s.planning.ApplicationPlan), returned by planning methods | [Planning a job](../user-guide/jobs.md) |
 | Run a Spark task through Airflow | [`SparkOnK8SOperator`](spark_on_k8s/airflow/operators.md#spark_on_k8s.airflow.operators.SparkOnK8SOperator) from `spark_on_k8s.airflow.operators` | [Airflow lifecycle and permissions](../user-guide/airflow.md) |
 | Connect to an existing Spark Connect endpoint | [`ConnectProfile`](spark_on_k8s/connect.md#spark_on_k8s.connect.ConnectProfile) from `spark_on_k8s.connect` | [Spark Connect](../user-guide/spark_connect.md) |
+| Create a private Spark Connect server | [`ConnectServerConfig`](spark_on_k8s/connect_server.md#spark_on_k8s.connect_server.ConnectServerConfig) and [`ConnectServerHandle`](spark_on_k8s/connect_server.md#spark_on_k8s.connect_server.ConnectServerHandle) from `spark_on_k8s.connect_server` | [Server lifecycle](../user-guide/spark_connect_server.md) |
 
 SQL submission uses the client's `submit_sql()` and `plan_sql()` methods or the
 Airflow operator's `sql` / `sql_file` options. See [SQL jobs](../user-guide/sql.md)

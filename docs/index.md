@@ -16,7 +16,8 @@ machine. See [Spark compatibility](user-guide/spark_compatibility.md) for image 
   before configuring a cluster.
 - Submit an existing application with a [portable job file](user-guide/jobs.md)
   or the [Python/CLI guide](user-guide/getting_started.md).
-- Use an existing [Spark Connect endpoint](user-guide/spark_connect.md).
+- Use an existing [Spark Connect endpoint](user-guide/spark_connect.md) or
+  [create a private server](user-guide/spark_connect_server.md).
 - Inspect applications through [diagnostics](user-guide/diagnostics.md), the
   optional console or the [Airflow task tab](user-guide/airflow.md).
 

@@ -97,6 +97,7 @@ nav:
       - Integrate and automate:
           - CLI automation and recovery: user-guide/automation.md
           - Spark Connect: user-guide/spark_connect.md
+          - Connect server setup: user-guide/spark_connect_server.md
           - Airflow: user-guide/airflow.md
           - Remote submission: user-guide/remote-submission.md
   - Operate:

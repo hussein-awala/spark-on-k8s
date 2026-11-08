@@ -1,0 +1,397 @@
+from __future__ import annotations
+
+from copy import deepcopy
+from unittest.mock import MagicMock
+
+import pytest
+from kubernetes import client as k8s
+from kubernetes.client.exceptions import ApiException
+from spark_on_k8s.client import ExecutorInstances, PodResources, SparkOnK8S
+from spark_on_k8s.connect import ConnectError, ConnectProfile
+from spark_on_k8s.connect_server import (
+    ConnectServerConfig,
+    ConnectServerCreateError,
+    ConnectServerError,
+    ConnectServerHandle,
+    ConnectServerOwnershipError,
+    ConnectServerTimeout,
+)
+
+
+@pytest.fixture
+def cluster(monkeypatch):
+    """Run the real submission builder with a stateful Kubernetes API fixture."""
+    api = MagicMock()
+    objects = {"pod": {}, "service": {}}
+    counter = iter(range(1, 100))
+
+    def create(kind, namespace, body, **kwargs):
+        value = deepcopy(body)
+        if value.metadata.name in objects[kind]:
+            raise ApiException(status=409)
+        value.metadata.uid = f"uid-{next(counter)}"
+        value.metadata.namespace = namespace
+        if kind == "pod":
+            value.status = k8s.V1PodStatus(phase="Running")
+        else:
+            value.spec.cluster_ip = value.spec.cluster_ip or "10.0.0.1"
+        objects[kind][value.metadata.name] = value
+        return deepcopy(value)
+
+    def read(kind, name, namespace, **kwargs):
+        try:
+            return deepcopy(objects[kind][name])
+        except KeyError:
+            raise ApiException(status=404) from None
+
+    def delete(kind, name, namespace, body, **kwargs):
+        value = objects[kind].get(name)
+        if value is None:
+            raise ApiException(status=404)
+        if value.metadata.uid != body.preconditions.uid:
+            raise ApiException(status=409)
+        del objects[kind][name]
+
+    for kind in objects:
+        getattr(api, f"create_namespaced_{kind}").side_effect = lambda kind=kind, **kwargs: create(
+            kind, **kwargs
+        )
+        getattr(api, f"read_namespaced_{kind}").side_effect = lambda kind=kind, **kwargs: read(kind, **kwargs)
+        getattr(api, f"delete_namespaced_{kind}").side_effect = lambda kind=kind, **kwargs: delete(
+            kind, **kwargs
+        )
+    monkeypatch.setattr(k8s, "CoreV1Api", lambda raw: api)
+    sdk = SparkOnK8S(k8s_client_manager=MagicMock())
+    return sdk, api, objects
+
+
+def config(**kwargs):
+    return ConnectServerConfig(
+        **{
+            "image": "apache/spark:4.0.5",
+            "server_jar": "local:///opt/spark/jars/spark-connect_2.13-4.0.5.jar",
+            "namespace": "connect-test",
+            "service_account": "spark",
+            **kwargs,
+        }
+    )
+
+
+def test_create_uses_real_submission_builder_and_private_owned_service(cluster):
+    sdk, api, objects = cluster
+    cfg = config(
+        port=16000,
+        image_pull_policy="Never",
+        driver_resources=PodResources(memory=768, memory_overhead=256),
+        executor_resources=PodResources(cpu=1, memory=512, memory_overhead=256),
+        executor_instances=ExecutorInstances(initial=1),
+        spark_conf={"spark.sql.shuffle.partitions": "2", "spark.kubernetes.executor.request.cores": "250m"},
+    )
+    handle = sdk.create_connect_server(cfg)
+    assert isinstance(handle, ConnectServerHandle)
+    assert len(objects["pod"]) == 1
+    assert len(objects["service"]) == 2
+    pod = objects["pod"][handle.run.driver_pod]
+    args = pod.spec.containers[0].args
+    assert args[:3] == ["driver", "--master", "k8s://https://kubernetes.default.svc.cluster.local:443"]
+    assert args[args.index("--class") + 1] == "org.apache.spark.sql.connect.service.SparkConnectServer"
+    assert args[-1] == cfg.server_jar
+    assert "spark.connect.grpc.binding.port=16000" in args
+    assert "spark.connect.grpc.binding.address=0.0.0.0" in args
+    assert pod.spec.containers[0].image_pull_policy == "Never"
+    assert pod.spec.containers[0].resources.limits["memory"] == "1024Mi"
+    service = objects["service"][handle.service_name]
+    assert service.spec.type == "ClusterIP"
+    assert service.spec.ports[0].port == 16000
+    assert service.spec.ports[0].target_port == 16000
+    assert service.spec.selector == {
+        "spark-app-id": handle.run.app_id,
+        "spark-role": "driver",
+        "spark-on-k8s.io/connect-server": "true",
+    }
+    assert service.metadata.owner_references[0].uid == handle.run.driver_uid
+    assert handle.endpoint == f"sc://{handle.service_name}.connect-test.svc:16000"
+    assert ConnectServerHandle.from_dict(handle.to_dict()) == handle
+    api.delete_namespaced_pod.assert_not_called()
+
+
+def test_default_factories_and_collision_resistant_names(cluster):
+    first, second = config(), config()
+    first.driver_resources.memory = 600
+    assert second.driver_resources.memory == 1024
+    sdk, _, _ = cluster
+    a = sdk.create_connect_server(config(app_name="a" * 100))
+    b = sdk.create_connect_server(config(app_name="a" * 100))
+    assert a.run.app_id != b.run.app_id
+    assert len(a.service_name) == 63
+    assert len(a.run.driver_pod) <= 63
+
+
+@pytest.mark.parametrize(
+    "phase, expected",
+    [
+        ("Pending", "starting"),
+        ("Running", "running"),
+        ("Failed", "terminated"),
+        ("Succeeded", "terminated"),
+        ("Unknown", "unknown"),
+    ],
+)
+def test_status_reports_kubernetes_phase_not_query_readiness(cluster, phase, expected):
+    sdk, _, objects = cluster
+    handle = sdk.create_connect_server(config())
+    objects["pod"][handle.run.driver_pod].status.phase = phase
+    status = sdk.connect_server_status(handle)
+    assert status["status"] == expected
+    assert status["query_ready"] is None
+
+
+def test_status_only_404_is_missing_and_rbac_or_transport_error_propagates(cluster):
+    sdk, api, objects = cluster
+    handle = sdk.create_connect_server(config())
+    del objects["service"][handle.service_name]
+    assert sdk.connect_server_status(handle)["missing"] == ["connect_service"]
+    for error in (ApiException(status=403), ApiException(status=503), OSError("unavailable")):
+        api.read_namespaced_pod.side_effect = error
+        with pytest.raises(type(error)):
+            sdk.connect_server_status(handle)
+    api.delete_namespaced_pod.assert_not_called()
+
+
+def test_readiness_requires_query_identity_then_revalidates_resources(cluster, monkeypatch):
+    sdk, api, _ = cluster
+    handle = sdk.create_connect_server(config())
+    profile = ConnectProfile(endpoint="sc://localhost:15002", tls=False)
+    probe = MagicMock(
+        return_value={
+            "schema_version": 1,
+            "status": "ok",
+            "spark_version": "4.0.5",
+            "app_id": handle.run.app_id,
+        }
+    )
+    monkeypatch.setattr(ConnectProfile, "probe", probe)
+    before = api.read_namespaced_pod.call_count
+    result = sdk.wait_connect_server_ready(handle, profile=profile)
+    assert result["status"] == "ready" and result["query_ready"] is True
+    assert probe.call_args.kwargs["expected_app_id"] == handle.run.app_id
+    assert api.read_namespaced_pod.call_count == before + 2
+
+
+def test_readiness_detects_resource_replacement_during_query(cluster, monkeypatch):
+    sdk, _, objects = cluster
+    handle = sdk.create_connect_server(config())
+
+    def probe(self, **kwargs):
+        objects["service"][handle.service_name].metadata.uid = "replacement"
+        return {"app_id": handle.run.app_id}
+
+    monkeypatch.setattr(ConnectProfile, "probe", probe)
+    with pytest.raises(ConnectServerOwnershipError):
+        sdk.wait_connect_server_ready(handle, profile=ConnectProfile(endpoint="sc://localhost", tls=False))
+    assert handle.run.driver_pod in objects["pod"]
+
+
+@pytest.mark.parametrize("pending", [True, False])
+def test_readiness_timeout_never_deletes(cluster, monkeypatch, pending):
+    sdk, api, objects = cluster
+    handle = sdk.create_connect_server(config())
+    if pending:
+        objects["pod"][handle.run.driver_pod].status.phase = "Pending"
+    monkeypatch.setattr(ConnectProfile, "probe", MagicMock(side_effect=ConnectError("not ready")))
+    with pytest.raises(ConnectServerTimeout) as error:
+        sdk.wait_connect_server_ready(
+            handle,
+            profile=ConnectProfile(endpoint="sc://localhost", tls=False),
+            timeout=0.02,
+            poll_interval=0.001,
+        )
+    assert error.value.handle == handle
+    assert error.value.cleanup["status"] == "not_attempted"
+    api.delete_namespaced_pod.assert_not_called()
+    api.delete_namespaced_service.assert_not_called()
+
+
+def test_terminal_server_is_not_reported_ready(cluster, monkeypatch):
+    sdk, _, objects = cluster
+    handle = sdk.create_connect_server(config())
+    objects["pod"][handle.run.driver_pod].status.phase = "Failed"
+    probe = MagicMock()
+    monkeypatch.setattr(ConnectProfile, "probe", probe)
+    with pytest.raises(ConnectServerError, match="terminated"):
+        sdk.wait_connect_server_ready(handle, profile=ConnectProfile(endpoint="sc://localhost", tls=False))
+    probe.assert_not_called()
+
+
+def test_delete_checks_every_identity_before_any_mutation(cluster):
+    sdk, api, objects = cluster
+    handle = sdk.create_connect_server(config())
+    objects["service"][handle.service_name].metadata.owner_references[0].uid = "someone-else"
+    with pytest.raises(ConnectServerOwnershipError):
+        sdk.delete_connect_server(handle)
+    api.delete_namespaced_pod.assert_not_called()
+    api.delete_namespaced_service.assert_not_called()
+
+
+def test_delete_uses_uid_preconditions_and_missing_resources_are_idempotent(cluster):
+    sdk, api, objects = cluster
+    handle = sdk.create_connect_server(config())
+    del objects["service"][handle.service_name]
+    result = sdk.delete_connect_server(handle)
+    assert result["status"] == "deletion_requested"
+    assert len(result["requested"]) == 2
+    assert api.delete_namespaced_pod.call_args.kwargs["body"].preconditions.uid == handle.run.driver_uid
+    assert (
+        api.delete_namespaced_service.call_args.kwargs["body"].preconditions.uid == handle.driver_service_uid
+    )
+    assert sdk.delete_connect_server(handle)["status"] == "absent"
+
+
+def test_service_creation_failure_retains_identity_and_requests_scoped_rollback(cluster):
+    sdk, api, _ = cluster
+    original = api.create_namespaced_service.side_effect
+    failure = ApiException(status=403)
+
+    def create(**kwargs):
+        if kwargs["body"].metadata.name.endswith("-connect"):
+            raise failure
+        return original(**kwargs)
+
+    api.create_namespaced_service.side_effect = create
+    with pytest.raises(ConnectServerCreateError) as error:
+        sdk.create_connect_server(config())
+    assert error.value.__cause__ is failure
+    assert error.value.phase == "grpc_service_creation"
+    assert error.value.run.driver_uid
+    assert error.value.handle is None
+    assert error.value.cleanup["status"] == "requested"
+    assert api.delete_namespaced_pod.call_args.kwargs["body"].preconditions.uid == error.value.run.driver_uid
+
+
+@pytest.mark.parametrize("value", [True, 0, -1, float("nan"), float("inf"), None])
+def test_timeout_validation_happens_before_requests(cluster, value):
+    sdk, api, _ = cluster
+    handle = sdk.create_connect_server(config())
+    api.reset_mock()
+    with pytest.raises(ValueError):
+        sdk.connect_server_status(handle, timeout=value)
+    with pytest.raises(ValueError):
+        sdk.delete_connect_server(handle, timeout=value)
+    api.read_namespaced_pod.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "settings",
+    [
+        {"namespace": "not.a.namespace"},
+        {"image": ""},
+        {"server_jar": "--packages"},
+        {"app_name": "123"},
+        {"image_pull_policy": "sometimes"},
+        {"driver_resources": {}},
+        {"executor_instances": {}},
+        {"executor_instances": ExecutorInstances(min=3, max=2)},
+        {"executor_instances": ExecutorInstances(min=2, initial=1)},
+        {"executor_instances": ExecutorInstances(initial=3, max=2)},
+        {"executor_instances": ExecutorInstances(executor_allocation_ratio=float("nan"))},
+        {"executor_instances": ExecutorInstances(scheduler_backlog_timeout="0s")},
+        {"driver_node_selector": {"node": 1}},
+        {"spark_conf": {"spark.kubernetes.driver.podTemplateFile": "other.yaml"}},
+        {"spark_conf": {"spark.kubernetes.executor.request.cores": "invalid"}},
+        {"spark_conf": {"spark.kubernetes.executor.request.cores": "0"}},
+        {"spark_conf": {"spark.kubernetes.executor.request.cores": "2"}},
+        {"packages": ["unversioned"]},
+    ],
+)
+def test_invalid_configuration_is_rejected_without_kubernetes_access(cluster, settings):
+    _, api, _ = cluster
+    with pytest.raises(ValueError):
+        config(**settings)
+    api.create_namespaced_pod.assert_not_called()
+    api.create_namespaced_service.assert_not_called()
+
+
+def test_start_status_and_delete_do_not_import_pyspark(cluster, monkeypatch):
+    import builtins
+
+    sdk, _, _ = cluster
+    original = builtins.__import__
+
+    def import_without_pyspark(name, *args, **kwargs):
+        if name == "pyspark" or name.startswith("pyspark."):
+            raise AssertionError("Server lifecycle must not import PySpark")
+        return original(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", import_without_pyspark)
+    handle = sdk.create_connect_server(config())
+    assert sdk.connect_server_status(handle)["status"] == "running"
+    assert sdk.delete_connect_server(handle)["status"] == "deletion_requested"
+
+
+def test_missing_driver_service_during_create_exposes_confirmed_run(cluster):
+    sdk, api, _ = cluster
+    api.read_namespaced_service.side_effect = ApiException(status=404)
+    with pytest.raises(ConnectServerCreateError) as error:
+        sdk.create_connect_server(config())
+    assert error.value.phase == "driver_service_verification"
+    assert error.value.run.driver_uid
+    assert error.value.cleanup["status"] == "requested"
+    assert api.create_namespaced_service.call_count == 1
+
+
+def test_failed_readiness_query_can_recover_without_creating_a_second_server(cluster, monkeypatch):
+    sdk, api, _ = cluster
+    handle = sdk.create_connect_server(config())
+    probe = MagicMock(side_effect=[ConnectError("starting"), {"app_id": handle.run.app_id}])
+    monkeypatch.setattr(ConnectProfile, "probe", probe)
+    result = sdk.wait_connect_server_ready(
+        handle, profile=ConnectProfile(endpoint="sc://localhost", tls=False), poll_interval=0.001
+    )
+    assert result["query_ready"] is True
+    assert probe.call_count == 2
+    assert api.create_namespaced_pod.call_count == 1
+
+
+def test_invalid_operation_types_fail_before_cluster_access(cluster):
+    sdk, api, _ = cluster
+    with pytest.raises(ValueError):
+        sdk.create_connect_server({})
+    with pytest.raises(ValueError):
+        sdk.connect_server_status({})
+    with pytest.raises(ValueError):
+        sdk.delete_connect_server({})
+    with pytest.raises(ValueError):
+        sdk.wait_connect_server_ready({}, profile={})
+    with pytest.raises(ValueError):
+        sdk.wait_connect_server_ready(
+            {}, profile=ConnectProfile(endpoint="sc://localhost"), poll_interval=True
+        )
+    api.read_namespaced_pod.assert_not_called()
+    api.create_namespaced_pod.assert_not_called()
+
+
+def test_interrupted_rollback_preserves_uncertain_deletion_and_does_not_retry(cluster):
+    sdk, api, objects = cluster
+    original_create = api.create_namespaced_service.side_effect
+    original_delete = api.delete_namespaced_pod.side_effect
+    interrupted = KeyboardInterrupt()
+
+    def create(**kwargs):
+        if kwargs["body"].metadata.name.endswith("-connect"):
+            raise ApiException(status=403)
+        return original_create(**kwargs)
+
+    def delete(**kwargs):
+        original_delete(**kwargs)  # The API accepted the deletion before the caller was interrupted.
+        raise interrupted
+
+    api.create_namespaced_service.side_effect = create
+    api.delete_namespaced_pod.side_effect = delete
+    with pytest.raises(KeyboardInterrupt) as error:
+        sdk.create_connect_server(config())
+    assert error.value is interrupted
+    assert error.value.run.driver_uid
+    assert error.value.phase == "rollback"
+    assert error.value.cleanup["status"] == "unknown"
+    assert error.value.run.driver_pod not in objects["pod"]
+    assert api.delete_namespaced_pod.call_count == 1

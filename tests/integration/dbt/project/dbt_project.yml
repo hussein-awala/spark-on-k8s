@@ -1,0 +1,11 @@
+name: spark_on_k8s_dbt_integration
+version: '1.0.0'
+config-version: 2
+profile: spark_on_k8s_managed
+model-paths: [models]
+seed-paths: [seeds]
+test-paths: [tests]
+models:
+  spark_on_k8s_dbt_integration:
+    +file_format: parquet
+    +materialized: view

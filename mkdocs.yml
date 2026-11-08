@@ -100,6 +100,7 @@ nav:
           - Spark Connect: user-guide/spark_connect.md
           - Connect server setup: user-guide/spark_connect_server.md
           - Jupyter notebooks: user-guide/jupyter.md
+          - Experimental managed dbt: user-guide/dbt.md
           - Airflow: user-guide/airflow.md
           - Remote submission: user-guide/remote-submission.md
   - Operate:

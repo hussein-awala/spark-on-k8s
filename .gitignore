@@ -166,3 +166,6 @@ frontend/playwright-report/
 
 # Generated frozen image inputs prepared by release validation.
 /docker/release/
+
+# Private managed dbt recovery receipts
+.spark-on-k8s/

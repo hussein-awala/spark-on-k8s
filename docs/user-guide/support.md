@@ -13,6 +13,7 @@ installed release for its available features and tested versions.
 | Python | Documented client methods, run handles, configuration types and documented helper imports | Every importable private/internal object; thread-safe concurrent use of mutable client convenience properties |
 | CLI | Documented commands/options and the versioned JSON/exit contracts identified in [automation](automation.md) | Parsing human progress/error prose or assuming every command returns JSON |
 | Job files and plans | Documented schema/version and merge behavior in [job files](jobs.md) | A GitOps reconciler, scheduler or proof of cluster admission |
+| Experimental dbt | Separate managed-command adapter for pinned dbt Core/dbt-spark and Spark 4.3 SQL workloads | Stable adapter API, Python models, dbt Fusion/Cloud/v2, automatic cluster/catalog deployment or hard-kill cleanup |
 | Airflow | Documented operators, connection behavior, provider discovery and supported task UI integration | A replacement scheduler, identity system or indefinite support for every Airflow generation |
 | API and UI | Documented routes/configuration and shared console behavior | User/tenant isolation from a shared operator token; see [remote submission](remote-submission.md) |
 | History | Bounded metadata, readiness and recorder metrics as documented in [run history](run-history.md) | Durable Spark logs, audit certification, HA database or submission transaction authority |

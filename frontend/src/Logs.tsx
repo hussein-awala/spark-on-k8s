@@ -71,6 +71,7 @@ export function Logs({
     }
     let active = true;
     let failed = false;
+    let established = false;
     let socket: WebSocket;
     function flush() {
       frame.current = null;
@@ -92,6 +93,7 @@ export function Logs({
     }
     function opened() {
       if (active) {
+        established = true;
         setConnection("live");
         setConnectionMessage("");
       }
@@ -130,8 +132,12 @@ export function Logs({
         (event.code !== 1000 && event.code !== 1005)
       ) {
         setConnection("error");
+        // A refused handshake (for example, an access check) never opens; do
+        // not describe it as an interruption of a working stream.
         setConnectionMessage(
-          "The log stream was interrupted. Reconnect to try again.",
+          established
+            ? "The log stream was interrupted. Reconnect to try again."
+            : "The log stream could not be opened. The logs may be unavailable, you may not have access, or the service may be unreachable.",
         );
       } else if (!failed) {
         setConnection("closed");

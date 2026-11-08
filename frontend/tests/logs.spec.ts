@@ -138,6 +138,64 @@ test("tail changes and reconnects open fresh streams and report policy failures"
   await expect(page.getByTestId("log-text")).toHaveText("new stream output");
 });
 
+test("a refused log handshake is not reported as an interrupted stream", async ({
+  page,
+}) => {
+  // Browsers report a rejected WebSocket handshake (for example, the native
+  // Airflow tab's access checks) as error + close 1006 without an open event.
+  await page.addInitScript(() => {
+    const opened: string[] = [];
+    const NativeSocket = window.WebSocket;
+    function RefusedSocket(url: string | URL, protocols?: string | string[]) {
+      // Leave the dev server's own sockets alone; refuse only driver log streams.
+      if (!String(url).includes("/webserver/ws/logs/"))
+        return new NativeSocket(url, protocols);
+      const socket = new EventTarget();
+      opened.push(String(url));
+      window.setTimeout(() => {
+        socket.dispatchEvent(new Event("error"));
+        socket.dispatchEvent(
+          new CloseEvent("close", { code: 1006, wasClean: false }),
+        );
+      }, 0);
+      return Object.assign(socket, { close() {}, send() {} });
+    }
+    Object.assign(window, { WebSocket: RefusedSocket, openedSockets: opened });
+  });
+  await page.goto("/tests/fixture.html?view=logs&history=false");
+  const alert = page.getByRole("alert");
+  await expect(alert).toContainText("The log stream could not be opened");
+  await expect(alert).not.toContainText("interrupted");
+  await expect(page.getByText("Disconnected", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Reconnect", exact: true }).click();
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => (window as unknown as { openedSockets: string[] }).openedSockets,
+      ),
+    )
+    .toHaveLength(2);
+  await expect(alert).toContainText("The log stream could not be opened");
+});
+
+test("an established stream that drops abnormally is reported as interrupted", async ({
+  page,
+}) => {
+  let socket: WebSocketRoute | undefined;
+  await page.routeWebSocket("**/webserver/ws/logs/**", (route) => {
+    socket = route;
+  });
+  await page.goto("/tests/fixture.html?view=logs&history=false");
+  await expect.poll(() => socket !== undefined).toBe(true);
+  socket!.send("partial output");
+  await expect(page.getByTestId("log-text")).toHaveText("partial output");
+  await socket!.close({ code: 1011, reason: "Upstream failure" });
+  await expect(page.getByRole("alert")).toContainText(
+    "The log stream was interrupted",
+  );
+  await expect(page.getByTestId("log-text")).toHaveText("partial output");
+});
+
 test("leaving embedded logs closes the stream and reconnecting cannot reuse stale output", async ({
   page,
 }) => {

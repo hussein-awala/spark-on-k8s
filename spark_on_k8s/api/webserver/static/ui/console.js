@@ -10159,8 +10159,8 @@ function ue({ config: e, transport: t, onBack: n }) {
 			S("error"), w("An application and namespace are required to view driver logs.");
 			return;
 		}
-		let n = !0, r = !1, o;
-		function s() {
+		let n = !0, r = !1, o = !1, s;
+		function c() {
 			if (D.current = null, !n) return;
 			O.current += oe.current;
 			let e = ae.current.map((e) => ({
@@ -10173,30 +10173,30 @@ function ue({ config: e, transport: t, onBack: n }) {
 			let a = t.slice(-1e4);
 			de.current = a, r && ne((e) => e + r), i(a);
 		}
-		function c() {
-			n && (S("live"), w(""));
+		function l() {
+			n && (o = !0, S("live"), w(""));
 		}
-		function l(e) {
+		function u(e) {
 			if (!n) return;
 			let t = typeof e.data == "string" ? e.data : String(e.data), r = t.split(/\r?\n/);
 			t.endsWith("\n") && r.pop();
 			let i = [...ae.current, ...r];
-			i.length > 1e4 && (oe.current += i.length - le), ae.current = i.slice(-1e4), D.current === null && (D.current = requestAnimationFrame(s));
+			i.length > 1e4 && (oe.current += i.length - le), ae.current = i.slice(-1e4), D.current === null && (D.current = requestAnimationFrame(c));
 		}
-		function u() {
+		function d() {
 			n && (r = !0, S("error"), w("The log connection failed. Check your connection and try reconnecting."));
 		}
-		function d(e) {
-			n && (e.code === 1008 ? (S("error"), w("Logs are unavailable for this application, or you do not have access.")) : e.code === 1011 || e.code !== 1e3 && e.code !== 1005 ? (S("error"), w("The log stream was interrupted. Reconnect to try again.")) : r || (S("closed"), w("The log stream has ended. Reconnect to load the latest available logs.")), ae.current.length && (D.current !== null && cancelAnimationFrame(D.current), s()));
+		function f(e) {
+			n && (e.code === 1008 ? (S("error"), w("Logs are unavailable for this application, or you do not have access.")) : e.code === 1011 || e.code !== 1e3 && e.code !== 1005 ? (S("error"), w(o ? "The log stream was interrupted. Reconnect to try again." : "The log stream could not be opened. The logs may be unavailable, you may not have access, or the service may be unreachable.")) : r || (S("closed"), w("The log stream has ended. Reconnect to load the latest available logs.")), ae.current.length && (D.current !== null && cancelAnimationFrame(D.current), c()));
 		}
 		try {
-			o = t.openLogs(e.namespace, fe, a);
+			s = t.openLogs(e.namespace, fe, a);
 		} catch (e) {
 			S("error"), w(h(e));
 			return;
 		}
-		return o.addEventListener("open", c), o.addEventListener("message", l), o.addEventListener("error", u), o.addEventListener("close", d), () => {
-			n = !1, o.removeEventListener("open", c), o.removeEventListener("message", l), o.removeEventListener("error", u), o.removeEventListener("close", d), D.current !== null && cancelAnimationFrame(D.current), D.current = null, ae.current = [], o.close();
+		return s.addEventListener("open", l), s.addEventListener("message", u), s.addEventListener("error", d), s.addEventListener("close", f), () => {
+			n = !1, s.removeEventListener("open", l), s.removeEventListener("message", u), s.removeEventListener("error", d), s.removeEventListener("close", f), D.current !== null && cancelAnimationFrame(D.current), D.current = null, ae.current = [], s.close();
 		};
 	}, [
 		fe,

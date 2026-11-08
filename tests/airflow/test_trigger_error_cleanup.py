@@ -77,6 +77,58 @@ def test_trigger_error_skips_logs_and_preserves_cleanup_and_diagnostics(
     )
 
 
+@pytest.mark.parametrize("finish_action", ["delete", "keep_if_failed"])
+def test_cleanup_failure_does_not_replace_trigger_error_diagnostics(trigger_error_event, finish_action):
+    from airflow.exceptions import AirflowException
+    from kubernetes.client import ApiException
+    from spark_on_k8s.airflow.operators import SparkOnK8SOperator
+    from spark_on_k8s.utils.app_manager import SparkAppManager
+
+    operator = SparkOnK8SOperator(
+        task_id="trigger_failure_cleanup_failure",
+        image="spark:test",
+        app_path="local:///job.py",
+        on_finish_action=finish_action,
+        deferrable=True,
+    )
+    manager = mock.create_autospec(SparkAppManager, instance=True)
+    # The trigger's stacktrace exists only in the event; a failed deletion must not discard it.
+    cleanup_error = ApiException(status=503, reason="Kubernetes unavailable")
+    manager.delete_app.side_effect = cleanup_error
+    with (
+        mock.patch("spark_on_k8s.airflow.operators.SparkAppManager", return_value=manager),
+        pytest.raises(AirflowException, match="SparkOnK8STrigger failed") as failure,
+    ):
+        operator.execute_complete({"ti": mock.Mock()}, trigger_error_event)
+
+    assert trigger_error_event["error"] in str(failure.value)
+    assert trigger_error_event["stacktrace"] in str(failure.value)
+    assert failure.value.__cause__ is cleanup_error
+    manager.delete_app.assert_called_once_with(namespace="spark", pod_name="application-driver")
+
+
+@pytest.mark.parametrize("status", ["Failed", "Unknown"])
+def test_cleanup_failure_does_not_replace_terminal_status(status):
+    from airflow.exceptions import AirflowException
+    from spark_on_k8s.airflow.operators import SparkOnK8SOperator
+
+    operator = SparkOnK8SOperator(
+        task_id="terminal_cleanup_failure",
+        image="spark:test",
+        app_path="local:///job.py",
+        on_finish_action="delete",
+        deferrable=True,
+    )
+    cleanup_error = RuntimeError("delete request failed")
+    with mock.patch("spark_on_k8s.airflow.operators.SparkAppManager") as factory:
+        factory.return_value.delete_app.side_effect = cleanup_error
+        with pytest.raises(AirflowException, match=f"The job finished with status: {status}") as failure:
+            operator.execute_complete(
+                {}, {"namespace": "spark", "pod_name": "application-driver", "status": status}
+            )
+    assert failure.value.__cause__ is cleanup_error
+
+
 def test_trigger_error_without_history_service_preserves_diagnostics(trigger_error_event):
     from airflow.exceptions import AirflowException
     from spark_on_k8s.airflow.operators import SparkOnK8SOperator

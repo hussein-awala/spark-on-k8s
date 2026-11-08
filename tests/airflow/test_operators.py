@@ -551,6 +551,56 @@ def test_sql_file_is_rendered_before_splitting(mock_execute, tmp_path):
     assert json.loads(statements_source["text"]) == ["SELECT 'a;b'", "SELECT 2"]
 
 
+def test_sql_operator_keeps_user_configmaps_beside_generated_queries():
+    from spark_on_k8s.airflow.operators import SparkSqlOnK8SOperator
+
+    # The SDK and CLI SQL paths append the generated statements; the operator must not drop
+    # user-supplied driver ConfigMaps (for example, logging configuration).
+    logging_configmap = {
+        "name": "logging",
+        "mount_path": "/opt/spark/conf/logging",
+        "sources": [{"name": "log4j2.properties", "text": "rootLogger.level = warn"}],
+    }
+    supplied = [logging_configmap]
+    task = SparkSqlOnK8SOperator(
+        task_id="sql_with_configmaps",
+        image="pyspark-job",
+        sql="SELECT 1",
+        app_waiter="no_wait",
+        driver_ephemeral_configmaps_volumes=supplied,
+    )
+    task.render_template_fields(context={})
+    with mock.patch("spark_on_k8s.client.SparkOnK8S.submit_app", return_value="sql-driver") as submit:
+        task.execute({"ti": mock.MagicMock(xcom_pull=mock.MagicMock(return_value=None))})
+
+    configmaps = submit.call_args.kwargs["driver_ephemeral_configmaps_volumes"]
+    assert [configmap["mount_path"] for configmap in configmaps] == ["/opt/spark/conf/logging", "/configmap"]
+    assert configmaps[0] == logging_configmap
+    statements = next(source for source in configmaps[1]["sources"] if source["name"] == "queries.json")
+    assert json.loads(statements["text"]) == ["SELECT 1"]
+    assert supplied == [logging_configmap]
+
+
+@pytest.mark.parametrize("mount_path", ["/configmap", "configmap/", "/configmap/extra", "/tmp/../configmap"])
+def test_sql_operator_rejects_user_configmaps_on_the_reserved_mount(mount_path):
+    from spark_on_k8s.airflow.operators import SparkSqlOnK8SOperator
+
+    task = SparkSqlOnK8SOperator(
+        task_id="sql_reserved_mount",
+        image="pyspark-job",
+        sql="SELECT 1",
+        driver_ephemeral_configmaps_volumes=[
+            {"name": "conflict", "mount_path": mount_path, "sources": [{"name": "a.txt", "text": "a"}]}
+        ],
+    )
+    with (
+        mock.patch("spark_on_k8s.client.SparkOnK8S.submit_app") as submit,
+        pytest.raises(ValueError, match="reserves the /configmap"),
+    ):
+        task.execute({"ti": mock.MagicMock(xcom_pull=mock.MagicMock(return_value=None))})
+    submit.assert_not_called()
+
+
 def test_job_spec_reuses_configuration_and_secret_references():
     from spark_on_k8s.airflow.operators import SparkOnK8SOperator
     from spark_on_k8s.jobs import JobSpec

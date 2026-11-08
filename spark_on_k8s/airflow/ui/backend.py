@@ -391,8 +391,11 @@ def create_ui_app(settings: UISettings | None = None) -> FastAPI:
                     await asyncio.gather(*tasks, return_exceptions=True)
         except (WebSocketDisconnect, asyncio.CancelledError):
             raise
-        except Exception:
-            await websocket.close(code=1011)
+        except Exception as error:
+            # Keep the Spark API's "logs unavailable" policy closure distinct from an
+            # interruption; never forward the upstream reason text.
+            received = getattr(error, "rcvd", None)
+            await websocket.close(code=1008 if getattr(received, "code", None) == 1008 else 1011)
         else:
             if websocket.client_state.name != "DISCONNECTED":
                 await websocket.close()

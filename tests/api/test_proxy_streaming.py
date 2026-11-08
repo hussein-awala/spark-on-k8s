@@ -319,3 +319,265 @@ def test_malformed_upstream_location_is_not_rewritten():
         "/webserver/ui/analytics/app-1",
     )
     assert headers["location"] == location
+
+
+@pytest.mark.parametrize("history", [False, True])
+@pytest.mark.parametrize("encoding", [None, "gzip", "deflate"])
+def test_mounted_proxy_rewrites_only_its_quoted_html_paths(monkeypatch, history, encoding):
+    import gzip
+    import zlib
+
+    monkeypatch.setattr(APIConfiguration, "SPARK_ON_K8S_API_SPARK_HISTORY_HOST", "history:18080")
+    base = "/webserver/ui-history" if history else "/webserver/ui/analytics/app-1"
+    prefix = "/platform/spark"
+    document = (
+        f"<link href=\"{base}/static/ui.css\"><a href='{base}/jobs/?id=1#stage'>café</a>"
+        f"<script>setUIRoot('{base}')</script>"
+        f'<a href="{prefix}{base}/jobs/">already mounted</a>'
+        f'<a href="https://example.test{base}/jobs/">external</a>'
+        f'<a href="//example.test{base}/jobs/">external relative scheme</a>'
+        f'<a href="{base}-other/jobs/">different application</a>'
+        '<a href="/unrelated/">unrelated</a>'
+    ).encode()
+    expected = document.replace(f'"{base}/'.encode(), f'"{prefix}{base}/'.encode())
+    expected = expected.replace(f"'{base}".encode(), f"'{prefix}{base}".encode())
+    wire = (
+        gzip.compress(document)
+        if encoding == "gzip"
+        else zlib.compress(document)
+        if encoding == "deflate"
+        else document
+    )
+    body = UpstreamBody()
+    body.chunks = [wire[:17], wire[17:31], wire[31:]]
+    headers = {
+        "content-type": "text/html" if encoding else "text/html; charset=utf-8",
+        "content-length": str(len(wire)),
+        "etag": '"upstream-etag"',
+        "content-md5": "upstream-md5",
+        "digest": "upstream-digest",
+        "cache-control": "no-cache",
+    }
+    if encoding:
+        headers["content-encoding"] = encoding
+    seen = []
+
+    def upstream(request):
+        seen.append(request)
+        return httpx.Response(200, headers=headers, stream=body)
+
+    transport = httpx.AsyncClient(transport=httpx.MockTransport(upstream))
+    app = FastAPI(root_path=prefix)
+    app.include_router(router)
+    try:
+        with mock.patch("spark_on_k8s.api.webserver.AsyncHttpClientSingleton.client", return_value=transport):
+            response = TestClient(app).get(
+                prefix + base + "/jobs/", headers={"X-Forwarded-Context": "/attacker"}
+            )
+        assert response.status_code == 200
+        assert response.content == expected
+        assert response.headers["content-length"] == str(len(expected))
+        for header in ("content-encoding", "etag", "content-md5", "digest"):
+            assert header not in response.headers
+        assert response.headers["cache-control"] == "no-cache"
+        assert "x-forwarded-context" not in seen[0].headers
+        assert body.closed
+    finally:
+        asyncio.run(transport.aclose())
+
+
+@pytest.mark.parametrize("compressed", [False, True])
+def test_mounted_proxy_rejects_oversized_decoded_html_before_sending_a_success(monkeypatch, compressed):
+    import gzip
+
+    from spark_on_k8s.api import webserver
+
+    monkeypatch.setattr(webserver, "_MAX_PROXY_HTML_BYTES", 32)
+    document = b'<a href="/webserver/ui/analytics/app-1/jobs/">' + b"x" * 1000
+    wire = gzip.compress(document) if compressed else document
+    body = UpstreamBody()
+    body.chunks = [wire[:10], wire[10:]]
+    headers = {"content-type": "text/html"}
+    if compressed:
+        headers["content-encoding"] = "gzip"
+    transport = httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda request: httpx.Response(200, headers=headers, stream=body))
+    )
+    app = FastAPI(root_path="/platform/spark")
+    app.include_router(router)
+    try:
+        with mock.patch("spark_on_k8s.api.webserver.AsyncHttpClientSingleton.client", return_value=transport):
+            response = TestClient(app).get("/platform/spark/webserver/ui/analytics/app-1/jobs/")
+        assert response.status_code == 502
+        assert response.json() == {"detail": "Spark UI HTML exceeds the proxy size limit."}
+        assert body.closed
+    finally:
+        asyncio.run(transport.aclose())
+
+
+def test_mounted_proxy_invalid_compressed_html_is_a_closed_upstream_error():
+    body = UpstreamBody()
+    transport = httpx.AsyncClient(
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(
+                200, headers={"content-type": "text/html", "content-encoding": "gzip"}, stream=body
+            )
+        )
+    )
+    app = FastAPI(root_path="/platform/spark")
+    app.include_router(router)
+    try:
+        with mock.patch("spark_on_k8s.api.webserver.AsyncHttpClientSingleton.client", return_value=transport):
+            response = TestClient(app).get("/platform/spark/webserver/ui/analytics/app-1/jobs/")
+        assert response.status_code == 502
+        assert response.json() == {"detail": "Unable to decode Spark UI HTML."}
+        assert body.closed
+    finally:
+        asyncio.run(transport.aclose())
+
+
+@pytest.mark.parametrize(
+    "root_path, content_type, status",
+    [
+        ("", "text/html", 200),
+        ("/platform/spark", "application/javascript", 200),
+        ("/platform/spark", "application/octet-stream", 200),
+        ("/platform/spark", "text/html", 206),
+    ],
+)
+def test_unmounted_html_and_mounted_assets_or_ranges_preserve_wire_bytes(root_path, content_type, status):
+    import gzip
+
+    content = b'<a href="/webserver/ui/analytics/app-1/jobs/">unchanged</a>'
+    wire = gzip.compress(content)
+    body = UpstreamBody()
+    body.chunks = [wire[:8], wire[8:]]
+    transport = httpx.AsyncClient(
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(
+                status,
+                headers={
+                    "content-type": content_type,
+                    "content-encoding": "gzip",
+                    "content-length": str(len(wire)),
+                    "etag": '"same"',
+                },
+                stream=body,
+            )
+        )
+    )
+    app = FastAPI(root_path=root_path)
+    app.include_router(router)
+    try:
+        with mock.patch("spark_on_k8s.api.webserver.AsyncHttpClientSingleton.client", return_value=transport):
+            response = TestClient(app).get(root_path + "/webserver/ui/analytics/app-1/jobs/")
+        assert response.status_code == status
+        assert response.content == content
+        assert response.headers["content-encoding"] == "gzip"
+        assert response.headers["content-length"] == str(len(wire))
+        assert response.headers["etag"] == '"same"'
+        assert body.closed
+    finally:
+        asyncio.run(transport.aclose())
+
+
+def test_mounted_proxy_rejects_unknown_html_encoding_without_relabeling_compressed_bytes():
+    body = UpstreamBody()
+    transport = httpx.AsyncClient(
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(
+                200, headers={"content-type": "text/html", "content-encoding": "unknown"}, stream=body
+            )
+        )
+    )
+    app = FastAPI(root_path="/platform/spark")
+    app.include_router(router)
+    try:
+        with mock.patch("spark_on_k8s.api.webserver.AsyncHttpClientSingleton.client", return_value=transport):
+            response = TestClient(app).get("/platform/spark/webserver/ui/analytics/app-1/jobs/")
+        assert response.status_code == 502
+        assert response.json() == {"detail": "Unsupported Spark UI HTML content encoding."}
+        assert body.closed
+    finally:
+        asyncio.run(transport.aclose())
+
+
+@pytest.mark.parametrize("encoding", ["gzip", "deflate"])
+@pytest.mark.parametrize("damage", ["truncated", "trailing"])
+def test_mounted_proxy_rejects_incomplete_or_trailing_compressed_html(encoding, damage):
+    import gzip
+    import zlib
+
+    content = b'<a href="/webserver/ui/analytics/app-1/jobs/">bounded</a>'
+    wire = gzip.compress(content) if encoding == "gzip" else zlib.compress(content)
+    wire = wire[:-1] if damage == "truncated" else wire + b"unexpected trailing bytes"
+    body = UpstreamBody()
+    body.chunks = [wire[:10], wire[10:]]
+    transport = httpx.AsyncClient(
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(
+                200, headers={"content-type": "text/html", "content-encoding": encoding}, stream=body
+            )
+        )
+    )
+    app = FastAPI(root_path="/platform/spark")
+    app.include_router(router)
+    try:
+        with mock.patch("spark_on_k8s.api.webserver.AsyncHttpClientSingleton.client", return_value=transport):
+            response = TestClient(app).get("/platform/spark/webserver/ui/analytics/app-1/jobs/")
+        assert response.status_code == 502
+        assert response.json() == {"detail": "Unable to decode Spark UI HTML."}
+        assert body.closed
+    finally:
+        asyncio.run(transport.aclose())
+
+
+@pytest.mark.parametrize("encoding", ["gzip", "deflate"])
+def test_mounted_html_decoder_allocation_cannot_exceed_remaining_budget(monkeypatch, encoding):
+    import zlib
+
+    from spark_on_k8s.api import webserver
+
+    budget = 1024
+    monkeypatch.setattr(webserver, "_MAX_PROXY_HTML_BYTES", budget)
+    bits = 16 + zlib.MAX_WBITS if encoding == "gzip" else zlib.MAX_WBITS
+    compressor = zlib.compressobj(wbits=bits)
+    # Construct a tiny wire payload representing16MiB without allocating the expanded document.
+    wire = b"".join(compressor.compress(b"x" * 1024) for _ in range(16384)) + compressor.flush()
+    original_factory = zlib.decompressobj
+    allocations = []
+
+    class ObservedDecoder:
+        def __init__(self, *args):
+            self.decoder = original_factory(*args)
+
+        def decompress(self, data, max_length=0):
+            value = self.decoder.decompress(data, max_length)
+            allocations.append((max_length, len(value)))
+            return value
+
+        def __getattr__(self, name):
+            return getattr(self.decoder, name)
+
+    monkeypatch.setattr(webserver.zlib, "decompressobj", ObservedDecoder)
+    body = UpstreamBody()
+    body.chunks = [wire]
+    transport = httpx.AsyncClient(
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(
+                200, headers={"content-type": "text/html", "content-encoding": encoding}, stream=body
+            )
+        )
+    )
+    app = FastAPI(root_path="/platform/spark")
+    app.include_router(router)
+    try:
+        with mock.patch("spark_on_k8s.api.webserver.AsyncHttpClientSingleton.client", return_value=transport):
+            response = TestClient(app).get("/platform/spark/webserver/ui/analytics/app-1/jobs/")
+        assert response.status_code == 502
+        assert response.json() == {"detail": "Spark UI HTML exceeds the proxy size limit."}
+        assert allocations
+        assert all(0 < limit <= budget + 1 and allocated <= budget + 1 for limit, allocated in allocations)
+        assert body.closed
+    finally:
+        asyncio.run(transport.aclose())

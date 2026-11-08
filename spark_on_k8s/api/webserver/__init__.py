@@ -2,17 +2,18 @@ from __future__ import annotations
 
 import asyncio
 import re
+import zlib
 from contextlib import aclosing
 from functools import wraps
 from pathlib import Path
-from urllib.parse import urljoin, urlsplit, urlunsplit
+from urllib.parse import quote, urljoin, urlsplit, urlunsplit
 
 import httpx
 from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
 from kubernetes_asyncio.client import ApiException
 from starlette.background import BackgroundTask
 from starlette.requests import Request  # noqa: TCH002
-from starlette.responses import HTMLResponse, StreamingResponse
+from starlette.responses import HTMLResponse, Response, StreamingResponse
 from starlette.templating import Jinja2Templates
 
 from spark_on_k8s import __version__
@@ -77,6 +78,61 @@ def _proxy_response_headers(
         path = prefix + path
     headers["location"] = urlunsplit(("", "", path, parsed.query, parsed.fragment))
     return headers
+
+
+_MAX_PROXY_HTML_BYTES = 8 * 1024 * 1024
+
+
+async def _proxy_response(
+    response: httpx.Response, upstream: httpx.URL, request: Request, proxy_path: str
+) -> Response:
+    headers = _proxy_response_headers(response, upstream, request, proxy_path)
+    root_path = request.scope.get("root_path", "").rstrip("/")
+    content_type = response.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+    if root_path and response.status_code == 200 and content_type == "text/html":
+        # Spark's configured proxyBase takes precedence over forwarded context headers.
+        # Read/decompress a bounded document before responding, so an oversized page cannot
+        # become a partially rewritten success response. Other bodies keep streaming raw.
+        body = bytearray()
+        try:
+            encoding = headers.get("content-encoding", "").strip().lower()
+            if encoding not in {"", "identity", "gzip", "deflate"}:
+                raise HTTPException(502, detail="Unsupported Spark UI HTML content encoding.")
+            decoder = (
+                zlib.decompressobj(16 + zlib.MAX_WBITS if encoding == "gzip" else zlib.MAX_WBITS)
+                if encoding in {"gzip", "deflate"}
+                else None
+            )
+            async for raw in response.aiter_raw(chunk_size=65536):
+                # Bound decoder allocation itself, not just chunks yielded after decoding.
+                remaining = _MAX_PROXY_HTML_BYTES - len(body)
+                chunk = decoder.decompress(raw, remaining + 1) if decoder is not None else raw
+                if len(chunk) > remaining:
+                    raise HTTPException(502, detail="Spark UI HTML exceeds the proxy size limit.")
+                body.extend(chunk)
+                if decoder is not None and decoder.unused_data:
+                    raise HTTPException(502, detail="Unable to decode Spark UI HTML.")
+            if decoder is not None and not decoder.eof:
+                raise HTTPException(502, detail="Unable to decode Spark UI HTML.")
+        except zlib.error as error:
+            raise HTTPException(502, detail="Unable to decode Spark UI HTML.") from error
+        finally:
+            await response.aclose()
+        base = proxy_path.encode("ascii")
+        mounted_base = quote(root_path, safe="/%").encode("ascii") + base
+        # Match HTML attributes and Spark's inline JS strings, but not external URLs,
+        # already mounted paths, or another app whose name merely shares this prefix.
+        pattern = re.compile(rb"([\"'])" + re.escape(base) + rb"(?=[/?#\"'])")
+        content = pattern.sub(lambda match: match[1] + mounted_base, bytes(body))
+        for header in ("content-length", "content-encoding", "etag", "content-md5", "digest"):
+            headers.pop(header, None)
+        return Response(content, status_code=response.status_code, headers=headers)
+    return StreamingResponse(
+        response.aiter_raw(),
+        status_code=response.status_code,
+        headers=headers,
+        background=BackgroundTask(response.aclose),
+    )
 
 
 def _origin(value: str) -> tuple[str, str, int] | None:
@@ -165,13 +221,8 @@ async def ui_reverse_proxy(request: Request, path: str):
         request.method, url=url, headers=_proxy_headers(request), content=request.stream()
     )
     reverse_proxy_resp = await async_http_client.send(reverse_proxy_req, stream=True)
-    return StreamingResponse(
-        reverse_proxy_resp.aiter_raw(),
-        status_code=reverse_proxy_resp.status_code,
-        headers=_proxy_response_headers(
-            reverse_proxy_resp, url, request, f"/webserver/ui/{namespace}/{service_name}"
-        ),
-        background=BackgroundTask(reverse_proxy_resp.aclose),
+    return await _proxy_response(
+        reverse_proxy_resp, url, request, f"/webserver/ui/{namespace}/{service_name}"
     )
 
 
@@ -194,12 +245,7 @@ async def spark_history_reverse_proxy(request: Request, path: str):
         request.method, url=url, headers=_proxy_headers(request), content=request.stream()
     )
     reverse_proxy_resp = await async_http_client.send(reverse_proxy_req, stream=True)
-    return StreamingResponse(
-        reverse_proxy_resp.aiter_raw(),
-        status_code=reverse_proxy_resp.status_code,
-        headers=_proxy_response_headers(reverse_proxy_resp, url, request, "/webserver/ui-history"),
-        background=BackgroundTask(reverse_proxy_resp.aclose),
-    )
+    return await _proxy_response(reverse_proxy_resp, url, request, "/webserver/ui-history")
 
 
 current_dir = Path(__file__).parent.absolute()

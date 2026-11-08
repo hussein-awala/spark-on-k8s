@@ -146,6 +146,20 @@ def test_wrapper_returns_dbt_status_and_always_cleans(tmp_path, monkeypatch, suc
     assert get_invocation_owner() is None
 
 
+def test_unusable_receipt_directory_is_an_invocation_error_not_a_dbt_failure(tmp_path, monkeypatch):
+    import dbt.cli.main
+
+    runner = Mock()
+    monkeypatch.setattr(dbt.cli.main, "dbtRunner", lambda: runner)
+    existing = tmp_path / "existing"
+    existing.mkdir()
+    result = CliRunner().invoke(main, ["run", "--receipt-dir", str(existing), "--", "build"])
+    assert result.exit_code == 2, result.exception
+    assert "Managed dbt failed" in result.output
+    runner.invoke.assert_not_called()
+    assert list(existing.iterdir()) == []
+
+
 def test_wrapper_reports_cleanup_failure_and_keeps_dbt_failure(tmp_path, monkeypatch):
     import dbt.cli.main
 
@@ -172,6 +186,32 @@ def test_wrapper_interrupt_restores_signals_and_runs_cleanup(tmp_path, monkeypat
     assert result.exit_code == 130
     assert signal.getsignal(signal.SIGINT) == previous
     assert json.loads((tmp_path / "run/receipt.json").read_text())["dbt_exit_code"] == 130
+
+
+@pytest.mark.parametrize("signum", [signal.SIGINT, signal.SIGTERM])
+def test_interrupt_stops_startup_waits_while_dbt_still_joins_its_workers(tmp_path, monkeypatch, signum):
+    import time
+
+    import dbt.cli.main
+
+    observed = []
+
+    def invoke(args):
+        owner = get_invocation_owner()
+        try:
+            signal.raise_signal(signum)
+        except KeyboardInterrupt:
+            # dbt now cancels connections and joins workers before returning. A
+            # worker still provisioning must see cancellation, not wait for readiness.
+            with pytest.raises(RuntimeError, match="startup was cancelled"):
+                owner._remaining(time.monotonic() + 60)
+            observed.append(signum)
+            raise
+
+    monkeypatch.setattr(dbt.cli.main, "dbtRunner", lambda: SimpleNamespace(invoke=invoke))
+    result = CliRunner().invoke(main, ["run", "--receipt-dir", str(tmp_path / "run"), "--", "build"])
+    assert observed == [signum]
+    assert result.exit_code == 128 + signum
 
 
 def test_transitive_configmap_ownership_survives_executor_disappearance(tmp_path, monkeypatch):
@@ -259,3 +299,55 @@ def test_stalled_startup_does_not_block_cleanup_indefinitely(tmp_path):
         release.set()
         thread.join(2)
     assert not thread.is_alive()
+
+
+def test_cleanup_stops_a_pending_driver_wait_instead_of_leaking_busy_compute(tmp_path, monkeypatch):
+    import threading
+    import time
+    from contextlib import nullcontext
+
+    from spark_on_k8s_dbt import lifecycle
+
+    owner = InvocationOwner(tmp_path / "receipt")
+    owner.state.update(cleanup_timeout=2, server={"run": {"driver_uid": "driver"}})
+    owner.config = SimpleNamespace(poll_interval=0.01, server=SimpleNamespace(namespace="test"))
+    owner.sdk = Mock()
+    owner.sdk.k8s_client_manager.client.side_effect = lambda: nullcontext(object())
+    api = Mock()
+    polled = threading.Event()
+
+    def pending(*args, **kwargs):
+        polled.set()
+        return SimpleNamespace(
+            metadata=SimpleNamespace(uid="driver", deletion_timestamp=None),
+            status=SimpleNamespace(phase="Pending"),
+        )
+
+    api.read_namespaced_pod.side_effect = pending
+    monkeypatch.setattr(lifecycle.k8s, "CoreV1Api", lambda raw: api)
+    owner._validate_identity = Mock()
+    owner._namespace = Mock(return_value=False)
+    failures = []
+
+    def startup():
+        # A worker still waiting for an image pull holds the owner lock.
+        with owner._lock:
+            try:
+                owner._wait_running("app-driver", time.monotonic() + 30)
+            except BaseException as error:
+                failures.append(error)
+
+    thread = threading.Thread(target=startup, daemon=True)
+    thread.start()
+    try:
+        assert polled.wait(2)
+        started = time.monotonic()
+        owner.close(dbt_exit_code=130)
+        assert time.monotonic() - started < 1
+    finally:
+        thread.join(5)
+    assert not thread.is_alive()
+    assert len(failures) == 1 and "cancelled" in str(failures[0])
+    state = json.loads(owner.receipt.read_text())
+    assert state["stage"] == "cleaned" and state["dbt_exit_code"] == 130
+    owner._namespace.assert_called_once_with()

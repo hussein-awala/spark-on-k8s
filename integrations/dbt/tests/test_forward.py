@@ -73,6 +73,21 @@ def test_refresh_restarts_exited_real_tunnel_and_closes_each_process(tmp_path, f
     assert second.stdout.closed and not forward.reader.is_alive()
 
 
+def test_terminal_interrupt_to_the_wrapper_group_does_not_reach_the_tunnel(tmp_path, fake_kubectl):
+    (fake_kubectl / "count").write_text("1")  # Skip the fixture's self-exiting first tunnel.
+    config = SimpleNamespace(kube_config_file="/explicit/kubeconfig", kube_context="explicit-context")
+    forward = PortForward(config, "owned-namespace", "owned-driver", 10000)
+    try:
+        assert forward.start(timeout=3) == 41002
+        # Ctrl-C signals the terminal's whole foreground process group. dbt's query
+        # cancellation and session cleanup still use this tunnel afterwards.
+        assert os.getpgid(forward.process.pid) != os.getpgid(0)
+        assert forward.process.poll() is None
+    finally:
+        forward.close()
+    assert forward.process.poll() is not None and forward.process.stdout.closed
+
+
 def test_refresh_keeps_a_running_tunnel(tmp_path):
     owner = InvocationOwner(tmp_path / "receipt")
     owner.forward = Mock()

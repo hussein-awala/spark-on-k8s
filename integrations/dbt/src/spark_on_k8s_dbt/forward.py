@@ -33,7 +33,12 @@ class PortForward:
             "pod/" + self.pod,
             f":{self.port}",
         ]
-        self.process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        # A terminal Ctrl-C signals its whole foreground process group. Keep the tunnel
+        # out of that group: dbt still sends cancellation and session-close requests
+        # through it, and close() remains responsible for stopping it.
+        self.process = subprocess.Popen(
+            command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, start_new_session=True
+        )
         deadline = time.monotonic() + timeout
         try:
             with selectors.DefaultSelector() as selector:

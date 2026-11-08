@@ -39,6 +39,13 @@ class UpstreamBody(httpx.AsyncByteStream):
             "https://history.example:18443",
             "https://history.example:18443/history/app-1/jobs/",
         ),
+        # A scheme-less host whose name merely starts with "http", such as the chart's
+        # "<release>-spark-on-k8s-history" Service for a release named "http-gateway".
+        (
+            "/webserver/ui-history/history/app-1/jobs/",
+            "http-gateway-history.spark.svc.cluster.local:18080",
+            "http://http-gateway-history.spark.svc.cluster.local:18080/history/app-1/jobs/",
+        ),
     ],
 )
 @pytest.mark.parametrize("root_path", ["", "/platform/spark"])
@@ -578,6 +585,47 @@ def test_mounted_html_decoder_allocation_cannot_exceed_remaining_budget(monkeypa
         assert response.json() == {"detail": "Spark UI HTML exceeds the proxy size limit."}
         assert allocations
         assert all(0 < limit <= budget + 1 and allocated <= budget + 1 for limit, allocated in allocations)
+        assert body.closed
+    finally:
+        asyncio.run(transport.aclose())
+
+
+@pytest.mark.parametrize("root_path", ["/platform/spark", ""])
+def test_proxy_does_not_forward_upstream_hop_by_hop_framing_headers(root_path):
+    # A rewritten mounted page gets a new Content-Length. Forwarding the upstream
+    # Transfer-Encoding beside it emits conflicting framing headers (RFC 9112 6.2).
+    content = b'<a href="/webserver/ui/analytics/app-1/jobs/">chunked upstream page</a>'
+    body = UpstreamBody()
+    body.chunks = [content[:20], content[20:]]
+    transport = httpx.AsyncClient(
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(
+                200,
+                headers={
+                    "content-type": "text/html",
+                    "transfer-encoding": "chunked",
+                    "connection": "keep-alive, x-upstream-hop",
+                    "keep-alive": "timeout=30",
+                    "x-upstream-hop": "connection-scoped",
+                    "x-upstream": "spark",
+                },
+                stream=body,
+            )
+        )
+    )
+    app = FastAPI(root_path=root_path)
+    app.include_router(router)
+    try:
+        with mock.patch("spark_on_k8s.api.webserver.AsyncHttpClientSingleton.client", return_value=transport):
+            response = TestClient(app).get(root_path + "/webserver/ui/analytics/app-1/jobs/")
+        assert response.status_code == 200
+        for header in ("transfer-encoding", "connection", "keep-alive", "x-upstream-hop"):
+            assert header not in response.headers
+        assert response.headers["x-upstream"] == "spark"
+        expected = content.replace(b'"/webserver', f'"{root_path}/webserver'.encode())
+        assert response.content == expected
+        if root_path:
+            assert response.headers["content-length"] == str(len(expected))
         assert body.closed
     finally:
         asyncio.run(transport.aclose())

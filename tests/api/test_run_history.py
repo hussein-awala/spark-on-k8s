@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import base64
+import dataclasses
+import re
 import sqlite3
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
@@ -83,6 +86,16 @@ def test_history_config_pagination_filtering_and_disappearance(api):
     assert client.get("/runs/v1", params={"limit": 1000}).status_code == 422
 
 
+@pytest.mark.parametrize("first, status", [("1" + "0" * 400, 400), (str(2**70), 200)])
+def test_out_of_range_cursor_is_not_reported_as_history_unavailability(api, first, status):
+    client = api[0]
+    payload = '{"first":' + first + ',"uid":"x","filters":[null,null,"all",["analytics"]]}'
+    response = client.get("/runs/v1", params={"cursor": base64.urlsafe_b64encode(payload.encode()).decode()})
+    assert response.status_code == status
+    if status == 400:
+        assert response.json()["detail"]["code"] == "invalid_cursor"
+
+
 def test_liveness_probe_auth_exception_is_extended_only_to_ready_and_not_metrics(api, monkeypatch):
     _, _, _, _, k8s = api
     monkeypatch.setattr(
@@ -154,6 +167,31 @@ def test_metrics_are_low_cardinality_operational_counts_only(api):
     with sqlite3.connect(store.path) as db:
         db.execute("DELETE FROM collection")
     assert 'spark_on_k8s_collection_age_seconds{namespace="analytics"} -1.000' in client.get("/metrics").text
+
+
+def test_metric_families_are_single_groups_for_multiple_namespaces(api, monkeypatch):
+    client, store, lease, settings, _ = api
+    configured = dataclasses.replace(settings, namespaces=("analytics", "batch"))
+    monkeypatch.setattr(run_history, "get_history_settings", lambda: configured)
+    store.snapshot("batch", [record("batch-run", "batch")], lease)
+    groups = []
+    for line in client.get("/metrics").text.splitlines():
+        name = line.split()[2] if line.startswith("# ") else re.split(r"[{ ]", line, maxsplit=1)[0]
+        if not groups or groups[-1][0] != name:
+            groups.append((name, []))
+        groups[-1][1].append(line)
+    names = [name for name, _ in groups]
+    # The text exposition format requires each family's lines to be one group, metadata first.
+    assert len(names) == len(set(names)) == 5
+    for name, lines in groups:
+        metadata = [line for line in lines if line.startswith("#")]
+        assert lines[: len(metadata)] == metadata
+        assert any(line.startswith(f"# TYPE {name} ") for line in metadata)
+        assert len(lines) > len(metadata)
+    assert (
+        'spark_on_k8s_runs_recorded{namespace="batch",status="Running"} 1'
+        in dict(groups)["spark_on_k8s_runs_recorded"]
+    )
 
 
 def test_unavailable_database_returns_generic_history_and_metrics_errors(api):

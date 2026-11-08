@@ -5,6 +5,7 @@ from unittest import mock
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from kubernetes_asyncio.client import ApiException
 from spark_on_k8s.api.app import router
 
 
@@ -32,6 +33,31 @@ def test_kill_app_forwards_the_target_and_returns_success():
     assert response.status_code == 200
     assert response.content == b""
     manager_class.return_value.kill_app.assert_awaited_once_with(namespace="analytics", app_id="app-1")
+
+
+@pytest.mark.parametrize(
+    "error, status",
+    [
+        # The driver finished, disappeared or is ambiguous between listing and the action.
+        (ValueError("Pod private-driver is not running"), 409),
+        (ValueError("No pods found for app private-app"), 409),
+        (ValueError("Multiple driver pods found for app private-app; use a run receipt"), 409),
+        (ApiException(status=404, reason="private Kubernetes body"), 404),
+        (ApiException(status=403, reason="private Kubernetes body"), 403),
+        (ApiException(status=409, reason="private Kubernetes body"), 409),
+        (ApiException(status=500, reason="private Kubernetes body"), 500),
+    ],
+)
+@pytest.mark.parametrize("method, manager_method", [("PATCH", "kill_app"), ("DELETE", "delete_app")])
+def test_app_action_reports_target_state_errors_with_their_status(method, manager_method, error, status):
+    # The Airflow task UI relays 403/404/409 as specific messages and every other status as unavailable.
+    app = FastAPI()
+    app.include_router(router)
+    with mock.patch("spark_on_k8s.api.app.AsyncSparkAppManager") as manager_class:
+        setattr(manager_class.return_value, manager_method, mock.AsyncMock(side_effect=error))
+        response = TestClient(app).request(method, "/app/analytics/app-1")
+    assert response.status_code == status
+    assert "private" not in response.text
 
 
 @pytest.mark.parametrize("method, manager_method", [("PATCH", "kill_app"), ("DELETE", "delete_app")])

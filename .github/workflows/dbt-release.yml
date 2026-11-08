@@ -1,0 +1,90 @@
+name: dbt-release
+
+# Manual only: every tag push starts the main package release and documentation
+# workflows, so the separately versioned adapter is not released from a tag.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'dbt-spark-on-k8s version declared in integrations/dbt (for example 0.1.0a1)'
+        required: true
+      publish:
+        description: 'Upload to PyPI after verification; otherwise verify only'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dbt-release
+  cancel-in-progress: false
+  queue: max
+
+jobs:
+  verify:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.7"
+      - name: Check adapter versions and the released SDK requirement
+        env:
+          DBT_VERSION: ${{ inputs.version }}
+        run: python3 scripts/dbt_release.py --version "$DBT_VERSION"
+      - name: Require both dbt Kubernetes transports for this exact commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DBT_VERSION: ${{ inputs.version }}
+        run: |
+          python3 scripts/release_eligibility.py \
+            --repository "$GITHUB_REPOSITORY" --commit "$(git rev-parse HEAD)" \
+            --version "$DBT_VERSION" --workflow dbt-kubernetes.yml --timeout-seconds 1800 \
+            --output "$RUNNER_TEMP/dbt-eligibility/eligibility.json"
+      - name: Build distributions without the checkout SDK source
+        run: |
+          uv lock --check --project integrations/dbt
+          uv build --project integrations/dbt --no-sources --out-dir dist
+      - name: Install the wheel with published dependencies and run its tests
+        run: |
+          unset CONDA_DEFAULT_ENV CONDA_PREFIX VIRTUAL_ENV
+          uv python install 3.12
+          uv venv --python "$(uv python find --managed-python 3.12)" "$RUNNER_TEMP/verify"
+          uv pip install --python "$RUNNER_TEMP/verify/bin/python" dist/*.whl "pytest>=9.2.0,<10"
+          uv pip check --python "$RUNNER_TEMP/verify/bin/python"
+          "$RUNNER_TEMP/verify/bin/python" -I -m pytest -p no:cacheprovider integrations/dbt/tests
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dbt-release-dists
+          path: dist/
+          if-no-files-found: error
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dbt-release-eligibility
+          path: ${{ runner.temp }}/dbt-eligibility/
+          if-no-files-found: error
+
+  pypi-publish:
+    runs-on: ubuntu-26.04
+    needs: verify
+    if: inputs.publish
+    environment:
+      name: pypi-dbt
+      url: https://pypi.org/p/dbt-spark-on-k8s
+    permissions:
+      id-token: write
+    steps:
+      - name: Retrieve verified distributions
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: dbt-release-dists
+          path: dist/
+      - name: Publish the adapter to PyPI
+        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3

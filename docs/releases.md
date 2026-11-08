@@ -52,7 +52,7 @@ are published by different workflows and must not be forced to share a number:
 | `spark-on-k8s` wheel/sdist and API image | Bare `X.Y.Z` tag | `release.yml` on the tag push | Exact qualified commit |
 | Versioned documentation | Same tag | `deploy-doc.yml` on the tag push | Same eligibility record |
 | Helm chart | `chart_version` input; `appVersion` from `app_version` | Manual `helm-release.yml` | Published API image for `app_version` |
-| Experimental `dbt-spark-on-k8s` | `integrations/dbt/pyproject.toml` | Not automated yet | Published `spark-on-k8s` on PyPI |
+| Experimental `dbt-spark-on-k8s` | `integrations/dbt/pyproject.toml` | Manual `dbt-release.yml` | Published `spark-on-k8s` on PyPI |
 
 Publish in that order. The chart's default image tag is its `appVersion`, so
 releasing the chart before the matching API image exists produces an install that
@@ -118,12 +118,39 @@ edit the GitHub release in the same change so the two stay identical.
 ## Separate experimental dbt distribution
 
 `integrations/dbt` is an opt-in experiment with an independent version and lockfile.
-The main release workflow builds and publishes the root package only; it does not
-publish `dbt-spark-on-k8s`. The experimental package currently pins the development
-SDK from the same checkout. Before changing that pin or publishing the experiment,
-select the actual compatible SDK artifact, update its lockfile, and run both
-transport jobs in `dbt-kubernetes.yml` against the proposed pair. A normal root
-release does not establish compatibility for a separately rebuilt adapter.
+The main release workflow builds and publishes the root package only. The adapter
+is published by `.github/workflows/dbt-release.yml`, which runs only by manual
+dispatch: every tag push starts the package release and documentation workflows,
+so the adapter is not released from a Git tag.
+
+During development the adapter requires the checkout's development SDK version and
+`[tool.uv.sources]` installs that SDK from `../..`. PyPI can never satisfy that
+requirement, and `scripts/dbt_release.py` refuses to publish it. Release the adapter
+only after the SDK version it needs is on PyPI:
+
+1. In a signed PR, set the adapter version in `pyproject.toml`,
+   `dbt/adapters/spark_on_k8s/__version__.py` and `spark_on_k8s_dbt/__init__.py`.
+   Require the released SDK, for example `spark-on-k8s[connect]>=0.13.0,<0.14`,
+   remove the `[tool.uv.sources]` path entry and regenerate `integrations/dbt/uv.lock`.
+   Change both `dbt-kubernetes.yml` jobs to use the locked SDK instead of reinstalling
+   a wheel built from the checkout, whose development version no longer satisfies
+   the requirement. Update the installation section of the dbt guide.
+2. Make sure `dbt-kubernetes.yml` passed both transport jobs on the merged commit;
+   dispatch it manually on `main` when the push did not run it.
+3. Dispatch `dbt-release` on that commit with the version and `publish` unchecked.
+   It checks that the three version declarations agree and that the SDK requirement
+   names a release, requires the exact-commit `dbt-kubernetes.yml` run through
+   `release_eligibility.py --workflow`, builds with `--no-sources`, installs the
+   wheel with published dependencies, runs `uv pip check` and the adapter tests.
+4. Dispatch it again with `publish` checked. The upload uses PyPI trusted publishing
+   from the `pypi-dbt` environment. Before the first upload, register a pending
+   trusted publisher on PyPI for project `dbt-spark-on-k8s`, this repository,
+   workflow `dbt-release.yml` and environment `pypi-dbt`.
+
+A pre-release version such as `0.1.0a1` needs `pip install --pre` or an exact pin.
+Record the published adapter version, its SDK requirement and the source commit in
+the release record. A normal root release does not establish compatibility for a
+separately rebuilt adapter.
 
 ## Current safeguards
 

@@ -139,6 +139,17 @@ def test_cli_reports_timeout_as_json(tmp_path):
     assert json.loads(result.stdout)["status"] == "error"
 
 
+@pytest.mark.parametrize("value", ["inf", "nan"])
+def test_cli_nonfinite_timeout_is_a_usage_error_before_any_check(tmp_path, value):
+    file = tmp_path / "connect.toml"
+    file.write_text('[profiles.default]\nendpoint="sc://localhost"\ntls=false\n')
+    with patch.object(ConnectProfile, "probe") as probe:
+        result = CliRunner().invoke(connect_cli, ["check", str(file), "--timeout", value, "--output", "json"])
+    assert result.exit_code == 2, result.output
+    assert result.stdout == ""
+    probe.assert_not_called()
+
+
 def test_session_creation_errors_do_not_echo_connection_credentials(monkeypatch):
     builder = MagicMock()
     builder.remote.return_value.create.side_effect = RuntimeError("PRIVATE_CONNECTION")

@@ -99,7 +99,11 @@ def test_missing_optional_dependency_has_readable_json_error(monkeypatch):
             sql_cli, ["submit", "--image", "spark:test", "--sql", "SELECT 1", "--output", "json"]
         )
     assert result.exit_code == 1
-    assert "spark-on-k8s[sql]" in json.loads(result.stdout)["error"]["message"]
+    payload = json.loads(result.stdout)
+    assert "spark-on-k8s[sql]" in payload["error"]["message"]
+    # Preparation failures use the same submit document shape as other submissions.
+    assert payload["run"] is None
+    assert payload["status"] is None
     client.assert_not_called()
 
 

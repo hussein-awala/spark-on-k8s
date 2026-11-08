@@ -7,7 +7,7 @@ from contextlib import contextmanager, nullcontext, redirect_stdout
 
 import click
 from kubernetes.client.exceptions import ApiException
-from urllib3.exceptions import TimeoutError as HTTPTimeoutError
+from urllib3.exceptions import MaxRetryError, NewConnectionError, TimeoutError as HTTPTimeoutError
 
 from spark_on_k8s.utils.spark_app_status import SparkAppStatus
 
@@ -29,6 +29,12 @@ timeout_option = click.option(
     default=None,
     help="Maximum seconds to wait after submission (does not stop or delete the application).",
 )
+
+
+def is_transport_timeout(error: BaseException) -> bool:
+    """Kubernetes request timeouts arrive wrapped in MaxRetryError; refused connections are not timeouts."""
+    reason = error.reason if isinstance(error, MaxRetryError) else error
+    return isinstance(reason, HTTPTimeoutError) and not isinstance(reason, NewConnectionError)
 
 
 def outcome_code(status: SparkAppStatus) -> int:
@@ -55,9 +61,10 @@ def execution(operation: str, namespace: str, output: str):
                 else "Interrupted; the application was not stopped."
             ),
         }
-    except (TimeoutError, HTTPTimeoutError) as error:
-        code = 5
-        result["error"] = {"code": "timeout", "message": str(error)}
+    except (TimeoutError, HTTPTimeoutError, MaxRetryError) as error:
+        timed_out = isinstance(error, TimeoutError) or is_transport_timeout(error)
+        code = 5 if timed_out else 1
+        result["error"] = {"code": "timeout" if timed_out else "operation_error", "message": str(error)}
     except ApiException as error:
         code = 4 if error.status == 404 else 1
         result["error"] = {

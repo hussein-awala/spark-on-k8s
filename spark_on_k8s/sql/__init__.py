@@ -76,7 +76,8 @@ def prepare_sql_options(
     if reserved:
         raise ValueError(f"SQL submission manages these options: {', '.join(sorted(reserved))}")
     if sql_file is not None:
-        sql = Path(sql_file).expanduser().read_text(encoding="utf-8")
+        # utf-8-sig drops an editor byte-order mark, which Spark's SQL parser rejects.
+        sql = Path(sql_file).expanduser().read_text(encoding="utf-8-sig")
     sql_configmap = prepare_sql_configmap(
         sql, source_name=Path(sql_file).name if sql_file is not None else "<inline>"
     )

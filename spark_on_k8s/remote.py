@@ -61,7 +61,9 @@ class RemoteClient:
             http.client.HTTPSConnection if self._url.scheme == "https" else http.client.HTTPConnection
         )
         kwargs = {"context": ssl.create_default_context()} if self._url.scheme == "https" else {}
-        connection = connection_type(self._url.hostname, self._url.port, timeout=self.timeout, **kwargs)
+        # An explicit port stops http.client from parsing the tail of a bare IPv6 address as one.
+        port = connection_type.default_port if self._url.port is None else self._url.port
+        connection = connection_type(self._url.hostname, port, timeout=self.timeout, **kwargs)
         deadline = time.monotonic() + self.timeout
         timer = None
         expired = threading.Event()

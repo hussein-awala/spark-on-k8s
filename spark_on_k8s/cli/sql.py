@@ -77,7 +77,8 @@ def submit(
         prepared = prepare_sql_options(sql=sql, sql_file=sql_file, app_waiter=waiter, **options)
     except (ImportError, OSError, ValueError, TypeError):
         # Preserve the same single-document runtime error format as other submissions.
-        with execution("submit", options["namespace"], output):
+        with execution("submit", options["namespace"], output) as result:
+            result.update(run=None, status=None)
             raise
     else:
         execute_submission(SparkOnK8S(), prepared, output=output, timeout=timeout, receipt_file=receipt_file)

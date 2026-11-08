@@ -299,6 +299,31 @@ def test_connection_failure_is_sanitized_closed_and_not_retried(monkeypatch, tim
     connection.request.assert_not_called()
 
 
+@pytest.mark.parametrize(
+    "url, host, port",
+    [
+        ("http://[::1]/spark", "::1", 80),
+        ("https://[2001:db8::1]/team", "2001:db8::1", 443),
+        ("https://example.test", "example.test", 443),
+        ("https://[2001:db8::1]:8443", "2001:db8::1", 8443),
+    ],
+)
+def test_bracketed_ipv6_url_without_port_uses_the_scheme_default(monkeypatch, url, host, port):
+    import http.client
+
+    attempts = []
+
+    def connect(self):
+        attempts.append((self.host, self.port))
+        raise OSError("not attempted in tests")
+
+    # Exercise the real connection classes; http.client would otherwise parse an IPv6 tail as a port.
+    monkeypatch.setattr(http.client.HTTPConnection, "connect", connect)
+    with pytest.raises(RemoteError):
+        RemoteClient(url, TOKEN).request("plan", DOCUMENT)
+    assert attempts == [(host, port)]
+
+
 def test_deadline_exhausted_during_connect_never_sends_request(monkeypatch):
     from types import SimpleNamespace
     from unittest.mock import Mock

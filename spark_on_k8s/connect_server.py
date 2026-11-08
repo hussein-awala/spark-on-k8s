@@ -281,7 +281,9 @@ def _options(config: ConnectServerConfig, token: str) -> dict:
         "app_path": config.server_jar,
         "namespace": config.namespace,
         "service_account": config.service_account,
-        "app_name": config.app_name[:22].rstrip("-"),
+        # Match submission's name normalization so the planned identity equals the created one;
+        # rollback only deletes a driver whose identity matches the plan.
+        "app_name": re.sub(r"-+", "-", config.app_name[:22]).rstrip("-"),
         "app_id_suffix": lambda: f"-{token}",
         "class_name": _SERVER_CLASS,
         "app_arguments": [],

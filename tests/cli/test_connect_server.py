@@ -317,6 +317,24 @@ def test_kubernetes_errors_do_not_expose_response_bodies(server, code):
     assert json.loads(result.stdout)["error"] is not None
 
 
+@pytest.mark.parametrize(
+    "command, method", [("status", "connect_server_status"), ("delete", "delete_connect_server")]
+)
+def test_bounded_kubernetes_request_timeout_uses_timeout_exit_code(server, command, method):
+    from urllib3.exceptions import MaxRetryError, ReadTimeoutError
+
+    handle, client, _, receipt, _ = server
+    save(handle, receipt)
+    # Bounded helper clients disable urllib3 retries, so a request timeout is wrapped once.
+    reason = ReadTimeoutError(None, "/api/v1/pods", "slow")
+    getattr(client, method).side_effect = MaxRetryError(None, "/api/v1/pods", reason=reason)
+    result = CliRunner().invoke(connect_cli, ["server", command, str(receipt), "--output", "json"])
+    assert result.exit_code == 5, result.output
+    payload = json.loads(result.stdout)
+    assert payload["error"]["code"] == "timeout"
+    assert payload["server"] == handle.to_dict()
+
+
 def test_nonfinite_timeout_is_usage_error_without_cluster_access(server):
     _, _, factory, receipt, _ = server
     result = CliRunner().invoke(connect_cli, ["server", "status", str(receipt), "--timeout", "nan"])

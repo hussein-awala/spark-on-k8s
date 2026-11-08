@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import logging
 import math
 import re
@@ -566,13 +565,8 @@ class SparkOnK8S(LoggingMixin):
             template_content = self._process_executor_template(executor_pod_template)
 
             # ConfigMap names are reused as volume names, which are limited to 63 characters.
-            template_configmap_name = f"{app_id}-executor-template"
-            if len(template_configmap_name) > 63:
-                # Hash the full ID so truncating the readable prefix preserves uniqueness.
-                app_id_digest = hashlib.sha256(app_id.encode("utf-8")).hexdigest()[:32]
-                template_configmap_name = f"{app_id[:12]}-{app_id_digest}-executor-template"
             executor_template_configmap = {
-                "name": template_configmap_name,
+                "name": SparkAppManager._resource_name(app_id=app_id, suffix="-executor-template"),
                 "mount_path": "/opt/spark/executor-template",
                 "sources": [{"name": "executor-template.yaml", "text": template_content}],
             }
@@ -850,6 +844,8 @@ class SparkOnK8S(LoggingMixin):
             app_name = re.sub(r"^[^a-zA-Z]*", "", app_name)
             # Remove trailing dashes
             app_name = re.sub(r"-*$", "", app_name)
+            # A name without letters would otherwise yield an empty or dash-prefixed ID.
+            app_name = app_name or "spark-app"
             app_id = app_name + app_id_suffix_str
             if app_name != original_app_name:
                 self.log(

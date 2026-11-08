@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -174,6 +175,26 @@ def test_sql_dry_run_is_offline_and_preserves_managed_runner_mount():
     assert mounts[0]["name"] == configmap["metadata"]["name"]
     assert template["spec"]["containers"][0]["volumeMounts"][0]["name"] == "template"
     assert "private-query-value" not in json.dumps(plan.to_dict())
+
+
+def test_sql_configmap_volume_name_is_valid_for_long_application_names():
+    with mock.patch("spark_on_k8s.k8s.sync_client.KubernetesClientManager.create_client") as connect:
+        plan = SparkOnK8S().submit_sql(
+            sql="SELECT 1",
+            image="spark:test",
+            app_name="daily-revenue-aggregation-for-the-finance-team-europe",
+            app_id_suffix=lambda: "-20240114121231",
+            dry_run=True,
+        )
+    connect.assert_not_called()
+    assert len(plan.app_id) == 63
+    configmap = next(resource for resource in plan.resources if resource["kind"] == "ConfigMap")
+    pod = next(resource for resource in plan.resources if resource["kind"] == "Pod")
+    name = configmap["metadata"]["name"]
+    assert len(name) <= 63
+    assert re.fullmatch(r"[a-z0-9](?:[a-z0-9-]*[a-z0-9])?", name)
+    assert pod["spec"]["volumes"] == [{"name": name, "configMap": {"name": name}}]
+    assert {"name": name, "mountPath": "/configmap"} in pod["spec"]["containers"][0]["volumeMounts"]
 
 
 def test_non_string_sql_is_rejected_without_submission():

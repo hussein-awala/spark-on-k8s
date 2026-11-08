@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import logging
 import time
 from threading import Event, Timer
@@ -56,6 +57,16 @@ class SparkAppManager(LoggingMixin):
                 warning_id=app_id,
             )
         return f"{app_id[:56]}-driver"
+
+    @staticmethod
+    def _resource_name(*, app_id: str, suffix: str) -> str:
+        """Name an application resource that is also used as a 63-character Pod volume name."""
+        name = f"{app_id}{suffix}"
+        if len(name) <= 63:
+            return name
+        # Hash the full ID so truncating the readable prefix preserves uniqueness.
+        digest = hashlib.sha256(app_id.encode("utf-8")).hexdigest()[:32]
+        return f"{app_id[: 63 - len(digest) - len(suffix) - 1]}-{digest}{suffix}"
 
     def app_status(
         self,
@@ -286,13 +297,13 @@ class SparkAppManager(LoggingMixin):
         """
         with self.k8s_client_manager.client() as client:
             api = k8s.CoreV1Api(client)
-            return [
-                pod.metadata.labels["spark-app-id"]
-                for pod in api.list_namespaced_pod(
-                    namespace=namespace,
-                    label_selector="spark-role=driver",
-                ).items
-            ]
+            drivers = api.list_namespaced_pod(
+                namespace=namespace,
+                label_selector="spark-role=driver",
+            ).items
+            # Other launchers also label drivers; only this client's drivers have an app ID label.
+            labels = [pod.metadata.labels or {} for pod in drivers]
+            return [item["spark-app-id"] for item in labels if "spark-app-id" in item]
 
     def kill_app(
         self,
@@ -700,7 +711,11 @@ class SparkAppManager(LoggingMixin):
         configmap_names = set()
         configmap_mount_paths = set()
         for index, configmap in enumerate(configmaps):
-            configmap_name = configmap.get("name", f"{app_id}-{index}")
+            configmap_name = (
+                configmap["name"]
+                if "name" in configmap
+                else SparkAppManager._resource_name(app_id=app_id, suffix=f"-{index}")
+            )
             if configmap_name in configmap_names:
                 raise ValueError(f"Configmap name {configmap_name} is duplicated")
             configmap_mount_path = configmap["mount_path"]
@@ -714,7 +729,7 @@ class SparkAppManager(LoggingMixin):
                 if "text" in source:
                     data[source["name"]] = source["text"]
                 elif "text_path" in source:
-                    with open(source["text_path"]) as file:
+                    with open(source["text_path"], encoding="utf-8") as file:
                         data[source["name"]] = file.read()
             k8s_configmaps.append(
                 k8s.V1ConfigMap(

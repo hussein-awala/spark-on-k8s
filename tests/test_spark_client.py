@@ -144,6 +144,27 @@ class TestSparkOnK8s:
                 id="none_app_name_with_suffix",
             ),
             pytest.param(
+                "2024",
+                empty_suffix,
+                "spark-app",
+                "spark-app",
+                id="app_name_without_letters_without_suffix",
+            ),
+            pytest.param(
+                "123_456-",
+                default_app_id_suffix,
+                "spark-app",
+                "spark-app-20240114121231",
+                id="app_name_without_letters_with_suffix",
+            ),
+            pytest.param(
+                "9" * 70 + "-report",
+                default_app_id_suffix,
+                "spark-app",
+                "spark-app-20240114121231",
+                id="app_name_letters_removed_by_truncation",
+            ),
+            pytest.param(
                 "custom-app-id-suffix",
                 lambda: "-custom-app-id-suffix",
                 "custom-app-id-suffix",
@@ -174,6 +195,8 @@ class TestSparkOnK8s:
         )
         assert actual_app_name == expected_app_name, "The app name is not as expected"
         assert actual_app_id == expected_app_id, "The app id is not as expected"
+        # The ID names the Service, labels and driver Pod, so it must be a DNS-1035 label.
+        assert re.fullmatch(r"[a-z](?:[a-z0-9-]*[a-z0-9])?", actual_app_id)
 
     @mock.patch("spark_on_k8s.k8s.sync_client.KubernetesClientManager.create_client")
     @mock.patch("kubernetes.client.api.core_v1_api.CoreV1Api.create_namespaced_pod")

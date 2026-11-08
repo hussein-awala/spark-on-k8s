@@ -156,7 +156,8 @@ behavior for environment values.
 Use these properties for non-secret settings: they remain ordinary Spark
 configuration in the driver arguments and may appear in Spark diagnostics. Offline
 plan output redacts their values in both environment entries and configuration
-arguments; raw `ApplicationPlan.resources` retains the actual values for inspection.
+arguments, as it does for `spark.executorEnv.*` values; raw `ApplicationPlan.resources`
+retains the actual values for inspection.
 For credentials, use Kubernetes Secret references in the driver template or the
 Secret options below.
 

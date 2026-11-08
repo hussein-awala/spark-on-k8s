@@ -359,3 +359,18 @@ def test_plan_redacts_literal_environment_values():
         ],
     )
     assert "PRIVATE_VALUE" not in json.dumps(plan.to_dict())
+
+
+def test_plan_redacts_literal_executor_environment_properties():
+    plan = SparkOnK8S().plan_app(
+        image="spark:test",
+        app_path="local:///job.py",
+        spark_conf={"spark.executorEnv.DB_PASS": "PRIVATE_VALUE", "spark.sql.shuffle.partitions": "8"},
+    )
+    shown = plan.to_dict()
+    driver = next(resource for resource in shown["resources"] if resource["kind"] == "Pod")["spec"][
+        "containers"
+    ][0]
+    assert "spark.executorEnv.DB_PASS=<redacted>" in driver["args"]
+    assert "spark.sql.shuffle.partitions=8" in driver["args"]
+    assert "PRIVATE_VALUE" not in json.dumps(shown)

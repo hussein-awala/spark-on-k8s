@@ -68,7 +68,7 @@
   <meta name="documentation-channel" content="develop">
   <meta name="documentation-version" content="develop">
   
-    <meta name="documentation-source" content="193ffc1f0b768d3ab335462ab5238ab49a331842">
+    <meta name="documentation-source" content="100bdeac66ec107e0af0b8fd71d7c0ca02723596">
   
 
   </head>
@@ -108,7 +108,7 @@
     <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
   
   
-    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/193ffc1f0b768d3ab335462ab5238ab49a331842"><code>193ffc1f0b76</code></a>.
+    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/100bdeac66ec107e0af0b8fd71d7c0ca02723596"><code>100bdeac66ec</code></a>.
   
 
           </div>
@@ -5315,7 +5315,7 @@ are published by different workflows and must not be forced to share a number:</
 <tr>
 <td>Experimental <code>dbt-spark-on-k8s</code></td>
 <td><code>integrations/dbt/pyproject.toml</code></td>
-<td>Not automated yet</td>
+<td>Manual <code>dbt-release.yml</code></td>
 <td>Published <code>spark-on-k8s</code> on PyPI</td>
 </tr>
 </tbody>
@@ -5370,12 +5370,38 @@ archived version documentation. Correct historical bodies only deliberately, and
 edit the GitHub release in the same change so the two stay identical.</p>
 <h2 id="separate-experimental-dbt-distribution">Separate experimental dbt distribution<a class="headerlink" href="#separate-experimental-dbt-distribution" title="Permanent link">&para;</a></h2>
 <p><code>integrations/dbt</code> is an opt-in experiment with an independent version and lockfile.
-The main release workflow builds and publishes the root package only; it does not
-publish <code>dbt-spark-on-k8s</code>. The experimental package currently pins the development
-SDK from the same checkout. Before changing that pin or publishing the experiment,
-select the actual compatible SDK artifact, update its lockfile, and run both
-transport jobs in <code>dbt-kubernetes.yml</code> against the proposed pair. A normal root
-release does not establish compatibility for a separately rebuilt adapter.</p>
+The main release workflow builds and publishes the root package only. The adapter
+is published by <code>.github/workflows/dbt-release.yml</code>, which runs only by manual
+dispatch: every tag push starts the package release and documentation workflows,
+so the adapter is not released from a Git tag.</p>
+<p>During development the adapter requires the checkout's development SDK version and
+<code>[tool.uv.sources]</code> installs that SDK from <code>../..</code>. PyPI can never satisfy that
+requirement, and <code>scripts/dbt_release.py</code> refuses to publish it. Release the adapter
+only after the SDK version it needs is on PyPI:</p>
+<ol>
+<li>In a signed PR, set the adapter version in <code>pyproject.toml</code>,
+   <code>dbt/adapters/spark_on_k8s/__version__.py</code> and <code>spark_on_k8s_dbt/__init__.py</code>.
+   Require the released SDK, for example <code>spark-on-k8s[connect]&gt;=0.13.0,&lt;0.14</code>,
+   remove the <code>[tool.uv.sources]</code> path entry and regenerate <code>integrations/dbt/uv.lock</code>.
+   Change both <code>dbt-kubernetes.yml</code> jobs to use the locked SDK instead of reinstalling
+   a wheel built from the checkout, whose development version no longer satisfies
+   the requirement. Update the installation section of the dbt guide.</li>
+<li>Make sure <code>dbt-kubernetes.yml</code> passed both transport jobs on the merged commit;
+   dispatch it manually on <code>main</code> when the push did not run it.</li>
+<li>Dispatch <code>dbt-release</code> on that commit with the version and <code>publish</code> unchecked.
+   It checks that the three version declarations agree and that the SDK requirement
+   names a release, requires the exact-commit <code>dbt-kubernetes.yml</code> run through
+   <code>release_eligibility.py --workflow</code>, builds with <code>--no-sources</code>, installs the
+   wheel with published dependencies, runs <code>uv pip check</code> and the adapter tests.</li>
+<li>Dispatch it again with <code>publish</code> checked. The upload uses PyPI trusted publishing
+   from the <code>pypi-dbt</code> environment. Before the first upload, register a pending
+   trusted publisher on PyPI for project <code>dbt-spark-on-k8s</code>, this repository,
+   workflow <code>dbt-release.yml</code> and environment <code>pypi-dbt</code>.</li>
+</ol>
+<p>A pre-release version such as <code>0.1.0a1</code> needs <code>pip install --pre</code> or an exact pin.
+Record the published adapter version, its SDK requirement and the source commit in
+the release record. A normal root release does not establish compatibility for a
+separately rebuilt adapter.</p>
 <h2 id="current-safeguards">Current safeguards<a class="headerlink" href="#current-safeguards" title="Permanent link">&para;</a></h2>
 <p>Signed commits, explicit tested-commit evidence, compatibility notes and an artifact
 record below are requirements of this contributor workflow. They are stated here
@@ -5590,7 +5616,7 @@ the release complete.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 8, 2026 22:38:25 UTC">November 8, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 8, 2026 22:48:17 UTC">November 8, 2026</span>
   </span>
 
     

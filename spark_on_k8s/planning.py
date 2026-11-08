@@ -18,7 +18,8 @@ def redact(value: Any, *, key: str = "") -> Any:
         return [redact(item) for item in value]
     if isinstance(value, str):
         if "=" in value and (
-            value.startswith("spark.kubernetes.driverEnv.") or _SENSITIVE.search(value.partition("=")[0])
+            value.startswith(("spark.kubernetes.driverEnv.", "spark.executorEnv."))
+            or _SENSITIVE.search(value.partition("=")[0])
         ):
             return value.partition("=")[0] + "=<redacted>"
         value = re.sub(

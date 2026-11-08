@@ -208,6 +208,20 @@ def test_list_apps_selects_drivers_and_returns_application_ids(monkeypatch):
     api.list_namespaced_pod.assert_called_once_with(namespace="analytics", label_selector="spark-role=driver")
 
 
+def test_list_apps_skips_drivers_not_submitted_by_this_client(monkeypatch):
+    # spark-submit cluster mode and other launchers also label drivers with spark-role=driver.
+    api = Mock()
+    native = driver_pod()
+    native.metadata.labels = {"spark-role": "driver", "spark-app-selector": "spark-0123"}
+    unlabeled = driver_pod()
+    unlabeled.metadata.labels = None
+    api.list_namespaced_pod.return_value = SimpleNamespace(items=[native, driver_pod(), unlabeled])
+    monkeypatch.setattr(app_manager.k8s, "CoreV1Api", Mock(return_value=api))
+    manager = app_manager.SparkAppManager(k8s_client_manager=MagicMock())
+
+    assert manager.list_apps("analytics") == ["report-123"]
+
+
 def test_status_with_supplied_client_does_not_acquire_another_client(manager_case):
     status = manager_case.call("app_status", pod_name="actual-driver", client=manager_case.api)
 

@@ -42,7 +42,7 @@ def http_server():
                 self.wfile.flush()
                 release.wait(5)
                 return
-            body = json.dumps(state["body"]).encode()
+            body = state["body"] if isinstance(state["body"], bytes) else json.dumps(state["body"]).encode()
             self.send_response(state["status"])
             self.send_header("Content-Type", "application/json")
             self.send_header("Location", "/token-theft-target")
@@ -215,6 +215,51 @@ def test_response_size_is_bounded(http_server, monkeypatch):
     with pytest.raises(RemoteError) as error:
         RemoteClient(url, TOKEN).request("submit", DOCUMENT)
     assert error.value.code == "invalid_response"
+    assert "inspect existing runs before retrying" in str(error.value)
+
+
+@pytest.mark.parametrize(
+    "status,body",
+    [
+        (201, b"not json"),
+        (201, {"schema_version": 1, "error": None, "operation": "submit", "run": {}}),
+        (200, RECEIPT),
+        (502, b"<html>Bad gateway</html>"),
+    ],
+)
+def test_uncertain_submit_responses_warn_before_any_retry(http_server, tmp_path, monkeypatch, status, body):
+    url, state, requests = http_server
+    state.update(status=status, body=body)
+    file = tmp_path / "job.json"
+    file.write_text(json.dumps(DOCUMENT))
+    monkeypatch.setenv("SPARK_ON_K8S_API_TOKEN", TOKEN)
+    result = CliRunner().invoke(remote_cli, ["submit", str(file), "--api-url", url])
+    assert result.exit_code == 1
+    error = json.loads(result.stdout)["error"]
+    assert error["code"] == "invalid_response"
+    # A success status or gateway failure cannot establish that no run was created.
+    assert error["message"].endswith(
+        "A submission may still have succeeded; inspect existing runs before retrying."
+    )
+    assert len(requests) == 1
+
+
+@pytest.mark.parametrize(
+    "status,body,operation",
+    [
+        (401, b"<html>Sign in</html>", "submit"),
+        (201, b"not json", "plan"),
+    ],
+)
+def test_rejected_or_preview_invalid_responses_do_not_claim_a_possible_submission(
+    http_server, status, body, operation
+):
+    url, state, _ = http_server
+    state.update(status=status, body=body)
+    with pytest.raises(RemoteError) as caught:
+        RemoteClient(url, TOKEN).request(operation, DOCUMENT)
+    assert caught.value.code == "invalid_response"
+    assert "may still have succeeded" not in str(caught.value)
 
 
 @pytest.mark.parametrize(

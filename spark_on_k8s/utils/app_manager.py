@@ -146,6 +146,7 @@ class SparkAppManager(LoggingMixin):
         deadline = WaitDeadline(timeout)
         start_time = time.time()
         termination_statuses = {SparkAppStatus.Succeeded, SparkAppStatus.Failed, SparkAppStatus.Unknown}
+        target = f"Pod {pod_name}" if pod_name is not None else f"App {app_id}"
         with self.k8s_client_manager.client() as client:
             api = k8s.CoreV1Api(client)
             while True:
@@ -157,28 +158,27 @@ class SparkAppManager(LoggingMixin):
                         client=api,
                         **({"request_timeout": deadline.remaining()} if timeout is not None else {}),
                     )
-                    deadline.remaining()
+                    # A final status read within the budget is the outcome, not a timeout.
                     if status in termination_statuses:
                         break
+                    deadline.remaining()
                     if status == SparkAppStatus.Pending:
                         if startup_timeout and start_time + startup_timeout < time.time():
                             raise TimeoutError("App startup timeout")
 
                 except ApiException as e:
                     if e.status == 404:
-                        self.log(
-                            msg=f"Pod {pod_name} was deleted", level=logging.INFO, should_print=should_print
-                        )
+                        self.log(msg=f"{target} was deleted", level=logging.INFO, should_print=should_print)
                         return
                     raise
                 self.log(
-                    msg=f"Pod {pod_name} status is {status}, sleep {poll_interval}s",
+                    msg=f"{target} status is {status}, sleep {poll_interval}s",
                     level=logging.INFO,
                     should_print=should_print,
                 )
                 deadline.sleep(poll_interval)
             self.log(
-                msg=f"Pod {pod_name} finished with status {status.value}",
+                msg=f"{target} finished with status {status.value}",
                 level=logging.INFO,
                 should_print=should_print,
             )

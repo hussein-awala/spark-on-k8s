@@ -108,6 +108,7 @@ class AsyncSparkAppManager(LoggingMixin):
                 are not limited by this deadline.
         """
         termination_statuses = {SparkAppStatus.Succeeded, SparkAppStatus.Failed, SparkAppStatus.Unknown}
+        target = f"Pod {pod_name}" if pod_name is not None else f"App {app_id}"
         async with self.k8s_client_manager.client() as client:
             api = k8s_async.CoreV1Api(client)
             while True:
@@ -125,19 +126,17 @@ class AsyncSparkAppManager(LoggingMixin):
                         sleep_interval = min(poll_interval, remaining)
                 except ApiException as e:
                     if e.status == 404:
-                        self.log(
-                            msg=f"Pod {pod_name} was deleted", level=logging.INFO, should_print=should_print
-                        )
+                        self.log(msg=f"{target} was deleted", level=logging.INFO, should_print=should_print)
                         return
                     raise
                 self.log(
-                    msg=f"Pod {pod_name} status is {status}, sleep {sleep_interval}s",
+                    msg=f"{target} status is {status}, sleep {sleep_interval}s",
                     level=logging.INFO,
                     should_print=should_print,
                 )
                 await asyncio.sleep(sleep_interval)
             self.log(
-                msg=f"Pod {pod_name} finished with status {status.value}",
+                msg=f"{target} finished with status {status.value}",
                 level=logging.INFO,
                 should_print=should_print,
             )

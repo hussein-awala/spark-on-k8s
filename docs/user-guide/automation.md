@@ -54,6 +54,10 @@ a quiet log stream. It does not bound initial resource creation or an external
 Kubernetes credential plugin. The default is unlimited observation. The existing
 `SPARK_ON_K8S_STARTUP_TIMEOUT` remains a separate limit for a pending driver.
 Neither timeout nor interruption automatically kills or deletes the application.
+The deadline is checked before each status or log request and each poll sleep. A
+status returned by a request that started within the budget is reported: a final
+`Succeeded` or `Failed` read at the deadline exits 0 or 3, not 5. A timeout result
+has `status: null`.
 
 To observe a previously submitted application:
 
@@ -186,6 +190,9 @@ receipts without a UID cannot use this command. `accepted: true` means the API
 accepted deletion; it does not establish that executors, volumes or finalizers
 have finished cleanup. `--force` requests zero grace period and still preserves
 the identity checks. No timeout automatically invokes cancellation.
+An unreadable or invalid receipt is a runtime failure (exit 1): the JSON result has
+`run: null`, an empty `namespace` and an `operation_error`. A receipt path that does
+not exist is a CLI usage error (exit 2) without a JSON document.
 
 ## Contract coverage and lifecycle ownership
 
@@ -195,7 +202,9 @@ the identity checks. No timeout automatically invokes cancellation.
 | app status, apps list, app cancel | `--output json` | Versioned result | Query/deletion request succeeded, not data correctness |
 | job validate | `--output json`, per-profile results | Validation failures in result | Offline validation only |
 | job plan | `--output json` | Load/build errors remain Click text | Redacted preview, no reservation |
-| connect check | `--output json` | Bounded check result | Tiny query succeeded on existing server |
+| app diagnose, doctor | `--output json` report | Click text error, exit 1 (including a missing application) | Observed evidence, not a health certification |
+| connect check, connect server | `--output json` | Versioned result | Tiny query succeeded on existing server; server requests accepted |
+| remote plan/submit | JSON by default | Versioned result | Request admitted or accepted, not workload completion |
 | legacy kill/delete/log commands | Text | Text | Signal/deletion request or log observation |
 
 CLI usage errors still follow Click's text/exit-code contract. Do not assume every

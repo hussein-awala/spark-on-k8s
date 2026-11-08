@@ -50,6 +50,25 @@ def test_app_console_bootstraps_without_waiting_for_kubernetes(monkeypatch):
     kubernetes.assert_not_called()
 
 
+@pytest.mark.parametrize(
+    "value,expected",
+    [(None, True), ("true", True), ("True", True), ("TRUE", True), ("false", False), ("False", False)],
+)
+def test_console_action_settings_parse_booleans_like_other_true_false_settings(monkeypatch, value, expected):
+    import runpy
+
+    from spark_on_k8s.api import configuration
+
+    names = ("SPARK_ON_K8S_API_WEBSERVER_APPS_KILL_BUTTON", "SPARK_ON_K8S_API_WEBSERVER_APPS_DELETE_BUTTON")
+    for name in names:
+        if value is None:
+            monkeypatch.delenv(name, raising=False)
+        else:
+            monkeypatch.setenv(name, value)
+    settings = runpy.run_path(configuration.__file__)["APIConfiguration"]
+    assert [getattr(settings, name) for name in names] == [expected, expected]
+
+
 def test_log_page_bootstraps_target_and_tail():
     response = make_client().get("/webserver/logs/analytics/app-1?tail=25")
     assert response.status_code == 200

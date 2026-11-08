@@ -29,6 +29,26 @@ def test_overall_wait_deadline_covers_running_jobs_and_caps_sleep(monkeypatch):
     assert status.call_args.kwargs["request_timeout"] == 3
 
 
+@pytest.mark.parametrize("status", [SparkAppStatus.Succeeded, SparkAppStatus.Failed, SparkAppStatus.Running])
+def test_status_read_completing_at_the_deadline_only_times_out_when_not_terminal(monkeypatch, status):
+    clock = [100.0]
+    monkeypatch.setattr(run, "time", SimpleNamespace(monotonic=lambda: clock[0], sleep=Mock()))
+    manager = app_manager.SparkAppManager(k8s_client_manager=MagicMock())
+
+    def read(**kwargs):
+        # The request started within the budget and its response arrives as the budget expires.
+        clock[0] += kwargs["request_timeout"]
+        return status
+
+    monkeypatch.setattr(manager, "app_status", read)
+    if status == SparkAppStatus.Running:
+        with pytest.raises(TimeoutError, match="wait timeout"):
+            manager.wait_for_app(namespace="spark", pod_name="driver", timeout=3)
+    else:
+        # A known final status is the outcome; the deadline only bounds further requests and sleeps.
+        manager.wait_for_app(namespace="spark", pod_name="driver", timeout=3)
+
+
 def test_quiet_log_watch_is_cancelled_and_closed_at_deadline(monkeypatch):
     real_monotonic = time.monotonic
     clock = [0.0]

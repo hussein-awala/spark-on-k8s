@@ -111,10 +111,21 @@ def test_cancel_cli_not_found_is_a_structured_failure_without_claiming_acceptanc
     cancellation.api.delete_namespaced_pod.assert_not_called()
 
 
+def test_cancel_cli_missing_receipt_is_a_usage_error(cancellation):
+    cancellation.receipt.unlink()
+    result = CliRunner().invoke(
+        app_cli, ["cancel", "--receipt", str(cancellation.receipt), "--output", "json"]
+    )
+    assert result.exit_code == 2
+    assert result.stdout == ""
+    assert "does not exist" in result.stderr
+    cancellation.factory.assert_not_called()
+
+
+@pytest.mark.parametrize("output", ["json", "text"])
 @pytest.mark.parametrize(
     "invalid,expected",
     [
-        ("missing", "does not exist"),
         ("corrupt", "Expecting property name"),
         ("oversize", "exceeds 64 KiB"),
         ("no_uid", "driver_uid"),
@@ -122,11 +133,9 @@ def test_cancel_cli_not_found_is_a_structured_failure_without_claiming_acceptanc
     ],
 )
 def test_cancel_cli_rejects_unusable_receipts_before_cluster_access(
-    cancellation, monkeypatch, invalid, expected
+    cancellation, monkeypatch, invalid, expected, output
 ):
-    if invalid == "missing":
-        cancellation.receipt.unlink()
-    elif invalid == "corrupt":
+    if invalid == "corrupt":
         cancellation.receipt.write_text("{invalid")
     elif invalid == "oversize":
         cancellation.receipt.write_bytes(b" " * 65537)
@@ -139,10 +148,20 @@ def test_cancel_cli_rejects_unusable_receipts_before_cluster_access(
             "spark_on_k8s.cli.receipts.Path.open", Mock(side_effect=PermissionError("receipt read denied"))
         )
     result = CliRunner().invoke(
-        app_cli, ["cancel", "--receipt", str(cancellation.receipt), "--output", "json"]
+        app_cli, ["cancel", "--receipt", str(cancellation.receipt), "--output", output]
     )
-    assert result.exit_code != 0
-    assert expected in result.stderr
+    assert result.exit_code == 1
+    if output == "json":
+        # Like connect server receipt errors, a runtime receipt failure is one versioned document.
+        payload = json.loads(result.stdout)
+        error = payload.pop("error")
+        assert payload == {"schema_version": 1, "operation": "cancel", "namespace": "", "run": None}
+        assert error["code"] == "operation_error"
+        assert expected in error["message"]
+        assert result.stderr == ""
+    else:
+        assert result.stdout == ""
+        assert expected in result.stderr
     cancellation.factory.assert_not_called()
     cancellation.api.delete_namespaced_pod.assert_not_called()
 

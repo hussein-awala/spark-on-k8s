@@ -171,9 +171,11 @@ cancel a server operation or stop a Spark job.
 
 **Requests are never retried automatically.** A timeout, disconnect or Kubernetes failure can
 occur after some or all resources were created. Inspect existing runs before retrying to avoid
-duplicates; partial resources may require operator cleanup. `Idempotency-Key` is explicitly
-rejected until a durable, shared idempotency implementation is available. In-memory deduplication
-would not be reliable across API workers or replicas.
+duplicates; partial resources may require operator cleanup. The CLI also reports
+`invalid_response` with this warning when a submission receives a success or 5xx status whose
+body is not a valid result: the server or a gateway may have accepted the job.
+`Idempotency-Key` is explicitly rejected until a durable, shared idempotency implementation is
+available. In-memory deduplication would not be reliable across API workers or replicas.
 
 Authentication failures return 401, admission denials 403, disabled routes 404, unsupported
 idempotency or invalid JSON 400, oversized bodies 413, unsupported content types 415, and invalid

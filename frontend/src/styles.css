@@ -1176,6 +1176,15 @@
   }
 }
 @media (max-width: 600px) {
+  .spark-console .console-sidebar {
+    flex-wrap: wrap;
+    gap: 16px;
+    padding-inline: 16px;
+  }
+  .spark-console .console-sidebar nav {
+    flex-wrap: wrap;
+    margin-left: 0;
+  }
   .spark-console .console-content,
   .spark-console.console-embedded .console-content {
     padding: 25px 16px;

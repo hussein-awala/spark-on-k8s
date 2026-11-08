@@ -68,7 +68,7 @@
   <meta name="documentation-channel" content="develop">
   <meta name="documentation-version" content="develop">
   
-    <meta name="documentation-source" content="7f62982f960f423ecd86a8af77c3d424006c99e2">
+    <meta name="documentation-source" content="7ad15c37af452335750e8a2e4318fb139a31a724">
   
 
   </head>
@@ -108,7 +108,7 @@
     <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
   
   
-    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/7f62982f960f423ecd86a8af77c3d424006c99e2"><code>7f62982f960f</code></a>.
+    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/7ad15c37af452335750e8a2e4318fb139a31a724"><code>7ad15c37af45</code></a>.
   
 
           </div>
@@ -5201,12 +5201,17 @@ write permission and <code>SPARK_ON_K8S_AIRFLOW_ALLOW_WRITES=true</code>. Log co
 write requests must come from the Airflow page's origin. The Spark API's own
 permissions still apply.</p>
 <p>After the driver pod is deleted, the tab shows only the saved task-local
-application ID with unknown status and an external history link. It disables live
+application ID with unknown status. It offers an external history link only when
+the Spark API reports a configured History Server. It disables live
 logs and actions, and does not fetch history records using XCom alone. The
 external history link requires the event logging and History Server setup
 <a href="#spark-ui-links-and-waiting">described above</a>. While a driver exists and ownership
 is verified, the tab can fetch that application's history metadata through the
 configured Spark API.</p>
+<p>The native tab checks the Spark API configuration before enabling history. An
+unconfigured History Server does not produce a warning; a configured server that
+cannot be reached still does. Older API services without the capability endpoint
+retain live application features but omit optional history links until upgraded.</p>
 
 
 
@@ -5227,7 +5232,7 @@ configured Spark API.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 7, 2026 23:37:11 UTC">November 7, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 8, 2026 00:46:40 UTC">November 8, 2026</span>
   </span>
 
     

@@ -68,7 +68,7 @@
   <meta name="documentation-channel" content="develop">
   <meta name="documentation-version" content="develop">
   
-    <meta name="documentation-source" content="6dc54c1344667c722b7a20a98af7ef3fca7d6329">
+    <meta name="documentation-source" content="701cc5f5a6464020c032f13b700552508683a1df">
   
 
   </head>
@@ -108,7 +108,7 @@
     <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
   
   
-    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/6dc54c1344667c722b7a20a98af7ef3fca7d6329"><code>6dc54c134466</code></a>.
+    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/701cc5f5a6464020c032f13b700552508683a1df"><code>701cc5f5a646</code></a>.
   
 
           </div>
@@ -950,6 +950,8 @@
       
         
       
+        
+      
     
     
     
@@ -1094,6 +1096,34 @@
     
   
     Jupyter notebooks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user-guide/dbt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experimental managed dbt
   
 
     
@@ -4802,6 +4832,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#experimental-dbt-integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Experimental dbt integration
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -4966,6 +5007,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#experimental-dbt-integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Experimental dbt integration
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -5094,6 +5146,10 @@ See <a href="../user-guide/support/">support boundaries</a> before adding a publ
 <tr>
 <td>Jupyter example or helper</td>
 <td>Exact notebook kernel/Kubernetes runner in the Connect workflow, helper failure-path checks, strict docs and download parity</td>
+</tr>
+<tr>
+<td>Experimental dbt adapter</td>
+<td>Separate locked profile, installed plugin/core wheels, lifecycle/cursor tests and both Kubernetes transport jobs</td>
 </tr>
 <tr>
 <td>Starter/example runtime</td>
@@ -5271,6 +5327,25 @@ selected version matrix and local Spark fallback. Local mode is useful additiona
 evidence but does not validate Kubernetes RBAC, pod networking or garbage collection.
 Record workflow URL, tested commit, scenario results and any omitted environment
 in PR/release validation. A failed or unexecuted scenario is not coverage.</p>
+<h2 id="experimental-dbt-integration">Experimental dbt integration<a class="headerlink" href="#experimental-dbt-integration" title="Permanent link">&para;</a></h2>
+<p><code>integrations/dbt/</code> is a separate Python distribution with its own lockfile. Its
+<code>dbt.adapters.spark_on_k8s</code> namespace reuses upstream Spark macros; the
+<code>spark_on_k8s_dbt</code> package owns the full command lifecycle. Changes to either must
+keep server ownership independent from dbt's intermediate connection cleanup.</p>
+<div class="highlight"><pre><span></span><code><span class="nv">UV_PROJECT_ENVIRONMENT</span><span class="o">=</span><span class="s2">"</span><span class="nv">$PWD</span><span class="s2">/.venv-dbt"</span><span class="w"> </span>uv<span class="w"> </span>sync<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--project<span class="w"> </span>integrations/dbt<span class="w"> </span>--locked<span class="w"> </span>--python<span class="w"> </span><span class="m">3</span>.12<span class="w"> </span>--group<span class="w"> </span><span class="nb">test</span>
+uv<span class="w"> </span>build<span class="w"> </span>--wheel<span class="w"> </span>--out-dir<span class="w"> </span>dist/dbt-check
+uv<span class="w"> </span>build<span class="w"> </span>--project<span class="w"> </span>integrations/dbt<span class="w"> </span>--wheel<span class="w"> </span>--out-dir<span class="w"> </span>dist/dbt-check
+uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>--python<span class="w"> </span>.venv-dbt/bin/python<span class="w"> </span>--no-deps<span class="w"> </span>--reinstall<span class="w"> </span>dist/dbt-check/*.whl
+.venv-dbt/bin/python<span class="w"> </span>-I<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> </span>-p<span class="w"> </span>no:cacheprovider<span class="w"> </span>integrations/dbt/tests
+uv<span class="w"> </span>pip<span class="w"> </span>check<span class="w"> </span>--python<span class="w"> </span>.venv-dbt/bin/python
+</code></pre></div>
+<p>Use <code>tests/integration/dbt/run_kubernetes.py</code> as documented in that directory's
+README for real runtime checks. The <strong>Experimental managed dbt</strong> workflow installs
+both wheels and tests Thrift and Connect separately on Spark 4.3.0/Python 3.12,
+with fixtures and cleanup evidence. A mock test or receipt alone does not prove
+SQL execution, table persistence or resource disappearance. Keep the published
+<a href="../user-guide/dbt/">profile and command guide</a> synchronized with this runner.</p>
 
 
 
@@ -5291,7 +5366,7 @@ in PR/release validation. A failed or unexecuted scenario is not coverage.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 8, 2026 13:59:25 UTC">November 8, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 8, 2026 15:11:44 UTC">November 8, 2026</span>
   </span>
 
     

@@ -68,7 +68,7 @@
   <meta name="documentation-channel" content="develop">
   <meta name="documentation-version" content="develop">
   
-    <meta name="documentation-source" content="6dc54c1344667c722b7a20a98af7ef3fca7d6329">
+    <meta name="documentation-source" content="701cc5f5a6464020c032f13b700552508683a1df">
   
 
   </head>
@@ -108,7 +108,7 @@
     <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
   
   
-    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/6dc54c1344667c722b7a20a98af7ef3fca7d6329"><code>6dc54c134466</code></a>.
+    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/701cc5f5a6464020c032f13b700552508683a1df"><code>701cc5f5a646</code></a>.
   
 
           </div>
@@ -950,6 +950,8 @@
       
         
       
+        
+      
     
     
     
@@ -1094,6 +1096,34 @@
     
   
     Jupyter notebooks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user-guide/dbt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experimental managed dbt
   
 
     
@@ -4776,6 +4806,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#separate-experimental-dbt-distribution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Separate experimental dbt distribution
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#current-safeguards" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4944,6 +4985,17 @@
     <span class="md-ellipsis">
       
         Observed practice and its evidence
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#separate-experimental-dbt-distribution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Separate experimental dbt distribution
       
     </span>
   </a>
@@ -5127,6 +5179,14 @@ do not describe analytical review personas as customer feedback.</p>
 be newer than the development version string in <code>pyproject.toml</code> (the inspected
 source had <code>0.11.0-dev</code> while historical releases include <code>0.12.1</code>). Never select
 the next version by incrementing that development string alone.</p>
+<h2 id="separate-experimental-dbt-distribution">Separate experimental dbt distribution<a class="headerlink" href="#separate-experimental-dbt-distribution" title="Permanent link">&para;</a></h2>
+<p><code>integrations/dbt</code> is an opt-in experiment with an independent version and lockfile.
+The main release workflow builds and publishes the root package only; it does not
+publish <code>dbt-spark-on-k8s</code>. The experimental package currently pins the development
+SDK from the same checkout. Before changing that pin or publishing the experiment,
+select the actual compatible SDK artifact, update its lockfile, and run both
+transport jobs in <code>dbt-kubernetes.yml</code> against the proposed pair. A normal root
+release does not establish compatibility for a separately rebuilt adapter.</p>
 <h2 id="current-safeguards">Current safeguards<a class="headerlink" href="#current-safeguards" title="Permanent link">&para;</a></h2>
 <p>Signed commits, explicit tested-commit evidence, compatibility notes and an artifact
 record below are requirements of this contributor workflow. They are stated here
@@ -5337,7 +5397,7 @@ the release complete.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 7, 2026 23:52:59 UTC">November 7, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 8, 2026 15:11:44 UTC">November 8, 2026</span>
   </span>
 
     

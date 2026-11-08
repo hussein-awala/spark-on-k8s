@@ -85,6 +85,37 @@ test.beforeEach(async ({ page }) => {
   await builtPlugin(page);
 });
 
+for (const [label, base] of [
+  ["absolute URL", "https://untrusted.example/"],
+  ["protocol-relative URL", "//untrusted.example/"],
+  ["backslash authority", String.raw`/\\untrusted.example/`],
+  ["JavaScript URL", "javascript:void(0)"],
+  ["data URL", "data:text/html,fixture"],
+  ["unknown path", "/unsupported/"],
+]) {
+  test(`host fixture rejects ${label} before loading the plugin`, async ({
+    page,
+  }) => {
+    const errors: string[] = [];
+    const pluginScripts: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    page.on("request", (request) => {
+      if (request.url().includes("spark-on-k8s/static/airflow.js"))
+        pluginScripts.push(request.url());
+    });
+    const requests = await api(page);
+    await page.goto(
+      `/tests/airflow-fixture.html?${new URLSearchParams({ base })}`,
+    );
+    await expect
+      .poll(() => errors)
+      .toContain("Unsupported Airflow fixture base path");
+    await expect(page.locator("base")).toHaveCount(0);
+    expect(pluginScripts).toEqual([]);
+    expect(requests).toEqual([]);
+  });
+}
+
 test("native bundle shares host React and binds every request to the task under an Airflow prefix", async ({
   page,
 }) => {

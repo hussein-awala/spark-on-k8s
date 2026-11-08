@@ -4,7 +4,7 @@ FROM amazoncorretto:${JAVA_VERSION} AS dependencies
 RUN yum install -y curl
 
 ARG IVY_VERSION=2.5.2
-RUN curl -L -o ivy.jar "http://search.maven.org/remotecontent?filepath=org/apache/ivy/ivy/${IVY_VERSION}/ivy-${IVY_VERSION}.jar"
+RUN curl -fsSL --proto '=https' -o ivy.jar "https://repo1.maven.org/maven2/org/apache/ivy/ivy/${IVY_VERSION}/ivy-${IVY_VERSION}.jar"
 
 ARG STORAGE_BACKEND=local
 ARG HADOOP_VERSION=3.3.4

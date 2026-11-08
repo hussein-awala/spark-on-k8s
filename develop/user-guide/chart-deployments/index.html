@@ -68,7 +68,7 @@
   <meta name="documentation-channel" content="develop">
   <meta name="documentation-version" content="develop">
   
-    <meta name="documentation-source" content="eef0b8d97f663d99b18234c1b239dfd415cc8ece">
+    <meta name="documentation-source" content="c8d103f0f7d4fc34ef08b856895b4921171558ff">
   
 
   </head>
@@ -108,7 +108,7 @@
     <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
   
   
-    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/eef0b8d97f663d99b18234c1b239dfd415cc8ece"><code>eef0b8d97f66</code></a>.
+    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/c8d103f0f7d4fc34ef08b856895b4921171558ff"><code>c8d103f0f7d4</code></a>.
   
 
           </div>
@@ -1461,6 +1461,17 @@
     <span class="md-ellipsis">
       
         Validate before installation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#preparing-the-next-chart-release" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Preparing the next chart release
       
     </span>
   </a>
@@ -4996,6 +5007,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#preparing-the-next-chart-release" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Preparing the next chart release
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -5026,13 +5048,10 @@ cloud workload identity, or configure applications submitted through the SDK.</p
 <p>The API image uses <code>image.digest</code> when set. Otherwise it uses <code>image.tag</code>; an
 explicitly empty tag opts into that chart's <code>appVersion</code> fallback. A version tag
 is clearer than <code>latest</code>, but only a verified digest fixes the image contents.</p>
-<p>The source chart retains <code>image.tag: latest</code> as its development default. Its
-historical <code>appVersion</code> has not been qualified against the current templates, so
-silently switching the default to that older image would be unsafe. A default
-aligned with a release is deferred until the chart release is qualified. Set an
-explicit approved tag or digest for deployments; do not infer the Python version
-from your checkout or assume <code>latest</code> provides unreleased features. Building or
-rendering the local chart does not build an API image.</p>
+<p>The source chart requires an explicit compatible image tag or digest while its
+<code>appVersion</code> is <code>unreleased</code>. Release packaging sets a qualified application
+version, which becomes the default image tag. Building or rendering the local
+chart does not build an API image.</p>
 <p>The optional History Server has a separate image lifecycle. Enabling
 <code>sparkHistory.enabled</code> requires an explicit <code>sparkHistory.image.tag</code> or
 <code>sparkHistory.image.digest</code>; there is no implicit API-version or <code>latest</code>
@@ -5215,6 +5234,25 @@ access or API server admission. Raw <code>env</code> overrides still take preced
 chart-generated environment settings and remain the operator's responsibility.
 Use the <a href="../../development/">development guide</a> for the Helm regression suite and
 <a href="../../releases/">release guidance</a> for the artifact publication boundary.</p>
+<h2 id="preparing-the-next-chart-release">Preparing the next chart release<a class="headerlink" href="#preparing-the-next-chart-release" title="Permanent link">&para;</a></h2>
+<p>The source chart marks <code>appVersion</code> as <code>unreleased</code> and requires an explicit
+compatible <code>image.tag</code> or <code>image.digest</code>. The release publisher sets the package's
+qualified application version; an empty image tag then selects that version.
+API 0.12.1 does not implement <code>/ready</code> and is not compatible with these probes.
+Do not publish this chart against that older API image.</p>
+<p>Shared RBAC resource names now include the release namespace identity. Existing
+installations can set <code>rbac.legacyNames: true</code> to retain their old names during an
+upgrade. New installations should use the default <code>false</code>, allowing identical
+release names in separate namespaces. To migrate existing installations, render
+and review both RBAC sets, ensure the new bindings exist before removing old
+bindings, and verify access under the service account. Switching the value in a
+normal Helm upgrade replaces the old resources; schedule that transition if a
+brief permissions interruption is unacceptable. Never reuse legacy names for two
+releases managing the same shared scope.</p>
+<p>History configuration updates now roll its Deployment automatically. History
+<code>affinity</code> and <code>tolerations</code> are passed to the Pod. The rare long-name suffix
+collision is disambiguated; existing installations using those colliding names
+need a reviewed recreation because Deployment selectors are immutable.</p>
 
 
 
@@ -5235,7 +5273,7 @@ Use the <a href="../../development/">development guide</a> for the Helm regressi
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 7, 2026 23:37:11 UTC">November 7, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 8, 2026 19:40:11 UTC">November 8, 2026</span>
   </span>
 
     

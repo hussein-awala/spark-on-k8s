@@ -81,6 +81,10 @@
          <lastmod>2026-11-08</lastmod>
     </url>
     <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/reference/spark_on_k8s/connect_server/</loc>
+         <lastmod>2026-11-08</lastmod>
+    </url>
+    <url>
          <loc>https://hussein.awala.fr/spark-on-k8s/develop/reference/spark_on_k8s/diagnostics/</loc>
          <lastmod>2026-11-08</lastmod>
     </url>
@@ -214,6 +218,10 @@
     </url>
     <url>
          <loc>https://hussein.awala.fr/spark-on-k8s/develop/reference/spark_on_k8s/cli/connect/</loc>
+         <lastmod>2026-11-08</lastmod>
+    </url>
+    <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/reference/spark_on_k8s/cli/connect_server/</loc>
          <lastmod>2026-11-08</lastmod>
     </url>
     <url>
@@ -370,6 +378,10 @@
     </url>
     <url>
          <loc>https://hussein.awala.fr/spark-on-k8s/develop/user-guide/spark_connect/</loc>
+         <lastmod>2026-11-08</lastmod>
+    </url>
+    <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/user-guide/spark_connect_server/</loc>
          <lastmod>2026-11-08</lastmod>
     </url>
     <url>

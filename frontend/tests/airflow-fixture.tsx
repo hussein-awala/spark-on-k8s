@@ -25,7 +25,12 @@ declare global {
 
 const query = new URLSearchParams(window.location.search);
 const base = document.createElement("base");
-base.href = query.get("base") || "/airflow/";
+// The fixture exercises these two mounts; never turn a query value into a script origin.
+const requestedBase = query.get("base") || "/airflow/";
+if (requestedBase === "/airflow/") base.href = "/airflow/";
+else if (requestedBase === "/teams/production/airflow/")
+  base.href = "/teams/production/airflow/";
+else throw new Error("Unsupported Airflow fixture base path");
 document.head.append(base);
 const hostGlobals = globalThis as unknown as Record<string, unknown>;
 hostGlobals.React = React;

@@ -791,3 +791,51 @@ def test_invalid_upstream_diagnostics_is_not_exposed_to_task(harness):
         assert response.status_code == 502
         assert response.json()["detail"]["code"] == "invalid_response"
         assert "internal trace" not in response.text
+
+
+def test_native_log_connection_preserves_large_lines_and_following_messages():
+    from spark_on_k8s.airflow.ui.backend import connect_upstream_logs
+    from websockets.asyncio.server import serve
+    from websockets.exceptions import ConnectionClosedOK
+
+    # A valid driver line larger than the WebSocket client's 1 MiB default
+    # previously interrupted the native tab and discarded subsequent output.
+    large_line = "START " + "x" * (1200 * 1024) + " END\n"
+
+    async def run():
+        async def upstream(connection):
+            await connection.send(large_line)
+            await connection.send("job completed\n")
+
+        async with serve(upstream, "127.0.0.1", 0) as server:
+            port = server.sockets[0].getsockname()[1]
+            async with connect_upstream_logs(f"ws://127.0.0.1:{port}/logs") as connection:
+                assert await connection.recv() == large_line
+                assert await connection.recv() == "job completed\n"
+                with pytest.raises(ConnectionClosedOK):
+                    await connection.recv()
+
+    asyncio.run(run())
+
+
+def test_native_log_connection_keeps_a_bounded_message_limit():
+    from spark_on_k8s.airflow.ui.backend import connect_upstream_logs
+    from websockets.asyncio.server import serve
+    from websockets.exceptions import ConnectionClosed, ConnectionClosedError
+
+    async def run():
+        async def upstream(connection):
+            try:
+                await connection.send("x" * (16 * 1024 * 1024 + 1))
+                await connection.wait_closed()
+            except ConnectionClosed:
+                pass
+
+        async with serve(upstream, "127.0.0.1", 0) as server:
+            port = server.sockets[0].getsockname()[1]
+            async with connect_upstream_logs(f"ws://127.0.0.1:{port}/logs") as connection:
+                with pytest.raises(ConnectionClosedError) as rejected:
+                    await connection.recv()
+                assert rejected.value.sent.code == 1009
+
+    asyncio.run(run())

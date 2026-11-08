@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from click.testing import CliRunner
 from spark_on_k8s.cli.connect import connect_cli
-from spark_on_k8s.connect import ConnectError, ConnectProfile
+from spark_on_k8s.connect import ConnectClientUnavailable, ConnectError, ConnectProfile
 
 
 @pytest.mark.parametrize(
@@ -180,8 +180,43 @@ def test_probe_rejects_invalid_worker_results(stdout):
 
 def test_probe_missing_credentials_fails_without_opening_session(monkeypatch):
     monkeypatch.delenv("CONNECT_TEST_MISSING_TOKEN", raising=False)
-    with pytest.raises(ConnectError, match="check failed"):
+    with pytest.raises(ConnectError, match="token environment variable is empty or missing") as error:
         ConnectProfile(endpoint="sc://localhost", token_env="CONNECT_TEST_MISSING_TOKEN").probe(timeout=10)
+    assert not isinstance(error.value, ConnectClientUnavailable)
+
+
+def test_probe_worker_reports_a_missing_client_actionably(monkeypatch, capsys):
+    import io
+
+    from spark_on_k8s.connect import _probe_worker
+
+    monkeypatch.setitem(sys.modules, "pyspark.sql.connect.session", None)
+    monkeypatch.setattr(sys, "stdin", io.StringIO('{"endpoint":"sc://localhost","tls":false}'))
+    assert _probe_worker() == 1
+    result = json.loads(capsys.readouterr().out)
+    assert result["code"] == "client_unavailable"
+    assert "Install spark-on-k8s[connect]" in result["error"]
+
+
+def test_probe_raises_client_unavailable_from_the_worker_result(tmp_path):
+    worker = {
+        "schema_version": 1,
+        "status": "error",
+        "error": "Install the client",
+        "code": "client_unavailable",
+    }
+    with patch(
+        "spark_on_k8s.connect.subprocess.run",
+        return_value=SimpleNamespace(returncode=1, stdout=json.dumps(worker)),
+    ):
+        with pytest.raises(ConnectClientUnavailable, match="Install the client"):
+            ConnectProfile(endpoint="sc://localhost", tls=False).probe()
+    file = tmp_path / "connect.toml"
+    file.write_text('[profiles.default]\nendpoint="sc://localhost"\ntls=false\n')
+    with patch.object(ConnectProfile, "probe", side_effect=ConnectClientUnavailable("Install the client")):
+        result = CliRunner().invoke(connect_cli, ["check", str(file), "--output", "json"])
+    assert result.exit_code == 1
+    assert json.loads(result.stdout)["error"] == "Install the client"
 
 
 @pytest.mark.parametrize("failure", [False, True])

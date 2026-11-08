@@ -12,7 +12,7 @@ from kubernetes.client.exceptions import ApiException
 from urllib3.exceptions import MaxRetryError, NewConnectionError, TimeoutError as TransportTimeoutError
 
 from spark_on_k8s.client import ExecutorInstances, PodResources
-from spark_on_k8s.connect import ConnectError, ConnectProfile
+from spark_on_k8s.connect import ConnectClientUnavailable, ConnectError, ConnectProfile
 from spark_on_k8s.utils.run import RunHandle, WaitDeadline
 
 if TYPE_CHECKING:
@@ -608,6 +608,9 @@ def wait_connect_server_ready(
                     result = profile.probe(
                         timeout=min(5, deadline.remaining()), expected_app_id=handle.run.app_id
                     )
+                except ConnectClientUnavailable:
+                    # A missing local client is not a server state; polling cannot make it ready.
+                    raise
                 except (ConnectError, TimeoutError):
                     pass
                 else:

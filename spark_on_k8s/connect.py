@@ -20,6 +20,13 @@ class ConnectError(ValueError):
     """Invalid connection settings or a failed bounded connection check."""
 
 
+class ConnectClientUnavailable(ConnectError):
+    """This interpreter has no compatible Spark Connect client; retrying cannot succeed."""
+
+
+_CLIENT_UNAVAILABLE = "client_unavailable"
+
+
 @dataclass(frozen=True, kw_only=True)
 class ConnectProfile:
     """Connection to an existing Spark Connect service; no cluster is created."""
@@ -103,7 +110,7 @@ class ConnectProfile:
         try:
             from pyspark.sql.connect.session import SparkSession
         except ImportError:
-            raise ConnectError(
+            raise ConnectClientUnavailable(
                 "Install spark-on-k8s[connect] on Python 3.11–3.14, or a matching pyspark[connect] client."
             ) from None
         try:
@@ -154,10 +161,12 @@ class ConnectProfile:
             raise TimeoutError("Spark Connect check timed out; the server was not stopped.") from None
         if result.returncode:
             try:
-                error = json.loads(result.stdout)["error"]
-            except (ValueError, KeyError, TypeError):
-                error = _CHECK_ERROR
-            raise ConnectError(error)
+                payload = json.loads(result.stdout)
+                error = payload["error"]
+                unavailable = payload.get("code") == _CLIENT_UNAVAILABLE
+            except (ValueError, KeyError, TypeError, AttributeError):
+                error, unavailable = _CHECK_ERROR, False
+            raise (ConnectClientUnavailable if unavailable else ConnectError)(error)
         try:
             payload = json.loads(result.stdout)
             if payload.get("schema_version") != 1 or payload.get("status") != "ok":
@@ -186,12 +195,15 @@ def _probe_worker():
         if expected_app_id is not None:
             payload["app_id"] = app_id
         code = 0
-    except Exception:
+    except Exception as error:
         payload = {
             "schema_version": 1,
             "status": "error",
-            "error": _CHECK_ERROR,
+            # ConnectError messages are fixed text; other errors can echo endpoint credentials.
+            "error": str(error) if isinstance(error, ConnectError) else _CHECK_ERROR,
         }
+        if isinstance(error, ConnectClientUnavailable):
+            payload["code"] = _CLIENT_UNAVAILABLE
         code = 1
     print(json.dumps(payload))
     return code

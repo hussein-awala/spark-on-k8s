@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import subprocess
+import sys
 from unittest import mock
 
 import pytest
@@ -63,3 +65,45 @@ def test_list(mock_uvicorn_run, host, port, workers, log_level, limit_concurrenc
         log_level=expected_log_level,
         limit_concurrency=expected_limit_concurrency,
     )
+
+
+_BLOCK_API_EXTRA = """
+import importlib.abc
+import sys
+
+class BlockApiExtra(importlib.abc.MetaPathFinder):
+    def find_spec(self, fullname, path, target=None):
+        if fullname.split(".")[0] in {"fastapi", "starlette", "httpx", "kubernetes_asyncio", "uvicorn"}:
+            raise ModuleNotFoundError(f"No module named {fullname!r}")
+
+sys.meta_path.insert(0, BlockApiExtra())
+from spark_on_k8s.cli import main
+sys.argv = ["spark-on-k8s", *sys.argv[1:]]
+main()
+"""
+
+
+@pytest.mark.parametrize(
+    "arguments, exit_code, expected",
+    [
+        (["api", "start", "--port", "8001", "--workers", "1"], 1, "pip install 'spark-on-k8s[api]'"),
+        (["api", "--help"], 0, "requires the 'api' extra"),
+    ],
+)
+def test_base_installation_explains_the_missing_api_extra(arguments, exit_code, expected):
+    result = subprocess.run(
+        [sys.executable, "-B", "-c", _BLOCK_API_EXTRA, *arguments], capture_output=True, text=True
+    )
+    assert result.returncode == exit_code, result.stdout + result.stderr
+    assert expected in result.stdout + result.stderr
+    assert "No such command" not in result.stderr
+    assert "Traceback" not in result.stderr
+
+
+@mock.patch.dict("sys.modules", {"uvicorn": None})
+def test_start_without_server_dependency_is_a_cli_error():
+    from spark_on_k8s.cli.api import start
+
+    result = CliRunner().invoke(start, [])
+    assert result.exit_code == 1
+    assert "pip install 'spark-on-k8s[api]'" in result.output

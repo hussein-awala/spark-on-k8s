@@ -184,6 +184,50 @@ test("details show fetch age and paused polling; explicit refresh preserves focu
   ).toBeVisible();
 });
 
+test("details of an application that leaves the list close and resume polling", async ({
+  page,
+}) => {
+  await page.clock.install();
+  let requests = 0;
+  let listed = true;
+  await page.route(/\/webserver\/api\/apps\?/, (route) => {
+    requests += 1;
+    return route.fulfill({
+      json: { items: listed ? [application()] : [], next_cursor: null },
+    });
+  });
+  await page.route("**/diagnostics", (route) =>
+    route.fulfill({ json: { diagnosis } }),
+  );
+  await page.goto("/tests/fixture.html?history=false&refresh=1");
+  await page
+    .getByRole("button", { name: "Daily revenue report", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+  listed = false;
+  await dialog
+    .getByRole("button", { name: "Refresh application snapshot" })
+    .click();
+  await expect(dialog).toBeHidden();
+  await expect(page.getByRole("status")).toContainText(
+    "The selected application is no longer listed",
+  );
+  await expect(
+    page.getByRole("heading", { level: 1, name: /Applications/ }),
+  ).toBeFocused();
+  const before = requests;
+  await page.clock.fastForward(2500);
+  await expect.poll(() => requests).toBeGreaterThan(before);
+  // A later listing of the same application must not reopen stale details.
+  listed = true;
+  await page.clock.fastForward(1500);
+  await expect(
+    page.getByRole("button", { name: "Daily revenue report", exact: true }),
+  ).toBeVisible();
+  await expect(dialog).toBeHidden();
+});
+
 for (const origin of ["row", "dialog"] as const) {
   for (const removed of [false, true]) {
     test(`embedded log navigation restores keyboard orientation from ${origin}; removed=${removed}`, async ({

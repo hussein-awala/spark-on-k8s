@@ -9520,7 +9520,7 @@ function oe({ restoreLogsFor: e, onFocusRestored: t, config: n, transport: r, na
 			N(!0), Ee(null);
 			try {
 				let { app: e, action: t } = j;
-				t === "kill" ? await r.killApp(e.namespace, e.app_id) : await r.deleteApp(e.namespace, e.app_id), Oe(t === "kill" ? `Stop requested for ${e.name || e.app_id}.` : `${e.name || e.app_id} was deleted.`), we(null), t === "delete" && Ce(null), Ne();
+				t === "kill" ? await r.killApp(e.namespace, e.app_id) : await r.deleteApp(e.namespace, e.app_id), Oe(t === "kill" ? `Stop requested for ${e.name || e.app_id}.` : `Deletion requested for ${e.name || e.app_id}.`), we(null), t === "delete" && Ce(null), Ne();
 			} catch (e) {
 				Ee(h(e));
 			} finally {

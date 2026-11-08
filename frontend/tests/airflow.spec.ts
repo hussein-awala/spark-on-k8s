@@ -258,7 +258,11 @@ test("authorized stop and delete retain task coordinates and require confirmed a
     .getByRole("button", { name: "Delete application", exact: true })
     .click();
   await expect(
-    page.getByText("Daily revenue report was deleted."),
+    page.getByText("Deletion requested for Daily revenue report."),
+  ).toBeVisible();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Daily revenue report", exact: true }),
   ).toBeVisible();
   expect(actions.map((request) => request.method())).toEqual([
     "POST",

@@ -216,20 +216,22 @@ test("namespace changes keep URL and sidebar consistent and reject stale respons
   ).toHaveCount(0);
 });
 
-test("destructive actions require confirmation, show server errors, and prevent duplicate requests", async ({
+test("destructive actions confirm requests without claiming delayed deletion has completed", async ({
   page,
 }) => {
   let deleted = false;
+  let listRequests = 0;
   let attempts = 0;
   let release: () => void = () => {};
   const pending = new Promise<void>((resolve) => {
     release = resolve;
   });
-  await page.route(/\/webserver\/api\/apps\?/, (route) =>
-    route.fulfill({
+  await page.route(/\/webserver\/api\/apps\?/, (route) => {
+    listRequests += 1;
+    return route.fulfill({
       json: { items: deleted ? [] : [application()], next_cursor: null },
-    }),
-  );
+    });
+  });
   await page.route("**/app/analytics/report-1", async (route) => {
     expect(route.request().method()).toBe("DELETE");
     attempts += 1;
@@ -241,7 +243,6 @@ test("destructive actions require confirmation, show server errors, and prevent 
         },
       });
     await pending;
-    deleted = true;
     await route.fulfill({ status: 204, body: "" });
   });
   await page.goto("/tests/fixture.html?history=false");
@@ -281,8 +282,17 @@ test("destructive actions require confirmation, show server errors, and prevent 
   release();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(
-    page.getByText("Daily revenue report was deleted."),
+    page.getByText("Deletion requested for Daily revenue report."),
   ).toBeVisible();
+  await expect.poll(() => listRequests).toBe(2);
+  await expect(
+    page.getByRole("button", { name: "Daily revenue report", exact: true }),
+  ).toBeVisible();
+  expect(attempts).toBe(2);
+  // Kubernetes can still list a driver after accepting its deletion.
+  // Only a later authoritative refresh establishes that it has disappeared.
+  deleted = true;
+  await page.getByRole("button", { name: "Refresh", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Daily revenue report", exact: true }),
   ).toHaveCount(0);

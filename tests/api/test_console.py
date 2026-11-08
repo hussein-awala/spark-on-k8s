@@ -53,6 +53,21 @@ def console_client(monkeypatch):
         yield client, api, acquire
 
 
+@pytest.mark.parametrize("host", [None, "", "http://private-history:18080"])
+def test_capabilities_report_configuration_without_probing_services(console_client, monkeypatch, host):
+    client, _, acquire = console_client
+    monkeypatch.setattr(APIConfiguration, "SPARK_ON_K8S_API_SPARK_HISTORY_HOST", host)
+    history_client = AsyncMock()
+    monkeypatch.setattr(console.AsyncHttpClientSingleton, "client", history_client)
+
+    response = client.get("/webserver/api/capabilities")
+    assert response.status_code == 200
+    assert response.json() == {"history_configured": bool(host)}
+    assert "private-history" not in response.text
+    acquire.assert_not_called()
+    history_client.assert_not_called()
+
+
 def test_live_pages_preserve_metadata_and_opaque_continuation(console_client):
     client, api, _ = console_client
     token = "opaque/token+="

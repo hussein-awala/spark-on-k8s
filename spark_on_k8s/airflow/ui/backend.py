@@ -94,6 +94,24 @@ async def upstream(request, method: str, path: str, **kwargs) -> httpx.Response:
     return response
 
 
+async def history_configured(request) -> bool:
+    try:
+        response = await upstream(request, "GET", "webserver/api/capabilities")
+    except HTTPException as error:
+        if error.status_code == 404:
+            # Older services do not expose this capability. Driver logs cannot
+            # establish whether history is configured; do not probe history data.
+            return False
+        raise
+    try:
+        configured = response.json()["history_configured"]
+        if not isinstance(configured, bool):
+            raise ValueError("Expected a history capability boolean")
+    except (ValueError, KeyError, TypeError) as error:
+        raise failure("invalid_response", "The Spark service returned invalid capabilities.", 502) from error
+    return configured
+
+
 async def task_history(request, app_id: str) -> ConsoleHistory:
     response = await upstream(request, "GET", "webserver/api/history")
     try:
@@ -165,7 +183,9 @@ def verified_app_path(binding: TaskBinding, application: ConsoleApplication) -> 
     return f"{quote(binding.namespace, safe='')}/{quote(application.app_id, safe='')}"
 
 
-def external_links(settings: UISettings, binding: TaskBinding, application: ConsoleApplication) -> dict:
+def external_links(
+    settings: UISettings, binding: TaskBinding, application: ConsoleApplication, *, history_enabled: bool
+) -> dict:
     app_id = quote(application.app_id, safe="")
     live_path = f"{quote(binding.namespace, safe='')}/{app_id}"
     public_url = settings.public_url or settings.service_url
@@ -174,7 +194,7 @@ def external_links(settings: UISettings, binding: TaskBinding, application: Cons
         if application.driver_logs and application.spark_ui_proxy
         else None,
         "spark_history_url": f"{public_url}/webserver/ui-history/history/{app_id}"
-        if application.spark_history_proxy or application.driver_logs
+        if history_enabled and (application.spark_history_proxy or application.driver_logs)
         else None,
     }
 
@@ -287,7 +307,9 @@ def create_ui_app(settings: UISettings | None = None) -> FastAPI:
         return {
             "namespace": binding.namespace,
             **permissions,
-            **external_links(settings, binding, application),
+            **external_links(
+                settings, binding, application, history_enabled=await history_configured(request)
+            ),
         }
 
     @app.get("/api/history", response_model=ConsoleHistory)

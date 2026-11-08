@@ -258,9 +258,15 @@ write requests must come from the Airflow page's origin. The Spark API's own
 permissions still apply.
 
 After the driver pod is deleted, the tab shows only the saved task-local
-application ID with unknown status and an external history link. It disables live
+application ID with unknown status. It offers an external history link only when
+the Spark API reports a configured History Server. It disables live
 logs and actions, and does not fetch history records using XCom alone. The
 external history link requires the event logging and History Server setup
 [described above](#spark-ui-links-and-waiting). While a driver exists and ownership
 is verified, the tab can fetch that application's history metadata through the
 configured Spark API.
+
+The native tab checks the Spark API configuration before enabling history. An
+unconfigured History Server does not produce a warning; a configured server that
+cannot be reached still does. Older API services without the capability endpoint
+retain live application features but omit optional history links until upgraded.

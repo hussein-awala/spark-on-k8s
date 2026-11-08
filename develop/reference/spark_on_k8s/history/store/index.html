@@ -68,7 +68,7 @@
   <meta name="documentation-channel" content="develop">
   <meta name="documentation-version" content="develop">
   
-    <meta name="documentation-source" content="75eef91e3361556ace70a581eeed79f2e9d5ca81">
+    <meta name="documentation-source" content="075b1fdbd6bcd649244ed67c06e21779bb968eac">
   
 
   </head>
@@ -108,7 +108,7 @@
     <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
   
   
-    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/75eef91e3361556ace70a581eeed79f2e9d5ca81"><code>75eef91e3361</code></a>.
+    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/075b1fdbd6bcd649244ed67c06e21779bb968eac"><code>075b1fdbd6bc</code></a>.
   
 
           </div>
@@ -5383,7 +5383,9 @@
 <span class="normal">267</span>
 <span class="normal">268</span>
 <span class="normal">269</span>
-<span class="normal">270</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">RunStore</span><span class="p">:</span>
+<span class="normal">270</span>
+<span class="normal">271</span>
+<span class="normal">272</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">RunStore</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Small SQLite metadata store. A fresh bounded connection is used for every operation."""</span>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">retention_days</span><span class="o">=</span><span class="mi">30</span><span class="p">,</span> <span class="n">max_rows</span><span class="o">=</span><span class="mi">10000</span><span class="p">,</span> <span class="n">clock</span><span class="o">=</span><span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">):</span>
@@ -5579,7 +5581,9 @@
                     <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">uid</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span>
                 <span class="p">):</span>
                     <span class="k">raise</span> <span class="ne">ValueError</span>
-            <span class="k">except</span> <span class="p">(</span><span class="ne">ValueError</span><span class="p">,</span> <span class="ne">KeyError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">)</span> <span class="k">as</span> <span class="n">error</span><span class="p">:</span>
+                <span class="c1"># first_seen is REAL; also bounds integers that SQLite cannot bind.</span>
+                <span class="n">first</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">first</span><span class="p">)</span>
+            <span class="k">except</span> <span class="p">(</span><span class="ne">ValueError</span><span class="p">,</span> <span class="ne">KeyError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">,</span> <span class="ne">OverflowError</span><span class="p">)</span> <span class="k">as</span> <span class="n">error</span><span class="p">:</span>
                 <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"Invalid run-list cursor"</span><span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">error</span>
             <span class="n">conditions</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">"(first_seen &lt; ? OR (first_seen = ? AND uid &lt; ?))"</span><span class="p">)</span>
             <span class="n">params</span><span class="o">.</span><span class="n">extend</span><span class="p">((</span><span class="n">first</span><span class="p">,</span> <span class="n">first</span><span class="p">,</span> <span class="n">uid</span><span class="p">))</span>
@@ -5790,7 +5794,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 8, 2026 22:40:02 UTC">November 8, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 8, 2026 22:41:13 UTC">November 8, 2026</span>
   </span>
 
     

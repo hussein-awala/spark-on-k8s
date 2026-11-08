@@ -66,6 +66,16 @@ def prepare_sql_configmap(sql: str, *, allow_empty: bool = False, source_name: s
     }
 
 
+def reserves_sql_mount(path: str, *, template: bool = False) -> bool:
+    """Return whether a mount would replace or shadow the generated SQL ConfigMap.
+
+    Exact template mounts are replaced by the generated mount, so only their
+    descendants conflict.
+    """
+    path = posixpath.normpath("/" + path.lstrip("/"))
+    return (path == SQL_MOUNT_PATH and not template) or path.startswith(SQL_MOUNT_PATH + "/")
+
+
 def prepare_sql_options(
     *, sql: str | None = None, sql_file: str | Path | None = None, **submit_options: Any
 ) -> dict[str, Any]:
@@ -86,12 +96,8 @@ def prepare_sql_options(
     mounts = options.get("driver_volume_mounts")
     mounts = [] if mounts is None or mounts is NOTSET else mounts
 
-    def conflicts(path: str, *, template: bool = False) -> bool:
-        path = posixpath.normpath("/" + path.lstrip("/"))
-        return (path == SQL_MOUNT_PATH and not template) or path.startswith(SQL_MOUNT_PATH + "/")
-
-    if any(conflicts(configmap["mount_path"]) for configmap in configmaps) or any(
-        conflicts(mount.mount_path) for mount in mounts
+    if any(reserves_sql_mount(configmap["mount_path"]) for configmap in configmaps) or any(
+        reserves_sql_mount(mount.mount_path) for mount in mounts
     ):
         raise ValueError(f"SQL submission reserves the {SQL_MOUNT_PATH} mount path and its descendants")
     template = options.get("driver_pod_template")
@@ -112,7 +118,7 @@ def prepare_sql_options(
             )
         driver = next((item for item in containers if item["name"] == selected), None)
         if driver and any(
-            conflicts(mount["mountPath"], template=True) for mount in driver.get("volumeMounts", [])
+            reserves_sql_mount(mount["mountPath"], template=True) for mount in driver.get("volumeMounts", [])
         ):
             raise ValueError(f"SQL driver templates cannot mount descendants of {SQL_MOUNT_PATH}")
     return {

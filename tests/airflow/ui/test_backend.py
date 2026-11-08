@@ -733,6 +733,42 @@ def test_log_source_completion_and_failure_close_browser_stream(harness, monkeyp
         assert closed.wait(1)
 
 
+@pytest.mark.parametrize("upstream_code,close_code", [(1008, 1008), (1011, 1011), (1001, 1011)])
+def test_upstream_log_unavailability_reaches_the_browser_stream(
+    harness, monkeypatch, upstream_code, close_code
+):
+    from airflow.api_fastapi.core_api import security
+    from spark_on_k8s.airflow.ui import backend
+    from starlette.websockets import WebSocketDisconnect
+    from websockets.exceptions import ConnectionClosedError
+    from websockets.frames import Close
+
+    # The Spark API closes with 1008 when the driver's logs are unavailable (for example,
+    # after deletion). The shared console only says "unavailable" for that code; a 1011
+    # tells the user to reconnect, which cannot succeed.
+    class Source:
+        async def __aiter__(self):
+            yield "last line"
+            raise ConnectionClosedError(Close(upstream_code, "private upstream reason"), None)
+
+    @asynccontextmanager
+    async def connect(url):
+        yield Source()
+
+    monkeypatch.setattr(backend, "connect_upstream_logs", connect)
+    monkeypatch.setattr(security, "resolve_user_from_token", mock.AsyncMock(return_value=mock.sentinel.user))
+    with harness() as h:
+        with h.client.websocket_connect(
+            "wss://airflow.example/api/logs?" + urlencode(QUERY),
+            headers={"Origin": "https://airflow.example", "Cookie": f"{security.COOKIE_NAME_JWT_TOKEN}=jwt"},
+        ) as socket:
+            assert socket.receive_text() == "last line"
+            with pytest.raises(WebSocketDisconnect) as ended:
+                socket.receive_text()
+            assert ended.value.code == close_code
+            assert "private" not in str(ended.value.reason)
+
+
 @pytest.mark.parametrize("mutation,status", [(None, 200), ("ownership", 409), ("identity", 409)])
 def test_diagnostics_requires_current_task_ownership(harness, mutation, status):
     import httpx

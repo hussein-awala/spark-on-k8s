@@ -13,7 +13,7 @@ from spark_on_k8s.airflow._compat import BaseOperator, get_current_context
 from spark_on_k8s.airflow.operator_links import SparkOnK8SOperatorLink
 from spark_on_k8s.airflow.triggers import SparkOnK8STrigger
 from spark_on_k8s.k8s.sync_client import KubernetesClientManager
-from spark_on_k8s.sql import prepare_sql_configmap
+from spark_on_k8s.sql import SQL_MOUNT_PATH, prepare_sql_configmap, reserves_sql_mount
 from spark_on_k8s.utils.app_manager import SparkAppManager
 from spark_on_k8s.utils.spark_app_status import SparkAppStatus
 
@@ -589,25 +589,37 @@ class SparkOnK8SOperator(BaseOperator):
         )
         if event["status"] == "startup_timeout":
             self.log.info("Deleting Spark application due to startup timeout...")
-            spark_app_manager.delete_app(
-                namespace=self.namespace,
-                pod_name=self._driver_pod_name,
-            )
-            raise AirflowException("Spark application startup timeout exceeded")
+            failure = AirflowException("Spark application startup timeout exceeded")
+            try:
+                spark_app_manager.delete_app(
+                    namespace=self.namespace,
+                    pod_name=self._driver_pod_name,
+                )
+            except Exception as cleanup_error:
+                # Report the timeout; the trigger event is its only record.
+                raise failure from cleanup_error
+            raise failure
         if self.app_waiter == AppWaiter.LOG and event["status"] != "error":
             spark_app_manager.stream_logs(
                 namespace=event["namespace"],
                 pod_name=event["pod_name"],
             )
         self._persist_spark_history_ui_link(context)
-        self._clean_up(spark_app_manager, event["status"])
         if event["status"] == "Succeeded":
+            self._clean_up(spark_app_manager, event["status"])
             return event["status"]
         if event["status"] == "error":
-            raise AirflowException(
+            failure = AirflowException(
                 f"SparkOnK8STrigger failed: with error: {event['error']}\nStacktrace: {event['stacktrace']}"
             )
-        raise AirflowException(f"The job finished with status: {event['status']}")
+        else:
+            failure = AirflowException(f"The job finished with status: {event['status']}")
+        try:
+            self._clean_up(spark_app_manager, event["status"])
+        except Exception as cleanup_error:
+            # A failed cleanup must not replace the trigger diagnostics or Spark outcome.
+            raise failure from cleanup_error
+        raise failure
 
     def on_kill(self) -> None:
         if self.on_kill_action == OnKillAction.KEEP:
@@ -670,5 +682,12 @@ class SparkSqlOnK8SOperator(SparkOnK8SOperator):
         self.sql = sql
 
     def execute(self, context: Context):
-        self.driver_ephemeral_configmaps_volumes = [prepare_sql_configmap(self.sql, allow_empty=True)]
+        # Like the SDK and CLI SQL paths, keep user ConfigMaps and add the generated statements.
+        configmaps = list(self.driver_ephemeral_configmaps_volumes or [])
+        if any(reserves_sql_mount(configmap["mount_path"]) for configmap in configmaps):
+            raise ValueError(f"SQL submission reserves the {SQL_MOUNT_PATH} mount path and its descendants")
+        self.driver_ephemeral_configmaps_volumes = [
+            *configmaps,
+            prepare_sql_configmap(self.sql, allow_empty=True),
+        ]
         return super().execute(context)

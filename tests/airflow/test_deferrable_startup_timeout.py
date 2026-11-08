@@ -90,6 +90,28 @@ def test_timeout_completion_cleans_up_before_attempting_logs():
     manager.return_value.stream_logs.assert_not_called()
 
 
+def test_cleanup_failure_does_not_hide_deferred_startup_timeout():
+    from airflow.exceptions import AirflowException
+    from spark_on_k8s.airflow.operators import SparkOnK8SOperator
+
+    operator = SparkOnK8SOperator(
+        task_id="startup_cleanup_failure",
+        image="spark:test",
+        app_path="local:///app.py",
+        deferrable=True,
+        startup_timeout=10,
+    )
+    cleanup_error = RuntimeError("delete request failed")
+    with mock.patch("spark_on_k8s.airflow.operators.SparkAppManager") as manager:
+        manager.return_value.delete_app.side_effect = cleanup_error
+        with pytest.raises(AirflowException, match="Spark application startup timeout exceeded") as failure:
+            operator.execute_complete(
+                {}, {"namespace": "spark", "pod_name": "driver", "status": "startup_timeout"}
+            )
+    assert failure.value.__cause__ is cleanup_error
+    manager.return_value.delete_app.assert_called_once_with(namespace="spark", pod_name="driver")
+
+
 def test_network_timeout_remains_an_error_event():
     from spark_on_k8s.airflow.triggers import SparkOnK8STrigger
 

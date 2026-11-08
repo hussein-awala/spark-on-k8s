@@ -110,6 +110,8 @@ spec:
             httpGet:
               path: /ready
               port: http
+            # Matches the API's bounded readiness check (READY_TIMEOUT); the 1s default cuts it short.
+            timeoutSeconds: 5
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           {{- if or .Values.runHistory.enabled .Values.volumeMounts }}

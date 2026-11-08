@@ -35,7 +35,9 @@ The current repository workflows are the source of truth for mechanics:
   publishes that documentation version. Only the highest stable numeric version
   can update the `latest` alias.
 - `.github/workflows/helm-release.yml`: independent manual dispatch with
-  `app_version` and `chart_version`, publishing to the chart repository.
+  `app_version` and `chart_version`, publishing to the chart repository. It
+  rejects an unpublished or pre-`/ready` API image and an already published chart
+  version before packaging.
 
 Read these files at the candidate commit before acting. Existing release tags can
 be newer than the development version string in `pyproject.toml` (the inspected

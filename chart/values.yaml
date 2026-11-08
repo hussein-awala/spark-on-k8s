@@ -148,7 +148,7 @@ sparkHistory:
       tag: ""
       # Optional immutable sha256 digest; takes precedence over tag.
       digest: ""
-    # Annotations to be added to the Spark History Server pods
+    # A list of environment variables to be added to the Spark History Server container
     env: []
     # The resource configuration for the Spark History Server
     resources: {}
@@ -180,22 +180,31 @@ sparkHistory:
         type: ClusterIP
         # The port to expose the service on
         port: 18080
+    # The node selector for the Spark History Server pods
+    nodeSelector: {}
+    # The affinity for the Spark History Server pods
     affinity: {}
+    # The tolerations for the Spark History Server pods
     tolerations: []
     # The Spark configuration for the Spark History Server
     configuration: ""
 
 # Optional operational metadata recorder; separate from Spark History Server event logs.
 runHistory:
+  # Requires replicaCount 1, autoscaling disabled, namespaces and existingClaim.
   enabled: false
   # Explicit namespaces; the API service account must be able to list driver pods in each.
   namespaces: []
   # Existing ReadWriteOnce block-backed claim. SQLite WAL must not use NFS/SMB.
   existingClaim: ""
+  # Seconds between driver-pod collection passes (5-3600)
   intervalSeconds: 30
+  # Days to retain recorded runs (1-3650)
   retentionDays: 30
+  # Maximum number of retained run records (1-1000000)
   maxRows: 10000
 
 # Prometheus text endpoint; remote mode requires the same operator bearer token.
 metrics:
+  # Serve /metrics from the API
   enabled: false

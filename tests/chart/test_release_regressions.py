@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -92,6 +94,44 @@ def test_stop_permission_and_authenticated_health_hook(tmp_path):
     assert "/ready" in hook["spec"]["containers"][0]["args"][-1]
     assert "wget -T 5" in hook["spec"]["containers"][0]["args"][-1]
     assert hook["spec"]["activeDeadlineSeconds"] == 90
+
+
+def test_values_reused_from_published_chart_fail_schema_instead_of_rendering(tmp_path):
+    # `helm upgrade --reuse-values` replaces this chart's defaults with the previous release's
+    # coalesced values, so maps added after published chart 0.3.0 are absent, not defaulted.
+    reused = tmp_path / "reused"
+    shutil.copytree(CHART, reused)
+    values = yaml.safe_load((reused / "values.yaml").read_text())
+    for key in ("rbac", "runHistory", "metrics"):
+        del values[key]
+    (reused / "values.yaml").write_text(yaml.safe_dump(values))
+    result = subprocess.run(["helm", "template", "console", str(reused)], capture_output=True, text=True)
+    assert result.returncode != 0
+    assert "nil pointer" not in result.stderr
+    assert "missing properties" in result.stderr
+    assert all(f"'{key}'" in result.stderr for key in ("rbac", "runHistory", "metrics"))
+
+
+def test_notes_name_console_path_and_tls_ingress_origin_setting(tmp_path):
+    kubeconfig = tmp_path / "kubeconfig"
+    kubeconfig.write_text("")  # Client-side dry run; never read the caller's cluster context.
+
+    def notes(*settings):
+        result = subprocess.run(
+            ["helm", "install", "console", str(CHART), "--dry-run=client", *settings],
+            capture_output=True,
+            text=True,
+            env={**os.environ, "KUBECONFIG": str(kubeconfig)},
+        )
+        assert result.returncode == 0, result.stderr
+        return result.stdout.partition("NOTES:")[2]
+
+    tls = ["--set", "ingress.enabled=true", "--set", "ingress.tls[0].secretName=tls"]
+    origins = ["--set", "env[0].name=SPARK_ON_K8S_API_WEBSOCKET_ALLOWED_ORIGINS"]
+    assert "/webserver/apps" in notes()
+    assert "SPARK_ON_K8S_API_WEBSOCKET_ALLOWED_ORIGINS" not in notes()
+    assert "SPARK_ON_K8S_API_WEBSOCKET_ALLOWED_ORIGINS" in notes(*tls)
+    assert "SPARK_ON_K8S_API_WEBSOCKET_ALLOWED_ORIGINS" not in notes(*tls, *origins)
 
 
 def test_source_requires_explicit_qualified_image():

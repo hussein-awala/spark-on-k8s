@@ -3,6 +3,11 @@
   "title": "spark-on-k8s chart values",
   "type": "object",
   "description": "Validates chart-managed controls; Kubernetes passthrough objects and extension keys remain open.",
+  "required": [
+    "rbac",
+    "runHistory",
+    "metrics"
+  ],
   "definitions": {
     "image": {
       "type": "object",

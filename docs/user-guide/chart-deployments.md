@@ -145,6 +145,10 @@ open so normal cluster-specific fields are accepted.
 Rendering checks do not validate cloud permissions, image availability, storage
 access or API server admission. Raw `env` overrides still take precedence over
 chart-generated environment settings and remain the operator's responsibility.
+An `ingress.tls` entry terminates TLS before the API, so browser log streams are
+rejected until `env` sets `SPARK_ON_K8S_API_WEBSOCKET_ALLOWED_ORIGINS` to the
+public `https://` origins; see
+[browser origins](../security-boundaries.md#log-websocket-browser-origins).
 Use the [development guide](../development.md) for the Helm regression suite and
 [release guidance](../releases.md) for the artifact publication boundary.
 
@@ -154,7 +158,19 @@ The source chart marks `appVersion` as `unreleased` and requires an explicit
 compatible `image.tag` or `image.digest`. The release publisher sets the package's
 qualified application version; an empty image tag then selects that version.
 API 0.12.1 does not implement `/ready` and is not compatible with these probes.
-Do not publish this chart against that older API image.
+Do not publish this chart against that older API image. The `helm-release`
+workflow refuses an `app_version` below 0.13.0 or without a published
+`ghcr.io/hussein-awala/spark-on-k8s` image, and a `chart_version` that the chart
+repository already lists. Run it only after the package release has published the
+API image, selecting that release tag in the workflow's ref selector so the chart
+source matches the qualified application.
+
+When upgrading a release installed from published chart 0.3.0, pass your values
+file again, or use `--reset-then-reuse-values` (Helm 3.14 and later), instead of
+`--reuse-values`. `--reuse-values` replaces this chart's defaults with the old
+release's values, including its `latest` image tags, and omits new settings such
+as `rbac`, `runHistory` and `metrics`. The chart schema rejects such an upgrade
+with a `missing properties` error before rendering.
 
 Shared RBAC resource names now include the release namespace identity. Existing
 installations can set `rbac.legacyNames: true` to retain their old names during an

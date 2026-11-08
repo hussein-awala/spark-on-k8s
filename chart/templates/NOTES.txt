@@ -20,3 +20,12 @@
   echo "Visit http://127.0.0.1:8080 to use your application"
   kubectl --namespace {{ .Release.Namespace }} port-forward $POD_NAME 8080:$CONTAINER_PORT
 {{- end }}
+2. Open /webserver/apps on that address for the web console.
+{{- $envNames := list }}
+{{- range .Values.env }}
+{{- $envNames = append $envNames .name }}
+{{- end }}
+{{- if and .Values.ingress.enabled .Values.ingress.tls (not (has "SPARK_ON_K8S_API_WEBSOCKET_ALLOWED_ORIGINS" $envNames)) }}
+   The ingress terminates TLS, so browser log streams are rejected until env sets
+   SPARK_ON_K8S_API_WEBSOCKET_ALLOWED_ORIGINS to the public https:// origins.
+{{- end }}

@@ -249,3 +249,49 @@ def test_session_release_error_preserves_application_failure_and_hides_credentia
         assert "release also failed" in raised.value.__notes__[0]
     assert "PRIVATE_RELEASE_TOKEN" not in str(raised.value)
     session.stop.assert_called_once()
+
+
+def test_probe_expected_app_id_is_sent_and_validated_without_changing_default_result():
+    profile = ConnectProfile(endpoint="sc://localhost", tls=False)
+    payload = {"schema_version": 1, "status": "ok", "spark_version": "4.0.5", "app_id": "owned-server"}
+    with patch(
+        "spark_on_k8s.connect.subprocess.run",
+        return_value=SimpleNamespace(returncode=0, stdout=json.dumps(payload)),
+    ) as run:
+        assert profile.probe(expected_app_id="owned-server")["app_id"] == "owned-server"
+        assert json.loads(run.call_args.kwargs["input"])["expected_app_id"] == "owned-server"
+        with pytest.raises(ConnectError, match="invalid response"):
+            profile.probe(expected_app_id="different-server")
+    with pytest.raises(ConnectError, match="expected_app_id"):
+        profile.probe(expected_app_id="invalid;token=x")
+
+
+@pytest.mark.parametrize("actual", ["owned-server", "wrong-server"])
+def test_probe_worker_checks_application_identity_before_query(monkeypatch, capsys, actual):
+    import io
+    from contextlib import contextmanager
+
+    from spark_on_k8s.connect import _probe_worker
+
+    session = MagicMock()
+    session.conf.get.return_value = actual
+    session.range.return_value.count.return_value = 1
+    session.version = "4.0.5"
+
+    @contextmanager
+    def fake_session(self):
+        yield session
+
+    monkeypatch.setattr(ConnectProfile, "session", fake_session)
+    monkeypatch.setattr(
+        sys, "stdin", io.StringIO('{"endpoint":"sc://localhost","expected_app_id":"owned-server"}')
+    )
+    result = _probe_worker()
+    output = json.loads(capsys.readouterr().out)
+    assert result == (0 if actual == "owned-server" else 1)
+    if actual == "owned-server":
+        assert output["app_id"] == "owned-server"
+        session.range.assert_called_once_with(1)
+    else:
+        session.range.assert_not_called()
+        assert "wrong-server" not in json.dumps(output)

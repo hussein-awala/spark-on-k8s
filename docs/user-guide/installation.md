@@ -41,7 +41,9 @@ dependencies.
 The submitting machine does not need Spark or Java. The application container
 supplies its own Spark, Java and, for Python jobs, Python runtime. Check the
 [Spark compatibility guide](spark_compatibility.md) when selecting that image.
-The optional [Spark Connect client](spark_connect.md) uses an existing server.
+The optional [Spark Connect client](spark_connect.md) uses a reachable server.
+[Server creation and lifecycle](spark_connect_server.md) use the base package;
+query readiness and notebook sessions need the compatible client extra.
 
 Clone the repository to obtain the source and example files:
 

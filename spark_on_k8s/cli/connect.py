@@ -4,10 +4,11 @@ import json
 
 import click
 
+from spark_on_k8s.cli.connect_server import server_cli
 from spark_on_k8s.connect import ConnectError, ConnectProfile
 
 
-@click.group(name="connect", help="Use an existing Spark Connect endpoint.")
+@click.group(name="connect", help="Use Spark Connect profiles or create a private Kubernetes server.")
 def connect_cli():
     pass
 
@@ -36,3 +37,6 @@ def check(file, profile, timeout, output):
         click.echo(f"Connected to Spark {result['spark_version']}; check session closed.")
     if code:
         raise click.exceptions.Exit(code)
+
+
+connect_cli.add_command(server_cli)

@@ -18,8 +18,10 @@ receipt_option = click.option(
 
 
 @contextmanager
-def receipt_writer(destination: Path | None):
+def receipt_writer(destination: Path | None, *, field: str = "run"):
     """Check local storage before submission and publish without replacing an existing file."""
+    if field not in {"run", "server"}:
+        raise ValueError("Unsupported receipt field")
     if destination is None:
         yield lambda run: None
         return
@@ -31,7 +33,7 @@ def receipt_writer(destination: Path | None):
         with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
 
             def write(run):
-                json.dump({"schema_version": 1, "run": run.to_dict()}, stream)
+                json.dump({"schema_version": 1, field: run.to_dict()}, stream)
                 stream.write("\n")
                 stream.flush()
                 os.fsync(stream.fileno())

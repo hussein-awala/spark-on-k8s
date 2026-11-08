@@ -47,7 +47,14 @@ def execution(operation: str, namespace: str, output: str):
             yield result
     except KeyboardInterrupt:
         code = 130
-        result["error"] = {"code": "interrupted", "message": "Interrupted; the application was not stopped."}
+        result["error"] = {
+            "code": "interrupted",
+            "message": (
+                "Interrupted; inspect the reported resource identity and cleanup outcome."
+                if operation.startswith("connect_server_")
+                else "Interrupted; the application was not stopped."
+            ),
+        }
     except (TimeoutError, HTTPTimeoutError) as error:
         code = 5
         result["error"] = {"code": "timeout", "message": str(error)}

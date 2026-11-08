@@ -18,6 +18,7 @@ ENTRY_POINTS = {
     "spark_on_k8s.planning": ("Job definitions", "Application plans"),
     "spark_on_k8s.airflow.operators": ("Integrations", "Airflow operators"),
     "spark_on_k8s.connect": ("Integrations", "Spark Connect profiles"),
+    "spark_on_k8s.connect_server": ("Integrations", "Spark Connect server lifecycle"),
 }
 LEGACY_SQL_PATH = "spark_on_k8s/airflow/scripts/spark_sql.md"
 

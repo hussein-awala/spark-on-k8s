@@ -336,7 +336,7 @@ export function Applications({
       setFeedback(
         action === "kill"
           ? `Stop requested for ${app.name || app.app_id}.`
-          : `${app.name || app.app_id} was deleted.`,
+          : `Deletion requested for ${app.name || app.app_id}.`,
       );
       setConfirmation(null);
       if (action === "delete") setSelectedId(null);

@@ -202,11 +202,14 @@ helm install spark-on-k8s-release spark-on-k8s/spark-on-k8s \
 ```
 
 To use the **chart from this checkout**, render it for review first, then install
-that local chart:
+that local chart. Set `API_IMAGE_TAG` to a compatible, tested image from the
+current source; the old `0.12.1` API does not implement the readiness endpoint:
 
 ```bash
-helm template spark-on-k8s-release ./chart --values examples/helm/values.yaml
-helm install spark-on-k8s-release ./chart --values examples/helm/values.yaml
+helm template spark-on-k8s-release ./chart --values examples/helm/values.yaml \
+  --set-string image.tag="${API_IMAGE_TAG:?Set a qualified API image tag}"
+helm install spark-on-k8s-release ./chart --values examples/helm/values.yaml \
+  --set-string image.tag="$API_IMAGE_TAG"
 ```
 
 Choose one chart source for a release. The commands above use example values from

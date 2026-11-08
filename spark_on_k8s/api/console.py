@@ -23,6 +23,16 @@ from spark_on_k8s.utils.spark_app_status import SparkAppStatus, get_app_status
 router = APIRouter(prefix="/webserver/api", tags=["console"])
 
 
+class _ConsoleCapabilities(BaseModel):
+    history_configured: bool
+
+
+@router.get("/capabilities", response_model=_ConsoleCapabilities)
+async def console_capabilities() -> _ConsoleCapabilities:
+    """Expose configuration, without probing history availability or application data."""
+    return _ConsoleCapabilities(history_configured=bool(APIConfiguration.SPARK_ON_K8S_API_SPARK_HISTORY_HOST))
+
+
 class _HistoryAttempt(BaseModel):
     startTime: str | None = None
     startTimeEpoch: int | None = None

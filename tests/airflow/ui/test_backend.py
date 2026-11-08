@@ -74,6 +74,8 @@ def harness(monkeypatch):
                 if isinstance(configured, Exception):
                     raise configured
                 return configured
+            if request.url.path.endswith("/capabilities"):
+                return httpx.Response(200, json={"history_configured": True})
             if request.url.path.endswith("/history"):
                 return httpx.Response(
                     200,
@@ -218,6 +220,82 @@ def test_writes_disabled_by_default_and_capabilities_match(harness):
         assert capabilities["can_kill"] is False
         assert capabilities["can_delete"] is False
         assert capabilities["spark_ui_url"] == f"https://spark.example/service/webserver/ui/spark/{APP_ID}"
+
+
+@pytest.mark.parametrize("configured", [False, True])
+@pytest.mark.parametrize("deleted", [False, True])
+def test_history_link_requires_explicit_service_configuration(harness, configured, deleted):
+    import httpx
+
+    with harness() as h:
+        h.responses["/service/webserver/api/capabilities"] = httpx.Response(
+            200, json={"history_configured": configured}
+        )
+        if deleted:
+            h.responses[f"/service/webserver/api/apps/spark/pods/{POD}"] = httpx.Response(404)
+        response = h.client.get("/api/capabilities", params=QUERY)
+        assert response.status_code == 200
+        assert response.json()["spark_history_url"] == (
+            f"https://spark.example/service/webserver/ui-history/history/{APP_ID}" if configured else None
+        )
+        assert bool(response.json()["spark_ui_url"]) is not deleted
+        assert not any(request.url.path.endswith("/history") for request in h.requests)
+
+
+@pytest.mark.parametrize("deleted", [False, True])
+def test_older_service_does_not_guess_history_from_driver_logs(harness, deleted):
+    import httpx
+
+    with harness() as h:
+        h.responses["/service/webserver/api/capabilities"] = httpx.Response(404)
+        if deleted:
+            h.responses[f"/service/webserver/api/apps/spark/pods/{POD}"] = httpx.Response(404)
+        response = h.client.get("/api/capabilities", params=QUERY)
+        assert response.status_code == 200
+        assert response.json()["spark_history_url"] is None
+        assert not any(request.url.path.endswith("/history") for request in h.requests)
+
+
+@pytest.mark.parametrize("upstream_status,expected_status", [(403, 403), (503, 502)])
+def test_failed_capability_lookup_is_not_reported_as_disabled(harness, upstream_status, expected_status):
+    import httpx
+
+    with harness() as h:
+        h.responses["/service/webserver/api/capabilities"] = httpx.Response(
+            upstream_status, text="private service details"
+        )
+        response = h.client.get("/api/capabilities", params=QUERY)
+        assert response.status_code == expected_status
+        assert response.json()["detail"]["code"] == "service_error"
+        assert "spark_history_url" not in response.json()
+        assert "private" not in response.text
+        assert not any(request.url.path.endswith("/history") for request in h.requests)
+
+
+@pytest.mark.parametrize("body", [{"history_configured": "false"}, {}, ["private detail"]])
+def test_invalid_capability_response_is_sanitized(harness, body):
+    import httpx
+
+    with harness() as h:
+        h.responses["/service/webserver/api/capabilities"] = httpx.Response(200, json=body)
+        response = h.client.get("/api/capabilities", params=QUERY)
+        assert response.status_code == 502
+        assert response.json()["detail"]["code"] == "invalid_response"
+        assert "private" not in response.text
+
+
+def test_configured_but_unavailable_history_keeps_its_error(harness):
+    import httpx
+
+    with harness() as h:
+        h.responses["/service/webserver/api/history"] = httpx.Response(502, text="private host")
+        capabilities = h.client.get("/api/capabilities", params=QUERY)
+        assert capabilities.status_code == 200
+        assert capabilities.json()["spark_history_url"]
+        history = h.client.get("/api/history", params=QUERY)
+        assert history.status_code == 502
+        assert history.json()["detail"]["code"] == "service_error"
+        assert "private" not in history.text
 
 
 def test_permission_denial_disables_only_the_corresponding_action(harness):

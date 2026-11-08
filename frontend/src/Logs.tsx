@@ -101,7 +101,9 @@ export function Logs({
       const text =
         typeof event.data === "string" ? event.data : String(event.data);
       const additions = text.split(/\r?\n/);
-      // Kubernetes usually sends one line per message; preserve multiline payloads as literal text.
+      // A terminating newline ends the last line; it does not add a blank one.
+      // Preserve actual empty lines and multiline payloads as literal text.
+      if (text.endsWith("\n")) additions.pop();
       const combined = [...pending.current, ...additions];
       if (combined.length > MAX_LOG_LINES)
         pendingDropped.current += combined.length - MAX_LOG_LINES;

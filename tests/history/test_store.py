@@ -206,11 +206,23 @@ def test_keyset_pagination_remains_stable_when_older_runs_are_updated(database):
         base64.urlsafe_b64encode(b"{}").decode(),
         base64.urlsafe_b64encode(b"[]").decode(),
         base64.urlsafe_b64encode(b'{"first":NaN,"uid":"x","filters":[null,null,"all",null]}').decode(),
+        # An integer beyond float range cannot be a first-observed timestamp.
+        base64.urlsafe_b64encode(
+            b'{"first":1' + b"0" * 400 + b',"uid":"x","filters":[null,null,"all",null]}'
+        ).decode(),
     ],
 )
 def test_invalid_cursors_are_rejected(database, cursor):
     with pytest.raises(ValueError, match="cursor"):
         database[0].list_runs(cursor=cursor)
+
+
+def test_integer_cursor_position_beyond_sqlite_integer_range_is_bound_as_real(database):
+    store, _, lease = database
+    store.snapshot("analytics", [record("one")], lease)
+    payload = b'{"first":1180591620717411303424,"uid":"x","filters":[null,null,"all",null]}'
+    page = store.list_runs(cursor=base64.urlsafe_b64encode(payload).decode())
+    assert [item["uid"] for item in page["items"]] == ["one"]
 
 
 @pytest.mark.parametrize("options", [{"status": "Deleted"}, {"presence": "deleted"}, {"limit": 0}])

@@ -228,7 +228,9 @@ class RunStore:
                     or not isinstance(uid, str)
                 ):
                     raise ValueError
-            except (ValueError, KeyError, TypeError) as error:
+                # first_seen is REAL; also bounds integers that SQLite cannot bind.
+                first = float(first)
+            except (ValueError, KeyError, TypeError, OverflowError) as error:
                 raise ValueError("Invalid run-list cursor") from error
             conditions.append("(first_seen < ? OR (first_seen = ? AND uid < ?))")
             params.extend((first, first, uid))

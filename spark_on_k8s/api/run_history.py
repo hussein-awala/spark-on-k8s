@@ -155,31 +155,35 @@ async def metrics():
         except Exception:
             return Response("Metrics unavailable\n", status_code=503, media_type="text/plain")
         by_status = {(row["namespace"], row["status"]): row["count"] for row in counts}
-        lines.extend(
-            [
-                "# HELP spark_on_k8s_runs_recorded Retained records by last observed phase; "
-                "includes missing pods; "
-                "not current capacity or an execution success-rate denominator.",
-                "# TYPE spark_on_k8s_runs_recorded gauge",
-                "# TYPE spark_on_k8s_collection_successes_total counter",
-                "# TYPE spark_on_k8s_collection_failures_total counter",
-                "# HELP spark_on_k8s_collection_age_seconds Seconds since last successful "
-                "namespace observation; "
-                "-1 means never observed.",
-                "# TYPE spark_on_k8s_collection_age_seconds gauge",
-            ]
-        )
+        # Each family's metadata and samples must form one group in the text exposition format.
+        recorded = [
+            "# HELP spark_on_k8s_runs_recorded Retained records by last observed phase; "
+            "includes missing pods; "
+            "not current capacity or an execution success-rate denominator.",
+            "# TYPE spark_on_k8s_runs_recorded gauge",
+        ]
+        totals = {
+            field: [f"# TYPE spark_on_k8s_collection_{field}_total counter"]
+            for field in ("successes", "failures")
+        }
+        ages = [
+            "# HELP spark_on_k8s_collection_age_seconds Seconds since last successful "
+            "namespace observation; "
+            "-1 means never observed.",
+            "# TYPE spark_on_k8s_collection_age_seconds gauge",
+        ]
         for namespace in settings.namespaces:
             for phase in sorted(STATUSES):
-                lines.append(
+                recorded.append(
                     f'spark_on_k8s_runs_recorded{{namespace="{namespace}",status="{phase}"}} '
                     f"{by_status.get((namespace, phase), 0)}"
                 )
             state = health.get(namespace, {})
-            for field in ("successes", "failures"):
-                lines.append(
+            for field, family in totals.items():
+                family.append(
                     f'spark_on_k8s_collection_{field}_total{{namespace="{namespace}"}} {state.get(field, 0)}'
                 )
             age = max(0, time.time() - state["last_success"]) if state.get("last_success") is not None else -1
-            lines.append(f'spark_on_k8s_collection_age_seconds{{namespace="{namespace}"}} {age:.3f}')
+            ages.append(f'spark_on_k8s_collection_age_seconds{{namespace="{namespace}"}} {age:.3f}')
+        lines.extend(recorded + totals["successes"] + totals["failures"] + ages)
     return Response("\n".join(lines) + "\n", media_type="text/plain; version=0.0.4")

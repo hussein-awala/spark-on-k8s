@@ -17,7 +17,7 @@ from starlette.responses import HTMLResponse, Response, StreamingResponse
 from starlette.templating import Jinja2Templates
 
 from spark_on_k8s import __version__
-from spark_on_k8s.api import AsyncHttpClientSingleton, KubernetesClientSingleton
+from spark_on_k8s.api import AsyncHttpClientSingleton, KubernetesClientSingleton, logger
 from spark_on_k8s.api.configuration import APIConfiguration
 from spark_on_k8s.api.run_history import get_history_settings
 from spark_on_k8s.utils.async_app_manager import AsyncSparkAppManager
@@ -53,11 +53,30 @@ def _proxy_headers(request: Request) -> list[tuple[bytes, bytes]]:
     return [(key, value) for key, value in request.headers.raw if key.lower() in _PROXY_HEADERS]
 
 
+_HOP_BY_HOP_HEADERS = {
+    "connection",
+    "keep-alive",
+    "proxy-authenticate",
+    "proxy-connection",
+    "te",
+    "trailer",
+    "transfer-encoding",
+    "upgrade",
+}
+
+
 def _proxy_response_headers(
     response: httpx.Response, upstream: httpx.URL, request: Request, proxy_path: str
 ) -> httpx.Headers:
     """Keep upstream redirects on the browser-facing proxy, including mounted deployments."""
     headers = response.headers.copy()
+    # Hop-by-hop headers describe the upstream connection; the ASGI server frames this one.
+    # A rewritten HTML body otherwise carries both Transfer-Encoding and a new Content-Length.
+    connection_scoped = {
+        token.strip().lower() for value in headers.get_list("connection") for token in value.split(",")
+    }
+    for name in _HOP_BY_HOP_HEADERS | connection_scoped:
+        headers.pop(name, None)
     location = headers.get("location")
     if response.status_code not in {301, 302, 303, 307, 308} or not location:
         return headers
@@ -197,6 +216,13 @@ def handle_k8s_errors(func):
                 },
                 status_code=e.status or 500,
             )
+        except httpx.HTTPError as e:
+            # Finished drivers and restarting history servers are upstream failures, not API errors.
+            # Exception text can contain internal resolver/upstream details; report only its type.
+            logger.warning("Spark UI proxy upstream request failed: %s", type(e).__name__)
+            if isinstance(e, httpx.TimeoutException):
+                raise HTTPException(504, detail="The Spark UI did not respond in time.") from e
+            raise HTTPException(502, detail="The Spark UI is unavailable.") from e
 
     return wrapper
 
@@ -233,9 +259,8 @@ async def spark_history_reverse_proxy(request: Request, path: str):
     if not spark_history_url:
         raise HTTPException(status_code=412, detail="SPARK_ON_K8S_API_SPARK_HISTORY_HOST is not set.")
     async_http_client = AsyncHttpClientSingleton.client()
-    spark_history_url = (
-        f"http://{spark_history_url}" if not spark_history_url.startswith("http") else spark_history_url
-    )
+    # Match the console listing: a scheme is explicit, not inferred from a host name starting "http".
+    spark_history_url = spark_history_url if "://" in spark_history_url else f"http://{spark_history_url}"
     url = httpx.URL(
         url=spark_history_url,
         path=f"/{path}",

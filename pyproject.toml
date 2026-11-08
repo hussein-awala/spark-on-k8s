@@ -74,6 +74,13 @@ provider_info = "spark_on_k8s.airflow.provider_info:get_provider_info"
 spark_on_k8s_ui = "spark_on_k8s.airflow.ui.plugin:SparkTaskUIPlugin"
 
 [dependency-groups]
+# Execute the published Jupyter notebook against the installed Connect client.
+notebook = [
+    "ipykernel>=7.4.0,<8",
+    "nbclient>=0.11.0,<0.12",
+    "nbformat>=5.10.4,<6",
+    "psutil>=7.2.2,<8",
+]
 test = [
     "mock>=5.2.0,<6",
     "pytest>=9.2.0,<10",
@@ -102,6 +109,10 @@ build-backend = "uv_build"
 
 [tool.uv]
 default-groups = ["test"]
+
+# Match the Connect extra's supported client Python range.
+[tool.uv.dependency-groups]
+notebook = {requires-python = ">=3.11,<3.15"}
 
 [tool.uv.build-backend]
 module-name = "spark_on_k8s"

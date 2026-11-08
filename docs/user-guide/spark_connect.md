@@ -3,7 +3,9 @@
 Use an existing Spark Connect endpoint from notebooks or Python tools without
 creating a Kubernetes job for every interactive query. This companion creates
 independent client sessions. To create a server using the SDK or CLI, see
-[Create a Spark Connect server on Kubernetes](spark_connect_server.md).
+[Create a Spark Connect server on Kubernetes](spark_connect_server.md). For an
+end-to-end notebook that provisions a server, runs distributed queries and resumes
+after a kernel restart, follow [Jupyter notebooks on Kubernetes](jupyter.md).
 
 Install the optional thin client in a Python 3.11–3.14 environment:
 

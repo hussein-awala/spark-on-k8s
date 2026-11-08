@@ -68,6 +68,7 @@ across different versions is incompatible.
 UV_PROJECT_ENVIRONMENT=.venv-notebook uv sync --python 3.12 --locked \
   --no-default-groups --group notebook --extra connect
 uv pip install --python .venv-notebook/bin/python 'jupyterlab==4.6.6'
+uv pip install --python .venv-notebook/bin/python --no-deps 'pyspark-client==4.3.0'
 uv pip check --python .venv-notebook/bin/python
 .venv-notebook/bin/python -c 'from importlib.metadata import version; client = version("pyspark-client"); assert client == "4.3.0", client; print("Connect client:", client)'
 
@@ -91,7 +92,9 @@ and [Jupyter directory settings](https://docs.jupyter.org/en/latest/use/jupyter-
 Do not install full `pyspark` alongside `pyspark-client` in this environment: both
 provide the `pyspark` Python import namespace. A later `uv sync` can restore the
 locked client version and remove the separately installed JupyterLab frontend.
-After resyncing, reapply any client override below, reinstall the frontend, and
+Both version choices explicitly select the client after the locked sync, matching
+the CI matrix even if a future lockfile selects a newer client. After resyncing,
+reapply the selected client version, reinstall the frontend, and
 check versions before launching a new kernel. Use the environment's executables
 directly so an implicit sync does not undo that choice.
 Normal source use is editable. CI installs the built wheel and checks the actual
@@ -114,7 +117,7 @@ To choose **Spark 4.0.5 instead**, override the thin client in this same isolate
 environment after the locked sync and before starting Jupyter:
 
 ```bash
-uv pip install --python .venv-notebook/bin/python 'pyspark-client==4.0.5'
+uv pip install --python .venv-notebook/bin/python --no-deps 'pyspark-client==4.0.5'
 uv pip check --python .venv-notebook/bin/python
 .venv-notebook/bin/python -c 'from importlib.metadata import version; client = version("pyspark-client"); assert client == "4.0.5", client; print("Connect client:", client)'
 export SPARK_NOTEBOOK_SPARK_VERSION=4.0.5

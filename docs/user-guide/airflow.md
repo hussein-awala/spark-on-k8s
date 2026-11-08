@@ -270,3 +270,8 @@ The native tab checks the Spark API configuration before enabling history. An
 unconfigured History Server does not produce a warning; a configured server that
 cannot be reached still does. Older API services without the capability endpoint
 retain live application features but omit optional history links until upgraded.
+
+The native task log proxy accepts individual text messages up to 16 MiB, including
+long driver log lines. A larger message interrupts the stream rather than being
+silently truncated. The proxy uses a small receive queue to keep buffering bounded;
+the console's separate line-count limit still applies.

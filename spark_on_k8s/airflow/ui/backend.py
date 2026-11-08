@@ -207,7 +207,11 @@ def connect_upstream_logs(url: str):
             # A configured service must not redirect this authenticated proxy to another target.
             return error
 
-    return ConfiguredServiceConnection(url, proxy=None, open_timeout=5, close_timeout=5, max_size=1024 * 1024)
+    # Keep large driver lines intact without multiplying the larger message limit
+    # by the client's default receive queue of 16 frames.
+    return ConfiguredServiceConnection(
+        url, proxy=None, open_timeout=5, close_timeout=5, max_size=16 * 1024 * 1024, max_queue=1
+    )
 
 
 def create_ui_app(settings: UISettings | None = None) -> FastAPI:

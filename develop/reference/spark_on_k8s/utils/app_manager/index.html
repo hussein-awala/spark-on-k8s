@@ -68,7 +68,7 @@
   <meta name="documentation-channel" content="develop">
   <meta name="documentation-version" content="develop">
   
-    <meta name="documentation-source" content="0764497189bd321850a5b9329b337b5729ac7a2a">
+    <meta name="documentation-source" content="8c2d5297aecac17c00901da664c6209e769ed9f0">
   
 
   </head>
@@ -108,7 +108,7 @@
     <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
   
   
-    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/0764497189bd321850a5b9329b337b5729ac7a2a"><code>0764497189bd</code></a>.
+    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/8c2d5297aecac17c00901da664c6209e769ed9f0"><code>8c2d5297aeca</code></a>.
   
 
           </div>
@@ -6262,6 +6262,7 @@
         <span class="n">deadline</span> <span class="o">=</span> <span class="n">WaitDeadline</span><span class="p">(</span><span class="n">timeout</span><span class="p">)</span>
         <span class="n">start_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
         <span class="n">termination_statuses</span> <span class="o">=</span> <span class="p">{</span><span class="n">SparkAppStatus</span><span class="o">.</span><span class="n">Succeeded</span><span class="p">,</span> <span class="n">SparkAppStatus</span><span class="o">.</span><span class="n">Failed</span><span class="p">,</span> <span class="n">SparkAppStatus</span><span class="o">.</span><span class="n">Unknown</span><span class="p">}</span>
+        <span class="n">target</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"Pod </span><span class="si">{</span><span class="n">pod_name</span><span class="si">}</span><span class="s2">"</span> <span class="k">if</span> <span class="n">pod_name</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="sa">f</span><span class="s2">"App </span><span class="si">{</span><span class="n">app_id</span><span class="si">}</span><span class="s2">"</span>
         <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">k8s_client_manager</span><span class="o">.</span><span class="n">client</span><span class="p">()</span> <span class="k">as</span> <span class="n">client</span><span class="p">:</span>
             <span class="n">api</span> <span class="o">=</span> <span class="n">k8s</span><span class="o">.</span><span class="n">CoreV1Api</span><span class="p">(</span><span class="n">client</span><span class="p">)</span>
             <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
@@ -6273,28 +6274,27 @@
                         <span class="n">client</span><span class="o">=</span><span class="n">api</span><span class="p">,</span>
                         <span class="o">**</span><span class="p">({</span><span class="s2">"request_timeout"</span><span class="p">:</span> <span class="n">deadline</span><span class="o">.</span><span class="n">remaining</span><span class="p">()}</span> <span class="k">if</span> <span class="n">timeout</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="p">{}),</span>
                     <span class="p">)</span>
-                    <span class="n">deadline</span><span class="o">.</span><span class="n">remaining</span><span class="p">()</span>
+                    <span class="c1"># A final status read within the budget is the outcome, not a timeout.</span>
                     <span class="k">if</span> <span class="n">status</span> <span class="ow">in</span> <span class="n">termination_statuses</span><span class="p">:</span>
                         <span class="k">break</span>
+                    <span class="n">deadline</span><span class="o">.</span><span class="n">remaining</span><span class="p">()</span>
                     <span class="k">if</span> <span class="n">status</span> <span class="o">==</span> <span class="n">SparkAppStatus</span><span class="o">.</span><span class="n">Pending</span><span class="p">:</span>
                         <span class="k">if</span> <span class="n">startup_timeout</span> <span class="ow">and</span> <span class="n">start_time</span> <span class="o">+</span> <span class="n">startup_timeout</span> <span class="o">&lt;</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">():</span>
                             <span class="k">raise</span> <span class="ne">TimeoutError</span><span class="p">(</span><span class="s2">"App startup timeout"</span><span class="p">)</span>
 
                 <span class="k">except</span> <span class="n">ApiException</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
                     <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">status</span> <span class="o">==</span> <span class="mi">404</span><span class="p">:</span>
-                        <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="p">(</span>
-                            <span class="n">msg</span><span class="o">=</span><span class="sa">f</span><span class="s2">"Pod </span><span class="si">{</span><span class="n">pod_name</span><span class="si">}</span><span class="s2"> was deleted"</span><span class="p">,</span> <span class="n">level</span><span class="o">=</span><span class="n">logging</span><span class="o">.</span><span class="n">INFO</span><span class="p">,</span> <span class="n">should_print</span><span class="o">=</span><span class="n">should_print</span>
-                        <span class="p">)</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">msg</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">target</span><span class="si">}</span><span class="s2"> was deleted"</span><span class="p">,</span> <span class="n">level</span><span class="o">=</span><span class="n">logging</span><span class="o">.</span><span class="n">INFO</span><span class="p">,</span> <span class="n">should_print</span><span class="o">=</span><span class="n">should_print</span><span class="p">)</span>
                         <span class="k">return</span>
                     <span class="k">raise</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="p">(</span>
-                    <span class="n">msg</span><span class="o">=</span><span class="sa">f</span><span class="s2">"Pod </span><span class="si">{</span><span class="n">pod_name</span><span class="si">}</span><span class="s2"> status is </span><span class="si">{</span><span class="n">status</span><span class="si">}</span><span class="s2">, sleep </span><span class="si">{</span><span class="n">poll_interval</span><span class="si">}</span><span class="s2">s"</span><span class="p">,</span>
+                    <span class="n">msg</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">target</span><span class="si">}</span><span class="s2"> status is </span><span class="si">{</span><span class="n">status</span><span class="si">}</span><span class="s2">, sleep </span><span class="si">{</span><span class="n">poll_interval</span><span class="si">}</span><span class="s2">s"</span><span class="p">,</span>
                     <span class="n">level</span><span class="o">=</span><span class="n">logging</span><span class="o">.</span><span class="n">INFO</span><span class="p">,</span>
                     <span class="n">should_print</span><span class="o">=</span><span class="n">should_print</span><span class="p">,</span>
                 <span class="p">)</span>
                 <span class="n">deadline</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="n">poll_interval</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="p">(</span>
-                <span class="n">msg</span><span class="o">=</span><span class="sa">f</span><span class="s2">"Pod </span><span class="si">{</span><span class="n">pod_name</span><span class="si">}</span><span class="s2"> finished with status </span><span class="si">{</span><span class="n">status</span><span class="o">.</span><span class="n">value</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
+                <span class="n">msg</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">target</span><span class="si">}</span><span class="s2"> finished with status </span><span class="si">{</span><span class="n">status</span><span class="o">.</span><span class="n">value</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
                 <span class="n">level</span><span class="o">=</span><span class="n">logging</span><span class="o">.</span><span class="n">INFO</span><span class="p">,</span>
                 <span class="n">should_print</span><span class="o">=</span><span class="n">should_print</span><span class="p">,</span>
             <span class="p">)</span>
@@ -9968,6 +9968,7 @@ None disables the deadline. Expiration never stops or deletes the application.</
     <span class="n">deadline</span> <span class="o">=</span> <span class="n">WaitDeadline</span><span class="p">(</span><span class="n">timeout</span><span class="p">)</span>
     <span class="n">start_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
     <span class="n">termination_statuses</span> <span class="o">=</span> <span class="p">{</span><span class="n">SparkAppStatus</span><span class="o">.</span><span class="n">Succeeded</span><span class="p">,</span> <span class="n">SparkAppStatus</span><span class="o">.</span><span class="n">Failed</span><span class="p">,</span> <span class="n">SparkAppStatus</span><span class="o">.</span><span class="n">Unknown</span><span class="p">}</span>
+    <span class="n">target</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"Pod </span><span class="si">{</span><span class="n">pod_name</span><span class="si">}</span><span class="s2">"</span> <span class="k">if</span> <span class="n">pod_name</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="sa">f</span><span class="s2">"App </span><span class="si">{</span><span class="n">app_id</span><span class="si">}</span><span class="s2">"</span>
     <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">k8s_client_manager</span><span class="o">.</span><span class="n">client</span><span class="p">()</span> <span class="k">as</span> <span class="n">client</span><span class="p">:</span>
         <span class="n">api</span> <span class="o">=</span> <span class="n">k8s</span><span class="o">.</span><span class="n">CoreV1Api</span><span class="p">(</span><span class="n">client</span><span class="p">)</span>
         <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
@@ -9979,28 +9980,27 @@ None disables the deadline. Expiration never stops or deletes the application.</
                     <span class="n">client</span><span class="o">=</span><span class="n">api</span><span class="p">,</span>
                     <span class="o">**</span><span class="p">({</span><span class="s2">"request_timeout"</span><span class="p">:</span> <span class="n">deadline</span><span class="o">.</span><span class="n">remaining</span><span class="p">()}</span> <span class="k">if</span> <span class="n">timeout</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="p">{}),</span>
                 <span class="p">)</span>
-                <span class="n">deadline</span><span class="o">.</span><span class="n">remaining</span><span class="p">()</span>
+                <span class="c1"># A final status read within the budget is the outcome, not a timeout.</span>
                 <span class="k">if</span> <span class="n">status</span> <span class="ow">in</span> <span class="n">termination_statuses</span><span class="p">:</span>
                     <span class="k">break</span>
+                <span class="n">deadline</span><span class="o">.</span><span class="n">remaining</span><span class="p">()</span>
                 <span class="k">if</span> <span class="n">status</span> <span class="o">==</span> <span class="n">SparkAppStatus</span><span class="o">.</span><span class="n">Pending</span><span class="p">:</span>
                     <span class="k">if</span> <span class="n">startup_timeout</span> <span class="ow">and</span> <span class="n">start_time</span> <span class="o">+</span> <span class="n">startup_timeout</span> <span class="o">&lt;</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">():</span>
                         <span class="k">raise</span> <span class="ne">TimeoutError</span><span class="p">(</span><span class="s2">"App startup timeout"</span><span class="p">)</span>
 
             <span class="k">except</span> <span class="n">ApiException</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
                 <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">status</span> <span class="o">==</span> <span class="mi">404</span><span class="p">:</span>
-                    <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="p">(</span>
-                        <span class="n">msg</span><span class="o">=</span><span class="sa">f</span><span class="s2">"Pod </span><span class="si">{</span><span class="n">pod_name</span><span class="si">}</span><span class="s2"> was deleted"</span><span class="p">,</span> <span class="n">level</span><span class="o">=</span><span class="n">logging</span><span class="o">.</span><span class="n">INFO</span><span class="p">,</span> <span class="n">should_print</span><span class="o">=</span><span class="n">should_print</span>
-                    <span class="p">)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">msg</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">target</span><span class="si">}</span><span class="s2"> was deleted"</span><span class="p">,</span> <span class="n">level</span><span class="o">=</span><span class="n">logging</span><span class="o">.</span><span class="n">INFO</span><span class="p">,</span> <span class="n">should_print</span><span class="o">=</span><span class="n">should_print</span><span class="p">)</span>
                     <span class="k">return</span>
                 <span class="k">raise</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="p">(</span>
-                <span class="n">msg</span><span class="o">=</span><span class="sa">f</span><span class="s2">"Pod </span><span class="si">{</span><span class="n">pod_name</span><span class="si">}</span><span class="s2"> status is </span><span class="si">{</span><span class="n">status</span><span class="si">}</span><span class="s2">, sleep </span><span class="si">{</span><span class="n">poll_interval</span><span class="si">}</span><span class="s2">s"</span><span class="p">,</span>
+                <span class="n">msg</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">target</span><span class="si">}</span><span class="s2"> status is </span><span class="si">{</span><span class="n">status</span><span class="si">}</span><span class="s2">, sleep </span><span class="si">{</span><span class="n">poll_interval</span><span class="si">}</span><span class="s2">s"</span><span class="p">,</span>
                 <span class="n">level</span><span class="o">=</span><span class="n">logging</span><span class="o">.</span><span class="n">INFO</span><span class="p">,</span>
                 <span class="n">should_print</span><span class="o">=</span><span class="n">should_print</span><span class="p">,</span>
             <span class="p">)</span>
             <span class="n">deadline</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="n">poll_interval</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="p">(</span>
-            <span class="n">msg</span><span class="o">=</span><span class="sa">f</span><span class="s2">"Pod </span><span class="si">{</span><span class="n">pod_name</span><span class="si">}</span><span class="s2"> finished with status </span><span class="si">{</span><span class="n">status</span><span class="o">.</span><span class="n">value</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
+            <span class="n">msg</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">target</span><span class="si">}</span><span class="s2"> finished with status </span><span class="si">{</span><span class="n">status</span><span class="o">.</span><span class="n">value</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
             <span class="n">level</span><span class="o">=</span><span class="n">logging</span><span class="o">.</span><span class="n">INFO</span><span class="p">,</span>
             <span class="n">should_print</span><span class="o">=</span><span class="n">should_print</span><span class="p">,</span>
         <span class="p">)</span>
@@ -10046,7 +10046,7 @@ None disables the deadline. Expiration never stops or deletes the application.</
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 8, 2026 23:06:20 UTC">November 8, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 8, 2026 23:24:47 UTC">November 8, 2026</span>
   </span>
 
     

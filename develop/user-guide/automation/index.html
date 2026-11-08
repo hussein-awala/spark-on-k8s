@@ -68,7 +68,7 @@
   <meta name="documentation-channel" content="develop">
   <meta name="documentation-version" content="develop">
   
-    <meta name="documentation-source" content="0764497189bd321850a5b9329b337b5729ac7a2a">
+    <meta name="documentation-source" content="8c2d5297aecac17c00901da664c6209e769ed9f0">
   
 
   </head>
@@ -108,7 +108,7 @@
     <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
   
   
-    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/0764497189bd321850a5b9329b337b5729ac7a2a"><code>0764497189bd</code></a>.
+    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/8c2d5297aecac17c00901da664c6209e769ed9f0"><code>8c2d5297aeca</code></a>.
   
 
           </div>
@@ -5127,7 +5127,11 @@ submission. It limits observation after submission, including a running job and
 a quiet log stream. It does not bound initial resource creation or an external
 Kubernetes credential plugin. The default is unlimited observation. The existing
 <code>SPARK_ON_K8S_STARTUP_TIMEOUT</code> remains a separate limit for a pending driver.
-Neither timeout nor interruption automatically kills or deletes the application.</p>
+Neither timeout nor interruption automatically kills or deletes the application.
+The deadline is checked before each status or log request and each poll sleep. A
+status returned by a request that started within the budget is reported: a final
+<code>Succeeded</code> or <code>Failed</code> read at the deadline exits 0 or 3, not 5. A timeout result
+has <code>status: null</code>.</p>
 <p>To observe a previously submitted application:</p>
 <div class="highlight"><pre><span></span><code>spark-on-k8s<span class="w"> </span>app<span class="w"> </span><span class="nb">wait</span><span class="w"> </span>--namespace<span class="w"> </span>spark<span class="w"> </span>--app-id<span class="w"> </span><span class="s2">"</span><span class="nv">$APP_ID</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--timeout<span class="w"> </span><span class="m">900</span><span class="w"> </span>--output<span class="w"> </span>json
@@ -5264,7 +5268,10 @@ A stale receipt cannot delete a replacement pod with the same name. Older
 receipts without a UID cannot use this command. <code>accepted: true</code> means the API
 accepted deletion; it does not establish that executors, volumes or finalizers
 have finished cleanup. <code>--force</code> requests zero grace period and still preserves
-the identity checks. No timeout automatically invokes cancellation.</p>
+the identity checks. No timeout automatically invokes cancellation.
+An unreadable or invalid receipt is a runtime failure (exit 1): the JSON result has
+<code>run: null</code>, an empty <code>namespace</code> and an <code>operation_error</code>. A receipt path that does
+not exist is a CLI usage error (exit 2) without a JSON document.</p>
 <h2 id="contract-coverage-and-lifecycle-ownership">Contract coverage and lifecycle ownership<a class="headerlink" href="#contract-coverage-and-lifecycle-ownership" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -5301,10 +5308,22 @@ the identity checks. No timeout automatically invokes cancellation.</p>
 <td>Redacted preview, no reservation</td>
 </tr>
 <tr>
-<td>connect check</td>
+<td>app diagnose, doctor</td>
+<td><code>--output json</code> report</td>
+<td>Click text error, exit 1 (including a missing application)</td>
+<td>Observed evidence, not a health certification</td>
+</tr>
+<tr>
+<td>connect check, connect server</td>
 <td><code>--output json</code></td>
-<td>Bounded check result</td>
-<td>Tiny query succeeded on existing server</td>
+<td>Versioned result</td>
+<td>Tiny query succeeded on existing server; server requests accepted</td>
+</tr>
+<tr>
+<td>remote plan/submit</td>
+<td>JSON by default</td>
+<td>Versioned result</td>
+<td>Request admitted or accepted, not workload completion</td>
 </tr>
 <tr>
 <td>legacy kill/delete/log commands</td>
@@ -5348,7 +5367,7 @@ is not supported. Persist the returned immutable run handle per operation.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 8, 2026 23:03:17 UTC">November 8, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 8, 2026 23:15:41 UTC">November 8, 2026</span>
   </span>
 
     

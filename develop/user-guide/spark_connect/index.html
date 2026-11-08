@@ -68,7 +68,7 @@
   <meta name="documentation-channel" content="develop">
   <meta name="documentation-version" content="develop">
   
-    <meta name="documentation-source" content="0764497189bd321850a5b9329b337b5729ac7a2a">
+    <meta name="documentation-source" content="8c2d5297aecac17c00901da664c6209e769ed9f0">
   
 
   </head>
@@ -108,7 +108,7 @@
     <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
   
   
-    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/0764497189bd321850a5b9329b337b5729ac7a2a"><code>0764497189bd</code></a>.
+    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/8c2d5297aecac17c00901da664c6209e769ed9f0"><code>8c2d5297aeca</code></a>.
   
 
           </div>
@@ -5027,14 +5027,34 @@ keys, and unknown settings. TLS is enabled by default. Non-loopback plaintext
 connections require an explicit <code>allow_insecure = true</code>; use this only with a trusted
 network or an independently protected tunnel. TLS verifies server certificates using
 the upstream gRPC client. There is no disable-certificate-verification option.</p>
+<p>Spark Connect clients always use TLS when a token is configured, except for the
+hostname <code>localhost</code>, where Spark 4 clients send the token over gRPC local
+credentials. A profile with <code>token_env</code> and <code>tls = false</code> is therefore rejected
+unless its endpoint host is exactly <code>localhost</code>; use <code>sc://localhost:PORT</code> rather
+than <code>127.0.0.1</code> for a tunneled token-protected server. PySpark also reads
+<code>SPARK_CONNECT_AUTHENTICATE_TOKEN</code> from the environment, so unset it when using a
+plaintext profile without a token.</p>
 <div class="highlight"><pre><span></span><code>spark-on-k8s<span class="w"> </span>connect<span class="w"> </span>check<span class="w"> </span>connect.toml<span class="w"> </span>--profile<span class="w"> </span>production<span class="w"> </span>--timeout<span class="w"> </span><span class="m">15</span><span class="w"> </span>--output<span class="w"> </span>json
 </code></pre></div>
 <p>The check runs a small remote DataFrame action and reports the server's Spark
 version. It runs in a separate process with a total timeout, so an unavailable server
 cannot leave a stuck CLI. Exit codes are 0 for success, 1 for configuration/connection
-failure, 2 for CLI usage errors, and 5 for timeout. Error output omits gRPC details that
-could contain credentials. A timed-out session may remain until the server's session
-expiry policy cleans it up; the check never stops the shared server.</p>
+failure, 2 for CLI usage errors, 5 for timeout and 130 for interruption. Error output
+omits gRPC details that could contain credentials. A timed-out session may remain until
+the server's session expiry policy cleans it up; the check never stops the shared server.</p>
+<p>With <code>--output json</code>, the command writes one document using the
+<a href="../automation/">automation contract</a>. <code>namespace</code> is empty because the check does not
+use Kubernetes. A failure has <code>status: "error"</code>, <code>spark_version: null</code> and
+<code>error: {code, message}</code> with <code>operation_error</code>, <code>timeout</code> or <code>interrupted</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"schema_version"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"operation"</span><span class="p">:</span><span class="w"> </span><span class="s2">"connect_check"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"namespace"</span><span class="p">:</span><span class="w"> </span><span class="s2">""</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"error"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"status"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ok"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"spark_version"</span><span class="p">:</span><span class="w"> </span><span class="s2">"4.3.0"</span>
+<span class="p">}</span>
+</code></pre></div>
 <h2 id="notebook-and-application-sessions">Notebook and application sessions<a class="headerlink" href="#notebook-and-application-sessions" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">spark_on_k8s.connect</span><span class="w"> </span><span class="kn">import</span> <span class="n">ConnectProfile</span>
 
@@ -5080,7 +5100,7 @@ and <a href="https://spark.apache.org/docs/latest/api/python/getting_started/ins
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 8, 2026 13:59:25 UTC">November 8, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 8, 2026 23:15:41 UTC">November 8, 2026</span>
   </span>
 
     

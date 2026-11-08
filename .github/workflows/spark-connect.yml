@@ -14,6 +14,7 @@ on:
       - "tests/integration/connect/**"
       - "pyproject.toml"
       - "uv.lock"
+      - "scripts/install-kind.sh"
       - ".github/workflows/spark-connect.yml"
   push:
     branches: [main]
@@ -26,6 +27,7 @@ on:
       - "tests/integration/connect/**"
       - "pyproject.toml"
       - "uv.lock"
+      - "scripts/install-kind.sh"
       - ".github/workflows/spark-connect.yml"
 
 permissions:
@@ -105,7 +107,6 @@ jobs:
       SPARK_IMAGE: ${{ matrix.image }}
       SPARK_VERSION: ${{ matrix.spark }}
       KIND_NODE: "kindest/node:v1.35.8@sha256:07b2536e30b803ed61d1677a79df6115f798ce64c80f9e22f6ed45afd09323c0"
-      KIND_SHA256: "aee6151561422756b764a4ae28e7f44cda5af5a9eead3cc9985112b1de8d8e0d"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
@@ -130,11 +131,7 @@ jobs:
           uv pip check --python .venv/bin/python
       - name: Create a disposable kind cluster
         run: |
-          mkdir -p "$RUNNER_TEMP/bin"
-          curl --fail --location --retry 3 -o "$RUNNER_TEMP/bin/kind" \
-            https://github.com/kubernetes-sigs/kind/releases/download/v0.33.0/kind-linux-amd64
-          echo "$KIND_SHA256  $RUNNER_TEMP/bin/kind" | sha256sum --check
-          chmod +x "$RUNNER_TEMP/bin/kind"
+          bash scripts/install-kind.sh "$RUNNER_TEMP/bin/kind"
           echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/bin/kind" create cluster --name spark-connect-ci --image "$KIND_NODE" \
             --kubeconfig "$RUNNER_TEMP/connect-kubeconfig" --wait 120s

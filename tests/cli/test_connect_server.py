@@ -188,19 +188,26 @@ def test_create_failure_reports_partial_identity_and_cleanup(server, full_handle
 
 
 @pytest.mark.parametrize("confirmed", [False, True])
-def test_interrupt_retains_confirmed_partial_identity_without_cleanup(server, confirmed):
+@pytest.mark.parametrize("output", ["json", "text"])
+def test_interrupt_retains_confirmed_partial_identity_without_cleanup(server, confirmed, output):
     handle, client, _, receipt, _ = server
     client.last_submitted_run = handle.run if confirmed else None
     client.last_submission_phase = "driver_created" if confirmed else "creating_resources"
     client.create_connect_server.side_effect = KeyboardInterrupt()
-    result = CliRunner().invoke(connect_cli, create_args(receipt))
-    value = json.loads(result.stdout)
+    result = CliRunner().invoke(connect_cli, create_args(receipt, output))
     assert result.exit_code == 130
-    assert value["error"]["code"] == "interrupted"
-    assert ("partial_run" in value) is confirmed
-    if confirmed:
-        assert value["partial_run"] == handle.run.to_dict()
-    assert value["cleanup"]["status"] == "not_attempted"
+    if output == "json":
+        value = json.loads(result.stdout)
+        assert value["error"]["code"] == "interrupted"
+        assert ("partial_run" in value) is confirmed
+        if confirmed:
+            assert value["partial_run"] == handle.run.to_dict()
+        assert value["cleanup"]["status"] == "not_attempted"
+    elif confirmed:
+        assert json.dumps(handle.run.to_dict()) in result.stderr
+        assert "not_attempted" in result.stderr
+    else:
+        assert handle.run.driver_uid not in result.stderr
     assert not receipt.exists()
     client.delete_connect_server.assert_not_called()
 
@@ -376,3 +383,84 @@ def test_interrupted_rollback_preserves_uncertain_cleanup_outcome(server):
     assert json.loads(receipt.read_text())["server"] == handle.to_dict()
     assert "not stopped" not in value["error"]["message"]
     client.delete_connect_server.assert_not_called()
+
+
+def test_text_lifecycle_distinguishes_observation_readiness_and_requested_deletion(server):
+    handle, client, _, receipt, profile = server
+    save(handle, receipt)
+    original = receipt.read_bytes()
+    runner = CliRunner()
+    status = runner.invoke(connect_cli, ["server", "status", str(receipt)])
+    assert status.exit_code == 0, status.output
+    observation = json.loads(status.stdout)
+    assert observation["status"] == "running"
+    assert observation["query_ready"] is None
+    client.wait_connect_server_ready.assert_not_called()
+
+    ready = runner.invoke(
+        connect_cli,
+        ["server", "wait", str(receipt), "--profile-file", str(profile), "--profile", "notebook"],
+    )
+    assert ready.exit_code == 0, ready.output
+    assert f"Server {handle.run.app_id} accepted a query" in ready.stdout
+    assert client.wait_connect_server_ready.call_args.kwargs["profile"].endpoint == "sc://localhost:15002"
+
+    deleted = runner.invoke(connect_cli, ["server", "delete", str(receipt)])
+    assert deleted.exit_code == 0, deleted.output
+    assert "Deletion requested" in deleted.stdout
+    assert "cleanup may still be in progress" in deleted.stdout
+    assert "already absent" not in deleted.stdout
+    assert receipt.read_bytes() == original
+
+
+@pytest.mark.parametrize("interrupted", [False, True], ids=["failed-creation", "interrupted-rollback"])
+def test_receipt_write_failure_does_not_erase_partial_identity_or_original_failure(
+    server, monkeypatch, interrupted
+):
+    from spark_on_k8s.cli import receipts
+
+    handle, client, _, receipt, _ = server
+    cleanup = {"status": "unknown", "reason": "Deletion outcome is uncertain"}
+    if interrupted:
+        error = KeyboardInterrupt()
+        error.handle = handle
+        error.run = handle.run
+        error.phase = "rollback"
+        error.cleanup = cleanup
+    else:
+        error = ConnectServerCreateError(
+            "Original server creation failure", handle=handle, phase="rollback", cleanup=cleanup
+        )
+    client.create_connect_server.side_effect = error
+    publish = Mock(side_effect=OSError("private publication failure details"))
+    monkeypatch.setattr(receipts.os, "link", publish)
+    result = CliRunner().invoke(connect_cli, create_args(receipt))
+    assert result.exit_code == (130 if interrupted else 1)
+    value = json.loads(result.stdout)
+    assert value["server"] == handle.to_dict()
+    assert value["partial_run"] == handle.run.to_dict()
+    assert value["phase"] == "rollback"
+    assert value["cleanup"] == cleanup
+    assert value["receipt_error"]["code"] == "receipt_write_error"
+    assert value["error"]["code"] == ("interrupted" if interrupted else "operation_error")
+    if not interrupted:
+        assert value["error"]["message"] == "Original server creation failure"
+    assert "private publication failure details" not in result.output
+    publish.assert_called_once()
+    assert not receipt.exists()
+    assert not list(receipt.parent.glob(".spark-receipt-*"))
+    client.delete_connect_server.assert_not_called()
+
+
+@pytest.mark.parametrize("namespace", ["Uppercase", "invalid/name", "a" * 64])
+def test_invalid_namespace_rejected_before_receipt_or_cluster_access(server, namespace):
+    _, client, factory, receipt, _ = server
+    args = create_args(receipt)
+    args[args.index("--namespace") + 1] = namespace
+    result = CliRunner().invoke(connect_cli, args)
+    assert result.exit_code == 1
+    assert json.loads(result.stdout)["error"]["code"] == "operation_error"
+    assert not receipt.exists()
+    assert not list(receipt.parent.glob(".spark-receipt-*"))
+    factory.assert_not_called()
+    client.create_connect_server.assert_not_called()

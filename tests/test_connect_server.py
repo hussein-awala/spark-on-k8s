@@ -395,3 +395,107 @@ def test_interrupted_rollback_preserves_uncertain_deletion_and_does_not_retry(cl
     assert error.value.cleanup["status"] == "unknown"
     assert error.value.run.driver_pod not in objects["pod"]
     assert api.delete_namespaced_pod.call_count == 1
+
+
+@pytest.mark.parametrize("wrapped", [False, True])
+@pytest.mark.parametrize("expired", [False, True])
+@pytest.mark.parametrize("timeout_type", ["read", "connect"])
+def test_kubernetes_transport_timeout_becomes_wait_timeout_only_after_deadline(
+    cluster, monkeypatch, wrapped, expired, timeout_type
+):
+    from urllib3.exceptions import ConnectTimeoutError, MaxRetryError, ReadTimeoutError
+
+    sdk, api, objects = cluster
+    handle = sdk.create_connect_server(config())
+    clock = [100.0]
+    monkeypatch.setattr("spark_on_k8s.utils.run.time.monotonic", lambda: clock[0])
+    reason = (
+        ReadTimeoutError(None, "/api/v1/pods", "read timeout")
+        if timeout_type == "read"
+        else ConnectTimeoutError("connection timed out")
+    )
+    failure = MaxRetryError(None, "/api/v1/pods", reason=reason) if wrapped else reason
+
+    def timed_out(**kwargs):
+        assert kwargs["_request_timeout"] == 3
+        clock[0] = 104.0 if expired else 101.0
+        raise failure
+
+    api.read_namespaced_pod.side_effect = timed_out
+    with pytest.raises(ConnectServerTimeout if expired else type(failure)) as error:
+        sdk.wait_connect_server_ready(
+            handle, profile=ConnectProfile(endpoint="sc://localhost", tls=False), timeout=3
+        )
+    if expired:
+        assert error.value.handle == handle
+        assert error.value.cleanup["status"] == "not_attempted"
+    else:
+        assert error.value is failure
+    assert handle.run.driver_pod in objects["pod"]
+    assert handle.service_name in objects["service"]
+    api.delete_namespaced_pod.assert_not_called()
+    api.delete_namespaced_service.assert_not_called()
+
+
+@pytest.mark.parametrize("kind", ["connection", "permission", "unavailable"])
+def test_expired_wait_does_not_hide_unrelated_kubernetes_errors(cluster, monkeypatch, kind):
+    from urllib3.exceptions import MaxRetryError, NewConnectionError
+
+    sdk, api, _ = cluster
+    handle = sdk.create_connect_server(config())
+    clock = [100.0]
+    monkeypatch.setattr("spark_on_k8s.utils.run.time.monotonic", lambda: clock[0])
+    failure = (
+        MaxRetryError(None, "/api/v1/pods", reason=NewConnectionError(None, "connection refused"))
+        if kind == "connection"
+        else ApiException(status=403 if kind == "permission" else 503)
+    )
+
+    def failed(**kwargs):
+        clock[0] = 104.0
+        raise failure
+
+    api.read_namespaced_pod.side_effect = failed
+    with pytest.raises(type(failure)) as error:
+        sdk.wait_connect_server_ready(
+            handle, profile=ConnectProfile(endpoint="sc://localhost", tls=False), timeout=3
+        )
+    assert error.value is failure
+    api.delete_namespaced_pod.assert_not_called()
+
+
+def test_bounded_helper_clients_disable_retries_without_changing_other_settings_or_cached_pools(
+    cluster, monkeypatch
+):
+    from contextlib import contextmanager
+
+    sdk, _, _ = cluster
+    handle = sdk.create_connect_server(config())
+    cfg = k8s.Configuration()
+    cfg.host = "https://localhost:6443"
+    cfg.api_key["authorization"] = "test-credential"
+    seen = []
+
+    @contextmanager
+    def client():
+        with k8s.ApiClient(configuration=cfg) as raw:
+            pool_manager = raw.rest_client.pool_manager
+            original_settings = dict(pool_manager.connection_pool_kw)
+            cached = pool_manager.connection_from_url(cfg.host)
+            assert cached.retries.total == 3
+            yield raw
+            current = pool_manager.connection_from_url(cfg.host)
+            seen.append((cached, current))
+            assert current is not cached
+            assert current.retries == 0
+            assert cached.retries.total == 3
+            assert pool_manager.connection_pool_kw == {**original_settings, "retries": 0}
+            assert raw.configuration.api_key["authorization"] == "test-credential"
+
+    monkeypatch.setattr(sdk.k8s_client_manager, "client", client)
+    assert sdk.connect_server_status(handle)["status"] == "running"
+    assert sdk.delete_connect_server(handle)["status"] == "deletion_requested"
+    assert len(seen) == 2
+    assert cfg.retries is None
+    with k8s.ApiClient(configuration=cfg) as unrelated:
+        assert unrelated.rest_client.pool_manager.connection_from_url(cfg.host).retries.total == 3

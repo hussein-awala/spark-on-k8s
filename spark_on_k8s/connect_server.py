@@ -9,6 +9,7 @@ from uuid import uuid4
 
 from kubernetes import client as k8s
 from kubernetes.client.exceptions import ApiException
+from urllib3.exceptions import MaxRetryError, NewConnectionError, TimeoutError as TransportTimeoutError
 
 from spark_on_k8s.client import ExecutorInstances, PodResources
 from spark_on_k8s.connect import ConnectError, ConnectProfile
@@ -327,6 +328,14 @@ def _deadline(timeout):
     return WaitDeadline(timeout)
 
 
+def _api(raw):
+    # A retry would restart urllib3's per-request timeout with the same budget.
+    # This is per ApiClient, preserving TLS/proxy/auth configuration and global defaults.
+    # urllib3 includes retries in its pool key, so cached pools with retries stay untouched.
+    raw.rest_client.pool_manager.connection_pool_kw["retries"] = 0
+    return k8s.CoreV1Api(raw)
+
+
 def _read(api, kind, name, namespace, deadline):
     try:
         return getattr(api, f"read_namespaced_{kind}")(
@@ -435,7 +444,7 @@ def create_connect_server(client: SparkOnK8S, config: ConnectServerConfig) -> Co
         _uid(run.driver_uid)
         phase = "driver_service_verification"
         with client.k8s_client_manager.client() as raw:
-            api = k8s.CoreV1Api(raw)
+            api = _api(raw)
             deadline = WaitDeadline(10)
             pod = _read(api, "pod", run.driver_pod, run.namespace, deadline)
             transport = _read(api, "service", run.app_id, run.namespace, deadline)
@@ -538,7 +547,7 @@ def connect_server_status(client: SparkOnK8S, handle: ConnectServerHandle, *, ti
         raise ValueError("handle must be ConnectServerHandle")
     deadline = _deadline(timeout)
     with client.k8s_client_manager.client() as raw:
-        pod, transport, service = _resources(k8s.CoreV1Api(raw), handle, deadline)
+        pod, transport, service = _resources(_api(raw), handle, deadline)
     missing = [
         name
         for name, obj in (("driver", pod), ("driver_service", transport), ("connect_service", service))
@@ -612,6 +621,16 @@ def wait_connect_server_ready(
             deadline.sleep(poll_interval)
     except TimeoutError:
         raise ConnectServerTimeout(handle) from None
+    except (TransportTimeoutError, MaxRetryError) as error:
+        # urllib3 can wrap a request timeout once the remaining wait budget is tiny.
+        # Only the enclosing deadline expiring changes that transport error into a wait timeout.
+        reason = error.reason if isinstance(error, MaxRetryError) else error
+        if isinstance(reason, TransportTimeoutError) and not isinstance(reason, NewConnectionError):
+            try:
+                deadline.remaining()
+            except TimeoutError:
+                raise ConnectServerTimeout(handle) from None
+        raise
 
 
 def delete_connect_server(client: SparkOnK8S, handle: ConnectServerHandle, *, timeout: float = 10) -> dict:
@@ -626,7 +645,7 @@ def delete_connect_server(client: SparkOnK8S, handle: ConnectServerHandle, *, ti
     deadline = _deadline(timeout)
     requested = []
     with client.k8s_client_manager.client() as raw:
-        api = k8s.CoreV1Api(raw)
+        api = _api(raw)
         pod, transport, service = _resources(api, handle, deadline)
         for kind, obj in (("service", service), ("service", transport), ("pod", pod)):
             if obj is None:

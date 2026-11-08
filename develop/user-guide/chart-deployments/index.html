@@ -68,7 +68,7 @@
   <meta name="documentation-channel" content="develop">
   <meta name="documentation-version" content="develop">
   
-    <meta name="documentation-source" content="f7ebf814306703ec72e6244fe046f57367ba2101">
+    <meta name="documentation-source" content="b4b4fe1c6fcbce3ce60e3992bbeb5025465ada53">
   
 
   </head>
@@ -108,7 +108,7 @@
     <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
   
   
-    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/f7ebf814306703ec72e6244fe046f57367ba2101"><code>f7ebf8143067</code></a>.
+    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/b4b4fe1c6fcbce3ce60e3992bbeb5025465ada53"><code>b4b4fe1c6fcb</code></a>.
   
 
           </div>
@@ -5288,6 +5288,10 @@ open so normal cluster-specific fields are accepted.</p>
 <p>Rendering checks do not validate cloud permissions, image availability, storage
 access or API server admission. Raw <code>env</code> overrides still take precedence over
 chart-generated environment settings and remain the operator's responsibility.
+An <code>ingress.tls</code> entry terminates TLS before the API, so browser log streams are
+rejected until <code>env</code> sets <code>SPARK_ON_K8S_API_WEBSOCKET_ALLOWED_ORIGINS</code> to the
+public <code>https://</code> origins; see
+<a href="../../security-boundaries/#log-websocket-browser-origins">browser origins</a>.
 Use the <a href="../../development/">development guide</a> for the Helm regression suite and
 <a href="../../releases/">release guidance</a> for the artifact publication boundary.</p>
 <h2 id="preparing-the-next-chart-release">Preparing the next chart release<a class="headerlink" href="#preparing-the-next-chart-release" title="Permanent link">&para;</a></h2>
@@ -5295,7 +5299,18 @@ Use the <a href="../../development/">development guide</a> for the Helm regressi
 compatible <code>image.tag</code> or <code>image.digest</code>. The release publisher sets the package's
 qualified application version; an empty image tag then selects that version.
 API 0.12.1 does not implement <code>/ready</code> and is not compatible with these probes.
-Do not publish this chart against that older API image.</p>
+Do not publish this chart against that older API image. The <code>helm-release</code>
+workflow refuses an <code>app_version</code> below 0.13.0 or without a published
+<code>ghcr.io/hussein-awala/spark-on-k8s</code> image, and a <code>chart_version</code> that the chart
+repository already lists. Run it only after the package release has published the
+API image, selecting that release tag in the workflow's ref selector so the chart
+source matches the qualified application.</p>
+<p>When upgrading a release installed from published chart 0.3.0, pass your values
+file again, or use <code>--reset-then-reuse-values</code> (Helm 3.14 and later), instead of
+<code>--reuse-values</code>. <code>--reuse-values</code> replaces this chart's defaults with the old
+release's values, including its <code>latest</code> image tags, and omits new settings such
+as <code>rbac</code>, <code>runHistory</code> and <code>metrics</code>. The chart schema rejects such an upgrade
+with a <code>missing properties</code> error before rendering.</p>
 <p>Shared RBAC resource names now include the release namespace identity. Existing
 installations can set <code>rbac.legacyNames: true</code> to retain their old names during an
 upgrade. New installations should use the default <code>false</code>, allowing identical
@@ -5329,7 +5344,7 @@ need a reviewed recreation because Deployment selectors are immutable.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 8, 2026 19:40:11 UTC">November 8, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 8, 2026 22:38:25 UTC">November 8, 2026</span>
   </span>
 
     

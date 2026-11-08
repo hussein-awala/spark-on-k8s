@@ -89,7 +89,9 @@ def test_stop_permission_and_authenticated_health_hook(tmp_path):
     role = next(d for d in docs if d["kind"] == "Role")
     assert next(r for r in role["rules"] if r["resources"] == ["pods/exec"])["verbs"] == ["get", "create"]
     hook = next(d for d in docs if d["kind"] == "Pod")
-    assert hook["spec"]["containers"][0]["args"][-1].endswith("/ready")
+    assert "/ready" in hook["spec"]["containers"][0]["args"][-1]
+    assert "wget -T 5" in hook["spec"]["containers"][0]["args"][-1]
+    assert hook["spec"]["activeDeadlineSeconds"] == 90
 
 
 def test_source_requires_explicit_qualified_image():

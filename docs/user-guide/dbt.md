@@ -156,9 +156,13 @@ Statements are not automatically replayed (`query_retries` must be 0). Spark SQL
 is not transactional: failure and cancellation can leave successfully written
 tables or rows. Review dbt's normal incremental/idempotency behavior before retrying.
 Connect supports cancellation but does not accept `query_timeout` in this initial
-version; Thrift retains dbt-spark's query timeout setting. Connect buffers SQL
-results for dbt metadata/seed/materialization operations; it is not a streaming
-query-results interface.
+version; Thrift retains dbt-spark's query timeout setting. Thrift serializes
+requests on each connection and limits acquisition of the request lock and
+individual blocking socket operations to 15 seconds. These transport limits do not cap the full SQL
+execution time: queries run asynchronously and the adapter polls for completion.
+A failed transport is closed rather than reused, and statements are not replayed.
+Connect buffers SQL results for dbt metadata/seed/materialization operations; it
+is not a streaming query-results interface.
 
 ## Receipts, failure and recovery
 

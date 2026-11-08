@@ -12,7 +12,7 @@ from kubernetes.client import ApiException
 from spark_on_k8s import client
 from spark_on_k8s.cli.app import app_cli
 from spark_on_k8s.cli.apps import apps_cli
-from spark_on_k8s.utils import app_manager
+from spark_on_k8s.utils import app_manager, run as run_module
 from spark_on_k8s.utils.run import RunHandle
 from urllib3.exceptions import ConnectTimeoutError, MaxRetryError, NewConnectionError, ReadTimeoutError
 
@@ -148,6 +148,40 @@ def test_wait_reports_distinct_runtime_failures(cluster, error, code, error_code
     )
     assert result.exit_code == code, result.output
     assert json.loads(result.stdout)["error"]["code"] == error_code
+
+
+@pytest.mark.parametrize("phase,code", [("Succeeded", 0), ("Failed", 3), ("Running", 5)])
+@pytest.mark.parametrize("mode", ["wait", "submit-wait"])
+def test_final_status_read_within_the_deadline_is_not_reported_as_timeout(
+    cluster, monkeypatch, phase, code, mode
+):
+    clock = [0.0]
+    monkeypatch.setattr(run_module, "time", SimpleNamespace(monotonic=lambda: clock[0], sleep=Mock()))
+    cluster.pod.status.phase = phase
+    # The first read takes half the budget; later reads end exactly as the remaining budget expires.
+    durations = iter([0.5] + [10.0] * 10)
+
+    def respond(result):
+        def read(*args, **kwargs):
+            clock[0] += min(next(durations), kwargs["_request_timeout"])
+            return result
+
+        return read
+
+    cluster.api.list_namespaced_pod.side_effect = respond(SimpleNamespace(items=[cluster.pod]))
+    cluster.api.read_namespaced_pod.side_effect = respond(cluster.pod)
+    args = (
+        ["wait", "--namespace", "spark", "--app-id", "existing"] if mode == "wait" else submit_args("--wait")
+    )
+    result = CliRunner().invoke(app_cli, [*args, "--timeout", "1", "--output", "json"])
+    assert result.exit_code == code, result.output
+    payload = json.loads(result.stdout)
+    if code == 5:
+        assert payload["error"]["code"] == "timeout"
+        assert payload["status"] is None
+    else:
+        assert payload["error"] is None
+        assert payload["status"] == phase
 
 
 def test_waiting_submission_keeps_receipt_on_timeout(cluster, monkeypatch):

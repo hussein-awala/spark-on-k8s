@@ -76,6 +76,21 @@ def test_loopback_and_explicit_insecure_network():
     assert ConnectProfile(endpoint="sc://spark.internal", tls=False, allow_insecure=True)
 
 
+@pytest.mark.parametrize(
+    "endpoint", ["sc://127.0.0.1:15002", "sc://[::1]:15002", "sc://spark.internal:15002"]
+)
+def test_plaintext_profile_with_token_is_rejected_because_the_client_would_use_tls(endpoint):
+    # PySpark Connect clients switch to TLS whenever a token is set, except for hostname localhost.
+    with pytest.raises(ConnectError, match="token_env requires tls = true"):
+        ConnectProfile(endpoint=endpoint, tls=False, allow_insecure=True, token_env="SPARK_CONNECT_TOKEN")
+
+
+def test_plaintext_token_is_accepted_for_localhost_local_credentials(monkeypatch):
+    monkeypatch.setenv("SPARK_CONNECT_TOKEN", "local-token")
+    profile = ConnectProfile(endpoint="sc://localhost:15002", tls=False, token_env="SPARK_CONNECT_TOKEN")
+    assert profile.connection_string() == "sc://localhost:15002/;use_ssl=false;token=local-token"
+
+
 @pytest.mark.parametrize("fail", [False, True])
 def test_session_is_independent_and_always_closed(monkeypatch, fail):
     session = MagicMock()
@@ -137,6 +152,50 @@ def test_cli_reports_timeout_as_json(tmp_path):
         result = CliRunner().invoke(connect_cli, ["check", str(file), "--output", "json"])
     assert result.exit_code == 5
     assert json.loads(result.stdout)["status"] == "error"
+
+
+@pytest.mark.parametrize(
+    "failure,exit_code,error_code",
+    [
+        (None, 0, None),
+        (TimeoutError("Spark Connect check timed out; the server was not stopped."), 5, "timeout"),
+        (ConnectError("Spark Connect check failed."), 1, "operation_error"),
+        (KeyboardInterrupt(), 130, "interrupted"),
+    ],
+)
+def test_cli_check_json_uses_the_shared_automation_contract(tmp_path, failure, exit_code, error_code):
+    file = tmp_path / "connect.toml"
+    file.write_text('[profiles.default]\nendpoint="sc://localhost"\ntls=false\n')
+    payload = {"schema_version": 1, "status": "ok", "spark_version": "4.3.0"}
+    with patch.object(ConnectProfile, "probe", side_effect=failure, return_value=payload):
+        result = CliRunner().invoke(connect_cli, ["check", str(file), "--output", "json"])
+    assert result.exit_code == exit_code, result.output
+    assert result.stderr == ""
+    document = json.loads(result.stdout)
+    error = document.pop("error")
+    assert document == {
+        "schema_version": 1,
+        "operation": "connect_check",
+        "namespace": "",
+        "status": "error" if failure else "ok",
+        "spark_version": None if failure else "4.3.0",
+    }
+    if failure is None:
+        assert error is None
+    else:
+        assert set(error) == {"code", "message"}
+        assert error["code"] == error_code
+        assert error["message"]
+
+
+def test_cli_check_text_interrupt_uses_the_interrupt_exit_code(tmp_path):
+    file = tmp_path / "connect.toml"
+    file.write_text('[profiles.default]\nendpoint="sc://localhost"\ntls=false\n')
+    with patch.object(ConnectProfile, "probe", side_effect=KeyboardInterrupt()):
+        result = CliRunner().invoke(connect_cli, ["check", str(file)])
+    assert result.exit_code == 130
+    assert result.stdout == ""
+    assert "Interrupted; the Spark Connect server was not stopped." in result.stderr
 
 
 @pytest.mark.parametrize("value", ["inf", "nan"])

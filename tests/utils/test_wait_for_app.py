@@ -48,6 +48,22 @@ def test_async_waiter_propagates_api_errors(monkeypatch, already_running):
     assert sleep.call_count == (1 if already_running else 0)
 
 
+@pytest.mark.parametrize("asynchronous", [False, True])
+def test_waiting_by_application_id_names_the_application_not_a_missing_pod(capsys, asynchronous):
+    module = async_app_manager if asynchronous else app_manager
+    manager_type = module.AsyncSparkAppManager if asynchronous else module.SparkAppManager
+    manager = manager_type(k8s_client_manager=MagicMock())
+    statuses = [SparkAppStatus.Running, SparkAppStatus.Succeeded]
+    manager.app_status = AsyncMock(side_effect=statuses) if asynchronous else Mock(side_effect=statuses)
+    call = manager.wait_for_app(namespace="spark", app_id="daily-job", poll_interval=0, should_print=True)
+    if asynchronous:
+        asyncio.run(call)
+    output = capsys.readouterr().out
+    assert output == (
+        "App daily-job status is Running, sleep 0s\nApp daily-job finished with status Succeeded\n"
+    )
+
+
 def test_sync_waiter_still_returns_when_pod_is_deleted(monkeypatch):
     manager = app_manager.SparkAppManager(k8s_client_manager=MagicMock())
     status = Mock(side_effect=app_manager.ApiException(status=404))

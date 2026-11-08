@@ -53,14 +53,13 @@ def execution(operation: str, namespace: str, output: str):
             yield result
     except KeyboardInterrupt:
         code = 130
-        result["error"] = {
-            "code": "interrupted",
-            "message": (
-                "Interrupted; inspect the reported resource identity and cleanup outcome."
-                if operation.startswith("connect_server_")
-                else "Interrupted; the application was not stopped."
-            ),
-        }
+        if operation.startswith("connect_server_"):
+            message = "Interrupted; inspect the reported resource identity and cleanup outcome."
+        elif operation == "connect_check":
+            message = "Interrupted; the Spark Connect server was not stopped."
+        else:
+            message = "Interrupted; the application was not stopped."
+        result["error"] = {"code": "interrupted", "message": message}
     except (TimeoutError, HTTPTimeoutError, MaxRetryError) as error:
         timed_out = isinstance(error, TimeoutError) or is_transport_timeout(error)
         code = 5 if timed_out else 1
@@ -164,10 +163,10 @@ def execute_submission(
                 should_print=True,
                 **({"timeout": deadline.remaining()} if timeout is not None else {}),
             )
+            # The deadline bounds the request; a status it returns is reported, not replaced by a timeout.
             result["status"] = spark_client.app_manager.app_status(
                 **target,
                 **({"request_timeout": deadline.remaining()} if timeout is not None else {}),
             )
-            deadline.remaining()
             if output == "text":
                 click.echo(f"App {run.app_id} has terminated with status {result['status'].value}")

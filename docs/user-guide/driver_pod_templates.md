@@ -104,7 +104,7 @@ setting override the client's configured default. Input mappings are not modifie
 | Selected container image, image pull policy and arguments | Generated from submission options and Spark configuration. |
 | Selected container command | Removed, so the application image's Spark entrypoint runs the generated driver arguments. |
 | Selected container CPU and memory requests/limits | Generated from `driver_resources` or configured defaults. Other resources, such as ephemeral storage or GPU limits, are retained. |
-| Environment variables | Merged by name; generated values win, including `SPARK_DRIVER_BIND_ADDRESS`. |
+| Environment variables | Merged by name; generated values win, including `spark.kubernetes.driverEnv.*` properties and the managed `SPARK_DRIVER_BIND_ADDRESS`. See [driver environment variables](examples.md#driver-environment-variables) for precedence and validation. |
 | Environment sources (`envFrom`) | Template sources first, then generated secret references; identical entries are not duplicated. |
 | Volumes, init containers | Merged by name; an explicit matching entry replaces the entire template entry. |
 | Driver volume mounts | Merged by mount path; an explicit matching entry replaces the entire template entry. |

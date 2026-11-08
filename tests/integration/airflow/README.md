@@ -20,6 +20,15 @@ timeout, each with synchronous and deferrable execution. The startup-timeout
 cases require a real Pending/Unschedulable pod and operator cleanup even when
 `on_finish_action="keep"`. Deferred cases must execute and resume the real trigger.
 
+The successful and deliberately failing applications also check environment
+variables inside the driver and executor Python workers. `spark.kubernetes.driverEnv.*`
+sets driver-only values, including an empty string and a numeric value converted to
+text. `spark.executorEnv.*` sets a different executor value for the same name, and
+driver-only values must remain absent from executors. Pod specifications are checked
+against the runtime evidence; startup-timeout cases check only the driver Pod
+specification because their application never starts. These results are retained
+in each case's evidence alongside the execution and cleanup checks.
+
 `.github/workflows/airflow-kubernetes.yml` contains the complete setup. The host
 runner accepts only a disposable kind context, creates a unique namespace, saves
 per-case results plus logs and Kubernetes evidence, and removes its namespace.

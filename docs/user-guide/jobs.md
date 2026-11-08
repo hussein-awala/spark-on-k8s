@@ -61,6 +61,10 @@ labels and annotations, `driver_env_vars_from_secrets`, and `executor_pod_templa
 or `executor_pod_template_path`, plus `driver_pod_template` and `driver_container_name`. Secrets are referenced by name; literal secret
 payloads are deliberately not a job-file field.
 
+`spec.spark_conf` accepts `spark.kubernetes.driverEnv.NAME` for driver environment
+variables. See [driver environment variables](examples.md#driver-environment-variables)
+for conversion, precedence and Secret handling.
+
 Job submission defaults to `no_wait`, namespace `default`, service account `spark`,
 two executors, and 1 CPU/1024 MiB memory/512 MiB overhead per pod. Job files do not
 inherit `SPARK_ON_K8S_*` submission defaults. Set `spec.app_waiter: wait` or `log` to

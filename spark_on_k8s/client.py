@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import math
 import re
 from dataclasses import dataclass
 from datetime import datetime
@@ -495,6 +496,7 @@ class SparkOnK8S(LoggingMixin):
             driver_host_aliases = []
 
         spark_conf = spark_conf or {}
+        driver_environment = self._driver_environment(spark_conf)
         main_class_parameters = app_arguments or []
 
         driver_resources = driver_resources or PodResources()
@@ -640,6 +642,7 @@ class SparkOnK8S(LoggingMixin):
             namespace=namespace,
             service_account=service_account,
             args=driver_command_args,
+            env_variables=driver_environment,
             extra_labels={
                 **{key: value for key, value in driver_labels.items() if key != "spark-ui-proxy"},
                 **extra_labels,
@@ -864,6 +867,33 @@ class SparkOnK8S(LoggingMixin):
         if isinstance(value, bool):
             return str(value).lower()
         return str(value)
+
+    @staticmethod
+    def _driver_environment(spark_conf: dict[str, Any]) -> dict[str, str]:
+        """Apply driver environment properties before this client creates the Pod."""
+        prefix = "spark.kubernetes.driverEnv."
+        environment = {}
+        for key, value in spark_conf.items():
+            if not isinstance(key, str) or not key.startswith(prefix):
+                continue
+            name = key.removeprefix(prefix)
+            if not name or any(ord(char) < 32 or ord(char) > 126 or char == "=" for char in name):
+                raise ValueError(f"Invalid driver environment variable name in Spark property {key!r}")
+            if name == "SPARK_DRIVER_BIND_ADDRESS":
+                raise ValueError(
+                    "SPARK_DRIVER_BIND_ADDRESS is managed and cannot be set via Spark properties"
+                )
+            if not isinstance(value, (str, bool, int, float)) or (
+                isinstance(value, float) and not math.isfinite(value)
+            ):
+                raise ValueError(
+                    f"Driver environment property {key!r} must have a string or finite scalar value"
+                )
+            rendered = SparkOnK8S._value_to_str(value)
+            if "\0" in rendered:
+                raise ValueError(f"Driver environment property {key!r} cannot contain NUL")
+            environment[name] = rendered
+        return environment
 
     @staticmethod
     def _spark_config_to_arguments(spark_conf: dict[str, str] | None) -> list[str]:

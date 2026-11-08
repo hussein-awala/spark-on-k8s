@@ -17,7 +17,9 @@ def redact(value: Any, *, key: str = "") -> Any:
     if isinstance(value, list):
         return [redact(item) for item in value]
     if isinstance(value, str):
-        if "=" in value and _SENSITIVE.search(value.partition("=")[0]):
+        if "=" in value and (
+            value.startswith("spark.kubernetes.driverEnv.") or _SENSITIVE.search(value.partition("=")[0])
+        ):
             return value.partition("=")[0] + "=<redacted>"
         value = re.sub(
             r"([?;&](?:password|passwd|secret|token|credential|access[._-]?key|private[._-]?key)=)[^&#;\s]*",

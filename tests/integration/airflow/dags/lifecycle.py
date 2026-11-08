@@ -52,6 +52,11 @@ with DAG(
             "spark.sql.shuffle.partitions": "2",
             "spark.kubernetes.executor.request.cores": "0.5",
             "spark.kubernetes.executor.deleteOnTermination": "false",
+            "spark.kubernetes.driverEnv.AIRFLOW_SPARK_ROLE": "driver-property",
+            "spark.executorEnv.AIRFLOW_SPARK_ROLE": "executor-property",
+            "spark.kubernetes.driverEnv.AIRFLOW_SPARK_DRIVER_ONLY": "driver-only",
+            "spark.kubernetes.driverEnv.AIRFLOW_SPARK_EMPTY": "",
+            "spark.kubernetes.driverEnv.AIRFLOW_SPARK_NUMBER": 42,
         },
         app_waiter="wait",
         deferrable=MODE == "deferred",
@@ -102,10 +107,21 @@ def main():
     driver = next(iter(observed.values()))
     assert driver.spec.service_account_name == "spark"
     assert driver.metadata.annotations.get("spark-on-k8s.io/airflow-task"), "Missing real task attribution"
+    driver_container = next(container for container in driver.spec.containers if container.name == "driver")
+    # The Kubernetes API may omit value="" while retaining the environment entry.
+    driver_env = {item.name: item.value or "" for item in driver_container.env or []}
+    expected_driver_env = {
+        "AIRFLOW_SPARK_ROLE": "driver-property",
+        "AIRFLOW_SPARK_DRIVER_ONLY": "driver-only",
+        "AIRFLOW_SPARK_EMPTY": "",
+        "AIRFLOW_SPARK_NUMBER": "42",
+    }
+    assert {name: driver_env.get(name) for name in expected_driver_env} == expected_driver_env
     remaining = api.list_namespaced_pod(
         NAMESPACE, label_selector=selector, _request_timeout=REQUEST_TIMEOUT
     ).items
     executor_count = 0
+    environment = None
     if OUTCOME == "timeout":
         assert elapsed < TIMEOUT + 60, f"Unbounded startup timeout: {elapsed}"
         assert driver.status.phase == "Pending", driver.status.phase
@@ -141,17 +157,38 @@ def main():
         print(logs, flush=True)
         print("AIRFLOW_SPARK_LOG_END " + CASE, flush=True)
         assert "AIRFLOW_SPARK_EXECUTORS_OK" in logs, "No actual executor work"
+        environment_prefix = "AIRFLOW_SPARK_ENVIRONMENT_OK "
+        environment_records = [
+            json.loads(line.removeprefix(environment_prefix))
+            for line in logs.splitlines()
+            if line.startswith(environment_prefix)
+        ]
+        assert len(environment_records) == 1, "Missing actual driver/executor environment checks"
+        environment = environment_records[0]
+        assert environment["driver"] == expected_driver_env
         marker = "AIRFLOW_SPARK_SUCCESS" if OUTCOME == "success" else "AIRFLOW_SPARK_EXPECTED_FAILURE"
         assert marker in logs, f"Missing {marker}"
         if OUTCOME == "failure":
             assert "AIRFLOW_SPARK_SUCCESS" not in logs
-        executor_count = sum(
-            any(owner.uid == driver.metadata.uid for owner in pod.metadata.owner_references or [])
+        executors = [
+            pod
             for pod in api.list_namespaced_pod(
                 NAMESPACE, label_selector="spark-role=executor", _request_timeout=REQUEST_TIMEOUT
             ).items
-        )
+            if any(owner.uid == driver.metadata.uid for owner in pod.metadata.owner_references or [])
+        ]
+        executor_count = len(executors)
         assert executor_count > 0
+        for executor in executors:
+            executor_container = next(
+                container
+                for container in executor.spec.containers
+                if container.name == "spark-kubernetes-executor"
+            )
+            executor_env = {item.name: item.value or "" for item in executor_container.env or []}
+            assert {name: executor_env.get(name) for name in expected_driver_env} == environment["executors"][
+                0
+            ]
     if remaining:
         api.delete_namespaced_pod(driver.metadata.name, NAMESPACE, _request_timeout=REQUEST_TIMEOUT)
     app_id = driver.metadata.labels["spark-app-id"]
@@ -191,6 +228,8 @@ def main():
                 ],
                 "resources_garbage_collected": True,
                 "executors": executor_count,
+                "driver_pod_environment": expected_driver_env,
+                "runtime_environment": environment,
                 "elapsed_seconds": round(elapsed, 2),
                 "passed": True,
                 "execution": "dag.test in Kubernetes pod; real inline trigger, no scheduler",

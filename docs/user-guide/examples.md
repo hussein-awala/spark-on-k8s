@@ -122,6 +122,44 @@ spark_client.submit_app(
 ```
 
 #### Driver environment variables
+The source version supports `spark.kubernetes.driverEnv.NAME` in `spark_conf`.
+The client copies these properties into the driver container's environment before
+creating the Pod. This also applies to the CLI and both Airflow operators, which
+use the same submission code. Install from source until a release includes this
+feature; see [installation](installation.md).
+
+For example, a launcher that loads a YAML property mapping into `spark_conf` can use:
+
+```yaml
+spark.kubernetes.driverEnv.DATABASE_NAME: dbname
+spark.executorEnv.DATABASE_NAME: executor_dbname
+```
+
+The driver receives `DATABASE_NAME=dbname`; Spark independently sets
+`DATABASE_NAME=executor_dbname` on executors. A driver-only property does not add
+an executor environment variable. With [job files](jobs.md), put these properties
+under `spec.spark_conf`; with the CLI, pass them through `--conf`.
+
+Names must be nonempty printable ASCII without `=`. Values may be strings,
+booleans, integers or finite floats; booleans become `true`/`false`, and an empty
+string remains empty. Null, structured values and NUL characters are rejected
+before Kubernetes writes. `SPARK_DRIVER_BIND_ADDRESS` is managed from the Pod IP
+and cannot be supplied through `spark.kubernetes.driverEnv`.
+
+An explicit driver property replaces a matching [driver template](driver_pod_templates.md)
+environment entry, including its `valueFrom` reference. Explicit environment entries
+also take precedence over matching `envFrom` Secret/ConfigMap keys, including
+`secret_values` and `driver_env_vars_from_secrets`. Sidecar and init-container
+environments are unchanged. Kubernetes retains its normal `$(NAME)` expansion
+behavior for environment values.
+
+Use these properties for non-secret settings: they remain ordinary Spark
+configuration in the driver arguments and may appear in Spark diagnostics. Offline
+plan output redacts their values in both environment entries and configuration
+arguments; raw `ApplicationPlan.resources` retains the actual values for inspection.
+For credentials, use Kubernetes Secret references in the driver template or the
+Secret options below.
+
 Use `secret_values` to create an application-owned Kubernetes Secret. Its keys
 become environment variables in both the driver and executors; executor delivery
 uses Spark's `spark.kubernetes.executor.secretKeyRef` configuration. To import

@@ -1,0 +1,153 @@
+name: Experimental managed dbt
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "integrations/dbt/**"
+      - "spark_on_k8s/**"
+      - "tests/integration/dbt/**"
+      - "docs/user-guide/dbt.md"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "scripts/install-kind.sh"
+      - ".github/workflows/dbt-kubernetes.yml"
+  push:
+    branches: [main]
+    paths:
+      - "integrations/dbt/**"
+      - "spark_on_k8s/**"
+      - "tests/integration/dbt/**"
+      - "docs/user-guide/dbt.md"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "scripts/install-kind.sh"
+      - ".github/workflows/dbt-kubernetes.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dbt-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  adapter:
+    name: dbt adapter / Python ${{ matrix.python }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.7"
+          enable-cache: true
+          cache-dependency-glob: |
+            uv.lock
+            integrations/dbt/uv.lock
+      - name: Install the core and adapter wheels in an isolated environment
+        env:
+          DBT_PYTHON: ${{ matrix.python }}
+        run: |
+          unset CONDA_DEFAULT_ENV CONDA_PREFIX VIRTUAL_ENV
+          uv python install "$DBT_PYTHON"
+          uv venv --python "$(uv python find --managed-python "$DBT_PYTHON")" .venv-dbt
+          UV_PROJECT_ENVIRONMENT="$GITHUB_WORKSPACE/.venv-dbt" uv sync \
+            --project integrations/dbt --locked --group test --no-install-project
+          uv build --wheel --out-dir "$RUNNER_TEMP/dbt-wheels"
+          uv build --project integrations/dbt --wheel --out-dir "$RUNNER_TEMP/dbt-wheels"
+          uv pip install --python .venv-dbt/bin/python --no-deps --reinstall "$RUNNER_TEMP"/dbt-wheels/*.whl
+          uv pip check --python .venv-dbt/bin/python
+      - name: Verify installed discovery and lifecycle/cursor regressions
+        run: |
+          .venv-dbt/bin/python -I - <<'PYTHON'
+          from pathlib import Path
+          import dbt.adapters.spark_on_k8s
+          import spark_on_k8s
+          import spark_on_k8s_dbt
+          for module in (dbt.adapters.spark_on_k8s, spark_on_k8s, spark_on_k8s_dbt):
+              assert 'site-packages' in Path(module.__file__).parts, module.__file__
+          assert dbt.adapters.spark_on_k8s.Plugin.dependencies == ['spark']
+          PYTHON
+          .venv-dbt/bin/python -I -m pytest -p no:cacheprovider integrations/dbt/tests \
+            --junitxml="$RUNNER_TEMP/dbt-unit.xml"
+          .venv-dbt/bin/python -I - <<'PYTHON'
+          import os
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          cases = list(ET.parse(Path(os.environ['RUNNER_TEMP']) / 'dbt-unit.xml').iter('testcase'))
+          assert cases and not [case for case in cases if case.find('skipped') is not None]
+          PYTHON
+
+  kubernetes:
+    name: dbt ${{ matrix.method }} / Spark 4.3 on Kubernetes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        method: [thrift, connect]
+    env:
+      SPARK_IMAGE: "apache/spark:4.3.0-scala2.13-java21-python3-ubuntu@sha256:3dedc5c8665a6f472e2f0a3a828207a79a30785090ef325d3af219cb90a73d63"
+      KIND_NODE: "kindest/node:v1.35.8@sha256:07b2536e30b803ed61d1677a79df6115f798ce64c80f9e22f6ed45afd09323c0"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.7"
+          enable-cache: true
+          cache-dependency-glob: |
+            uv.lock
+            integrations/dbt/uv.lock
+      - name: Install both wheels with the locked experimental dependencies
+        run: |
+          unset CONDA_DEFAULT_ENV CONDA_PREFIX VIRTUAL_ENV
+          uv python install 3.12
+          uv venv --python "$(uv python find --managed-python 3.12)" .venv-dbt
+          UV_PROJECT_ENVIRONMENT="$GITHUB_WORKSPACE/.venv-dbt" uv sync \
+            --project integrations/dbt --locked --group test --no-install-project
+          uv build --wheel --out-dir "$RUNNER_TEMP/dbt-wheels"
+          uv build --project integrations/dbt --wheel --out-dir "$RUNNER_TEMP/dbt-wheels"
+          uv pip install --python .venv-dbt/bin/python --no-deps --reinstall "$RUNNER_TEMP"/dbt-wheels/*.whl
+          uv pip check --python .venv-dbt/bin/python
+      - name: Create the disposable cluster and load pinned fixture images
+        run: |
+          bash scripts/install-kind.sh "$RUNNER_TEMP/bin/kind"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/bin/kind" create cluster --name spark-dbt-ci --image "$KIND_NODE" \
+            --kubeconfig "$RUNNER_TEMP/dbt-kubeconfig" --wait 120s
+          docker pull --platform linux/amd64 "$SPARK_IMAGE"
+          docker tag "$SPARK_IMAGE" spark-dbt-test:4.3.0
+          docker build --platform linux/amd64 -t spark-dbt-hadoop:3.5.0 \
+            -f tests/integration/dbt/Hadoop.Dockerfile tests/integration/dbt
+          docker image save --platform linux/amd64 --output "$RUNNER_TEMP/dbt-images.tar" \
+            spark-dbt-test:4.3.0 spark-dbt-hadoop:3.5.0
+          "$RUNNER_TEMP/bin/kind" load image-archive --name spark-dbt-ci "$RUNNER_TEMP/dbt-images.tar"
+      - name: Verify dbt execution, persistent tables, failures and cancellation cleanup
+        env:
+          DBT_METHOD: ${{ matrix.method }}
+        run: |
+          .venv-dbt/bin/python -I tests/integration/dbt/run_kubernetes.py \
+            --kubeconfig "$RUNNER_TEMP/dbt-kubeconfig" --context kind-spark-dbt-ci \
+            --image spark-dbt-test:4.3.0 --hadoop-image spark-dbt-hadoop:3.5.0 \
+            --method "$DBT_METHOD" --artifacts "$RUNNER_TEMP/dbt-results"
+      - name: Preserve diagnostics and stop the disposable cluster
+        if: always()
+        run: |
+          if command -v kind >/dev/null 2>&1; then
+            kind export logs --name spark-dbt-ci "$RUNNER_TEMP/dbt-kind-logs" || true
+            kind delete cluster --name spark-dbt-ci
+          fi
+      - name: Upload execution and cleanup evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dbt-${{ matrix.method }}-kubernetes
+          path: |
+            ${{ runner.temp }}/dbt-results/
+            ${{ runner.temp }}/dbt-kind-logs/
+          retention-days: 7

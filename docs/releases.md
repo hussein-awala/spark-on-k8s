@@ -42,6 +42,16 @@ be newer than the development version string in `pyproject.toml` (the inspected
 source had `0.11.0-dev` while historical releases include `0.12.1`). Never select
 the next version by incrementing that development string alone.
 
+## Separate experimental dbt distribution
+
+`integrations/dbt` is an opt-in experiment with an independent version and lockfile.
+The main release workflow builds and publishes the root package only; it does not
+publish `dbt-spark-on-k8s`. The experimental package currently pins the development
+SDK from the same checkout. Before changing that pin or publishing the experiment,
+select the actual compatible SDK artifact, update its lockfile, and run both
+transport jobs in `dbt-kubernetes.yml` against the proposed pair. A normal root
+release does not establish compatibility for a separately rebuilt adapter.
+
 ## Current safeguards
 
 Signed commits, explicit tested-commit evidence, compatibility notes and an artifact

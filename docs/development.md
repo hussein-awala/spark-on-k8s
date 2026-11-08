@@ -36,6 +36,7 @@ See [support boundaries](user-guide/support.md) before adding a public contract.
 | Dependencies/build/release | Lock check, applicable installed-wheel profiles, package build and affected runtime workflows |
 | Connect | `tests/test_connect.py` plus real Connect workflow for client/protocol changes |
 | Jupyter example or helper | Exact notebook kernel/Kubernetes runner in the Connect workflow, helper failure-path checks, strict docs and download parity |
+| Experimental dbt adapter | Separate locked profile, installed plugin/core wheels, lifecycle/cursor tests and both Kubernetes transport jobs |
 | Starter/example runtime | Its output assertions in the advertised runtime; extend the corresponding workflow when support claims change |
 
 Do not run every expensive matrix locally for a small change. Do not omit a
@@ -240,3 +241,28 @@ selected version matrix and local Spark fallback. Local mode is useful additiona
 evidence but does not validate Kubernetes RBAC, pod networking or garbage collection.
 Record workflow URL, tested commit, scenario results and any omitted environment
 in PR/release validation. A failed or unexecuted scenario is not coverage.
+
+
+## Experimental dbt integration
+
+`integrations/dbt/` is a separate Python distribution with its own lockfile. Its
+`dbt.adapters.spark_on_k8s` namespace reuses upstream Spark macros; the
+`spark_on_k8s_dbt` package owns the full command lifecycle. Changes to either must
+keep server ownership independent from dbt's intermediate connection cleanup.
+
+```bash
+UV_PROJECT_ENVIRONMENT="$PWD/.venv-dbt" uv sync \
+  --project integrations/dbt --locked --python 3.12 --group test
+uv build --wheel --out-dir dist/dbt-check
+uv build --project integrations/dbt --wheel --out-dir dist/dbt-check
+uv pip install --python .venv-dbt/bin/python --no-deps --reinstall dist/dbt-check/*.whl
+.venv-dbt/bin/python -I -m pytest -p no:cacheprovider integrations/dbt/tests
+uv pip check --python .venv-dbt/bin/python
+```
+
+Use `tests/integration/dbt/run_kubernetes.py` as documented in that directory's
+README for real runtime checks. The **Experimental managed dbt** workflow installs
+both wheels and tests Thrift and Connect separately on Spark 4.3.0/Python 3.12,
+with fixtures and cleanup evidence. A mock test or receipt alone does not prove
+SQL execution, table persistence or resource disappearance. Keep the published
+[profile and command guide](user-guide/dbt.md) synchronized with this runner.

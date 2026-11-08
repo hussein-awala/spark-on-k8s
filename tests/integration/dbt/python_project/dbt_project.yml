@@ -1,0 +1,11 @@
+name: spark_on_k8s_python_probe
+version: '1.0.0'
+config-version: 2
+profile: spark_on_k8s_managed
+model-paths: [models]
+models:
+  spark_on_k8s_python_probe:
+    +materialized: table
+    +file_format: parquet
+    python_probe:
+      +alias: orders_table

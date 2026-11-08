@@ -1,0 +1,4 @@
+name: dbt_spark_on_k8s
+version: 0.1.0
+config-version: 2
+macro-paths: ["macros"]

@@ -66,7 +66,8 @@ test("log buffering is bounded, paused autoscroll still receives logs, and wrap 
   await page.goto("/tests/fixture.html?view=logs&history=false");
   await expect.poll(() => socket !== undefined).toBe(true);
   socket!.send(
-    Array.from({ length: 10050 }, (_, index) => `line-${index}`).join("\n"),
+    Array.from({ length: 10050 }, (_, index) => `line-${index}`).join("\n") +
+      "\n",
   );
   await expect(page.getByTestId("log-text")).toContainText("line-10049");
   const retained = (await page.getByTestId("log-text").textContent())!.split(
@@ -166,4 +167,34 @@ test("leaving embedded logs closes the stream and reconnecting cannot reuse stal
   await expect(
     page.getByRole("heading", { name: "Applications." }),
   ).toBeVisible();
+});
+
+test("line terminators do not create artificial blank log lines", async ({
+  page,
+}) => {
+  let socket: WebSocketRoute | undefined;
+  await page.routeWebSocket("**/webserver/ws/logs/**", (route) => {
+    socket = route;
+  });
+  await page.goto("/tests/fixture.html?view=logs&history=false");
+  await expect.poll(() => socket !== undefined).toBe(true);
+  for (const payload of [
+    "café 日本語 😀\r\n",
+    "\r\n",
+    "third\nfourth\n",
+    "\n",
+    "last",
+  ])
+    socket!.send(payload);
+  const expected = "café 日本語 😀\n\nthird\nfourth\n\nlast";
+  await expect(page.getByTestId("log-text")).toHaveText(expected);
+  await expect(page.locator(".log-footer")).toContainText(
+    "6 visible / 6 buffered lines",
+  );
+  const downloading = page.waitForEvent("download");
+  await page
+    .getByRole("button", { name: "Download live buffer", exact: true })
+    .click();
+  const download = await downloading;
+  expect(await readFile((await download.path())!, "utf-8")).toBe(expected);
 });

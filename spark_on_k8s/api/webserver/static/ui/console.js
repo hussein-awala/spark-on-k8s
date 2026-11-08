@@ -10178,8 +10178,10 @@ function ue({ config: e, transport: t, onBack: n }) {
 		}
 		function l(e) {
 			if (!n) return;
-			let t = (typeof e.data == "string" ? e.data : String(e.data)).split(/\r?\n/), r = [...ae.current, ...t];
-			r.length > 1e4 && (oe.current += r.length - le), ae.current = r.slice(-1e4), D.current === null && (D.current = requestAnimationFrame(s));
+			let t = typeof e.data == "string" ? e.data : String(e.data), r = t.split(/\r?\n/);
+			t.endsWith("\n") && r.pop();
+			let i = [...ae.current, ...r];
+			i.length > 1e4 && (oe.current += i.length - le), ae.current = i.slice(-1e4), D.current === null && (D.current = requestAnimationFrame(s));
 		}
 		function u() {
 			n && (r = !0, S("error"), w("The log connection failed. Check your connection and try reconnecting."));

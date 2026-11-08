@@ -94,6 +94,14 @@ def await_cleanup(api, namespace: str, pod_name: str, app_id: str, owner_uids: s
 def run_case(api, submitter: SparkOnK8S, args, namespace: str, scenario: str):
     fixtures = Path(__file__).parent
     options = {}
+    spark_conf = {
+        "spark.sql.shuffle.partitions": "2",
+        "spark.default.parallelism": "2",
+        "spark.ui.enabled": "false",
+        "spark.kubernetes.executor.request.cores": "0.5",
+        # Retain finished executors until driver deletion so ownership/GC is observable.
+        "spark.kubernetes.executor.deleteOnTermination": "false",
+    }
     marker = f"SPARK_ON_K8S_{scenario.upper()}_OK"
     if scenario.startswith("sql"):
         queries = json.loads(
@@ -114,6 +122,15 @@ def run_case(api, submitter: SparkOnK8S, args, namespace: str, scenario: str):
             app_arguments=[args.spark_version],
             secret_values={"SPARK_COMPAT_SENTINEL": "present"},
         )
+        spark_conf.update(
+            {
+                "spark.kubernetes.driverEnv.SPARK_COMPAT_ROLE": "driver-property",
+                "spark.executorEnv.SPARK_COMPAT_ROLE": "executor-property",
+                "spark.kubernetes.driverEnv.SPARK_COMPAT_DRIVER_ONLY": "driver-only",
+                "spark.kubernetes.driverEnv.SPARK_COMPAT_EMPTY": "",
+                "spark.kubernetes.driverEnv.SPARK_COMPAT_NUMBER": 42,
+            }
+        )
     submit = submitter.submit_sql if scenario.startswith("sql") else submitter.submit_app
     pod_name = submit(
         image=args.image,
@@ -126,14 +143,7 @@ def run_case(api, submitter: SparkOnK8S, args, namespace: str, scenario: str):
         driver_resources=PodResources(cpu=1, memory=1024, memory_overhead=384),
         executor_resources=PodResources(cpu=1, memory=1024, memory_overhead=384),
         executor_instances=ExecutorInstances(initial=1),
-        spark_conf={
-            "spark.sql.shuffle.partitions": "2",
-            "spark.default.parallelism": "2",
-            "spark.ui.enabled": "false",
-            "spark.kubernetes.executor.request.cores": "0.5",
-            # Retain finished executors until driver deletion so ownership/GC is observable.
-            "spark.kubernetes.executor.deleteOnTermination": "false",
-        },
+        spark_conf=spark_conf,
         **options,
     )
     run = submitter.last_submitted_run
@@ -181,6 +191,29 @@ def run_case(api, submitter: SparkOnK8S, args, namespace: str, scenario: str):
         "executors": len(executors),
         "diagnosed_pods": diagnosis.inspected_pods,
     }
+    if scenario == "python":
+        records = [
+            json.loads(line.removeprefix(marker + " "))
+            for line in logs.splitlines()
+            if line.startswith(marker + " ")
+        ]
+        assert len(records) == 1 and records[0]["environment"], "Missing Python environment evidence"
+        environment = records[0]["environment"]
+        driver_container = next(container for container in pod.spec.containers if container.name == "driver")
+        # The Kubernetes API may omit value="" while retaining the environment entry.
+        driver_env = {item.name: item.value or "" for item in driver_container.env or []}
+        assert {name: driver_env.get(name) for name in environment["driver"]} == environment["driver"]
+        for executor in executors:
+            executor_container = next(
+                container
+                for container in executor.spec.containers
+                if container.name == "spark-kubernetes-executor"
+            )
+            executor_env = {item.name: item.value or "" for item in executor_container.env or []}
+            assert {name: executor_env.get(name) for name in environment["driver"]} == environment[
+                "executors"
+            ][0]
+        result["environment"] = environment
     dump_diagnostics(api, namespace, args.artifacts / scenario)
     try:
         observer.cancel_run(replace(run, driver_uid="stale-receipt-uid"))

@@ -255,7 +255,10 @@ The default `namespaces` value changed from `"*"` to empty, which selects only t
 release namespace. A release that relied on the old default loses its cluster-wide
 binding on upgrade, and the API then refuses other namespaces. Set `namespaces: "*"`
 or list the namespaces before upgrading. With `"*"`, the console opens the API's own
-namespace unless `SPARK_ON_K8S_API_DEFAULT_NAMESPACE` is set in `env`.
+namespace unless `SPARK_ON_K8S_API_DEFAULT_NAMESPACE` is set in `env`. If `env` sets
+`SPARK_ON_K8S_API_DEFAULT_NAMESPACE` to a namespace outside the new scope, the API
+refuses to start and `helm upgrade --wait` times out: include that namespace in
+`namespaces`, or change or remove the variable, in the same upgrade.
 
 History configuration updates now roll its Deployment automatically. History
 `affinity` and `tolerations` are passed to the Pod. The rare long-name suffix

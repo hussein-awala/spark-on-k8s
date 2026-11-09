@@ -129,7 +129,12 @@ spark-on-k8s job validate job.yaml --all-profiles --output json
 
 This validates the base definition and every named profile, including relative
 pod-template files, without connecting to Kubernetes. The result lists each
-profile and returns a nonzero exit code if any fails. `--profile` and
+profile and returns a nonzero exit code if any fails. The JSON result has
+`schema_version`, `operation: "job_validate"`, `valid`, a `profiles` list of
+`{profile, valid, error}` entries and a top-level `error`. Each failure is an
+object with `code` (`invalid_job` for an invalid definition, `read_error` for an
+unreadable job or template file) and `message`; the top-level `error` repeats the
+first failure and is `null` exactly when the exit code is zero. `--profile` and
 `--all-profiles` are mutually exclusive. Run this in your configuration CI;
 validating only a development profile does not validate production overrides.
 

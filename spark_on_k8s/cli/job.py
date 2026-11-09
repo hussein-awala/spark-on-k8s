@@ -6,7 +6,7 @@ import click
 import yaml
 
 from spark_on_k8s.cli.receipts import receipt_option
-from spark_on_k8s.jobs import JobSpec, JobValidationError
+from spark_on_k8s.jobs import JobSpec, JobValidationError, validation_error
 
 
 @click.group(name="job", help="Validate, preview and submit versioned Spark job files.")
@@ -34,21 +34,32 @@ def validate(file, profile, all_profiles, output):
         if all_profiles:
             results = JobSpec.validate_profiles(file)
         else:
-            job = _load(file, profile)
-            job.plan()
+            JobSpec.from_file(file, profile=profile).plan()
             results = [{"profile": profile, "valid": True, "error": None}]
-    except (ValueError, TypeError, OSError, click.ClickException) as error:
-        results = [{"profile": profile, "valid": False, "error": str(error)}]
+    except (ValueError, TypeError, OSError) as error:
+        results = [{"profile": profile, "valid": False, "error": validation_error(error)}]
     valid = all(item["valid"] for item in results)
     if output == "json":
-        click.echo(json.dumps({"schema_version": 1, "valid": valid, "profiles": results}))
+        # Like other automation results, `error` is set exactly when the exit code is nonzero.
+        failure = next((item["error"] for item in results if not item["valid"]), None)
+        click.echo(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "operation": "job_validate",
+                    "valid": valid,
+                    "profiles": results,
+                    "error": failure,
+                }
+            )
+        )
     else:
         for item in results:
             label = "base" if item["profile"] is None else item["profile"]
             click.echo(
                 f"Valid SparkJob ({label})"
                 if item["valid"]
-                else f"Invalid SparkJob ({label}): {item['error']}",
+                else f"Invalid SparkJob ({label}): {item['error']['message']}",
                 err=not item["valid"],
             )
     if not valid:

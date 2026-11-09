@@ -16,6 +16,7 @@ from spark_on_k8s.api.submission_policy import (
     get_submission_settings,
     parse_json,
 )
+from spark_on_k8s.api.utils import error_body
 from spark_on_k8s.client import SparkOnK8S
 
 router = APIRouter(prefix="/jobs/v1", tags=["Remote jobs"])
@@ -24,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 def error_response(status, code, message):
     return JSONResponse(
-        {"schema_version": 1, "error": {"code": code, "message": message}},
+        error_body(code, message),
         status_code=status,
         headers={"Cache-Control": "no-store"},
     )

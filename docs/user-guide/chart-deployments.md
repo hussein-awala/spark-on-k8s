@@ -152,6 +152,10 @@ An `ingress.tls` entry terminates TLS before the API, so browser log streams are
 rejected until `env` sets `SPARK_ON_K8S_API_WEBSOCKET_ALLOWED_ORIGINS` to the
 public `https://` origins; see
 [browser origins](../security-boundaries.md#log-websocket-browser-origins).
+To serve the API below an ingress path such as `/platform/spark`, have the ingress
+controller remove that prefix before forwarding and set
+`SPARK_ON_K8S_API_ROOT_PATH` to the same path in `env`; see
+[mounted paths](../security-boundaries.md#mounted-spark-ui-paths).
 Use the [development guide](../development.md) for the Helm regression suite and
 [release guidance](../releases.md) for the artifact publication boundary.
 

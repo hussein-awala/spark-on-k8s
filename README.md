@@ -13,9 +13,9 @@ that can be used to submit apps from the command line, instead of  using spark-s
 
 It also provides an optional REST API with a web UI that can be used to list and manage apps, and access the
 spark UI through the reverse proxy. The optional Airflow 3.4+ task tab reuses the
-same React console components inside Airflow; see the [Airflow guide](docs/user-guide/airflow.md).
+same React console components inside Airflow; see the [Airflow guide](https://hussein.awala.fr/spark-on-k8s/latest/user-guide/airflow/).
 
-Choose your route in the [start-here guide](https://hussein.awala.fr/spark-on-k8s/develop/user-guide/start-here/) and check the [support boundaries](https://hussein.awala.fr/spark-on-k8s/develop/user-guide/support/) before adopting a new integration.
+Choose your route in the [start-here guide](https://hussein.awala.fr/spark-on-k8s/latest/user-guide/start-here/) and check the [support boundaries](https://hussein.awala.fr/spark-on-k8s/latest/user-guide/support/) before adopting a new integration.
 The [release notes](https://hussein.awala.fr/spark-on-k8s/release-notes/) describe every published
 release and the release in preparation.
 
@@ -83,7 +83,7 @@ python -m pip install ".[airflow-ui]" # Airflow 3.4+ integration and native task
 
 See [CONTRIBUTING.md](https://github.com/hussein-awala/spark-on-k8s/blob/main/CONTRIBUTING.md)
 for development dependencies and the separate Airflow 2.11 compatibility environment.
-See the [Airflow guide](docs/user-guide/airflow.md) for provider installation, connections and DAG examples.
+See the [Airflow guide](https://hussein.awala.fr/spark-on-k8s/latest/user-guide/airflow/) for provider installation, connections and DAG examples.
 
 ## Usage
 
@@ -189,7 +189,7 @@ spark-on-k8s apps --help
 
 Use `--output json` for versioned submission receipts and machine-readable list/status results.
 Waiting commands report failed workloads with nonzero exit codes; `--timeout` bounds observation.
-See the [automation guide](docs/user-guide/automation.md) for exit codes and Python run handles.
+See the [automation guide](https://hussein.awala.fr/spark-on-k8s/latest/user-guide/automation/) for exit codes and Python run handles.
 
 ### REST API
 
@@ -230,6 +230,11 @@ application ID. The API process must be able to reach the driver's service.
 Use `--host 0.0.0.0` to listen on all network interfaces when deploying behind an
 appropriate service or proxy. Client URLs should use the server's reachable host
 or address, not the wildcard bind address `0.0.0.0`.
+
+When a gateway serves the API below a path such as `/platform/spark` and removes that
+prefix before forwarding, pass `--root-path /platform/spark` or set
+`SPARK_ON_K8S_API_ROOT_PATH=/platform/spark`. See the
+[mounted path guidance](https://hussein.awala.fr/spark-on-k8s/latest/security-boundaries/#mounted-spark-ui-paths).
 
 ### Deploy the API with Helm
 
@@ -278,7 +283,7 @@ chart defaults to its `appVersion` tag. Using a local chart does not build or
 install the Python source into an image. Set `image.repository`
 and `image.digest` to a verified production image digest (`image.tag` remains available
 for named releases), independently of Spark application images passed to `submit_app`.
-Digest selection takes precedence over the tag. See [chart deployment guidance](docs/user-guide/chart-deployments.md)
+Digest selection takes precedence over the tag. See [chart deployment guidance](https://hussein.awala.fr/spark-on-k8s/latest/user-guide/chart-deployments/)
 for scoped permissions, externally owned identities and release qualification.
 
 ## Configuration
@@ -344,6 +349,7 @@ exclusive, including when supplied through environment variables.
 | `SPARK_ON_K8S_API_WORKERS` | API worker count (integer) | `4` |
 | `SPARK_ON_K8S_API_LOG_LEVEL` | API server log level | `info` |
 | `SPARK_ON_K8S_API_LIMIT_CONCURRENCY` | Maximum concurrent API connections/tasks (integer) | `1000` |
+| `SPARK_ON_K8S_API_ROOT_PATH` | Public path prefix, such as `/platform/spark`, that a gateway removes before forwarding to the API; `--root-path` default | empty string |
 | `SPARK_ON_K8S_API_SPARK_HISTORY_HOST` | Spark History Server host and port, optionally with an HTTP(S) scheme | unset |
 | `SPARK_ON_K8S_API_WEBSERVER_APPS_KILL_BUTTON` | Show the kill button in the applications page | `true` |
 | `SPARK_ON_K8S_API_WEBSERVER_APPS_DELETE_BUTTON` | Show the delete button in the applications page | `true` |
@@ -366,13 +372,13 @@ as `10s` are invalid because the setting is parsed as an integer.
 
 Run the following commands from a source checkout. The examples use namespace
 `spark` and service account `spark`, which must already be configured as described
-above. See the [examples guide](docs/user-guide/examples.md) for the application
+above. See the [examples guide](https://hussein.awala.fr/spark-on-k8s/latest/user-guide/examples/) for the application
 code, driver configuration and executor templates, and the
-[Airflow guide](docs/user-guide/airflow.md) for DAG examples.
-The [ETL and Iceberg starters](docs/user-guide/starters.md) include real data checks
+[Airflow guide](https://hussein.awala.fr/spark-on-k8s/latest/user-guide/airflow/) for DAG examples.
+The [ETL and Iceberg starters](https://hussein.awala.fr/spark-on-k8s/latest/user-guide/starters/) include real data checks
 and portable job definitions for shared-storage deployments.
-[SQL jobs](docs/user-guide/sql.md) can be submitted from the CLI or Python without Airflow.
-[Spark compatibility](docs/user-guide/spark_compatibility.md) describes the Spark 3.5
+[SQL jobs](https://hussein.awala.fr/spark-on-k8s/latest/user-guide/sql/) can be submitted from the CLI or Python without Airflow.
+[Spark compatibility](https://hussein.awala.fr/spark-on-k8s/latest/user-guide/spark_compatibility/) describes the Spark 3.5
 and Spark 4 runtime matrix, image build arguments, and execution tests.
 
 ### Python

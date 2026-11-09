@@ -13,6 +13,8 @@ class APIConfiguration:
     SPARK_ON_K8S_API_WORKERS = int(getenv("SPARK_ON_K8S_API_WORKERS", "4"))
     SPARK_ON_K8S_API_LOG_LEVEL = getenv("SPARK_ON_K8S_API_LOG_LEVEL", "info")
     SPARK_ON_K8S_API_LIMIT_CONCURRENCY = int(getenv("SPARK_ON_K8S_API_LIMIT_CONCURRENCY", "1000"))
+    # Public path prefix, such as /platform/spark, that a gateway removes before forwarding.
+    SPARK_ON_K8S_API_ROOT_PATH = getenv("SPARK_ON_K8S_API_ROOT_PATH", "")
     SPARK_ON_K8S_API_SPARK_HISTORY_HOST = getenv("SPARK_ON_K8S_API_SPARK_HISTORY_HOST", None)
     SPARK_ON_K8S_API_WEBSERVER_APPS_KILL_BUTTON = (
         getenv("SPARK_ON_K8S_API_WEBSERVER_APPS_KILL_BUTTON", "true").lower() == "true"

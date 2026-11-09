@@ -87,3 +87,17 @@ def test_remote_job_errors_already_use_the_same_envelope(client):
     response = client.post("/jobs/v1/plan", json={})
     assert response.status_code == 404
     assert envelope(response) == {"code": "remote_disabled", "message": "Remote submission is disabled."}
+
+
+@pytest.mark.parametrize("status", [204, 304])
+def test_bodiless_statuses_stay_empty(status):
+    import asyncio
+
+    from spark_on_k8s.api.utils import _http_error
+    from starlette.exceptions import HTTPException
+
+    # Like Starlette's default handler: these statuses must not carry a body.
+    response = asyncio.run(_http_error(None, HTTPException(status, headers={"ETag": '"v1"'})))
+    assert response.status_code == status
+    assert response.body == b""
+    assert response.headers["etag"] == '"v1"'

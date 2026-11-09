@@ -68,7 +68,7 @@
   <meta name="documentation-channel" content="develop">
   <meta name="documentation-version" content="develop">
   
-    <meta name="documentation-source" content="278018d54e6107321ffa6fd055aa8415cffc48e3">
+    <meta name="documentation-source" content="ecfeb083b5bfd01e627eece8f179d5b5720434c6">
   
 
   </head>
@@ -108,7 +108,7 @@
     <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
   
   
-    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/278018d54e6107321ffa6fd055aa8415cffc48e3"><code>278018d54e61</code></a>.
+    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/ecfeb083b5bfd01e627eece8f179d5b5720434c6"><code>ecfeb083b5bf</code></a>.
   
 
           </div>
@@ -6302,10 +6302,7 @@ a partially applied deletion; UID preconditions protect replacement resources.</
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>spark_on_k8s/connect_server.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">638</span>
-<span class="normal">639</span>
-<span class="normal">640</span>
-<span class="normal">641</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">641</span>
 <span class="normal">642</span>
 <span class="normal">643</span>
 <span class="normal">644</span>
@@ -6337,7 +6334,10 @@ a partially applied deletion; UID preconditions protect replacement resources.</
 <span class="normal">670</span>
 <span class="normal">671</span>
 <span class="normal">672</span>
-<span class="normal">673</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">delete_connect_server</span><span class="p">(</span><span class="n">client</span><span class="p">:</span> <span class="n">SparkOnK8S</span><span class="p">,</span> <span class="n">handle</span><span class="p">:</span> <span class="n">ConnectServerHandle</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">10</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="normal">673</span>
+<span class="normal">674</span>
+<span class="normal">675</span>
+<span class="normal">676</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">delete_connect_server</span><span class="p">(</span><span class="n">client</span><span class="p">:</span> <span class="n">SparkOnK8S</span><span class="p">,</span> <span class="n">handle</span><span class="p">:</span> <span class="n">ConnectServerHandle</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">10</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Verify all three resource identities before requesting UID-conditional deletion.</span>
 
 <span class="sd">    Missing resources are idempotent. Success means deletion was requested, not that</span>
@@ -6445,7 +6445,10 @@ a partially applied deletion; UID preconditions protect replacement resources.</
 <span class="normal">632</span>
 <span class="normal">633</span>
 <span class="normal">634</span>
-<span class="normal">635</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">wait_connect_server_ready</span><span class="p">(</span>
+<span class="normal">635</span>
+<span class="normal">636</span>
+<span class="normal">637</span>
+<span class="normal">638</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">wait_connect_server_ready</span><span class="p">(</span>
     <span class="n">client</span><span class="p">:</span> <span class="n">SparkOnK8S</span><span class="p">,</span>
     <span class="n">handle</span><span class="p">:</span> <span class="n">ConnectServerHandle</span><span class="p">,</span>
     <span class="o">*</span><span class="p">,</span>
@@ -6471,6 +6474,9 @@ a partially applied deletion; UID preconditions protect replacement resources.</
                     <span class="n">result</span> <span class="o">=</span> <span class="n">profile</span><span class="o">.</span><span class="n">probe</span><span class="p">(</span>
                         <span class="n">timeout</span><span class="o">=</span><span class="nb">min</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="n">deadline</span><span class="o">.</span><span class="n">remaining</span><span class="p">()),</span> <span class="n">expected_app_id</span><span class="o">=</span><span class="n">handle</span><span class="o">.</span><span class="n">run</span><span class="o">.</span><span class="n">app_id</span>
                     <span class="p">)</span>
+                <span class="k">except</span> <span class="n">ConnectClientUnavailable</span><span class="p">:</span>
+                    <span class="c1"># A missing local client is not a server state; polling cannot make it ready.</span>
+                    <span class="k">raise</span>
                 <span class="k">except</span> <span class="p">(</span><span class="n">ConnectError</span><span class="p">,</span> <span class="ne">TimeoutError</span><span class="p">):</span>
                     <span class="k">pass</span>
                 <span class="k">else</span><span class="p">:</span>
@@ -6529,7 +6535,7 @@ a partially applied deletion; UID preconditions protect replacement resources.</
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 9, 2026 07:40:45 UTC">November 9, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 9, 2026 07:59:34 UTC">November 9, 2026</span>
   </span>
 
     

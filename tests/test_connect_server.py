@@ -805,6 +805,31 @@ def test_valid_kubernetes_toleration_shapes_are_accepted(toleration):
     assert config(driver_tolerations=[toleration], executor_tolerations=[toleration])
 
 
+@pytest.mark.parametrize(
+    "settings, message",
+    [
+        ({"spark_conf": {"spark.sql.shuffle.partitions": 4}}, "spark_conf must be a string-to-string"),
+        ({"spark_conf": [("spark.sql.shuffle.partitions", "4")]}, "spark_conf must be a string-to-string"),
+        ({"driver_tolerations": [{"key": 7, "operator": "Exists"}]}, "driver_tolerations key must be a str"),
+        ({"executor_tolerations": [{"key": None, "operator": "Exists"}]}, "executor_tolerations key must be"),
+        ({"driver_env_from_secrets": ["API_TOKEN=credentials:token"]}, "driver_env_from_secrets must map"),
+        ({"executor_env_from_secrets": None}, "executor_env_from_secrets must map"),
+    ],
+)
+def test_malformed_mapping_and_toleration_types_are_reported_by_field(settings, message):
+    with pytest.raises(ValueError, match=message):
+        config(**settings)
+
+
+def test_plan_requires_a_server_config_before_rendering(cluster):
+    sdk, api, _ = cluster
+    for value in ({}, None, config().__dict__):
+        with pytest.raises(ValueError, match="config must be ConnectServerConfig"):
+            sdk.plan_connect_server(value)
+    sdk.k8s_client_manager.client.assert_not_called()
+    api.create_namespaced_pod.assert_not_called()
+
+
 def test_create_and_plan_revalidate_pod_settings_changed_after_construction(cluster):
     sdk, api, _ = cluster
     cfg = config(driver_tolerations=[{"key": "pool", "operator": "Exists"}])

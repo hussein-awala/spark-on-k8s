@@ -96,6 +96,17 @@ def test_current_namespace_in_cluster_requires_a_mounted_service_account(
         real_current_namespace()
 
 
+def test_current_namespace_in_cluster_rejects_an_invalid_mounted_namespace(
+    monkeypatch, tmp_path, real_current_namespace
+):
+    path = tmp_path / "namespace"
+    path.write_text("Not A Namespace\n")
+    monkeypatch.setattr(namespace_scope, "SERVICE_ACCOUNT_NAMESPACE", path)
+    monkeypatch.setattr(Configuration, "SPARK_ON_K8S_IN_CLUSTER", True)
+    with pytest.raises(ValueError, match="not a valid namespace name"):
+        real_current_namespace()
+
+
 @pytest.mark.parametrize(
     "context, expected",
     [(None, "analytics"), ("batch-context", "batch"), ("no-namespace", "default"), ("unknown", "default")],

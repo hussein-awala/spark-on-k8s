@@ -101,3 +101,11 @@ def test_bodiless_statuses_stay_empty(status):
     assert response.status_code == status
     assert response.body == b""
     assert response.headers["etag"] == '"v1"'
+
+
+def test_namespace_scope_refusals_use_the_envelope(client, monkeypatch):
+    # The chart integration check reads this code from the real app.
+    monkeypatch.setattr(APIConfiguration, "SPARK_ON_K8S_API_NAMESPACES", "analytics")
+    response = client.get("/webserver/ui/kube-system/kube-dns/")
+    assert response.status_code == 403
+    assert envelope(response)["code"] == "namespace_forbidden"

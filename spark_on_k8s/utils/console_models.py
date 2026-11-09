@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from datetime import datetime  # noqa: TC003 - Pydantic resolves this type at runtime.
 from typing import Literal
 from uuid import UUID  # noqa: TC003 - Pydantic resolves this type at runtime.
@@ -10,6 +12,11 @@ from spark_on_k8s.diagnostics import Diagnosis  # noqa: TC001 - Runtime model fi
 from spark_on_k8s.utils.spark_app_status import SparkAppStatus  # noqa: TC001 - Runtime model field.
 
 AIRFLOW_TASK_ANNOTATION = "spark-on-k8s.io/airflow-task"
+# Selectable digest of one task instance, shared by all of its attempts.
+AIRFLOW_TASK_KEY_LABEL = "spark-on-k8s.io/airflow-task-key"
+# Readable, possibly altered values for people and dashboards; never used to select a driver.
+AIRFLOW_DAG_ID_LABEL = "spark-on-k8s.io/airflow-dag-id"
+AIRFLOW_TASK_ID_LABEL = "spark-on-k8s.io/airflow-task-id"
 
 
 class AirflowTaskContext(BaseModel):
@@ -35,6 +42,22 @@ class AirflowTaskContext(BaseModel):
             and (self.region_index if self.region_index is not None else self.map_index)
             == (other.region_index if other.region_index is not None else other.map_index)
         )
+
+    def task_key(self) -> str:
+        """Digest the identity compared by owns_same_task into a Kubernetes label value.
+
+        Every attempt of one task instance has the same key, so a retry can select the
+        drivers of earlier attempts. The try number is deliberately excluded.
+        """
+        identity = [
+            self.dag_id,
+            self.run_id,
+            self.task_id,
+            self.map_index,
+            str(self.region_id or UUID(int=0)),
+            self.region_index if self.region_index is not None else self.map_index,
+        ]
+        return hashlib.sha256(json.dumps(identity, separators=(",", ":")).encode()).hexdigest()[:32]
 
 
 class ConsoleApplication(BaseModel):

@@ -158,6 +158,18 @@ def test_api_image_entrypoint_replaces_the_shell_with_the_server(tmp_path):
     )
 
 
+def test_api_image_runs_as_a_fixed_numeric_non_root_user():
+    recipe = (Path(__file__).resolve().parents[2] / "docker" / "Dockerfile").read_text()
+    instructions = [line.split(None, 1) for line in recipe.splitlines() if line[:1].isalpha()]
+    # Kubernetes runAsNonRoot can verify only a numeric USER; installed packages stay root-owned.
+    assert [keyword for keyword, _ in instructions][-2:] == ["USER", "ENTRYPOINT"]
+    uid, gid = (int(value) for value in instructions[-2][1].split(":"))
+    assert uid > 0 and gid > 0
+    # The chart's runAsUser/fsGroup defaults and the run-history directory use the same identity.
+    assert f"--uid {uid} --gid {gid}" in recipe
+    assert f"install -d -o {uid} -g {gid} -m 0770 /var/lib/spark-on-k8s" in recipe
+
+
 def test_inventory_captures_runtime_packages(release_modules, tmp_path, monkeypatch):
     module = release_modules["artifacts"]
     args = inputs(tmp_path)

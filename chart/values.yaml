@@ -47,11 +47,31 @@ podAnnotations: {}
 # Labels to be added to the Spark-on-K8S deployment pods
 podLabels: {}
 
-# The pod security context for the Spark-on-K8S deployment
-podSecurityContext: {}
+# The pod security context for the Spark-on-K8S deployment. The defaults meet Pod Security
+# "restricted" for the API image's non-root user; set a key to null to remove it.
+podSecurityContext:
+  # Refuse to start the API as root
+  runAsNonRoot: true
+  # The API image's numeric user
+  runAsUser: 10001
+  # The API image's numeric group
+  runAsGroup: 10001
+  # Group given access to mounted volumes, including an existing run-history claim
+  fsGroup: 10001
+  # Change volume ownership only when the volume root does not already match fsGroup
+  fsGroupChangePolicy: OnRootMismatch
+  # The container runtime's default seccomp profile
+  seccompProfile:
+    type: RuntimeDefault
 
-# The security context for the Spark-on-K8S deployment
-securityContext: {}
+# The security context for the Spark-on-K8S deployment container
+securityContext:
+  # Block setuid and other privilege gains
+  allowPrivilegeEscalation: false
+  # The API needs no Linux capabilities
+  capabilities:
+    drop:
+      - ALL
 
 # The configuration for the Spark-on-K8S service
 service:

@@ -170,6 +170,9 @@ jobs:
           image="spark-on-k8s-release-check:$IMAGE_ARCH"
           docker run --rm --platform "linux/$IMAGE_ARCH" --entrypoint python "$image" \
             -c 'from spark_on_k8s.api.main import app; assert app is not None'
+          # The chart's runAsUser/fsGroup defaults and run-history mount rely on this identity.
+          docker run --rm --platform "linux/$IMAGE_ARCH" --entrypoint python "$image" -c \
+            'import os; assert (os.getuid(), os.getgid()) == (10001, 10001); assert os.access("/var/lib/spark-on-k8s", os.W_OK)'
           docker create --name release-evidence --platform "linux/$IMAGE_ARCH" "$image"
           mkdir -p release-evidence
           docker cp release-evidence:/opt/spark-on-k8s/release/installed.json release-evidence/installed.json

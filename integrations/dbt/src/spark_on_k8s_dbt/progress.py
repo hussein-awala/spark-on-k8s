@@ -27,6 +27,15 @@ def dbt_allows_progress() -> bool:
     return str(getattr(flags, "LOG_LEVEL", "info") or "info").lower() not in {"warn", "error", "none"}
 
 
+def _write(line: str) -> None:
+    try:
+        # Resolve the stream at write time: dbt runners and tests may replace it.
+        sys.stderr.write(line + "\n")
+        sys.stderr.flush()
+    except (OSError, ValueError):
+        pass  # Progress is advisory; a closed stream must not fail startup or cleanup.
+
+
 class StartupProgress:
     """Write concise phase lines with elapsed time while managed compute starts or is deleted.
 
@@ -63,14 +72,18 @@ class StartupProgress:
             if state in self._shown and now - self._shown[state] < self.heartbeat:
                 return
             self._shown[state] = now
-            if not self.allowed():
-                return
-            try:
-                # Resolve the stream at write time: dbt runners and tests may replace it.
-                sys.stderr.write(f"Managed Spark +{math.floor(now - self._started)}s: {message}\n")
-                sys.stderr.flush()
-            except (OSError, ValueError):
-                pass  # Progress is advisory; a closed stream must not fail startup or cleanup.
+            if self.allowed():
+                _write(f"Managed Spark +{math.floor(now - self._started)}s: {message}")
+
+    def command(self, message: str, *, always: bool = False) -> None:
+        """Report a command boundary of a multi-command run; never rate-limited.
+
+        A failed, interrupted or unstarted command is reported even when dbt's
+        console settings suppress progress, as dbt itself still prints errors.
+        """
+        with self._lock:
+            if always or self.allowed():
+                _write("Managed dbt " + message)
 
 
 def driver_state(pod) -> tuple[str, str]:

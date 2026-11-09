@@ -68,7 +68,7 @@
   <meta name="documentation-channel" content="develop">
   <meta name="documentation-version" content="develop">
   
-    <meta name="documentation-source" content="aff9949572acfa060280963834564fd4934f4195">
+    <meta name="documentation-source" content="ecc58d4fd6c2a75bd8b6c3bd7057c219e4eae9e0">
   
 
   </head>
@@ -108,7 +108,7 @@
     <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
   
   
-    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/aff9949572acfa060280963834564fd4934f4195"><code>aff9949572ac</code></a>.
+    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/ecc58d4fd6c2a75bd8b6c3bd7057c219e4eae9e0"><code>ecc58d4fd6c2</code></a>.
   
 
           </div>
@@ -5225,7 +5225,12 @@ completion, and use the operator's existing deferrable option when appropriate.<
 </code></pre></div>
 <p>This validates the base definition and every named profile, including relative
 pod-template files, without connecting to Kubernetes. The result lists each
-profile and returns a nonzero exit code if any fails. <code>--profile</code> and
+profile and returns a nonzero exit code if any fails. The JSON result has
+<code>schema_version</code>, <code>operation: "job_validate"</code>, <code>valid</code>, a <code>profiles</code> list of
+<code>{profile, valid, error}</code> entries and a top-level <code>error</code>. Each failure is an
+object with <code>code</code> (<code>invalid_job</code> for an invalid definition, <code>read_error</code> for an
+unreadable job or template file) and <code>message</code>; the top-level <code>error</code> repeats the
+first failure and is <code>null</code> exactly when the exit code is zero. <code>--profile</code> and
 <code>--all-profiles</code> are mutually exclusive. Run this in your configuration CI;
 validating only a development profile does not validate production overrides.</p>
 <h2 id="review-cpu-and-memory-requests">Review CPU and memory requests<a class="headerlink" href="#review-cpu-and-memory-requests" title="Permanent link">&para;</a></h2>
@@ -5274,7 +5279,7 @@ this Kubernetes section and use the reviewed Airflow connection instead.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 8, 2026 18:58:18 UTC">November 8, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 9, 2026 08:59:45 UTC">November 9, 2026</span>
   </span>
 
     

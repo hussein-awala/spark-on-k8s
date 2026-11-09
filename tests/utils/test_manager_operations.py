@@ -10,7 +10,9 @@ from spark_on_k8s.utils import app_manager, async_app_manager
 
 def driver_pod(phase="Running"):
     return SimpleNamespace(
-        metadata=SimpleNamespace(name="actual-driver", labels={"spark-app-id": "report-123"}),
+        metadata=SimpleNamespace(
+            name="actual-driver", uid="driver-uid", labels={"spark-app-id": "report-123"}
+        ),
         spec=SimpleNamespace(
             containers=[SimpleNamespace(name="spark-driver"), SimpleNamespace(name="metrics")]
         ),
@@ -101,8 +103,7 @@ def test_missing_application_never_mutates_resources(manager_case, method):
         manager_case.call(method, app_id="absent")
 
     manager_case.api.list_namespaced_pod.assert_called_once_with(
-        namespace="analytics",
-        label_selector="spark-app-id=absent" + (",spark-role=driver" if method == "delete_app" else ""),
+        namespace="analytics", label_selector="spark-app-id=absent,spark-role=driver"
     )
     manager_case.api.delete_namespaced_pod.assert_not_called()
     manager_case.execute.assert_not_called()
@@ -120,7 +121,7 @@ def test_kill_targets_the_selected_pod_and_driver_container(manager_case, target
         manager_case.api.list_namespaced_pod.assert_not_called()
     else:
         manager_case.api.list_namespaced_pod.assert_called_once_with(
-            namespace="analytics", label_selector="spark-app-id=report-123"
+            namespace="analytics", label_selector="spark-app-id=report-123,spark-role=driver"
         )
         manager_case.api.read_namespaced_pod.assert_not_called()
     exec_api = manager_case.ws_api if manager_case.asynchronous else manager_case.api
@@ -140,6 +141,38 @@ def test_kill_targets_the_selected_pod_and_driver_container(manager_case, target
         manager_case.execute.assert_awaited_once()
         manager_case.websocket.close.assert_awaited_once()
     manager_case.assert_closed()
+
+
+@pytest.mark.parametrize(
+    "annotations,containers",
+    [
+        ({"kubectl.kubernetes.io/default-container": "spark-driver"}, ["istio-proxy", "spark-driver"]),
+        (None, ["istio-proxy", "driver"]),
+    ],
+    ids=["template-annotation", "default-driver-name"],
+)
+def test_kill_targets_the_driver_container_after_a_sidecar_is_injected_first(
+    manager_case, annotations, containers
+):
+    # Mutating webhooks can prepend sidecars; PID 1 of the first container is not the driver.
+    pod = driver_pod()
+    pod.metadata.annotations = annotations
+    pod.spec.containers = [SimpleNamespace(name=name) for name in containers]
+    manager_case.api.read_namespaced_pod.return_value = pod
+
+    manager_case.call("kill_app", pod_name="actual-driver")
+
+    assert manager_case.execute.call_args.kwargs["container"] == containers[-1]
+
+
+def test_kill_by_app_id_refuses_an_ambiguous_driver_selection(manager_case):
+    manager_case.api.list_namespaced_pod.return_value = SimpleNamespace(items=[driver_pod(), driver_pod()])
+
+    with pytest.raises(ValueError, match="Multiple driver pods found for app report-123") as raised:
+        manager_case.call("kill_app", app_id="report-123")
+
+    manager_case.execute.assert_not_called()
+    manager_case.assert_closed(raised.value)
 
 
 @pytest.mark.parametrize("phase", ["Pending", "Succeeded", "Failed"])
@@ -178,6 +211,22 @@ def test_delete_uses_foreground_propagation_and_explicit_force(manager_case, tar
     if manager_case.asynchronous:
         manager_case.api.delete_namespaced_pod.assert_awaited_once()
     manager_case.assert_closed()
+
+
+@pytest.mark.parametrize("target", [{"pod_name": "actual-driver"}, {"app_id": "report-123"}])
+def test_delete_by_app_id_is_conditional_on_the_selected_driver_uid(manager_case, target):
+    # A driver replaced after the label lookup must not be deleted in its place.
+    selected = driver_pod()
+    selected.metadata.uid = "selected-uid"
+    manager_case.api.list_namespaced_pod.return_value = SimpleNamespace(items=[selected])
+
+    manager_case.call("delete_app", **target)
+
+    preconditions = manager_case.api.delete_namespaced_pod.call_args.kwargs["body"].preconditions
+    if "app_id" in target:
+        assert preconditions.uid == "selected-uid"
+    else:
+        assert preconditions is None
 
 
 @pytest.mark.parametrize(

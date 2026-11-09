@@ -449,6 +449,13 @@ class SparkOnK8S(LoggingMixin):
         app_name, app_id = self._parse_app_name_and_id(
             app_name=app_name, app_id_suffix=app_id_suffix, should_print=should_print
         )
+        # The driver Service is named after the app ID but is created after the driver Pod,
+        # whose name accepts more characters; reject an unusable ID before creating anything.
+        if len(app_id) > 63 or not re.fullmatch(r"[a-z](?:[a-z0-9-]*[a-z0-9])?", app_id):
+            raise ValueError(
+                f"Application ID {app_id!r} must be a DNS-1035 label of at most 63 characters "
+                "(lowercase letters, digits and '-', starting with a letter); check app_id_suffix"
+            )
         if secret_values is not NOTSET and secret_values is not None:
             env_from_secrets = [app_id] if secret_values else []
         else:
@@ -710,20 +717,30 @@ class SparkOnK8S(LoggingMixin):
         self.last_submission_phase = "creating_resources"
         with self.k8s_client_manager.client() as client:
             api = k8s.CoreV1Api(client)
-            if secret_values:
-                application_secret = self.app_manager.create_secret_object(
-                    app_name=app_name,
-                    app_id=app_id,
-                    secrets_values=secret_values,
+            # Objects confirmed by this call; they have no owner until the driver exists.
+            created: list[tuple[str, str, Any]] = []
+            try:
+                if secret_values:
+                    application_secret = self.app_manager.create_secret_object(
+                        app_name=app_name,
+                        app_id=app_id,
+                        secrets_values=secret_values,
+                        namespace=namespace,
+                    )
+                    response = api.create_namespaced_secret(namespace=namespace, body=application_secret)
+                    created.append(("secret", application_secret.metadata.name, response))
+                for configmap in application_configmaps_volumes:
+                    response = api.create_namespaced_config_map(namespace=namespace, body=configmap)
+                    created.append(("config_map", configmap.metadata.name, response))
+                pod = api.create_namespaced_pod(
                     namespace=namespace,
+                    body=pod,
                 )
-                api.create_namespaced_secret(namespace=namespace, body=application_secret)
-            for configmap in application_configmaps_volumes:
-                api.create_namespaced_config_map(namespace=namespace, body=configmap)
-            pod = api.create_namespaced_pod(
-                namespace=namespace,
-                body=pod,
-            )
+            except k8s.ApiException as error:
+                # Only a definitive rejection proves that no driver will use these objects.
+                if isinstance(error.status, int) and 400 <= error.status < 500 and error.status != 408:
+                    self._delete_unowned_resources(api, namespace, created, error, should_print)
+                raise
             # Preserve the confirmed driver identity before later resource operations can fail.
             self.last_submitted_app_id = app_id
             self.last_submitted_run = RunHandle(
@@ -792,6 +809,53 @@ class SparkOnK8S(LoggingMixin):
     def cancel_run(self, run: RunHandle, *, force: bool = False) -> None:
         """Request deletion of exactly the recorded driver; does not wait for cleanup."""
         self.app_manager.cancel_run(run, force=force)
+
+    def _delete_unowned_resources(
+        self,
+        api: k8s.CoreV1Api,
+        namespace: str,
+        created: list[tuple[str, str, Any]],
+        error: Exception,
+        should_print: bool,
+    ) -> None:
+        """Delete objects created by a submission whose driver was definitively rejected.
+
+        Only objects whose creation response carried a UID are deleted, with that UID as a
+        precondition so a replacement is never removed. Rollback failures are attached to the
+        original error instead of replacing it.
+        """
+        for kind, name, response in created:
+            description = f"{'Secret' if kind == 'secret' else 'ConfigMap'} {name}"
+            uid = getattr(getattr(response, "metadata", None), "uid", None)
+            if not isinstance(uid, str) or not uid:
+                error.add_note(f"{description} was kept because its creation was not confirmed with a UID")
+                continue
+            try:
+                getattr(api, f"delete_namespaced_{kind}")(
+                    name=name,
+                    namespace=namespace,
+                    body=k8s.V1DeleteOptions(preconditions=k8s.V1Preconditions(uid=uid)),
+                )
+            except Exception as cleanup_error:
+                if isinstance(cleanup_error, k8s.ApiException) and cleanup_error.status == 404:
+                    continue
+                reason = (
+                    f"Kubernetes API {cleanup_error.status}"
+                    if isinstance(cleanup_error, k8s.ApiException)
+                    else type(cleanup_error).__name__
+                )
+                error.add_note(f"Could not delete {description} (uid {uid}) after the rejection: {reason}")
+                self.log(
+                    msg=f"Could not delete {description} created for the rejected driver: {reason}",
+                    level=logging.WARNING,
+                    should_print=should_print,
+                )
+            else:
+                self.log(
+                    msg=f"Deleted {description} created for the rejected driver",
+                    level=logging.INFO,
+                    should_print=should_print,
+                )
 
     def plan_app(self, **kwargs) -> ApplicationPlan:
         """Render a deterministic offline preview using the same builder as submission."""

@@ -46,7 +46,11 @@ a confirmed driver UID immediately after receiving its creation response. Result
 include `submission_phase` (`preparing`, `creating_resources`, `driver_created`,
 `resources_created`) so a later owner-reference or Service failure can still return
 the known driver identity. If creation itself has an ambiguous transport result,
-no confirmed receipt is invented. Inspect the cluster before retrying.
+no confirmed receipt is invented. Inspect the cluster before retrying. When the API
+server definitively rejects the driver Pod or a ConfigMap (a 4xx response other
+than 408), the client deletes only the Secret and ConfigMaps it created earlier in
+that submission, using their creation UIDs as preconditions. Server errors, timeouts
+and interruptions keep them because the driver may exist.
 
 `--timeout` takes positive, finite seconds and requires a wait or log waiter on
 submission. It limits observation after submission, including a running job and

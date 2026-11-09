@@ -22,7 +22,7 @@ spark = SparkOnK8S()
 report = spark.diagnose_app(namespace="spark", app_id="YOUR_APPLICATION_ID")
 print(report.to_dict())
 
-# Useful when the driver name was truncated or when inspecting an existing pod.
+# Useful when the driver name was shortened with a hash or when inspecting an existing pod.
 report = spark.diagnose_app(namespace="spark", pod_name="YOUR_DRIVER_POD")
 ```
 

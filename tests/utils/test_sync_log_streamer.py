@@ -36,7 +36,7 @@ def test_logs_resolve_application_id_before_streaming(log_case):
     log_case.manager.stream_logs(namespace="spark", app_id="report-123", should_print=True)
 
     log_case.api.list_namespaced_pod.assert_called_once_with(
-        namespace="spark", label_selector="spark-app-id=report-123"
+        namespace="spark", label_selector="spark-app-id=report-123,spark-role=driver"
     )
     log_case.api.read_namespaced_pod.assert_called_once_with(namespace="spark", name="selected-driver")
     log_case.watcher.stream.assert_called_once_with(
@@ -131,3 +131,27 @@ def test_pending_driver_timeout_does_not_start_streaming(log_case, monkeypatch):
     log_case.watcher.stream.assert_not_called()
     log_case.sleep.assert_not_called()
     log_case.clients.client.return_value.__exit__.assert_called_once()
+
+
+def test_logs_follow_the_driver_container_after_sidecar_injection(log_case):
+    log_case.api.read_namespaced_pod.return_value = SimpleNamespace(
+        metadata=SimpleNamespace(annotations=None),
+        status=SimpleNamespace(phase="Running"),
+        spec=SimpleNamespace(
+            containers=[SimpleNamespace(name="istio-proxy"), SimpleNamespace(name="driver")]
+        ),
+    )
+
+    log_case.manager.stream_logs(namespace="spark", pod_name="selected-driver")
+
+    assert log_case.watcher.stream.call_args.kwargs["container"] == "driver"
+
+
+def test_logs_refuse_an_ambiguous_driver_selection(log_case):
+    driver = SimpleNamespace(metadata=SimpleNamespace(name="selected-driver"))
+    log_case.api.list_namespaced_pod.return_value = SimpleNamespace(items=[driver, driver])
+
+    with pytest.raises(ValueError, match="Multiple driver pods found for app report-123"):
+        log_case.manager.stream_logs(namespace="spark", app_id="report-123")
+
+    log_case.watcher.stream.assert_not_called()

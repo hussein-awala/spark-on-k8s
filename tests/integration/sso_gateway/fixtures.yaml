@@ -1,0 +1,142 @@
+# Test-only fixtures for check.sh, applied in the sso-fixtures namespace of a disposable cluster.
+# mock-oidc issues fixed claims per login name; nothing here is a usable credential.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mock-oidc
+data:
+  config.json: |
+    {
+      "interactiveLogin": true,
+      "tokenCallbacks": [
+        {
+          "issuerId": "default",
+          "requestMappings": [
+            {
+              "requestParam": "subject",
+              "match": "alice",
+              "claims": {
+                "sub": "alice",
+                "aud": ["spark-console"],
+                "email": "alice@example.com",
+                "email_verified": true,
+                "groups": ["spark-console-users"]
+              }
+            },
+            {
+              "requestParam": "subject",
+              "match": "mallory",
+              "claims": {
+                "sub": "mallory",
+                "aud": ["spark-console"],
+                "email": "mallory@example.com",
+                "email_verified": true,
+                "groups": ["other-team"]
+              }
+            }
+          ]
+        }
+      ]
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mock-oidc
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mock-oidc
+  template:
+    metadata:
+      labels:
+        app: mock-oidc
+    spec:
+      containers:
+        - name: mock-oidc
+          image: ghcr.io/navikt/mock-oauth2-server:6.1.4
+          env:
+            - name: JSON_CONFIG_PATH
+              value: /config/config.json
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /default/.well-known/openid-configuration
+              port: http
+          volumeMounts:
+            - name: config
+              mountPath: /config
+      volumes:
+        - name: config
+          configMap:
+            name: mock-oidc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mock-oidc
+spec:
+  selector:
+    app: mock-oidc
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+# Stands in for a Spark driver UI on port 4040 and reports the request headers it received.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: header-echo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: header-echo
+  template:
+    metadata:
+      labels:
+        app: header-echo
+    spec:
+      containers:
+        - name: header-echo
+          image: API_IMAGE
+          imagePullPolicy: Never
+          command:
+            - python
+            - -c
+            - |
+              import json
+              from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+              class Echo(BaseHTTPRequestHandler):
+                  def do_GET(self):
+                      body = json.dumps(sorted(name.lower() for name in self.headers)).encode()
+                      self.send_response(200)
+                      self.send_header("Content-Type", "application/json")
+                      self.send_header("Content-Length", str(len(body)))
+                      self.end_headers()
+                      self.wfile.write(body)
+
+              ThreadingHTTPServer(("0.0.0.0", 4040), Echo).serve_forever()
+          ports:
+            - name: http
+              containerPort: 4040
+          readinessProbe:
+            tcpSocket:
+              port: http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: header-echo
+spec:
+  selector:
+    app: header-echo
+  ports:
+    - name: http
+      port: 4040
+      targetPort: http

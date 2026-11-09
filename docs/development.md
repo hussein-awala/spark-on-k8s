@@ -221,6 +221,11 @@ at an arbitrary current kubeconfig context.
 - `tests/integration/starters/check.py` verifies ETL/Iceberg output and replay in
   the selected Spark image. Its container-local results do not validate shared
   storage provisioning on a target cluster.
+- `tests/integration/sso_gateway/check.sh` is an opt-in check that no workflow runs.
+  It deploys `examples/sso-gateway` with a mock OIDC provider in a kind cluster named
+  `sso-gateway-ci`; see the [single sign-on gateway guide](user-guide/sso-gateway.md#validation)
+  for its scope. Run it when changing that example, the console's routes, origin
+  checks or Spark UI proxy headers, and record the result in the PR.
 
 After the Airflow workflow's wheel/image build and disposable-cluster setup, its
 host command is:

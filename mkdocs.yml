@@ -125,6 +125,7 @@ nav:
       - Run history and health: user-guide/run-history.md
       - Deploy the chart: user-guide/chart-deployments.md
       - Browser and gateway boundaries: security-boundaries.md
+      - Single sign-on gateway: user-guide/sso-gateway.md
       - Operational boundaries: user-guide/operations.md
       - Support and compatibility: user-guide/support.md
   - Reference:

@@ -19,6 +19,9 @@ installed release for its available features and tested versions.
 | History | Bounded metadata, readiness and recorder metrics as documented in [run history](run-history.md) | Durable Spark logs, audit certification, HA database or submission transaction authority |
 | Examples | The explicit assertions and runtime combinations attached to each example | Certification of every cloud, connector, storage backend or application outcome |
 
+[Interface stability](stability.md) classifies each of these surfaces as Stable,
+Experimental or Internal and lists the criteria for a 1.0 release.
+
 Kubernetes administrators own cluster access, admission, workload identities,
 capacity, storage and network boundaries. Application owners own dependencies,
 input/output correctness, replay safety and external side effects. A successful
@@ -75,6 +78,7 @@ Use [Discussions](https://github.com/hussein-awala/spark-on-k8s/discussions) for
 questions, and [issues](https://github.com/hussein-awala/spark-on-k8s/issues) for
 reproducible defects. Include sanitized versions and evidence, not credentials or
 private data. Security reports follow the
-[private reporting policy](https://github.com/hussein-awala/spark-on-k8s/blob/main/SECURITY.md).
+[private reporting policy](https://github.com/hussein-awala/spark-on-k8s/blob/main/SECURITY.md),
+which also states which release lines receive security fixes.
 The [deployment security boundary](../security-boundaries.md) describes gateway,
 proxy and browser responsibilities.

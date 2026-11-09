@@ -14,6 +14,7 @@ from spark_on_k8s.api.remote_auth import RemoteAccessMiddleware
 from spark_on_k8s.api.run_history import router as run_history_router, start_history, stop_history
 from spark_on_k8s.api.submission import router as submission_router
 from spark_on_k8s.api.submission_policy import get_submission_settings
+from spark_on_k8s.api.utils import install_error_handlers
 from spark_on_k8s.api.webserver import router as webserver_router
 
 
@@ -37,6 +38,7 @@ app = FastAPI(
     on_startup=[on_start_up],
     on_shutdown=[on_shutdown],
 )
+install_error_handlers(app)
 app.add_middleware(RemoteAccessMiddleware)
 app.include_router(submission_router)
 app.include_router(run_history_router)

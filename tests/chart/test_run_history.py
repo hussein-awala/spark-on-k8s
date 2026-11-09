@@ -40,6 +40,7 @@ def test_history_uses_existing_claim_explicit_namespaces_and_recreate_strategy(t
     result = render(
         tmp_path,
         {
+            "namespaces": "analytics,batch",
             "runHistory": {
                 "enabled": True,
                 "namespaces": ["analytics", "batch"],
@@ -83,6 +84,7 @@ def test_history_uses_existing_claim_explicit_namespaces_and_recreate_strategy(t
 )
 def test_unsafe_or_ephemeral_chart_history_configuration_is_rejected(tmp_path, extra, message):
     values = {
+        "namespaces": "analytics",
         "runHistory": {"enabled": True, "namespaces": ["analytics"], "existingClaim": "history"},
         **extra,
     }
@@ -102,6 +104,10 @@ def test_history_namespaces_need_chart_managed_access_when_chart_manages_rbac(tm
     assert render(tmp_path, {"namespaces": "*", "runHistory": history}).returncode == 0
     external = {"namespaces": "analytics", "rbac": {"create": False}, "runHistory": history}
     assert render(tmp_path, external).returncode == 0
+    # The default scope is the release namespace ("default" for this render).
+    assert render(tmp_path, {"runHistory": history}).returncode != 0
+    release = {"enabled": True, "namespaces": ["default"], "existingClaim": "history"}
+    assert render(tmp_path, {"runHistory": release}).returncode == 0
 
 
 def test_explicit_environment_overrides_are_preserved_without_duplicates(tmp_path):

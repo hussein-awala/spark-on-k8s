@@ -12,6 +12,8 @@ export interface ConsoleConfig {
   tail?: number;
   embedded?: boolean;
   namespaceEditable?: boolean;
+  /** Namespaces the server allows; null or absent when any namespace may be entered. */
+  namespaces?: string[] | null;
   contextLabel?: string;
 }
 

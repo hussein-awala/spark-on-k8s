@@ -112,6 +112,65 @@ driver, executor or History Server can access your object store. Cloud-specific
 recipes and arbitrary-user container support are not qualified by this chart
 validation suite.
 
+## Run the API as a non-root user
+
+The API image runs as the dedicated user and group `10001`. The chart's default
+`podSecurityContext` and `securityContext` match that identity and meet Pod
+Security `restricted`: `runAsNonRoot`, `runAsUser`, `runAsGroup` and `fsGroup`
+`10001`, `fsGroupChangePolicy: OnRootMismatch`, the `RuntimeDefault` seccomp
+profile, no privilege escalation and all capabilities dropped. Override individual
+keys in your values file, or set a key to `null` to remove it; an image built with
+another user needs matching IDs. The History Server keeps its own security settings.
+
+The API must be able to read files mounted from volumes, such as a
+remote-submission token or policy, or a kubeconfig selected with
+`SPARK_ON_K8S_CONFIG_FILE`. Its home directory is `/home/spark-on-k8s`; `/root`
+is not readable. Keep `service.port` at 1024 or above, because some container
+runtimes do not let a non-root process bind lower ports.
+
+A run-history claim written by an earlier root API process holds root-owned
+files. On volume types that support `fsGroup`, such as most block-storage CSI
+drivers and `local` volumes, the kubelet makes them group-writable at the first
+non-root mount. Volume types that ignore `fsGroup`, such as `hostPath`-backed
+provisioners, keep them read-only: the API then exits with `attempt to write a
+readonly database`. Before upgrading such a claim, change ownership from the
+current root pod:
+
+```bash
+kubectl exec --namespace <release-namespace> deploy/<release-fullname> -- \
+  chown -R 10001:10001 /var/lib/spark-on-k8s
+```
+
+If the upgraded API already exited, `helm rollback` to the root release and run
+the command there before upgrading again. To keep running as root instead,
+restore the previous identity and capabilities; the capabilities let root write
+files that a failed non-root start may have created. Such a pod does not meet Pod
+Security `restricted`:
+
+```yaml
+podSecurityContext:
+  runAsNonRoot: false
+  runAsUser: 0
+  runAsGroup: 0
+securityContext:
+  capabilities: null
+```
+
+`readOnlyRootFilesystem` is not a default because the Kubernetes client writes
+temporary files in some configurations, such as kubeconfig credentials embedded
+as data. To enable it, also mount a writable `/tmp`:
+
+```yaml
+securityContext:
+  readOnlyRootFilesystem: true
+volumes:
+  - name: tmp
+    emptyDir: {}
+volumeMounts:
+  - name: tmp
+    mountPath: /tmp
+```
+
 ## Understand the scaling controls
 
 | Control | What it scales | Owner |

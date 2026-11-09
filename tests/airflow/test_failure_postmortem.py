@@ -495,6 +495,99 @@ def test_log_read_stopping_at_the_deadline_keeps_received_lines(cluster, task_co
     assert cluster.timeline[-1] == "delete_app"
 
 
+def test_log_read_failing_before_any_data_reports_the_tail_unavailable(cluster, task_context):
+    from spark_on_k8s.utils.spark_app_status import SparkAppStatus
+    from urllib3.exceptions import ReadTimeoutError
+
+    class StalledResponse(FakeLogResponse):
+        def read(self, amount):
+            raise ReadTimeoutError(None, f"/api/v1/namespaces/spark/pods/{DRIVER}/log", "Read timed out.")
+
+    response = StalledResponse(b"")
+    cluster.api.read_namespaced_pod_log.side_effect = None
+    cluster.api.read_namespaced_pod_log.return_value = response
+    cluster.manager.app_status.return_value = SparkAppStatus.Failed
+    run_sync(make_operator(on_finish_action="delete"), task_context, "Failed")
+
+    log = cluster.log.text()
+    # Nothing arrived, so there is no partial tail to show; the diagnosis is unaffected.
+    assert "Driver log tail unavailable (ReadTimeoutError)." in log
+    assert "driver log line(s)" not in log
+    assert "[error] oom_killed" in log
+    assert response.closed
+    assert cluster.timeline[-1] == "delete_app"
+    assert len(diagnosis_pushes(task_context)) == 1
+
+
+def test_killed_running_driver_without_findings_says_no_cause_was_observed(cluster, task_context):
+    from kubernetes import client as k8s
+
+    running = k8s.V1ContainerState(running=k8s.V1ContainerStateRunning())
+    cluster.api.read_namespaced_pod.return_value = driver_pod(
+        phase="Running", statuses=[container_status(state=running)]
+    )
+    run_failure_path("killed", make_operator(), task_context)
+
+    messages = cluster.log.messages
+    assert "Diagnosis: 0 finding(s) from 1 pod(s) and 1 event(s)." in messages
+    assert (
+        "No specific problem was observed in pod states or events; this does not establish a cause."
+        in messages
+    )
+    # A running driver container has a log, so the tail is still recorded before deletion.
+    assert "Last 100 driver log line(s) from container driver:" in messages
+    assert cluster.timeline[-2:] == ["read_namespaced_pod_log", "delete_app"]
+
+
+def test_findings_beyond_the_limit_are_counted_not_logged(cluster, task_context):
+    from kubernetes import client as k8s
+    from spark_on_k8s.utils.spark_app_status import SparkAppStatus
+
+    executors = [
+        k8s.V1Pod(
+            metadata=k8s.V1ObjectMeta(
+                name=f"application-exec-{index}",
+                namespace=NAMESPACE,
+                uid=f"executor-uid-{index}",
+                labels={"spark-role": "executor", "spark-app-selector": "application"},
+                owner_references=[
+                    k8s.V1OwnerReference(api_version="v1", kind="Pod", name=DRIVER, uid="driver-uid")
+                ],
+            ),
+            spec=k8s.V1PodSpec(containers=[k8s.V1Container(name="spark-kubernetes-executor")]),
+            status=k8s.V1PodStatus(
+                phase="Failed",
+                container_statuses=[
+                    container_status("spark-kubernetes-executor", state=terminated("OOMKilled", 137))
+                ],
+            ),
+        )
+        for index in range(20)
+    ]
+    # Kubernetes returns one page of at most pod_limit executors and a continue token for more.
+    cluster.api.list_namespaced_pod.return_value = k8s.V1PodList(
+        items=executors, metadata=k8s.V1ListMeta(_continue="next-page")
+    )
+    cluster.manager.app_status.return_value = SparkAppStatus.Failed
+    run_sync(make_operator(on_finish_action="delete"), task_context, "Failed")
+
+    assert cluster.api.list_namespaced_pod.call_args.kwargs["limit"] == 20
+    messages = cluster.log.messages
+    # collection_incomplete for the unread page, then OOM kills of the driver and 20 executors.
+    assert "Diagnosis: 22 finding(s) from 21 pod(s) and 1 event(s); collection was incomplete." in messages
+    assert sum(message.startswith("[warning] collection_incomplete") for message in messages) == 1
+    assert sum(message.startswith("[error] oom_killed") for message in messages) == 19
+    assert "2 more finding(s) omitted." in messages
+    (summary,) = diagnosis_pushes(task_context)
+    assert summary["incomplete"] is True
+    assert len(summary["findings"]) == 20
+    assert summary["omitted_findings"] == 2
+    assert [finding["code"] for finding in summary["findings"][:2]] == ["collection_incomplete", "oom_killed"]
+    assert summary["findings"][1]["resource"] == DRIVER
+    # The bounded output does not delay or prevent cleanup.
+    assert cluster.timeline[-2:] == ["read_namespaced_pod_log", "delete_app"]
+
+
 @pytest.mark.parametrize(
     "diagnostics,tail_lines,expected_reads",
     [

@@ -13,7 +13,13 @@ from kubernetes.stream import stream
 from spark_on_k8s.k8s.sync_client import KubernetesClientManager
 from spark_on_k8s.utils.logging_mixin import LoggingMixin
 from spark_on_k8s.utils.run import WaitDeadline
-from spark_on_k8s.utils.spark_app_status import SparkAppStatus, get_app_status
+from spark_on_k8s.utils.spark_app_status import (
+    SparkAppStatus,
+    driver_container_name,
+    driver_pod_selector,
+    get_app_status,
+    select_driver_pod,
+)
 from spark_on_k8s.utils.warnings import LongAppNameWarning, WarningCache
 
 if TYPE_CHECKING:
@@ -51,16 +57,17 @@ class SparkAppManager(LoggingMixin):
         if len(app_id) > 56:
             WarningCache.warn(
                 message="The used app name or app id suffix is too long,"
-                " pod name will be truncated and may not be unique",
+                " pod name will be shortened with a hash of the app id",
                 category=LongAppNameWarning,
                 stacklevel=2,
                 warning_id=app_id,
             )
-        return f"{app_id[:56]}-driver"
+        # Plain truncation would drop the distinguishing suffix, so reruns could collide.
+        return SparkAppManager._resource_name(app_id=app_id, suffix="-driver")
 
     @staticmethod
     def _resource_name(*, app_id: str, suffix: str) -> str:
-        """Name an application resource that is also used as a 63-character Pod volume name."""
+        """Name an application resource within a 63-character DNS label, such as a Pod volume name."""
         name = f"{app_id}{suffix}"
         if len(name) <= 63:
             return name
@@ -146,6 +153,7 @@ class SparkAppManager(LoggingMixin):
         deadline = WaitDeadline(timeout)
         start_time = time.time()
         termination_statuses = {SparkAppStatus.Succeeded, SparkAppStatus.Failed, SparkAppStatus.Unknown}
+        target = f"Pod {pod_name}" if pod_name is not None else f"App {app_id}"
         with self.k8s_client_manager.client() as client:
             api = k8s.CoreV1Api(client)
             while True:
@@ -157,28 +165,27 @@ class SparkAppManager(LoggingMixin):
                         client=api,
                         **({"request_timeout": deadline.remaining()} if timeout is not None else {}),
                     )
-                    deadline.remaining()
+                    # A final status read within the budget is the outcome, not a timeout.
                     if status in termination_statuses:
                         break
+                    deadline.remaining()
                     if status == SparkAppStatus.Pending:
                         if startup_timeout and start_time + startup_timeout < time.time():
                             raise TimeoutError("App startup timeout")
 
                 except ApiException as e:
                     if e.status == 404:
-                        self.log(
-                            msg=f"Pod {pod_name} was deleted", level=logging.INFO, should_print=should_print
-                        )
+                        self.log(msg=f"{target} was deleted", level=logging.INFO, should_print=should_print)
                         return
                     raise
                 self.log(
-                    msg=f"Pod {pod_name} status is {status}, sleep {poll_interval}s",
+                    msg=f"{target} status is {status}, sleep {poll_interval}s",
                     level=logging.INFO,
                     should_print=should_print,
                 )
                 deadline.sleep(poll_interval)
             self.log(
-                msg=f"Pod {pod_name} finished with status {status.value}",
+                msg=f"{target} finished with status {status.value}",
                 level=logging.INFO,
                 should_print=should_print,
             )
@@ -214,12 +221,10 @@ class SparkAppManager(LoggingMixin):
                 api = k8s.CoreV1Api(client)
                 pods = api.list_namespaced_pod(
                     namespace=namespace,
-                    label_selector=f"spark-app-id={app_id}",
+                    label_selector=driver_pod_selector(app_id),
                     **deadline.request_options(),
                 ).items
-                if len(pods) == 0:
-                    raise ValueError(f"No pods found for app {app_id}")
-                pod_name = pods[0].metadata.name
+                pod_name = select_driver_pod(pods, app_id).metadata.name
         with self.k8s_client_manager.client() as client:
             api = k8s.CoreV1Api(client)
             while True:
@@ -255,7 +260,7 @@ class SparkAppManager(LoggingMixin):
                             api.read_namespaced_pod_log,
                             namespace=namespace,
                             name=pod_name,
-                            container=pod.spec.containers[0].name,
+                            container=driver_container_name(pod),
                             **deadline.request_options(),
                         )
                         for line in stream:
@@ -327,17 +332,15 @@ class SparkAppManager(LoggingMixin):
             if pod_name is None:
                 pods = api.list_namespaced_pod(
                     namespace=namespace,
-                    label_selector=f"spark-app-id={app_id}",
+                    label_selector=driver_pod_selector(app_id),
                 ).items
-                if len(pods) == 0:
-                    raise ValueError(f"No pods found for app {app_id}")
-                pod = pods[0]
+                pod = select_driver_pod(pods, app_id)
             else:
                 pod = api.read_namespaced_pod(
                     namespace=namespace,
                     name=pod_name,
                 )
-            container_name = pod.spec.containers[0].name
+            container_name = driver_container_name(pod)
             if pod.status.phase != "Running":
                 self.log(
                     f"App is not running, it is {get_app_status(pod).value}",
@@ -397,23 +400,24 @@ class SparkAppManager(LoggingMixin):
             raise ValueError("Either pod_name or app_id must be specified")
         with self.k8s_client_manager.client() as client:
             api = k8s.CoreV1Api(client)
+            preconditions = None
             if app_id:
                 # we don't use `delete_collection_namespaced_pod` to know if the app exists or not
                 pods = api.list_namespaced_pod(
                     namespace=namespace,
-                    label_selector=f"spark-app-id={app_id},spark-role=driver",
+                    label_selector=driver_pod_selector(app_id),
                 ).items
-                if len(pods) == 0:
-                    raise ValueError(f"No pods found for app {app_id}")
-                if len(pods) > 1:
-                    raise ValueError(f"Multiple driver pods found for app {app_id}; use a run receipt")
-                pod_name = pods[0].metadata.name
+                pod = select_driver_pod(pods, app_id)
+                pod_name = pod.metadata.name
+                # Delete exactly the selected driver, not a replacement created after the lookup.
+                preconditions = k8s.V1Preconditions(uid=pod.metadata.uid) if pod.metadata.uid else None
             api.delete_namespaced_pod(
                 name=pod_name,
                 namespace=namespace,
                 body=k8s.V1DeleteOptions(
                     grace_period_seconds=0 if force else None,
                     propagation_policy="Foreground",
+                    preconditions=preconditions,
                 ),
             )
 

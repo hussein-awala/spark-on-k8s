@@ -121,12 +121,12 @@ def wait(app_id: str, namespace: str, output: str, timeout: float | None):
             should_print=True,
             **({"timeout": deadline.remaining()} if timeout is not None else {}),
         )
+        # The deadline bounds the request; a status it returns is reported, not replaced by a timeout.
         result["status"] = app_manager.app_status(
             namespace=namespace,
             app_id=app_id,
             **({"request_timeout": deadline.remaining()} if timeout is not None else {}),
         )
-        deadline.remaining()
         if output == "text":
             click.echo(f"App {app_id} has terminated with status {result['status'].value}")
 
@@ -300,12 +300,11 @@ def cancel(receipt, force, output):
     from spark_on_k8s.cli.receipts import read_receipt
     from spark_on_k8s.client import SparkOnK8S
 
-    try:
+    # The namespace is unknown until the receipt is read; receipt errors are runtime failures.
+    with execution("cancel", "", output) as result:
+        result["run"] = None
         run = read_receipt(Path(receipt))
-    except (ValueError, OSError) as error:
-        raise click.ClickException(str(error)) from error
-    with execution("cancel", run.namespace, output) as result:
-        result["run"] = run.to_dict()
+        result.update(namespace=run.namespace, run=run.to_dict())
         SparkOnK8S().cancel_run(run, force=force)
         result["accepted"] = True
         if output == "text":

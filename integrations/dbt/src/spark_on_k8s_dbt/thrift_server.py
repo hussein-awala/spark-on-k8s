@@ -3,7 +3,9 @@
 The caller supplies an explicitly configured SDK and durable ``record`` callback.
 Creation records ``creating`` -> ``driver_created`` -> ``driver_service_confirmed``
 -> ``service_creating`` -> ``created``. ``created`` is not SQL readiness.
-Failures record ``creation_uncertain`` without retry, adoption, or rollback.
+Failures record ``creation_uncertain`` without retry or adoption. After a confirmed
+driver UID, a failure (not an interrupt) requests deletion of that driver only, by
+UID, and records the outcome in ``creation_cleanup``; the record stays incomplete.
 Deletion records ``deleting`` -> ``deletion_requested``; a failed request records
 ``deletion_uncertain``. Only observed garbage collection records ``deleted``.
 
@@ -374,7 +376,58 @@ class ThriftServer:
                 and confirmed.driver_uid
             ):
                 state["run"] = confirmed.to_dict()
+            if isinstance(error, Exception):
+                # As the core Connect provisioner does, never on an interrupt.
+                try:
+                    state["creation_cleanup"] = self._rollback(state)
+                except BaseException as interrupted:
+                    state["creation_cleanup"] = {
+                        "status": "unknown",
+                        "reason": "Rollback was interrupted; deletion may already have been requested",
+                    }
+                    self._failed(state, "creation_uncertain", interrupted)
             self._failed(state, "creation_uncertain", error)
+
+    def _rollback(self, state):
+        """Request deletion of only a UID-confirmed driver after a failed create.
+
+        Both Services name that driver UID as their owner, so Kubernetes collects
+        them with it. The record stays incomplete: disappearance is not observed.
+        """
+        if "driver_uid" not in state["run"]:
+            return {
+                "status": "not_attempted",
+                "reason": "Driver creation is unconfirmed; resources may exist",
+            }
+        run = RunHandle(**state["run"])
+        try:
+            with self._api() as api:
+                deadline = _deadline(30)
+                pod = _read(api, "pod", run.driver_pod, run.namespace, deadline)
+                if pod is None:
+                    return {"status": "not_found", "reason": "The confirmed driver was already absent"}
+                _driver(pod, run, state)
+                api.delete_namespaced_pod(
+                    name=run.driver_pod,
+                    namespace=run.namespace,
+                    body=k8s.V1DeleteOptions(
+                        propagation_policy="Foreground",
+                        # The UID proves ownership. A starting pod's resourceVersion
+                        # changes with each status update, so it is not a precondition.
+                        preconditions=k8s.V1Preconditions(uid=run.driver_uid),
+                    ),
+                    **deadline.request_options(),
+                )
+        except Exception as error:
+            return {
+                "status": "failed",
+                "reason": "UID-checked rollback failed; inspect the recorded run before retrying cleanup",
+                "error": type(error).__name__,
+            }
+        return {
+            "status": "requested",
+            "reason": "UID-checked driver deletion requested; its Services are garbage-collected with it",
+        }
 
     def _preflight(self, api, handle, deadline):
         run = _validate_handle(handle)

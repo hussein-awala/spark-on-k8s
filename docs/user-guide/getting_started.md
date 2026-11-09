@@ -88,6 +88,9 @@ driver_pod_name = client.submit_app(
 
 `submit_app` returns the driver pod name. The application ID is generated from the
 application name with a timestamp suffix and is available in the application list.
+The driver pod is usually named `<application ID>-driver`; an ID longer than 56
+characters instead keeps a readable prefix followed by a hash of the full ID, so
+use the returned name or run receipt rather than deriving it.
 For a private registry, configure image-pull credentials for the pods in your cluster.
 
 ## CLI
@@ -301,6 +304,9 @@ exclusive, including when supplied through environment variables.
 | `SPARK_ON_K8S_API_WEBSERVER_APPS_KILL_BUTTON` | Show the kill button in the applications page | `true` |
 | `SPARK_ON_K8S_API_WEBSERVER_APPS_DELETE_BUTTON` | Show the delete button in the applications page | `true` |
 | `SPARK_ON_K8S_API_WEBSERVER_APPS_REFRESH_INTERVAL` | Applications-page refresh interval in whole seconds; `0` or a negative value disables it | `10` |
+
+Boolean settings in this table accept `true` or `false` in any letter case; any other
+value is treated as `false`.
 
 JSON settings use JSON syntax, including double-quoted keys and strings. Packages
 and existing Secret names use comma-separated strings instead of JSON arrays:

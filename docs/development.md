@@ -182,7 +182,8 @@ at an arbitrary current kubeconfig context.
   `tests/integration/spark/run_kubernetes.py`. Use its image-building and kind setup
   steps, then pass `--kubeconfig`, `--context`, `--image`, `--spark-version` and
   `--artifacts` as specified by the runner. It covers real Python, SQL, failure and
-  Java submissions, executor ownership and resource cleanup. Changes to lifecycle
+  Java submissions (the Java run uses a hashed long driver name), executor ownership,
+  resource cleanup and rollback after an admission-rejected driver. Changes to lifecycle
   behavior extend this harness instead of adding a second client harness.
 - `.github/workflows/airflow-kubernetes.yml` runs
   `tests/integration/airflow/run_kubernetes.py` against Airflow 2.11.2 and 3.4.0

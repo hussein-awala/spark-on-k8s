@@ -60,7 +60,7 @@ def test_async_logs_resolve_app_id_and_forward_tail_limit(log_lookup, tail_lines
     assert asyncio.run(log_lookup.collect(app_id="report-123", tail_lines=tail_lines)) == ["first", "second"]
 
     log_lookup.api.list_namespaced_pod.assert_awaited_once_with(
-        namespace="analytics", label_selector="spark-app-id=report-123"
+        namespace="analytics", label_selector="spark-app-id=report-123,spark-role=driver"
     )
     log_lookup.api.read_namespaced_pod.assert_awaited_once_with(namespace="analytics", name="selected-driver")
     log_lookup.watcher.stream.assert_called_once_with(
@@ -109,4 +109,28 @@ def test_async_log_lookup_errors_release_client_without_starting_watch(log_looku
     assert raised.value is error
     log_lookup.context.__aexit__.assert_awaited_once()
     assert log_lookup.context.__aexit__.await_args.args[1] is error
+    log_lookup.watch_factory.assert_not_called()
+
+
+def test_async_logs_follow_the_annotated_driver_container_after_sidecar_injection(log_lookup):
+    log_lookup.api.read_namespaced_pod.return_value = SimpleNamespace(
+        metadata=SimpleNamespace(annotations={"kubectl.kubernetes.io/default-container": "spark-driver"}),
+        status=SimpleNamespace(phase="Running"),
+        spec=SimpleNamespace(
+            containers=[SimpleNamespace(name="istio-proxy"), SimpleNamespace(name="spark-driver")]
+        ),
+    )
+
+    assert asyncio.run(log_lookup.collect(pod_name="selected-driver")) == ["first", "second"]
+
+    assert log_lookup.watcher.stream.call_args.kwargs["container"] == "spark-driver"
+
+
+def test_async_logs_refuse_an_ambiguous_driver_selection(log_lookup):
+    driver = SimpleNamespace(metadata=SimpleNamespace(name="selected-driver"))
+    log_lookup.api.list_namespaced_pod.return_value = SimpleNamespace(items=[driver, driver])
+
+    with pytest.raises(ValueError, match="Multiple driver pods found for app report-123"):
+        asyncio.run(log_lookup.collect(app_id="report-123"))
+
     log_lookup.watch_factory.assert_not_called()

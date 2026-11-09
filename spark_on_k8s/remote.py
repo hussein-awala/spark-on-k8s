@@ -11,6 +11,7 @@ import time
 from urllib.parse import urlsplit
 
 MAX_RESPONSE_BYTES = 4 * 1024 * 1024
+UNCERTAIN_SUBMISSION = "A submission may still have succeeded; inspect existing runs before retrying."
 
 
 class RemoteError(Exception):
@@ -67,6 +68,13 @@ class RemoteClient:
         deadline = time.monotonic() + self.timeout
         timer = None
         expired = threading.Event()
+
+        def invalid(message, status):
+            # Only a client-error status shows the request was rejected; anything else may follow creation.
+            if operation == "submit" and not 400 <= status < 500:
+                message += " " + UNCERTAIN_SUBMISSION
+            return RemoteError("invalid_response", message, status=status)
+
         try:
             connection.connect()
             transport = connection.sock
@@ -106,7 +114,7 @@ class RemoteClient:
             while chunk := response.read1(65536):
                 data.extend(chunk)
                 if len(data) > MAX_RESPONSE_BYTES:
-                    raise RemoteError("invalid_response", "The API response exceeded the size limit.")
+                    raise invalid("The API response exceeded the size limit.", response.status)
             if expired.is_set() or time.monotonic() >= deadline:
                 raise TimeoutError
             try:
@@ -119,48 +127,34 @@ class RemoteClient:
                 ):
                     raise ValueError
             except (ValueError, UnicodeError) as error:
-                raise RemoteError(
-                    "invalid_response",
-                    "The API did not return a supported JSON result.",
-                    status=response.status,
-                ) from error
+                raise invalid("The API did not return a supported JSON result.", response.status) from error
             if response.status >= 400:
                 error = result.get("error")
                 if not isinstance(error, dict) or not all(
                     isinstance(error.get(k), str) for k in ("code", "message")
                 ):
-                    raise RemoteError(
-                        "invalid_response",
-                        "The API returned an invalid error response.",
-                        status=response.status,
-                    )
+                    raise invalid("The API returned an invalid error response.", response.status)
                 raise RemoteError(error["code"], error["message"], status=response.status)
             if (
                 response.status != (200 if operation == "plan" else 201)
                 or result.get("operation") != operation
                 or result["error"] is not None
             ):
-                raise RemoteError("invalid_response", "The API returned an unexpected operation result.")
+                raise invalid("The API returned an unexpected operation result.", response.status)
             if operation == "submit":
                 run = result.get("run")
                 if not isinstance(run, dict) or not all(
                     isinstance(run.get(k), str) and run[k] for k in ("namespace", "app_id", "driver_pod")
                 ):
-                    raise RemoteError("invalid_response", "The API returned an invalid run receipt.")
+                    raise invalid("The API returned an invalid run receipt.", response.status)
             elif not isinstance(result.get("plan"), dict):
-                raise RemoteError("invalid_response", "The API returned an invalid plan.")
+                raise invalid("The API returned an invalid plan.", response.status)
             return result
         except (TimeoutError, OSError, http.client.HTTPException) as error:
             if expired.is_set() or isinstance(error, TimeoutError):
-                raise RemoteError(
-                    "timeout",
-                    "Remote request timed out. A submission may still have succeeded; "
-                    "inspect existing runs before retrying.",
-                ) from error
+                raise RemoteError("timeout", "Remote request timed out. " + UNCERTAIN_SUBMISSION) from error
             raise RemoteError(
-                "connection_error",
-                "The remote API connection failed. A submission may still have succeeded; "
-                "inspect existing runs before retrying.",
+                "connection_error", "The remote API connection failed. " + UNCERTAIN_SUBMISSION
             ) from error
         finally:
             if timer is not None:

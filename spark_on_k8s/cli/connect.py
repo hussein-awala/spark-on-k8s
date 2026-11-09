@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-import json
-
 import click
 
-from spark_on_k8s.cli.automation import validate_timeout
+from spark_on_k8s.cli.automation import execution, validate_timeout
 from spark_on_k8s.cli.connect_server import server_cli
-from spark_on_k8s.connect import ConnectError, ConnectProfile
+from spark_on_k8s.connect import ConnectProfile
 
 
 @click.group(name="connect", help="Use Spark Connect profiles or create a private Kubernetes server.")
@@ -27,23 +25,13 @@ def connect_cli():
 @click.option("--output", type=click.Choice(["text", "json"]), default="text", show_default=True)
 def check(file, profile, timeout, output):
     """Run a tiny remote query, then close only the check's session."""
-    code = 0
-    try:
-        result = ConnectProfile.from_file(file, profile=profile).probe(timeout=timeout)
-    except TimeoutError as error:
-        result = {"schema_version": 1, "status": "error", "error": str(error)}
-        code = 5
-    except (ConnectError, OSError) as error:
-        result = {"schema_version": 1, "status": "error", "error": str(error)}
-        code = 1
-    if output == "json":
-        click.echo(json.dumps(result))
-    elif code:
-        click.echo(result["error"], err=True)
-    else:
-        click.echo(f"Connected to Spark {result['spark_version']}; check session closed.")
-    if code:
-        raise click.exceptions.Exit(code)
+    # The check uses no Kubernetes namespace; the shared contract maps failures to exit codes.
+    with execution("connect_check", "", output) as result:
+        result.update(status="error", spark_version=None)
+        probe = ConnectProfile.from_file(file, profile=profile).probe(timeout=timeout)
+        result.update(status=probe["status"], spark_version=probe.get("spark_version"))
+        if output == "text":
+            click.echo(f"Connected to Spark {result['spark_version']}; check session closed.")
 
 
 connect_cli.add_command(server_cli)

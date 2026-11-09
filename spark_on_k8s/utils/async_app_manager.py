@@ -11,7 +11,13 @@ from kubernetes_asyncio.stream import WsApiClient
 
 from spark_on_k8s.k8s.async_client import KubernetesAsyncClientManager
 from spark_on_k8s.utils.logging_mixin import LoggingMixin
-from spark_on_k8s.utils.spark_app_status import SparkAppStatus, get_app_status
+from spark_on_k8s.utils.spark_app_status import (
+    SparkAppStatus,
+    driver_container_name,
+    driver_pod_selector,
+    get_app_status,
+    select_driver_pod,
+)
 
 
 class SparkAppStartupTimeoutError(TimeoutError):
@@ -108,6 +114,7 @@ class AsyncSparkAppManager(LoggingMixin):
                 are not limited by this deadline.
         """
         termination_statuses = {SparkAppStatus.Succeeded, SparkAppStatus.Failed, SparkAppStatus.Unknown}
+        target = f"Pod {pod_name}" if pod_name is not None else f"App {app_id}"
         async with self.k8s_client_manager.client() as client:
             api = k8s_async.CoreV1Api(client)
             while True:
@@ -125,19 +132,17 @@ class AsyncSparkAppManager(LoggingMixin):
                         sleep_interval = min(poll_interval, remaining)
                 except ApiException as e:
                     if e.status == 404:
-                        self.log(
-                            msg=f"Pod {pod_name} was deleted", level=logging.INFO, should_print=should_print
-                        )
+                        self.log(msg=f"{target} was deleted", level=logging.INFO, should_print=should_print)
                         return
                     raise
                 self.log(
-                    msg=f"Pod {pod_name} status is {status}, sleep {sleep_interval}s",
+                    msg=f"{target} status is {status}, sleep {sleep_interval}s",
                     level=logging.INFO,
                     should_print=should_print,
                 )
                 await asyncio.sleep(sleep_interval)
             self.log(
-                msg=f"Pod {pod_name} finished with status {status.value}",
+                msg=f"{target} finished with status {status.value}",
                 level=logging.INFO,
                 should_print=should_print,
             )
@@ -166,12 +171,10 @@ class AsyncSparkAppManager(LoggingMixin):
                 pods = (
                     await api.list_namespaced_pod(
                         namespace=namespace,
-                        label_selector=f"spark-app-id={app_id}",
+                        label_selector=driver_pod_selector(app_id),
                     )
                 ).items
-                if len(pods) == 0:
-                    raise ValueError(f"No pods found for app {app_id}")
-                pod_name = pods[0].metadata.name
+                pod_name = select_driver_pod(pods, app_id).metadata.name
 
         async with self.k8s_client_manager.client() as client:
             api = k8s_async.CoreV1Api(client)
@@ -189,7 +192,7 @@ class AsyncSparkAppManager(LoggingMixin):
                     api.read_namespaced_pod_log,
                     namespace=namespace,
                     name=pod_name,
-                    container=pod.spec.containers[0].name,
+                    container=driver_container_name(pod),
                     tail_lines=tail_lines if tail_lines > 0 else None,
                     follow=True,
                 )
@@ -217,18 +220,16 @@ class AsyncSparkAppManager(LoggingMixin):
                 pods = (
                     await api.list_namespaced_pod(
                         namespace=namespace,
-                        label_selector=f"spark-app-id={app_id}",
+                        label_selector=driver_pod_selector(app_id),
                     )
                 ).items
-                if len(pods) == 0:
-                    raise ValueError(f"No pods found for app {app_id}")
-                pod = pods[0]
+                pod = select_driver_pod(pods, app_id)
             else:
                 pod = await api.read_namespaced_pod(
                     namespace=namespace,
                     name=pod_name,
                 )
-            container_name = pod.spec.containers[0].name
+            container_name = driver_container_name(pod)
             if pod.status.phase != "Running":
                 raise ValueError(f"Pod {pod.metadata.name} is not running")
             async with WsApiClient() as websocket_client:
@@ -261,24 +262,25 @@ class AsyncSparkAppManager(LoggingMixin):
             raise ValueError("Either pod_name or app_id must be specified")
         async with self.k8s_client_manager.client() as client:
             api = k8s_async.CoreV1Api(client)
+            preconditions = None
             if app_id:
                 # we don't use `delete_collection_namespaced_pod` to know if the app exists or not
                 pods = (
                     await api.list_namespaced_pod(
                         namespace=namespace,
-                        label_selector=f"spark-app-id={app_id},spark-role=driver",
+                        label_selector=driver_pod_selector(app_id),
                     )
                 ).items
-                if len(pods) == 0:
-                    raise ValueError(f"No pods found for app {app_id}")
-                if len(pods) > 1:
-                    raise ValueError(f"Multiple driver pods found for app {app_id}; use a run receipt")
-                pod_name = pods[0].metadata.name
+                pod = select_driver_pod(pods, app_id)
+                pod_name = pod.metadata.name
+                # Delete exactly the selected driver, not a replacement created after the lookup.
+                preconditions = k8s_async.V1Preconditions(uid=pod.metadata.uid) if pod.metadata.uid else None
             await api.delete_namespaced_pod(
                 name=pod_name,
                 namespace=namespace,
                 body=k8s_async.V1DeleteOptions(
                     grace_period_seconds=0 if force else None,
                     propagation_policy="Foreground",
+                    preconditions=preconditions,
                 ),
             )

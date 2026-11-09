@@ -69,6 +69,12 @@ class ConnectProfile:
             not isinstance(self.token_env, str) or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", self.token_env)
         ):
             raise ConnectError("token_env must name an environment variable.")
+        # PySpark Connect clients use TLS whenever a token is set, except local credentials for localhost.
+        if self.token_env is not None and not self.tls and url.hostname.lower() != "localhost":
+            raise ConnectError(
+                "token_env requires tls = true unless the endpoint host is localhost; "
+                "Spark Connect clients send tokens only over TLS or to localhost."
+            )
         if self.user_id is not None and (not isinstance(self.user_id, str) or not self.user_id):
             raise ConnectError("user_id must be a non-empty string.")
 

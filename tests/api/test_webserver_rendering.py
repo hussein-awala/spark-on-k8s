@@ -45,9 +45,28 @@ def test_app_console_bootstraps_without_waiting_for_kubernetes(monkeypatch):
     assert config["refreshInterval"] == 15
     assert config["historyEnabled"] is True
     assert config["allowKill"] is False
-    assert "http://testserver/static/ui/console.js" in response.text
-    assert "http://testserver/static/ui/console.css" in response.text
+    assert 'src="/static/ui/console.js"' in response.text
+    assert 'href="/static/ui/console.css"' in response.text
     kubernetes.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [(None, True), ("true", True), ("True", True), ("TRUE", True), ("false", False), ("False", False)],
+)
+def test_console_action_settings_parse_booleans_like_other_true_false_settings(monkeypatch, value, expected):
+    import runpy
+
+    from spark_on_k8s.api import configuration
+
+    names = ("SPARK_ON_K8S_API_WEBSERVER_APPS_KILL_BUTTON", "SPARK_ON_K8S_API_WEBSERVER_APPS_DELETE_BUTTON")
+    for name in names:
+        if value is None:
+            monkeypatch.delenv(name, raising=False)
+        else:
+            monkeypatch.setenv(name, value)
+    settings = runpy.run_path(configuration.__file__)["APIConfiguration"]
+    assert [getattr(settings, name) for name in names] == [expected, expected]
 
 
 def test_log_page_bootstraps_target_and_tail():
@@ -73,7 +92,20 @@ def test_console_respects_deployment_prefix_and_default_namespace(monkeypatch):
     assert response.status_code == 200
     assert bootstrap(response)["basePath"] == "/platform/spark"
     assert bootstrap(response)["namespace"] == "default-spark"
-    assert "http://testserver/platform/spark/static/ui/console.js" in response.text
+    assert 'src="/platform/spark/static/ui/console.js"' in response.text
+
+
+@pytest.mark.parametrize("root_path", ["", "/platform/spark"])
+def test_console_assets_ignore_request_host_and_scheme(root_path):
+    # An absolute URL built from Host would let a spoofed or cached Host choose the script
+    # origin, and a TLS-terminating gateway would turn assets into blocked mixed content.
+    response = make_client(root_path).get(
+        "/webserver/apps", headers={"Host": "attacker.example", "X-Forwarded-Host": "attacker.example"}
+    )
+    assert response.status_code == 200
+    assert "attacker.example" not in response.text
+    assert f'src="{root_path}/static/ui/console.js"' in response.text
+    assert f'href="{root_path}/static/ui/console.css"' in response.text
 
 
 def test_untrusted_namespace_cannot_escape_json_script():

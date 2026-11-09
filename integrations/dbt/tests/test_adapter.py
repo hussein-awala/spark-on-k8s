@@ -30,6 +30,12 @@ def connection(creds, name="model"):
     return Connection(type="spark_on_k8s", name=name, credentials=creds)
 
 
+def owner_mock():
+    owner = Mock()
+    owner.cancelled = False  # No interrupt has reached the invocation owner.
+    return owner
+
+
 def test_profile_deserialization_and_spark_parent_plugin():
     creds = SparkOnK8SCredentials.from_dict(
         {"schema": "analytics", "method": "connect", "compute": {"image": "test"}}
@@ -83,7 +89,7 @@ def test_plain_dbt_cannot_bypass_invocation_owner():
 
 def test_connect_open_is_lazy_and_captures_owner_before_worker_threads(monkeypatch):
     profile = credentials(method="connect")
-    owner = Mock()
+    owner = owner_mock()
     owner.ensure_endpoint.return_value = Endpoint("localhost", 1234, Mock())
     wrapper = Mock()
     constructor = Mock(return_value=wrapper)
@@ -112,7 +118,7 @@ def test_connect_open_is_lazy_and_captures_owner_before_worker_threads(monkeypat
 
 def test_thrift_endpoint_does_not_mutate_shared_credentials(monkeypatch):
     profile = credentials()
-    owner = Mock()
+    owner = owner_mock()
     owner.ensure_endpoint.return_value = Endpoint("127.0.0.1", 34123)
     raw = Mock()
 
@@ -135,7 +141,7 @@ def test_thrift_endpoint_does_not_mutate_shared_credentials(monkeypatch):
 
 
 def test_failed_open_sets_failure_state(monkeypatch):
-    owner = Mock()
+    owner = owner_mock()
     owner.ensure_endpoint.return_value = Endpoint("localhost", 1234, Mock())
     monkeypatch.setattr(
         "dbt.adapters.spark_on_k8s.connections.ConnectConnectionWrapper",
@@ -173,7 +179,7 @@ def test_python_models_are_explicitly_rejected():
 
 
 def test_cleanup_does_not_resolve_failed_lazy_connection_again():
-    owner = Mock()
+    owner = owner_mock()
     owner.ensure_endpoint.side_effect = RuntimeError("startup failed")
     profile = credentials(method="connect")
     connections = manager(profile, owner)
@@ -188,7 +194,7 @@ def test_cleanup_does_not_resolve_failed_lazy_connection_again():
 
 
 def test_cancel_does_not_resolve_unused_lazy_connections():
-    owner = Mock()
+    owner = owner_mock()
     profile = credentials(method="connect")
     connections = manager(profile, owner)
     conn = connection(profile, "unused-worker")
@@ -201,12 +207,54 @@ def test_cancel_does_not_resolve_unused_lazy_connections():
 
 
 def test_cancel_during_startup_prevents_opening_the_ready_endpoint(monkeypatch):
-    owner = Mock()
+    owner = owner_mock()
+    profile = credentials(method="connect")
+    connections = manager(profile, owner)
+    endpoint = Endpoint("localhost", 1234, Mock())
+
+    def ensure_endpoint(method, compute):
+        connections.cancel_open()
+        return endpoint
+
+    owner.ensure_endpoint.side_effect = ensure_endpoint
+    constructor = Mock()
+    monkeypatch.setattr("dbt.adapters.spark_on_k8s.connections.ConnectConnectionWrapper", constructor)
+    with pytest.raises(DbtRuntimeError, match="invocation was cancelled"):
+        connections.open(connection(profile))
+    constructor.assert_not_called()
+    # dbt also cancels for --fail-fast and then opens a connection for on-run-end
+    # hooks. Only an open already in progress is stopped; a new one may proceed.
+    owner.ensure_endpoint.side_effect = None
+    owner.ensure_endpoint.return_value = endpoint
+    later = connection(profile, "on-run-end")
+    connections.open(later)
+    assert later.state == ConnectionState.OPEN
+    constructor.assert_called_once_with(endpoint.connect_profile, profile.server_side_parameters)
+
+
+def test_interrupt_prevents_every_later_open_without_using_the_endpoint(monkeypatch):
+    owner = owner_mock()
+    owner.ensure_endpoint.return_value = Endpoint("localhost", 1234, Mock())
+    profile = credentials(method="connect")
+    connections = manager(profile, owner)
+    constructor = Mock()
+    monkeypatch.setattr("dbt.adapters.spark_on_k8s.connections.ConnectConnectionWrapper", constructor)
+    owner.cancelled = True  # Ctrl-C/SIGTERM reached the invocation owner.
+    conn = connection(profile, "after-interrupt")
+    with pytest.raises(DbtRuntimeError, match="invocation was cancelled"):
+        connections.open(conn)
+    assert conn.state == ConnectionState.FAIL
+    owner.ensure_endpoint.assert_not_called()
+    constructor.assert_not_called()
+
+
+def test_interrupt_while_reusing_a_ready_endpoint_prevents_the_open(monkeypatch):
+    owner = owner_mock()
     profile = credentials(method="connect")
     connections = manager(profile, owner)
 
     def ensure_endpoint(method, compute):
-        connections.cancel_open()
+        owner.cancelled = True
         return Endpoint("localhost", 1234, Mock())
 
     owner.ensure_endpoint.side_effect = ensure_endpoint
@@ -215,13 +263,125 @@ def test_cancel_during_startup_prevents_opening_the_ready_endpoint(monkeypatch):
     with pytest.raises(DbtRuntimeError, match="invocation was cancelled"):
         connections.open(connection(profile))
     constructor.assert_not_called()
+
+
+def test_cancel_while_the_session_opens_closes_it_unused(monkeypatch):
+    owner = owner_mock()
+    owner.ensure_endpoint.return_value = Endpoint("localhost", 1234, Mock())
+    profile = credentials(method="connect")
+    connections = manager(profile, owner)
+    wrapper = Mock()
+
+    def opening_session(*args):
+        # cancel_open scans while this connection is still INIT, so it cannot
+        # cancel the handle itself; the open must not publish it afterwards.
+        connections.cancel_open()
+        return wrapper
+
+    monkeypatch.setattr(
+        "dbt.adapters.spark_on_k8s.connections.ConnectConnectionWrapper", Mock(side_effect=opening_session)
+    )
+    conn = connection(profile)
     with pytest.raises(DbtRuntimeError, match="invocation was cancelled"):
-        connections.open(connection(profile, "later"))
-    assert owner.ensure_endpoint.call_count == 1
+        connections.open(conn)
+    wrapper.close.assert_called_once_with()
+    assert conn.state == ConnectionState.FAIL
+
+
+def test_cancel_failure_on_one_connection_still_cancels_the_others():
+    owner = owner_mock()
+    profile = credentials(method="connect")
+    connections = manager(profile, owner)
+    stalled, running = connection(profile, "stalled-worker"), connection(profile, "running-worker")
+    stalled.state, stalled.handle = ConnectionState.OPEN, Mock()
+    stalled.handle.cancel.side_effect = DbtRuntimeError("Timed out acquiring the managed Thrift RPC lock")
+    running.state, running.handle = ConnectionState.OPEN, Mock()
+    connections.thread_connections[(9999, 1)] = stalled
+    connections.thread_connections[(9999, 2)] = running
+    # dbt must still log the cancelled names, join its workers and run cleanup.
+    assert connections.cancel_open() == ["stalled-worker", "running-worker"]
+    stalled.handle.cancel.assert_called_once_with()
+    running.handle.cancel.assert_called_once_with()
+
+
+def test_fail_fast_still_runs_on_run_end_hooks(tmp_path, monkeypatch):
+    from dbt.cli.main import dbtRunner
+
+    executed = []
+
+    class Session:
+        description = None
+
+        def __init__(self, profile, parameters):
+            self.rows = []
+
+        def cursor(self):
+            return self
+
+        def execute(self, sql, bindings=None):
+            executed.append(sql)
+            if "fail_me" in sql and "create" in sql.lower():
+                raise RuntimeError("model failed on purpose")
+            self.description = [("x", "string", None, None, None, None, True)]
+
+        def fetchall(self):
+            return self.rows
+
+        def fetchmany(self, size):
+            return self.rows[:size]
+
+        def cancel(self):
+            pass
+
+        def close(self):
+            pass
+
+        def rollback(self):
+            pass
+
+    monkeypatch.setattr("dbt.adapters.spark_on_k8s.connections.ConnectConnectionWrapper", Session)
+    (tmp_path / "models").mkdir()
+    (tmp_path / "dbt_project.yml").write_text(
+        "name: fail_fast\nversion: 1.0.0\nconfig-version: 2\nprofile: fail_fast\n"
+        "on-run-end:\n  - \"select 'on_run_end_hook_ran'\"\n"
+    )
+    (tmp_path / "profiles.yml").write_text(
+        "fail_fast:\n  target: local\n  outputs:\n    local:\n"
+        "      type: spark_on_k8s\n      method: connect\n      schema: example\n"
+        "      compute: {image: fixture}\n      threads: 1\n"
+    )
+    (tmp_path / "models" / "fail_me.sql").write_text("{{ config(materialized='view') }}\nselect 1 as id\n")
+    owner = owner_mock()
+    owner.ensure_endpoint.return_value = Endpoint("localhost", 1234, Mock())
+    with invocation_scope(owner):
+        result = dbtRunner().invoke(
+            [
+                "run",
+                "--fail-fast",
+                "--project-dir",
+                str(tmp_path),
+                "--profiles-dir",
+                str(tmp_path),
+                "--log-path",
+                str(tmp_path / "logs"),
+                "--target-path",
+                str(tmp_path / "target"),
+                "--no-partial-parse",
+                "--no-send-anonymous-usage-stats",
+            ]
+        )
+    assert not result.success and result.exception is None
+    assert any("on_run_end_hook_ran" in sql for sql in executed)
+    statuses = {item.node.unique_id: str(item.status) for item in result.result.results}
+    assert statuses == {
+        "model.fail_fast.fail_me": "error",
+        "operation.fail_fast.fail_fast-on-run-end-0": "success",
+    }
+    owner.close.assert_not_called()
 
 
 def test_cancel_targets_open_worker_connections_only():
-    owner = Mock()
+    owner = owner_mock()
     profile = credentials(method="connect")
     connections = manager(profile, owner)
     conn = connection(profile, "running-worker")

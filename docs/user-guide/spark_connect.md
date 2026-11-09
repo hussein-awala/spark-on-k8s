@@ -42,6 +42,14 @@ connections require an explicit `allow_insecure = true`; use this only with a tr
 network or an independently protected tunnel. TLS verifies server certificates using
 the upstream gRPC client. There is no disable-certificate-verification option.
 
+Spark Connect clients always use TLS when a token is configured, except for the
+hostname `localhost`, where Spark 4 clients send the token over gRPC local
+credentials. A profile with `token_env` and `tls = false` is therefore rejected
+unless its endpoint host is exactly `localhost`; use `sc://localhost:PORT` rather
+than `127.0.0.1` for a tunneled token-protected server. PySpark also reads
+`SPARK_CONNECT_AUTHENTICATE_TOKEN` from the environment, so unset it when using a
+plaintext profile without a token.
+
 ```bash
 spark-on-k8s connect check connect.toml --profile production --timeout 15 --output json
 ```
@@ -49,9 +57,25 @@ spark-on-k8s connect check connect.toml --profile production --timeout 15 --outp
 The check runs a small remote DataFrame action and reports the server's Spark
 version. It runs in a separate process with a total timeout, so an unavailable server
 cannot leave a stuck CLI. Exit codes are 0 for success, 1 for configuration/connection
-failure, 2 for CLI usage errors, and 5 for timeout. Error output omits gRPC details that
-could contain credentials. A timed-out session may remain until the server's session
-expiry policy cleans it up; the check never stops the shared server.
+failure, 2 for CLI usage errors, 5 for timeout and 130 for interruption. Error output
+omits gRPC details that could contain credentials. A timed-out session may remain until
+the server's session expiry policy cleans it up; the check never stops the shared server.
+
+With `--output json`, the command writes one document using the
+[automation contract](automation.md). `namespace` is empty because the check does not
+use Kubernetes. A failure has `status: "error"`, `spark_version: null` and
+`error: {code, message}` with `operation_error`, `timeout` or `interrupted`:
+
+```json
+{
+  "schema_version": 1,
+  "operation": "connect_check",
+  "namespace": "",
+  "error": null,
+  "status": "ok",
+  "spark_version": "4.3.0"
+}
+```
 
 ## Notebook and application sessions
 

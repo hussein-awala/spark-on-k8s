@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 from pathlib import Path
 
 import click
+import yaml
 
 from spark_on_k8s.cli.automation import execution, output_option, report_warnings, validate_timeout
 from spark_on_k8s.cli.options import validate_dictionary_option
@@ -69,48 +71,189 @@ def server_cli():
     pass
 
 
+def _tolerations(ctx, param, values):
+    """Parse kubectl taint notation, KEY[=VALUE][:EFFECT], into Kubernetes tolerations."""
+    tolerations = []
+    for value in values:
+        taint, colon, effect = value.rpartition(":") if ":" in value else (value, "", "")
+        key, equals, label_value = taint.partition("=")
+        if not key or (colon and not effect):
+            raise click.BadParameter(f"{value!r} must have the form KEY[=VALUE][:EFFECT]")
+        toleration = {"key": key, "operator": "Equal" if equals else "Exists"}
+        if equals:
+            toleration["value"] = label_value
+        if effect:
+            toleration["effect"] = effect
+        tolerations.append(toleration)
+    return tolerations
+
+
+_SERVER_OPTIONS = (
+    click.option("--image", required=True, help="Spark 4 image containing the Connect server JAR."),
+    click.option(
+        "--server-jar", required=True, help="Exact local:/// path to the Connect server JAR in the image."
+    ),
+    click.option("--namespace", required=True, help="Existing Kubernetes namespace."),
+    click.option(
+        "--service-account", required=True, help="Existing driver service account with executor permissions."
+    ),
+    click.option("--name", default="spark-connect", show_default=True),
+    click.option("--port", type=click.IntRange(1, 65535), default=15002, show_default=True),
+    click.option(
+        "--image-pull-policy",
+        type=click.Choice(["Always", "IfNotPresent", "Never"]),
+        default="IfNotPresent",
+        show_default=True,
+    ),
+    click.option(
+        "--image-pull-secret",
+        "image_pull_secrets",
+        multiple=True,
+        help="Existing image pull Secret for the driver and executors. Can be repeated.",
+    ),
+    click.option("--driver-cpu", type=click.IntRange(min=1), default=1, show_default=True),
+    click.option(
+        "--driver-memory",
+        type=click.IntRange(min=1),
+        default=1024,
+        show_default=True,
+        help="Driver heap in MiB.",
+    ),
+    click.option("--driver-memory-overhead", type=click.IntRange(min=0), default=512, show_default=True),
+    click.option("--executor-cpu", type=click.IntRange(min=1), default=1, show_default=True),
+    click.option(
+        "--executor-memory",
+        type=click.IntRange(min=1),
+        default=1024,
+        show_default=True,
+        help="Executor heap in MiB.",
+    ),
+    click.option("--executor-memory-overhead", type=click.IntRange(min=0), default=512, show_default=True),
+    click.option("--executors", type=click.IntRange(min=1), default=2, show_default=True),
+    click.option(
+        "--driver-env-from-secret",
+        "driver_env_from_secrets",
+        multiple=True,
+        callback=validate_dictionary_option,
+        help="Driver variable from an existing Secret key, as NAME=SECRET:KEY. Can be repeated.",
+    ),
+    click.option(
+        "--executor-env-from-secret",
+        "executor_env_from_secrets",
+        multiple=True,
+        callback=validate_dictionary_option,
+        help="Executor variable from an existing Secret key, as NAME=SECRET:KEY. Can be repeated.",
+    ),
+    click.option(
+        "--driver-node-selector",
+        "driver_node_selector",
+        multiple=True,
+        callback=validate_dictionary_option,
+        help="Driver node label in key=value format. Can be repeated.",
+    ),
+    click.option(
+        "--executor-node-selector",
+        "executor_node_selector",
+        multiple=True,
+        callback=validate_dictionary_option,
+        help="Executor node label in key=value format. Can be repeated.",
+    ),
+    click.option(
+        "--driver-toleration",
+        "driver_tolerations",
+        multiple=True,
+        callback=_tolerations,
+        help="Driver toleration as KEY[=VALUE][:EFFECT], like kubectl taint. Can be repeated.",
+    ),
+    click.option(
+        "--executor-toleration",
+        "executor_tolerations",
+        multiple=True,
+        callback=_tolerations,
+        help="Executor toleration as KEY[=VALUE][:EFFECT], like kubectl taint. Can be repeated.",
+    ),
+    click.option(
+        "--conf",
+        "spark_conf",
+        multiple=True,
+        callback=validate_dictionary_option,
+        help="Additional Spark key=value setting; managed identity/network settings cannot be overridden.",
+    ),
+    click.option("--package", "packages", multiple=True, help="Additional Maven package coordinate."),
+)
+
+
+def _server_options(function):
+    for option in reversed(_SERVER_OPTIONS):
+        function = option(function)
+    return function
+
+
+def _config(settings: dict) -> ConnectServerConfig:
+    return ConnectServerConfig(
+        image=settings["image"],
+        server_jar=settings["server_jar"],
+        namespace=settings["namespace"],
+        service_account=settings["service_account"],
+        app_name=settings["name"],
+        port=settings["port"],
+        image_pull_policy=settings["image_pull_policy"],
+        driver_resources=PodResources(
+            cpu=settings["driver_cpu"],
+            memory=settings["driver_memory"],
+            memory_overhead=settings["driver_memory_overhead"],
+        ),
+        executor_resources=PodResources(
+            cpu=settings["executor_cpu"],
+            memory=settings["executor_memory"],
+            memory_overhead=settings["executor_memory_overhead"],
+        ),
+        executor_instances=ExecutorInstances(initial=settings["executors"]),
+        spark_conf=settings["spark_conf"],
+        packages=list(settings["packages"]),
+        image_pull_secrets=list(settings["image_pull_secrets"]),
+        driver_env_from_secrets=settings["driver_env_from_secrets"],
+        executor_env_from_secrets=settings["executor_env_from_secrets"],
+        driver_node_selector=settings["driver_node_selector"],
+        executor_node_selector=settings["executor_node_selector"],
+        driver_tolerations=settings["driver_tolerations"],
+        executor_tolerations=settings["executor_tolerations"],
+    )
+
+
+@server_cli.command(
+    name="plan", help="Print a redacted offline preview of a server's resources; nothing is created."
+)
+@_server_options
+@output_option
+def plan(output, **settings):
+    with execution("connect_server_plan", settings["namespace"], output) as result:
+        result.update(plan=None, pod_settings=None)
+        config = _config(settings)
+        # Planning opens no Kubernetes connection, so no cluster selection is needed.
+        result["plan"] = SparkOnK8S().plan_connect_server(config).to_dict()
+        # Names and references only: the helper never reads Secret values.
+        result["pod_settings"] = {
+            name: deepcopy(getattr(config, name))
+            for name in (
+                "image_pull_secrets",
+                "driver_env_from_secrets",
+                "executor_env_from_secrets",
+                "driver_node_selector",
+                "executor_node_selector",
+                "driver_tolerations",
+                "executor_tolerations",
+            )
+        }
+        if output == "text":
+            shown = {"plan": result["plan"], "pod_settings": result["pod_settings"]}
+            click.echo(yaml.safe_dump(shown, sort_keys=False), nl=False)
+
+
 @server_cli.command(
     name="create", help="Create a server and save its identity; query readiness is a separate step."
 )
-@click.option("--image", required=True, help="Spark 4 image containing the Connect server JAR.")
-@click.option(
-    "--server-jar", required=True, help="Exact local:/// path to the Connect server JAR in the image."
-)
-@click.option("--namespace", required=True, help="Existing Kubernetes namespace.")
-@click.option(
-    "--service-account", required=True, help="Existing driver service account with executor permissions."
-)
-@click.option("--name", default="spark-connect", show_default=True)
-@click.option("--port", type=click.IntRange(1, 65535), default=15002, show_default=True)
-@click.option(
-    "--image-pull-policy",
-    type=click.Choice(["Always", "IfNotPresent", "Never"]),
-    default="IfNotPresent",
-    show_default=True,
-)
-@click.option("--driver-cpu", type=click.IntRange(min=1), default=1, show_default=True)
-@click.option(
-    "--driver-memory", type=click.IntRange(min=1), default=1024, show_default=True, help="Driver heap in MiB."
-)
-@click.option("--driver-memory-overhead", type=click.IntRange(min=0), default=512, show_default=True)
-@click.option("--executor-cpu", type=click.IntRange(min=1), default=1, show_default=True)
-@click.option(
-    "--executor-memory",
-    type=click.IntRange(min=1),
-    default=1024,
-    show_default=True,
-    help="Executor heap in MiB.",
-)
-@click.option("--executor-memory-overhead", type=click.IntRange(min=0), default=512, show_default=True)
-@click.option("--executors", type=click.IntRange(min=1), default=2, show_default=True)
-@click.option(
-    "--conf",
-    "spark_conf",
-    multiple=True,
-    callback=validate_dictionary_option,
-    help="Additional Spark key=value setting; managed identity/network settings cannot be overridden.",
-)
-@click.option("--package", "packages", multiple=True, help="Additional Maven package coordinate.")
+@_server_options
 @click.option(
     "--receipt-file",
     type=click.Path(dir_okay=False, path_type=Path),
@@ -119,48 +262,11 @@ def server_cli():
 )
 @_cluster_options
 @output_option
-def create(
-    image,
-    server_jar,
-    namespace,
-    service_account,
-    name,
-    port,
-    image_pull_policy,
-    driver_cpu,
-    driver_memory,
-    driver_memory_overhead,
-    executor_cpu,
-    executor_memory,
-    executor_memory_overhead,
-    executors,
-    spark_conf,
-    packages,
-    receipt_file,
-    kubeconfig,
-    context,
-    output,
-):
+def create(receipt_file, kubeconfig, context, output, **settings):
+    namespace = settings["namespace"]
     with execution("connect_server_create", namespace, output) as result:
         result.update(server=None, endpoint=None, query_ready=False)
-        config = ConnectServerConfig(
-            image=image,
-            server_jar=server_jar,
-            namespace=namespace,
-            service_account=service_account,
-            app_name=name,
-            port=port,
-            image_pull_policy=image_pull_policy,
-            driver_resources=PodResources(
-                cpu=driver_cpu, memory=driver_memory, memory_overhead=driver_memory_overhead
-            ),
-            executor_resources=PodResources(
-                cpu=executor_cpu, memory=executor_memory, memory_overhead=executor_memory_overhead
-            ),
-            executor_instances=ExecutorInstances(initial=executors),
-            spark_conf=spark_conf,
-            packages=list(packages),
-        )
+        config = _config(settings)
         with receipt_writer(receipt_file, field="server") as save:
             spark_client = _client(kubeconfig, context)
             try:

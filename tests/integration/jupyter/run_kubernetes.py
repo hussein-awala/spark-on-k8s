@@ -1,4 +1,4 @@
-"""Execute the canonical notebook in real kernels against explicitly selected kind."""
+"""Execute a Jupyter example notebook in real kernels against explicitly selected kind."""
 
 from __future__ import annotations
 
@@ -27,6 +27,12 @@ from spark_on_k8s.k8s.sync_client import KubernetesClientManager
 
 ROOT = Path(__file__).resolve().parents[3]
 REQUEST_TIMEOUT = (5, 20)
+QUICKSTART = "private_connect_quickstart.ipynb"
+# Each example and the receipt/result files it publishes in the artifact directory.
+NOTEBOOKS = {
+    "spark_connect.ipynb": {"receipt": "server-receipt.json", "result": "notebook-result.json"},
+    QUICKSTART: {"receipt": "quickstart-receipt.json", "result": "quickstart-result.json"},
+}
 
 
 def load_module(name, path):
@@ -82,6 +88,13 @@ def configure_environment(args, namespace):
         "JUPYTER_NO_CONFIG": "1",
         "PYTHONNOUSERSITE": "1",
     }
+    if args.notebook == QUICKSTART:
+        # Names of the fixture Secrets; kind nodes always carry the Linux OS label.
+        environment.update(
+            SPARK_NOTEBOOK_PULL_SECRET="quickstart-registry",
+            SPARK_NOTEBOOK_CREDENTIAL="quickstart-credentials:api-token",
+            SPARK_NOTEBOOK_NODE_SELECTOR="kubernetes.io/os=linux",
+        )
     for name in ("IPYTHONDIR", "JUPYTER_CONFIG_DIR", "JUPYTER_DATA_DIR", "JUPYTER_RUNTIME_DIR"):
         Path(environment[name]).mkdir(parents=True)
     os.environ.update(environment)
@@ -130,6 +143,38 @@ def create_service_account(connection, namespace, name):
         ),
         _request_timeout=REQUEST_TIMEOUT,
     )
+
+
+def create_quickstart_secrets(connection, namespace):
+    """Create the Secrets the quickstart references; the random token stays in this process."""
+    api = k8s.CoreV1Api(connection)
+    # The image is preloaded with pull policy Never, so this empty registry configuration is never used.
+    api.create_namespaced_secret(
+        namespace,
+        k8s.V1Secret(
+            metadata=k8s.V1ObjectMeta(name="quickstart-registry"),
+            type="kubernetes.io/dockerconfigjson",
+            string_data={".dockerconfigjson": json.dumps({"auths": {}})},
+        ),
+        _request_timeout=REQUEST_TIMEOUT,
+    )
+    token = uuid4().hex
+    api.create_namespaced_secret(
+        namespace,
+        k8s.V1Secret(
+            metadata=k8s.V1ObjectMeta(name="quickstart-credentials"), string_data={"api-token": token}
+        ),
+        _request_timeout=REQUEST_TIMEOUT,
+    )
+    return token
+
+
+def assert_not_published(artifacts, value):
+    """The Secret value must not appear in the notebook, its outputs or any saved evidence."""
+    leaked = [
+        str(path) for path in artifacts.rglob("*") if path.is_file() and value.encode() in path.read_bytes()
+    ]
+    assert not leaked, f"Secret value found in evidence files: {leaked}"
 
 
 def identities(api, namespace):
@@ -229,6 +274,7 @@ async def execute(notebook, runtime, args, api, namespace, kernel_name, tunnels)
         record_timing=True,
     )
     restarts = []
+    receipt = args.artifacts / NOTEBOOKS[args.notebook]["receipt"]
     try:
         async with client.async_setup_kernel():
             for index, cell in enumerate(notebook.cells):
@@ -247,7 +293,7 @@ async def execute(notebook, runtime, args, api, namespace, kernel_name, tunnels)
                 tunnels.observe()
                 if "create-server" in tags:
                     original = deepcopy(cell)
-                    receipt_before = (args.artifacts / "server-receipt.json").read_bytes()
+                    receipt_before = receipt.read_bytes()
                     before = identities(api, namespace)
                     probe = nbformat.v4.new_code_cell(
                         "try:\n"
@@ -259,7 +305,7 @@ async def execute(notebook, runtime, args, api, namespace, kernel_name, tunnels)
                         await client.async_execute_cell(probe, index)
                         after = identities(api, namespace)
                         assert before == after
-                        assert receipt_before == (args.artifacts / "server-receipt.json").read_bytes()
+                        assert receipt_before == receipt.read_bytes()
                         connect.save(
                             args.artifacts / "creation-rerun.json",
                             {
@@ -279,7 +325,7 @@ async def execute(notebook, runtime, args, api, namespace, kernel_name, tunnels)
                         f"Deliberate runner interruption after {args.interrupt_after_cell}"
                     )
     finally:
-        nbformat.write(notebook, args.artifacts / "spark_connect.executed.ipynb")
+        nbformat.write(notebook, args.artifacts / f"{Path(args.notebook).stem}.executed.ipynb")
         connect.save(args.artifacts / "kernel-restarts.json", restarts)
 
 
@@ -288,7 +334,7 @@ def cleanup(api, namespace, namespace_uid, args, helper, outcome):
     current = api.read_namespace(namespace, _request_timeout=REQUEST_TIMEOUT)
     assert current.metadata.uid == namespace_uid, "Namespace was replaced; preserve its resources"
     best_effort_snapshot(api, namespace, args.artifacts / "final")
-    receipt = args.artifacts / "server-receipt.json"
+    receipt = args.artifacts / NOTEBOOKS[args.notebook]["receipt"]
     if receipt.exists():
         document = json.loads(receipt.read_text())
         assert document["schema_version"] == 1
@@ -350,6 +396,7 @@ def main():
     parser.add_argument("--artifacts", required=True, type=Path)
     parser.add_argument("--cell-timeout", type=int, default=240)
     parser.add_argument("--interrupt-after-cell", choices=["create-server", "open-tunnel"])
+    parser.add_argument("--notebook", choices=sorted(NOTEBOOKS), default="spark_connect.ipynb")
     args = parser.parse_args()
     assert args.cell_timeout > 0
     args.kubeconfig = str(Path(args.kubeconfig).resolve(strict=True))
@@ -371,7 +418,7 @@ def main():
     runtime = args.artifacts / "example"
     shutil.copytree(ROOT / "examples/jupyter", runtime)
     helper = load_module("jupyter_notebook_support", runtime / "notebook_support.py")
-    notebook_path = runtime / "spark_connect.ipynb"
+    notebook_path = runtime / args.notebook
     notebook = nbformat.read(notebook_path, as_version=4)
     assert all(not cell.get("outputs") for cell in notebook.cells), "Commit only a clean canonical notebook"
     tunnels = TunnelCleanup(args, namespace)
@@ -391,8 +438,9 @@ def main():
         try:
             connect.save(args.artifacts / "namespace.json", {"name": namespace, "uid": created.metadata.uid})
             create_service_account(connection, namespace, args.service_account)
+            token = create_quickstart_secrets(connection, namespace) if args.notebook == QUICKSTART else None
             asyncio.run(execute(notebook, runtime, args, api, namespace, kernel_name, tunnels))
-            result = json.loads((args.artifacts / "notebook-result.json").read_text())
+            result = json.loads((args.artifacts / NOTEBOOKS[args.notebook]["result"]).read_text())
             assert result["status"] == "passed" and result["tunnels_closed"]
             assert result["spark_version"] == result["client_version"] == args.spark_version
             errors = [
@@ -407,13 +455,27 @@ def main():
                 for output in cell.get("outputs", [])
                 if "<table" in output.get("data", {}).get("text/html", "")
             ]
-            assert not errors and tables
+            assert not errors
             restarts = json.loads((args.artifacts / "kernel-restarts.json").read_text())
-            assert len(restarts) == 1
-            assert restarts[0]["before_pid"] == result["first_kernel_pid"]
-            assert restarts[0]["after_pid"] == result["second_kernel_pid"]
+            if args.notebook == QUICKSTART:
+                assert not restarts
+                assert result["credential_set_in_executor_tasks"] is True
+                assert result["executors"] and all(
+                    item["node_selector"] == {"kubernetes.io/os": "linux"}
+                    and item["image_pull_secrets"] == ["quickstart-registry"]
+                    and item["credential_reference"] == "quickstart-credentials:api-token"
+                    for item in result["executors"]
+                )
+                assert result["cleanup"]["owned_resources_remaining"] == []
+                assert_not_published(args.artifacts, token)
+            else:
+                assert tables
+                assert len(restarts) == 1
+                assert restarts[0]["before_pid"] == result["first_kernel_pid"]
+                assert restarts[0]["after_pid"] == result["second_kernel_pid"]
             result.update(
                 {
+                    "notebook": args.notebook,
                     "python": sys.version.split()[0],
                     "kernel_executable": sys.executable,
                     "notebook_code_cells": sum(cell.cell_type == "code" for cell in notebook.cells),

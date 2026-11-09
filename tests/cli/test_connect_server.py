@@ -1,14 +1,17 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
+import yaml
 from click.testing import CliRunner
 from kubernetes.client.exceptions import ApiException
 from spark_on_k8s.cli import connect_server as cli
 from spark_on_k8s.cli.connect import connect_cli
 from spark_on_k8s.connect_server import ConnectServerCreateError, ConnectServerHandle, ConnectServerTimeout
+from spark_on_k8s.k8s.sync_client import KubernetesClientManager
 from spark_on_k8s.utils.run import RunHandle
 
 
@@ -654,3 +657,125 @@ def test_invalid_namespace_rejected_before_receipt_or_cluster_access(server, nam
     assert not list(receipt.parent.glob(".spark-receipt-*"))
     factory.assert_not_called()
     client.create_connect_server.assert_not_called()
+
+
+POD_FLAGS = [
+    "--image-pull-secret",
+    "private-registry",
+    "--image-pull-secret",
+    "mirror-registry",
+    "--driver-env-from-secret",
+    "API_TOKEN=notebook-credentials:api-token",
+    "--executor-env-from-secret",
+    "API_TOKEN=notebook-credentials:api-token",
+    "--driver-node-selector",
+    "kubernetes.io/os=linux",
+    "--executor-node-selector",
+    "example.com/pool=gpu",
+    "--driver-toleration",
+    "dedicated=ml:NoSchedule",
+    "--executor-toleration",
+    "nvidia.com/gpu:NoSchedule",
+    "--executor-toleration",
+    "spot",
+]
+
+
+def test_create_maps_repeatable_pod_settings(server):
+    _, client, _, receipt, _ = server
+    result = CliRunner().invoke(connect_cli, create_args(receipt) + POD_FLAGS)
+    assert result.exit_code == 0, result.output
+    config = client.create_connect_server.call_args.args[0]
+    assert config.image_pull_secrets == ["private-registry", "mirror-registry"]
+    assert config.driver_env_from_secrets == {"API_TOKEN": "notebook-credentials:api-token"}
+    assert config.executor_env_from_secrets == {"API_TOKEN": "notebook-credentials:api-token"}
+    assert config.driver_node_selector == {"kubernetes.io/os": "linux"}
+    assert config.executor_node_selector == {"example.com/pool": "gpu"}
+    assert config.driver_tolerations == [
+        {"key": "dedicated", "operator": "Equal", "value": "ml", "effect": "NoSchedule"}
+    ]
+    assert config.executor_tolerations == [
+        {"key": "nvidia.com/gpu", "operator": "Exists", "effect": "NoSchedule"},
+        {"key": "spot", "operator": "Exists"},
+    ]
+
+
+@pytest.mark.parametrize("value", ["", ":NoSchedule", "pool:", "=ml:NoSchedule"])
+def test_malformed_toleration_is_a_usage_error_before_cluster_access(server, value):
+    _, client, factory, receipt, _ = server
+    result = CliRunner().invoke(connect_cli, create_args(receipt) + ["--executor-toleration", value])
+    assert result.exit_code == 2
+    assert "KEY[=VALUE][:EFFECT]" in result.output
+    factory.assert_not_called()
+    client.create_connect_server.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "flags",
+    [
+        ["--driver-env-from-secret", "SPARK_HOME=credentials:home"],
+        ["--executor-env-from-secret", "TOKEN=credentials"],
+        ["--image-pull-secret", "Not_A_Secret"],
+        ["--executor-node-selector", "pool=not valid"],
+        ["--driver-toleration", "pool=ml:Never"],
+    ],
+)
+def test_invalid_pod_settings_fail_before_receipt_or_cluster_access(server, flags):
+    _, client, factory, receipt, _ = server
+    result = CliRunner().invoke(connect_cli, create_args(receipt) + flags)
+    assert result.exit_code == 1
+    assert json.loads(result.stdout)["error"]["code"] == "operation_error"
+    assert not receipt.exists()
+    factory.assert_not_called()
+    client.create_connect_server.assert_not_called()
+
+
+def plan_args(output):
+    args = create_args(Path("unused.json"), output)
+    index = args.index("--receipt-file")
+    del args[index : index + 2]
+    args[1] = "plan"
+    return args
+
+
+@pytest.mark.parametrize("output", ["json", "text"])
+def test_plan_is_offline_and_lists_pod_settings_as_references(server, monkeypatch, output):
+    _, client, factory, _, _ = server
+
+    def no_cluster(self):
+        raise AssertionError("Planning must not open a Kubernetes connection")
+
+    monkeypatch.setattr(KubernetesClientManager, "client", no_cluster)
+    result = CliRunner().invoke(connect_cli, plan_args(output) + POD_FLAGS + ["--name", "notebook"])
+    assert result.exit_code == 0, result.output
+    factory.assert_not_called()
+    client.create_connect_server.assert_not_called()
+    value = json.loads(result.stdout) if output == "json" else yaml.safe_load(result.stdout)
+    if output == "json":
+        assert value["operation"] == "connect_server_plan"
+        assert value["namespace"] == "spark"
+        assert value["error"] is None
+    plan = value["plan"]
+    assert plan["preview"] is True and plan["app_id"] == "notebook-preview"
+    assert [item["kind"] for item in plan["resources"]] == ["ConfigMap", "Pod", "Service", "Service"]
+    assert value["pod_settings"]["image_pull_secrets"] == ["private-registry", "mirror-registry"]
+    assert value["pod_settings"]["executor_env_from_secrets"] == {
+        "API_TOKEN": "notebook-credentials:api-token"
+    }
+    assert value["pod_settings"]["executor_tolerations"][1] == {"key": "spot", "operator": "Exists"}
+    driver = next(item for item in plan["resources"] if item["kind"] == "Pod")["spec"]["containers"][0]
+    assert {
+        "name": "API_TOKEN",
+        "valueFrom": {"secretKeyRef": {"name": "notebook-credentials", "key": "api-token"}},
+    } in driver["env"]
+
+
+def test_plan_reports_invalid_settings_with_the_automation_contract(server):
+    _, _, factory, _, _ = server
+    result = CliRunner().invoke(connect_cli, plan_args("json") + ["--driver-env-from-secret", "TOKEN=bad"])
+    assert result.exit_code == 1
+    value = json.loads(result.stdout)
+    assert value["operation"] == "connect_server_plan"
+    assert value["plan"] is None
+    assert "SECRET:KEY" in value["error"]["message"]
+    factory.assert_not_called()

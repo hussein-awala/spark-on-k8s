@@ -49,6 +49,28 @@ def test_reject_invalid_runtime_before_submission(tmp_path, field, value):
         ComputeConfig.parse("connect", config)
 
 
+POD_SETTINGS = {
+    "image_pull_secrets": ["private-registry"],
+    "driver_env_from_secrets": {"API_TOKEN": "dbt-credentials:api-token"},
+    "executor_env_from_secrets": {"API_TOKEN": "dbt-credentials:api-token"},
+    "executor_node_selector": {"pool": "batch"},
+    "driver_tolerations": [{"key": "dedicated", "value": "dbt", "effect": "NoSchedule"}],
+    "executor_tolerations": [{"key": "spot", "operator": "Exists"}],
+}
+
+
+def test_connect_compute_passes_pod_settings_to_the_server_config(tmp_path):
+    server = ComputeConfig.parse("connect", {**compute(tmp_path), **POD_SETTINGS}).server
+    for name, value in POD_SETTINGS.items():
+        assert getattr(server, name) == value
+
+
+@pytest.mark.parametrize("name", sorted(POD_SETTINGS))
+def test_thrift_compute_rejects_unmapped_pod_settings_before_cluster_access(tmp_path, name):
+    with pytest.raises(ValueError, match=f"does not support.*{name}"):
+        ComputeConfig.parse("thrift", {**compute(tmp_path), name: POD_SETTINGS[name]})
+
+
 def test_explicit_cluster_and_persistent_catalog_required(tmp_path):
     values = compute(tmp_path)
     for field in ("kube_context", "kube_config_file"):

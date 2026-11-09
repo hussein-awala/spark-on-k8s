@@ -218,7 +218,12 @@ at an arbitrary current kubeconfig context.
   `result.json` after fixture and tunnel cleanup, so passing cells alone do not
   establish a passing integration run. Keep the executed notebook and cleanup
   evidence with the result. The [Jupyter guide](user-guide/jupyter.md) documents
-  interactive use.
+  interactive use. With `--notebook private_connect_quickstart.ipynb`, the same
+  runner executes the private server quickstart against a placeholder pull Secret
+  and a random credential Secret it creates. It checks Secret references, node
+  selection and cleanup from `quickstart-result.json`, and fails if the credential
+  value appears in any saved evidence. The pull Secret is referenced but unused,
+  because kind nodes already hold the image; registry authentication is not covered.
 - `tests/integration/starters/check.py` verifies ETL/Iceberg output and replay in
   the selected Spark image. Its container-local results do not validate shared
   storage provisioning on a target cluster.

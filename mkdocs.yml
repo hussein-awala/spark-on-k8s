@@ -116,6 +116,7 @@ nav:
           - CLI automation and recovery: user-guide/automation.md
           - Spark Connect: user-guide/spark_connect.md
           - Connect server setup: user-guide/spark_connect_server.md
+          - ML image for Connect: user-guide/connect_ml_image.md
           - Jupyter notebooks: user-guide/jupyter.md
           - Experimental managed dbt: user-guide/dbt.md
           - Airflow: user-guide/airflow.md

@@ -154,6 +154,141 @@ are rejected before creating resources. The explicit exception
 no greater than the configured executor cores, so fractional scheduling requests are
 possible while executor cores remain managed by `PodResources`.
 
+## Private images, credentials and node placement
+
+A server for real data or ML work often needs an image from a private registry,
+credentials such as object-storage keys, and nodes from a particular pool, for example
+GPU nodes. Use the typed settings below instead of Spark properties: `spark_conf`
+cannot set `spark.kubernetes.*` properties, and literal credentials in Spark
+properties appear in driver arguments and diagnostics.
+
+| Purpose | CLI option (repeatable) | `ConnectServerConfig` field | Value |
+| --- | --- | --- | --- |
+| Pull from a private registry | `--image-pull-secret NAME` | `image_pull_secrets` | Existing image pull Secret names, used by the driver and executors |
+| Credentials as environment variables | `--driver-env-from-secret NAME=SECRET:KEY`, `--executor-env-from-secret NAME=SECRET:KEY` | `driver_env_from_secrets`, `executor_env_from_secrets` | Variable name mapped to a key of an existing Secret |
+| Select nodes | `--driver-node-selector KEY=VALUE`, `--executor-node-selector KEY=VALUE` | `driver_node_selector`, `executor_node_selector` | Node label keys and values |
+| Allow tainted nodes | `--driver-toleration`, `--executor-toleration` as `KEY[=VALUE][:EFFECT]` | `driver_tolerations`, `executor_tolerations` | Kubernetes toleration mappings |
+
+The helper only references Secrets: it never creates, reads or copies them, and
+their values never pass through the SDK, CLI, receipts, plans or logs. Kubernetes
+resolves each `SECRET:KEY` reference when it starts a container. An administrator
+creates the Secrets in the server's namespace, for example from files so that
+values stay out of command lines and shell history:
+
+```bash
+kubectl --namespace spark create secret generic private-registry \
+  --type=kubernetes.io/dockerconfigjson --from-file=.dockerconfigjson=./registry-config.json
+kubectl --namespace spark create secret generic s3-credentials \
+  --from-file=access-key=./access-key.txt --from-file=secret-key=./secret-key.txt
+```
+
+See Kubernetes' guide to
+[pulling an image from a private registry](https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/)
+for the registry configuration file.
+
+Every client of a server runs code in its driver and executors, so any client can
+read these variables, for example with a query. Give a server only credentials that
+all of its users may hold; a shared server is not a tenant-isolation boundary.
+
+Create a server on labeled, tainted GPU nodes with a private image and storage
+credentials:
+
+```bash
+spark-on-k8s connect server create \
+  --image registry.example.com/data/spark-connect-ml:4.3.0 \
+  --server-jar local:///opt/spark/jars/spark-connect_2.13-4.3.0.jar \
+  --namespace spark --service-account spark --name ml-notebook \
+  --image-pull-secret private-registry \
+  --driver-env-from-secret AWS_ACCESS_KEY_ID=s3-credentials:access-key \
+  --driver-env-from-secret AWS_SECRET_ACCESS_KEY=s3-credentials:secret-key \
+  --executor-env-from-secret AWS_ACCESS_KEY_ID=s3-credentials:access-key \
+  --executor-env-from-secret AWS_SECRET_ACCESS_KEY=s3-credentials:secret-key \
+  --executor-node-selector example.com/pool=gpu \
+  --executor-toleration nvidia.com/gpu:NoSchedule \
+  --receipt-file ml-server.json --output json
+```
+
+In the SDK, the same settings are fields of `ConnectServerConfig`:
+
+```python
+ConnectServerConfig(
+    image="registry.example.com/data/spark-connect-ml:4.3.0",
+    server_jar="local:///opt/spark/jars/spark-connect_2.13-4.3.0.jar",
+    namespace="spark",
+    service_account="spark",
+    app_name="ml-notebook",
+    image_pull_secrets=["private-registry"],
+    driver_env_from_secrets={"AWS_ACCESS_KEY_ID": "s3-credentials:access-key"},
+    executor_env_from_secrets={"AWS_ACCESS_KEY_ID": "s3-credentials:access-key"},
+    executor_node_selector={"example.com/pool": "gpu"},
+    executor_tolerations=[{"key": "nvidia.com/gpu", "operator": "Exists", "effect": "NoSchedule"}],
+)
+```
+
+A node selector restricts pods to nodes with every listed label; a toleration only
+permits scheduling on nodes with a matching taint. To dedicate a pool, use both.
+In the CLI, `KEY=VALUE:EFFECT` creates an `Equal` toleration and `KEY:EFFECT` an
+`Exists` toleration; omitting the effect tolerates every effect. Use the SDK for
+`tolerationSeconds` or a key-less toleration. The mapping reuses existing
+submission mechanisms:
+
+- The driver gets `imagePullSecrets` and `valueFrom.secretKeyRef` variables through a
+  generated [driver pod template](driver_pod_templates.md), and node selectors and
+  tolerations through the submission options of the same name.
+- Executors are created by Spark. They use Spark's
+  `spark.kubernetes.container.image.pullSecrets`,
+  `spark.kubernetes.executor.secretKeyRef.NAME` and
+  `spark.kubernetes.executor.node.selector.KEY` properties. Spark has no property for
+  tolerations, so executor tolerations use an executor pod template, stored in a
+  ConfigMap owned by the driver. Creating it requires your permission to create and
+  patch ConfigMaps in the namespace; Kubernetes deletes it with the driver.
+
+Validation happens before any Kubernetes request: Secret and label syntax, toleration
+fields and operators, and variable names. Variable names are identifiers
+(`[A-Za-z_][A-Za-z0-9_]*`). Names starting with `SPARK_` are rejected because Spark
+and this helper set such variables. An executor variable cannot also be set with
+`spark.executorEnv.NAME` in `spark_conf`. These settings map individual Secret keys;
+the application option `driver_env_vars_from_secrets` instead imports every key of
+a Secret into the driver.
+
+Kubernetes, not this helper, checks that the referenced Secrets, keys, labels and
+taints exist. A missing pull Secret leaves the driver in `ErrImagePull` or
+`ImagePullBackOff`; a missing variable Secret or key stops the container from starting
+(`CreateContainerConfigError`); unmatched node selectors leave pods `Pending` as
+unschedulable. Readiness then times out and keeps the server. Run
+`spark-on-k8s app diagnose --namespace spark --app-id APP_ID` for the driver, or
+inspect executor pod events, then delete the server before creating a corrected one.
+
+### Preview a server offline
+
+`connect server plan` accepts the same server options as `create`, without a receipt
+or cluster selection. It opens no Kubernetes connection and prints a redacted preview
+of the driver Pod, both Services and, with executor tolerations, the executor template
+ConfigMap that creation would request, as YAML or, with `--output json`, as a
+[versioned document](automation.md) with `"operation": "connect_server_plan"`:
+
+```bash
+spark-on-k8s connect server plan \
+  --image registry.example.com/data/spark-connect-ml:4.3.0 \
+  --server-jar local:///opt/spark/jars/spark-connect_2.13-4.3.0.jar \
+  --namespace spark --service-account spark --name ml-notebook \
+  --image-pull-secret private-registry \
+  --executor-env-from-secret AWS_ACCESS_KEY_ID=s3-credentials:access-key \
+  --executor-toleration nvidia.com/gpu:NoSchedule --output json
+```
+
+The document contains `plan` and `pod_settings`, which lists the typed settings
+above: Secret names and keys, never values. Plan redaction hides fields whose names
+suggest credentials, such as the driver's `imagePullSecrets` and Spark properties
+naming Secrets, and the contents of ConfigMaps, so `pod_settings` is where to review
+those references. Identifiers in the plan, such as the `-preview` application ID,
+are illustrative. The SDK equivalent `client.plan_connect_server(config)` returns
+an `ApplicationPlan`; its raw `resources` are unredacted, which for these settings
+still contain only references.
+
+For an image with Python ML libraries and GPU executors, see
+[Build an ML image for Spark Connect](connect_ml_image.md).
+
 ## Observe, stop and recover
 
 ```bash

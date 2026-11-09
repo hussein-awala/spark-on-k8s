@@ -216,7 +216,7 @@ def test_probe_raises_client_unavailable_from_the_worker_result(tmp_path):
     with patch.object(ConnectProfile, "probe", side_effect=ConnectClientUnavailable("Install the client")):
         result = CliRunner().invoke(connect_cli, ["check", str(file), "--output", "json"])
     assert result.exit_code == 1
-    assert json.loads(result.stdout)["error"] == "Install the client"
+    assert json.loads(result.stdout)["error"] == {"code": "operation_error", "message": "Install the client"}
 
 
 @pytest.mark.parametrize("failure", [False, True])

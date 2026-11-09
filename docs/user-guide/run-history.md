@@ -20,6 +20,9 @@ export SPARK_ON_K8S_RUN_HISTORY_NAMESPACES=analytics,batch
 spark-on-k8s api start
 ```
 
+The published API image runs as user and group `10001` and provides `/var/lib/spark-on-k8s` owned by
+them. A volume mounted there must be writable by that user or group.
+
 The API service account needs permission to list pods in each configured namespace. Wildcards are not
 accepted; at most twenty namespaces can be configured. The recorder only requests pods labeled
 `spark-role=driver` and uses the server's existing Kubernetes credentials.
@@ -175,6 +178,9 @@ metrics:
 
 The database is mounted at `/var/lib/spark-on-k8s/runs.sqlite3`. The chart requires a claim and explicit
 namespaces, rejects multiple replicas/autoscaling, and uses a `Recreate` rollout so two API pods do not
-compete for the claim. Existing environment overrides remain supported. Make sure history namespaces
-also have the pod-list permissions configured by `namespaces` or an externally managed service account.
+compete for the claim. Its default `fsGroup: 10001` gives the non-root API write access on volume types
+that support `fsGroup`; see [non-root deployment](chart-deployments.md#run-the-api-as-a-non-root-user)
+for a claim written by an earlier root process. Existing environment overrides remain supported. Make
+sure history namespaces also have the pod-list permissions configured by `namespaces` or an externally
+managed service account.
 The separately configured `sparkHistory` chart section still refers to Spark History Server event logs.

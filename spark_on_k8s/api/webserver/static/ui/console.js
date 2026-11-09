@@ -9581,7 +9581,21 @@ function oe({ restoreLogsFor: e, onFocusRestored: t, config: n, transport: r, na
 			}),
 			/* @__PURE__ */ (0, x.jsxs)("div", {
 				className: "scope-bar",
-				children: [i ? /* @__PURE__ */ (0, x.jsxs)("form", {
+				children: [i && n.namespaces?.length ? /* @__PURE__ */ (0, x.jsxs)("div", {
+					className: "namespace-form",
+					children: [/* @__PURE__ */ (0, x.jsxs)("label", {
+						htmlFor: "console-namespace",
+						children: [/* @__PURE__ */ (0, x.jsx)(T, { name: "layers" }), "Namespace"]
+					}), /* @__PURE__ */ (0, x.jsx)("select", {
+						id: "console-namespace",
+						value: c,
+						onChange: (e) => o(e.target.value),
+						children: n.namespaces.map((e) => /* @__PURE__ */ (0, x.jsx)("option", {
+							value: e,
+							children: e
+						}, e))
+					})]
+				}) : i ? /* @__PURE__ */ (0, x.jsxs)("form", {
 					className: "namespace-form",
 					onSubmit: (e) => {
 						e.preventDefault(), u.trim() && o(u.trim());

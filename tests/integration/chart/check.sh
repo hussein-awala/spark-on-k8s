@@ -15,6 +15,20 @@ done
 helm upgrade console chart --namespace control-a --reuse-values \
   --set metrics.enabled=true --wait --timeout 180s
 helm test console --namespace control-a --timeout 120s
+# Service DNS is not bounded by RBAC; the API scope must refuse other namespaces.
+kubectl exec --namespace control-a deployment/console-spark-on-k8s -- python -c '
+import json, urllib.request, urllib.error
+for path in ("/webserver/ui/kube-system/kube-dns/", "/webserver/api/apps?namespace=kube-system"):
+    try:
+        urllib.request.urlopen("http://127.0.0.1:8000" + path)
+    except urllib.error.HTTPError as error:
+        assert error.code == 403, (path, error.code)
+        assert json.load(error)["detail"]["code"] == "namespace_forbidden", path
+    else:
+        raise AssertionError(path + " reached a namespace outside the API scope")
+with urllib.request.urlopen("http://127.0.0.1:8000/webserver/api/apps?namespace=analytics") as response:
+    assert response.status == 200
+'
 helm uninstall console --namespace control-a
 # Removing one release must not remove the second release's permissions.
 test "$(kubectl auth can-i get pods/exec --namespace analytics \

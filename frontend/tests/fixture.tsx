@@ -26,6 +26,7 @@ const config: ConsoleConfig = {
   tail: Number(params.get("tail") ?? 1000),
   embedded: params.get("embedded") === "true",
   namespaceEditable: params.get("namespaceEditable") !== "false",
+  namespaces: params.get("namespaces")?.split(",") ?? null,
   contextLabel: params.get("contextLabel") ?? undefined,
 };
 const transport = createConsoleTransport(config);

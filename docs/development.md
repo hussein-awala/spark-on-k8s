@@ -273,3 +273,64 @@ both wheels and tests Thrift and Connect separately on Spark 4.3.0/Python 3.12,
 with fixtures and cleanup evidence. A mock test or receipt alone does not prove
 SQL execution, table persistence or resource disappearance. Keep the published
 [profile and command guide](user-guide/dbt.md) synchronized with this runner.
+
+## Dependency updates and vulnerability scanning
+
+`.github/dependabot.yml` opens weekly version-update pull requests, proposing a
+release only after it is seven days old:
+
+| Ecosystem | Files | Policy |
+| --- | --- | --- |
+| GitHub Actions | `.github/workflows/` | Keeps full-SHA pins and their version comments; groups minor/patch updates |
+| uv | `uv.lock`, `integrations/dbt/uv.lock` | Lockfile-only: refreshes locked and transitive versions within the declared ranges and pins; groups minor/patch updates. Excludes the Airflow core distributions and `pyspark-client`, whose versions workflows pin and assert |
+| npm | `frontend/` | Groups the React packages, and minor/patch development tooling updates |
+| Docker | `docker/Dockerfile`, `tests/integration/chart/Dockerfile` | Updates the shared Python base tag and digest in both files together |
+
+Review these pull requests through the dependencies route in
+[Choose checks by change](#choose-checks-by-change). A React or Vite update can
+change the packaged console assets: run `npm ci` and `npm run build` in `frontend/`
+and commit both asset trees to the pull request, as CI rejects stale assets. A base
+image update changes the published API image; the release workflow's nonpublishing
+container check runs on it.
+
+Dependabot cannot update the following, so change them deliberately with their
+dependents: the uv version in workflow setup steps, `uv_build` and this guide; Helm,
+Node.js, Java, kind and `coverage` versions in workflows and scripts; Python,
+Airflow and Spark versions, image digests and `pyspark` pins in workflow matrices
+and environments; Dockerfiles whose base comes from a build `ARG`, the Airflow
+harness, dbt Hadoop and lakehouse starter images; declared ranges and exact pins
+in either `pyproject.toml` (with `.pre-commit-config.yaml` for Ruff and SQLFluff).
+
+The **Vulnerability scan** workflow (`.github/workflows/security-scan.yml`) runs
+daily, on demand, and for pushes to `main` and pull requests that change a lockfile,
+project manifest, `docker/` or the image preparation script:
+
+- OSV-Scanner checks `uv.lock`, `integrations/dbt/uv.lock` and
+  `frontend/package-lock.json`. The uv lockfiles contain every extra and dependency
+  group, so a finding may affect only test, documentation or tooling profiles.
+- Grype scans the API image built from `docker/` with the release workflow's frozen
+  inputs (amd64, placeholder version, never published). It reports only
+  vulnerabilities with an available fix.
+
+The workflow is report-only: findings never fail it or block a merge. A job fails
+only when it cannot complete its scan, for example when the image does not build or
+the scanner writes no results, because an unexecuted scan is not a clean result. Findings appear under **Security > Code scanning**, with a count in the
+job summary, and the SARIF files are kept as `osv-scanner` and `grype-api-image`
+workflow artifacts. Pull requests from forks only get the artifacts. On other pull
+requests, GitHub's code scanning check annotates alerts that the change introduces;
+it blocks a merge only if branch protection requires it. The repository's Dependabot
+alerts setting separately reports advisories against the default branch's manifests.
+
+To triage a finding:
+
+1. Identify the exposure. `uv tree --frozen --invert --package NAME --all-groups`
+   (add `--project integrations/dbt` for the adapter) shows which extra or group
+   pulls in a Python package; use `npm ls NAME` in `frontend/`. Image findings name
+   the package and its location in the image.
+2. If a fixed version fits the declared ranges, refresh the lock
+   (`uv lock --upgrade-package NAME`, or `npm update NAME` for a transitive npm
+   package) or merge the Dependabot update. Changing a declared range, an exact pin
+   or the image's Python version is a compatibility decision; see the
+   [support boundaries](user-guide/support.md).
+3. Otherwise dismiss the code scanning alert with a reason, such as a profile that
+   is not shipped. A dismissal persists across later scans.

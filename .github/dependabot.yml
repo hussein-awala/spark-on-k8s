@@ -1,0 +1,98 @@
+# Version updates for pinned dependencies. Vulnerability scanning is separate and
+# report-only (.github/workflows/security-scan.yml). See "Dependency updates and
+# vulnerability scanning" in docs/development.md for scope, manual pins and triage.
+#
+# Every entry waits 7 days after a release before proposing it (security updates are
+# exempt) and sets `labels: []`: the repository has no dependency labels, and
+# Dependabot would otherwise create its default ones.
+version: 2
+
+updates:
+  # Workflow actions stay pinned to full commit SHAs; Dependabot updates each SHA
+  # together with its same-line version comment.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 3
+    labels: []
+    groups:
+      github-actions:
+        update-types: [minor, patch]
+
+  # pyproject.toml ranges are published compatibility contracts. Refresh only the
+  # resolved versions in uv.lock (transitive packages included) within those ranges;
+  # widening a range or changing an exact pin remains a deliberate change.
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    versioning-strategy: lockfile-only
+    allow:
+      - dependency-type: all
+    ignore:
+      # CI and the Airflow Kubernetes workflow assert these locked versions against
+      # their matrices; move them together with the workflow versions.
+      - dependency-name: apache-airflow
+      - dependency-name: apache-airflow-core
+      - dependency-name: apache-airflow-task-sdk
+      # The Connect workflow pairs the locked thin client with a pinned Spark server.
+      - dependency-name: pyspark-client
+    open-pull-requests-limit: 5
+    labels: []
+    groups:
+      uv-lock:
+        update-types: [minor, patch]
+
+  # Separate distribution with its own lockfile; its exact pins stay deliberate.
+  - package-ecosystem: uv
+    directory: /integrations/dbt
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    versioning-strategy: lockfile-only
+    allow:
+      - dependency-type: all
+    open-pull-requests-limit: 3
+    labels: []
+    groups:
+      dbt-uv-lock:
+        update-types: [minor, patch]
+
+  # React updates change the bundled console assets; see docs/development.md.
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 3
+    labels: []
+    groups:
+      react:
+        patterns: [react, react-dom, "@types/react", "@types/react-dom"]
+      frontend-tooling:
+        dependency-type: development
+        update-types: [minor, patch]
+
+  # The API image base and the chart CI image that mirrors it, updated together.
+  # Other Dockerfiles take their base from a build ARG, which Dependabot cannot read,
+  # or follow versions pinned in workflow matrices, so they stay manual.
+  - package-ecosystem: docker
+    directories:
+      - /docker
+      - /tests/integration/chart
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 2
+    labels: []
+    groups:
+      api-base-image:
+        patterns: ["*"]

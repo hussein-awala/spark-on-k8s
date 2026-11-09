@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException, Response
 from kubernetes_asyncio.client import ApiException
 
 from spark_on_k8s.api import KubernetesClientSingleton
+from spark_on_k8s.api.namespace_scope import namespace_scope
 from spark_on_k8s.api.utils import handle_exception
 from spark_on_k8s.utils.async_app_manager import AsyncSparkAppManager
 
@@ -38,6 +39,7 @@ async def kill_app(namespace: str, app_id: str):
 
     It sends a SIGTERM to the init process of the driver pod (PID 1).
     """
+    namespace_scope().require(namespace)
     async_spark_app_manager = AsyncSparkAppManager(
         k8s_client_manager=KubernetesClientSingleton.client_manager
     )
@@ -60,6 +62,7 @@ async def delete_app(namespace: str, app_id: str, force: bool = False):
     It deletes the driver pod, then the Kubernetes garbage collector
     will delete the executor pods and the other resources.
     """
+    namespace_scope().require(namespace)
     async_spark_app_manager = AsyncSparkAppManager(
         k8s_client_manager=KubernetesClientSingleton.client_manager
     )

@@ -120,3 +120,19 @@ Create the name of the service account to use for the history server
 {{- printf "%s-%s" ($name | trunc 49 | trimSuffix "-") (printf "%s/%s" .Release.Namespace $name | sha256sum | trunc 8) -}}
 {{- end -}}
 {{- end -}}
+
+{{/*
+Namespaces the API serves: "*", or a comma-separated list that defaults to the release namespace.
+*/}}
+{{- define "spark-on-k8s.namespaces" -}}
+{{- $value := trim (.Values.namespaces | default "") }}
+{{- if eq $value "*" }}*
+{{- else if not $value }}{{ .Release.Namespace }}
+{{- else }}
+{{- $namespaces := list }}
+{{- range (splitList "," $value) }}
+{{- $namespaces = append $namespaces (trim .) }}
+{{- end }}
+{{- join "," (uniq $namespaces) }}
+{{- end }}
+{{- end }}

@@ -172,8 +172,8 @@
     },
     "namespaces": {
       "type": "string",
-      "pattern": "^(\\*| *[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])? *(, *[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])? *)*)$",
-      "description": "Wildcard or comma-separated Kubernetes namespaces; not a YAML list."
+      "pattern": "^(|\\*| *[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])? *(, *[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])? *)*)$",
+      "description": "Empty for the release namespace, a wildcard, or comma-separated Kubernetes namespaces; not a YAML list."
     },
     "readOnly": {
       "type": "boolean"

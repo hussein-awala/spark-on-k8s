@@ -13,11 +13,9 @@
 {{- if eq .name "run-history" }}{{- fail "run-history is a reserved volume mount name" }}{{- end }}
 {{- end }}
 {{- /* Chart-managed Roles exist only for listed namespaces; the recorder would stay unready elsewhere. */}}
-{{- if and (eq (include "spark-on-k8s.rbacCreate" .) "true") (ne .Values.namespaces "*") }}
-{{- $managed := list }}
-{{- range (splitList "," .Values.namespaces) }}
-{{- $managed = append $managed (trim .) }}
-{{- end }}
+{{- $scope := include "spark-on-k8s.namespaces" . }}
+{{- if and (eq (include "spark-on-k8s.rbacCreate" .) "true") (ne $scope "*") }}
+{{- $managed := splitList "," $scope }}
 {{- range .Values.runHistory.namespaces }}
 {{- if not (has . $managed) }}
 {{- fail (printf "runHistory.namespaces entry %q is not in namespaces, so chart-managed RBAC cannot grant its pod reads; add it to namespaces or manage RBAC externally" .) }}

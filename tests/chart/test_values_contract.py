@@ -40,12 +40,53 @@ def container(documents, name="spark-on-k8s"):
     )
 
 
-def test_release_default_uses_app_version_and_read_only_access(tmp_path):
+def environment(documents):
+    return {item["name"]: item.get("value") for item in container(documents)["env"]}
+
+
+def test_release_default_uses_app_version_and_read_only_access_to_its_namespace(tmp_path):
     docs = resources(tmp_path, {})
     assert container(docs)["image"] == "ghcr.io/hussein-awala/spark-on-k8s:0.0.0-test"
-    binding = next(item for item in docs if item["kind"] == "ClusterRoleBinding")
-    assert binding["roleRef"]["name"] == "view"
+    assert not any(item["kind"].startswith("ClusterRole") for item in docs)
+    role = next(item for item in docs if item["kind"] == "Role")
+    binding = next(item for item in docs if item["kind"] == "RoleBinding")
+    assert role["metadata"]["namespace"] == binding["metadata"]["namespace"] == "control"
+    assert all(set(rule["verbs"]) <= {"get", "list", "watch"} for rule in role["rules"])
+    env = environment(docs)
+    assert env["SPARK_ON_K8S_API_NAMESPACES"] == "control"
+    assert env["SPARK_ON_K8S_API_DEFAULT_NAMESPACE"] == "control"
     assert invoke(tmp_path, {}, command="lint").returncode == 0
+
+
+@pytest.mark.parametrize(
+    "namespaces, scope, default, bindings",
+    [
+        ("*", "*", None, {("ClusterRoleBinding", None)}),
+        (
+            " analytics, batch ,analytics",
+            "analytics,batch",
+            "analytics",
+            {("RoleBinding", "analytics"), ("RoleBinding", "batch")},
+        ),
+    ],
+)
+def test_api_namespace_scope_matches_chart_managed_rbac(tmp_path, namespaces, scope, default, bindings):
+    docs = resources(tmp_path, {"namespaces": namespaces})
+    env = environment(docs)
+    assert env["SPARK_ON_K8S_API_NAMESPACES"] == scope
+    # With every namespace in scope, the API opens its own namespace unless told otherwise.
+    assert env.get("SPARK_ON_K8S_API_DEFAULT_NAMESPACE") == default
+    assert {
+        (item["kind"], item["metadata"].get("namespace")) for item in docs if item["kind"].endswith("Binding")
+    } == bindings
+
+
+def test_explicit_namespace_scope_environment_is_preserved_without_duplicates(tmp_path):
+    override = {"name": "SPARK_ON_K8S_API_NAMESPACES", "value": "analytics"}
+    docs = resources(tmp_path, {"namespaces": "analytics,batch", "env": [override]})
+    names = [item["name"] for item in container(docs)["env"]]
+    assert names.count("SPARK_ON_K8S_API_NAMESPACES") == 1
+    assert environment(docs)["SPARK_ON_K8S_API_NAMESPACES"] == "analytics"
 
 
 def test_empty_tag_explicitly_opts_into_chart_app_version(tmp_path):

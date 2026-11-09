@@ -10,9 +10,9 @@ from kubernetes_asyncio.client import CoreV1Api
 from starlette.responses import JSONResponse, Response
 
 from spark_on_k8s.api import KubernetesClientSingleton
-from spark_on_k8s.api.configuration import APIConfiguration
+from spark_on_k8s.api.namespace_scope import namespace_scope
 from spark_on_k8s.history.collector import RunCollector
-from spark_on_k8s.history.settings import HistorySettings, namespaces
+from spark_on_k8s.history.settings import HistorySettings
 from spark_on_k8s.history.store import STATUSES, RunStore
 
 router = APIRouter(tags=["Run history and operational health"])
@@ -101,11 +101,7 @@ async def list_runs(
 
 async def _check_ready():
     settings = get_history_settings()
-    checked_namespaces = (
-        settings.namespaces
-        if settings.enabled
-        else namespaces(APIConfiguration.SPARK_ON_K8S_API_DEFAULT_NAMESPACE)
-    )
+    checked_namespaces = settings.namespaces if settings.enabled else (namespace_scope().default,)
     api = CoreV1Api(await KubernetesClientSingleton.client())
     await asyncio.gather(
         *(

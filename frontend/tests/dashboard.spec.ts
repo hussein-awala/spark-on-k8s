@@ -164,6 +164,45 @@ test("live errors can be retried and history errors do not hide live workloads",
   ).toHaveCount(0);
 });
 
+test("a server namespace scope offers only its namespaces", async ({
+  page,
+}) => {
+  const requested: (string | null)[] = [];
+  await page.route(/\/webserver\/api\/apps\?/, (route) => {
+    const namespace = new URL(route.request().url()).searchParams.get(
+      "namespace",
+    );
+    requested.push(namespace);
+    return route.fulfill({
+      json: {
+        items: [
+          application({
+            app_id: namespace!,
+            name: `${namespace} workload`,
+            namespace,
+          }),
+        ],
+        next_cursor: null,
+      },
+    });
+  });
+  await page.goto(
+    "/tests/fixture.html?history=false&namespaces=analytics,batch",
+  );
+  const picker = page.getByRole("combobox", { name: "Namespace", exact: true });
+  await expect(picker).toHaveValue("analytics");
+  await expect(picker.locator("option")).toHaveText(["analytics", "batch"]);
+  await expect(
+    page.getByRole("textbox", { name: "Namespace", exact: true }),
+  ).toHaveCount(0);
+  await picker.selectOption("batch");
+  await expect(
+    page.getByRole("button", { name: "batch workload", exact: true }),
+  ).toBeVisible();
+  await expect(page).toHaveURL(/namespace=batch/);
+  expect(requested).toContain("batch");
+});
+
 test("namespace changes keep URL and sidebar consistent and reject stale responses", async ({
   page,
 }) => {

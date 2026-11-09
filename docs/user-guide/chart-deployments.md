@@ -53,11 +53,14 @@ application namespaces. Review the rendered resources and adjust the example's
 namespaces, resource requests and limits for your deployment. The example does
 not establish availability, throughput or cloud-identity compatibility.
 
-The default `readOnly: true` remains unchanged. With chart-managed RBAC and an
-explicit namespace string, the chart creates namespace Roles and RoleBindings.
-`namespaces: "*"` intentionally selects a cluster-wide binding instead. Neither
-namespace selection nor hiding UI buttons provides user or tenant authorization;
-use the [remote-submission security boundary](remote-submission.md).
+The default `readOnly: true` remains unchanged. With chart-managed RBAC, the default
+empty `namespaces` creates a Role and RoleBinding in the release namespace, and an
+explicit namespace string creates them in each listed namespace.
+`namespaces: "*"` intentionally selects a cluster-wide binding instead. The chart
+passes the same scope to the API as `SPARK_ON_K8S_API_NAMESPACES`, so the API refuses
+other namespaces even where Service DNS would reach them. Neither the namespace scope
+nor hiding UI buttons provides user or tenant authorization; use the
+[remote-submission security boundary](remote-submission.md).
 
 ## Decide who owns the account and permissions
 
@@ -109,6 +112,65 @@ driver, executor or History Server can access your object store. Cloud-specific
 recipes and arbitrary-user container support are not qualified by this chart
 validation suite.
 
+## Run the API as a non-root user
+
+The API image runs as the dedicated user and group `10001`. The chart's default
+`podSecurityContext` and `securityContext` match that identity and meet Pod
+Security `restricted`: `runAsNonRoot`, `runAsUser`, `runAsGroup` and `fsGroup`
+`10001`, `fsGroupChangePolicy: OnRootMismatch`, the `RuntimeDefault` seccomp
+profile, no privilege escalation and all capabilities dropped. Override individual
+keys in your values file, or set a key to `null` to remove it; an image built with
+another user needs matching IDs. The History Server keeps its own security settings.
+
+The API must be able to read files mounted from volumes, such as a
+remote-submission token or policy, or a kubeconfig selected with
+`SPARK_ON_K8S_CONFIG_FILE`. Its home directory is `/home/spark-on-k8s`; `/root`
+is not readable. Keep `service.port` at 1024 or above, because some container
+runtimes do not let a non-root process bind lower ports.
+
+A run-history claim written by an earlier root API process holds root-owned
+files. On volume types that support `fsGroup`, such as most block-storage CSI
+drivers and `local` volumes, the kubelet makes them group-writable at the first
+non-root mount. Volume types that ignore `fsGroup`, such as `hostPath`-backed
+provisioners, keep them read-only: the API then exits with `attempt to write a
+readonly database`. Before upgrading such a claim, change ownership from the
+current root pod:
+
+```bash
+kubectl exec --namespace <release-namespace> deploy/<release-fullname> -- \
+  chown -R 10001:10001 /var/lib/spark-on-k8s
+```
+
+If the upgraded API already exited, `helm rollback` to the root release and run
+the command there before upgrading again. To keep running as root instead,
+restore the previous identity and capabilities; the capabilities let root write
+files that a failed non-root start may have created. Such a pod does not meet Pod
+Security `restricted`:
+
+```yaml
+podSecurityContext:
+  runAsNonRoot: false
+  runAsUser: 0
+  runAsGroup: 0
+securityContext:
+  capabilities: null
+```
+
+`readOnlyRootFilesystem` is not a default because the Kubernetes client writes
+temporary files in some configurations, such as kubeconfig credentials embedded
+as data. To enable it, also mount a writable `/tmp`:
+
+```yaml
+securityContext:
+  readOnlyRootFilesystem: true
+volumes:
+  - name: tmp
+    emptyDir: {}
+volumeMounts:
+  - name: tmp
+    mountPath: /tmp
+```
+
 ## Understand the scaling controls
 
 | Control | What it scales | Owner |
@@ -127,9 +189,9 @@ one positive target.
 The [metadata recorder](run-history.md) is separate from the Spark History
 Server. Enabling `runHistory` requires exactly one API replica, no API autoscaling,
 an existing writable persistent claim, and one to twenty explicit namespace
-entries. With chart-managed RBAC and an explicit `namespaces` list, every
-`runHistory.namespaces` entry must also appear in `namespaces`; otherwise the API
-cannot list its driver pods and never becomes ready, so rendering fails. The chart
+entries. Unless `namespaces` is `"*"`, every `runHistory.namespaces` entry must also
+be in the API scope: the release namespace by default, or the listed namespaces.
+Otherwise the API refuses to start, and with chart-managed RBAC rendering fails. The chart
 uses a `Recreate` rollout. It neither provisions the claim nor
 validates its filesystem locking behavior; use supported block/local storage,
 rehearse backups and allow for rollout downtime.
@@ -152,6 +214,10 @@ An `ingress.tls` entry terminates TLS before the API, so browser log streams are
 rejected until `env` sets `SPARK_ON_K8S_API_WEBSOCKET_ALLOWED_ORIGINS` to the
 public `https://` origins; see
 [browser origins](../security-boundaries.md#log-websocket-browser-origins).
+To serve the API below an ingress path such as `/platform/spark`, have the ingress
+controller remove that prefix before forwarding and set
+`SPARK_ON_K8S_API_ROOT_PATH` to the same path in `env`; see
+[mounted paths](../security-boundaries.md#mounted-spark-ui-paths).
 Use the [development guide](../development.md) for the Helm regression suite and
 [release guidance](../releases.md) for the artifact publication boundary.
 
@@ -184,6 +250,12 @@ bindings, and verify access under the service account. Switching the value in a
 normal Helm upgrade replaces the old resources; schedule that transition if a
 brief permissions interruption is unacceptable. Never reuse legacy names for two
 releases managing the same shared scope.
+
+The default `namespaces` value changed from `"*"` to empty, which selects only the
+release namespace. A release that relied on the old default loses its cluster-wide
+binding on upgrade, and the API then refuses other namespaces. Set `namespaces: "*"`
+or list the namespaces before upgrading. With `"*"`, the console opens the API's own
+namespace unless `SPARK_ON_K8S_API_DEFAULT_NAMESPACE` is set in `env`.
 
 History configuration updates now roll its Deployment automatically. History
 `affinity` and `tolerations` are passed to the Pod. The rare long-name suffix

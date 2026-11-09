@@ -68,7 +68,7 @@
   <meta name="documentation-channel" content="develop">
   <meta name="documentation-version" content="develop">
   
-    <meta name="documentation-source" content="b9ab6b1dbcaf40124d5626ea6d4a5fcccb34a571">
+    <meta name="documentation-source" content="aff9949572acfa060280963834564fd4934f4195">
   
 
   </head>
@@ -108,7 +108,7 @@
     <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
   
   
-    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/b9ab6b1dbcaf40124d5626ea6d4a5fcccb34a571"><code>b9ab6b1dbcaf</code></a>.
+    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/aff9949572acfa060280963834564fd4934f4195"><code>aff9949572ac</code></a>.
   
 
           </div>
@@ -1463,6 +1463,17 @@
     <span class="md-ellipsis">
       
         Keep the four workload identities separate
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#run-the-api-as-a-non-root-user" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Run the API as a non-root user
       
     </span>
   </a>
@@ -4470,6 +4481,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -4634,6 +4649,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../helm-chart/config/podSecurityContext/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    podSecurityContext
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../helm-chart/config/rbac/" class="md-nav__link">
         
   
@@ -4698,6 +4741,34 @@
     
   
     runHistory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../helm-chart/config/securityContext/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    securityContext
   
 
     
@@ -5067,6 +5138,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#run-the-api-as-a-non-root-user" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Run the API as a non-root user
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#understand-the-scaling-controls" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5270,6 +5352,53 @@ only its reported caller checks and account existence; it does not prove that a
 driver, executor or History Server can access your object store. Cloud-specific
 recipes and arbitrary-user container support are not qualified by this chart
 validation suite.</p>
+<h2 id="run-the-api-as-a-non-root-user">Run the API as a non-root user<a class="headerlink" href="#run-the-api-as-a-non-root-user" title="Permanent link">&para;</a></h2>
+<p>The API image runs as the dedicated user and group <code>10001</code>. The chart's default
+<code>podSecurityContext</code> and <code>securityContext</code> match that identity and meet Pod
+Security <code>restricted</code>: <code>runAsNonRoot</code>, <code>runAsUser</code>, <code>runAsGroup</code> and <code>fsGroup</code>
+<code>10001</code>, <code>fsGroupChangePolicy: OnRootMismatch</code>, the <code>RuntimeDefault</code> seccomp
+profile, no privilege escalation and all capabilities dropped. Override individual
+keys in your values file, or set a key to <code>null</code> to remove it; an image built with
+another user needs matching IDs. The History Server keeps its own security settings.</p>
+<p>The API must be able to read files mounted from volumes, such as a
+remote-submission token or policy, or a kubeconfig selected with
+<code>SPARK_ON_K8S_CONFIG_FILE</code>. Its home directory is <code>/home/spark-on-k8s</code>; <code>/root</code>
+is not readable. Keep <code>service.port</code> at 1024 or above, because some container
+runtimes do not let a non-root process bind lower ports.</p>
+<p>A run-history claim written by an earlier root API process holds root-owned
+files. On volume types that support <code>fsGroup</code>, such as most block-storage CSI
+drivers and <code>local</code> volumes, the kubelet makes them group-writable at the first
+non-root mount. Volume types that ignore <code>fsGroup</code>, such as <code>hostPath</code>-backed
+provisioners, keep them read-only: the API then exits with <code>attempt to write a
+readonly database</code>. Before upgrading such a claim, change ownership from the
+current root pod:</p>
+<div class="highlight"><pre><span></span><code>kubectl<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>--namespace<span class="w"> </span>&lt;release-namespace&gt;<span class="w"> </span>deploy/&lt;release-fullname&gt;<span class="w"> </span>--<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>chown<span class="w"> </span>-R<span class="w"> </span><span class="m">10001</span>:10001<span class="w"> </span>/var/lib/spark-on-k8s
+</code></pre></div>
+<p>If the upgraded API already exited, <code>helm rollback</code> to the root release and run
+the command there before upgrading again. To keep running as root instead,
+restore the previous identity and capabilities; the capabilities let root write
+files that a failed non-root start may have created. Such a pod does not meet Pod
+Security <code>restricted</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">podSecurityContext</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">runAsNonRoot</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">  </span><span class="nt">runAsUser</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
+<span class="w">  </span><span class="nt">runAsGroup</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
+<span class="nt">securityContext</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">capabilities</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">null</span>
+</code></pre></div>
+<p><code>readOnlyRootFilesystem</code> is not a default because the Kubernetes client writes
+temporary files in some configurations, such as kubeconfig credentials embedded
+as data. To enable it, also mount a writable <code>/tmp</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">securityContext</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">readOnlyRootFilesystem</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="nt">volumes</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tmp</span>
+<span class="w">    </span><span class="nt">emptyDir</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{}</span>
+<span class="nt">volumeMounts</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tmp</span>
+<span class="w">    </span><span class="nt">mountPath</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/tmp</span>
+</code></pre></div>
 <h2 id="understand-the-scaling-controls">Understand the scaling controls<a class="headerlink" href="#understand-the-scaling-controls" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -5389,7 +5518,7 @@ need a reviewed recreation because Deployment selectors are immutable.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 9, 2026 08:37:22 UTC">November 9, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 9, 2026 08:42:42 UTC">November 9, 2026</span>
   </span>
 
     

@@ -68,7 +68,7 @@
   <meta name="documentation-channel" content="develop">
   <meta name="documentation-version" content="develop">
   
-    <meta name="documentation-source" content="b9ab6b1dbcaf40124d5626ea6d4a5fcccb34a571">
+    <meta name="documentation-source" content="aff9949572acfa060280963834564fd4934f4195">
   
 
   </head>
@@ -108,7 +108,7 @@
     <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
   
   
-    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/b9ab6b1dbcaf40124d5626ea6d4a5fcccb34a571"><code>b9ab6b1dbcaf</code></a>.
+    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/aff9949572acfa060280963834564fd4934f4195"><code>aff9949572ac</code></a>.
   
 
           </div>
@@ -4459,6 +4459,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -4623,6 +4627,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../helm-chart/config/podSecurityContext/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    podSecurityContext
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../helm-chart/config/rbac/" class="md-nav__link">
         
   
@@ -4687,6 +4719,34 @@
     
   
     runHistory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../helm-chart/config/securityContext/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    securityContext
   
 
     
@@ -5117,6 +5177,8 @@ collector, and <code>/runs/v1</code> and <code>/webserver/runs</code> return 404
 <span class="nb">export</span><span class="w"> </span><span class="nv">SPARK_ON_K8S_RUN_HISTORY_NAMESPACES</span><span class="o">=</span>analytics,batch
 spark-on-k8s<span class="w"> </span>api<span class="w"> </span>start
 </code></pre></div>
+<p>The published API image runs as user and group <code>10001</code> and provides <code>/var/lib/spark-on-k8s</code> owned by
+them. A volume mounted there must be writable by that user or group.</p>
 <p>The API service account needs permission to list pods in each configured namespace. Wildcards are not
 accepted; at most twenty namespaces can be configured. The recorder only requests pods labeled
 <code>spark-role=driver</code> and uses the server's existing Kubernetes credentials.</p>
@@ -5281,8 +5343,11 @@ ReadWriteOnce block-backed claim and allow the API's filesystem user to write it
 </code></pre></div>
 <p>The database is mounted at <code>/var/lib/spark-on-k8s/runs.sqlite3</code>. The chart requires a claim and explicit
 namespaces, rejects multiple replicas/autoscaling, and uses a <code>Recreate</code> rollout so two API pods do not
-compete for the claim. Existing environment overrides remain supported. Make sure history namespaces
-also have the pod-list permissions configured by <code>namespaces</code> or an externally managed service account.
+compete for the claim. Its default <code>fsGroup: 10001</code> gives the non-root API write access on volume types
+that support <code>fsGroup</code>; see <a href="../chart-deployments/#run-the-api-as-a-non-root-user">non-root deployment</a>
+for a claim written by an earlier root process. Existing environment overrides remain supported. Make
+sure history namespaces also have the pod-list permissions configured by <code>namespaces</code> or an externally
+managed service account.
 The separately configured <code>sparkHistory</code> chart section still refers to Spark History Server event logs.</p>
 
 
@@ -5304,7 +5369,7 @@ The separately configured <code>sparkHistory</code> chart section still refers t
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 7, 2026 23:37:11 UTC">November 7, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 9, 2026 08:42:42 UTC">November 9, 2026</span>
   </span>
 
     

@@ -29,3 +29,13 @@
 {{- if and .Values.sparkHistory.enabled .Values.sparkHistory.autoscaling.enabled (not .Values.sparkHistory.autoscaling.targetCPUUtilizationPercentage) (not .Values.sparkHistory.autoscaling.targetMemoryUtilizationPercentage) }}
 {{- fail "sparkHistory.autoscaling requires a positive CPU or memory utilization target" }}
 {{- end }}
+{{- $remote := .Values.remote | default dict }}
+{{- if $remote.enabled }}
+{{- $_ := required "remote.enabled requires remote.existingSecret, an existing Secret with the token and policy; the chart never creates it" (trim ($remote.existingSecret | default "")) }}
+{{- range $key := list "tokenKey" "policyKey" "mountPath" }}
+{{- $_ := required (printf "remote.enabled requires remote.%s" $key) (get $remote $key) }}
+{{- end }}
+{{- range concat .Values.volumes .Values.volumeMounts }}
+{{- if eq .name "remote-submission" }}{{- fail "remote-submission is a reserved volume name" }}{{- end }}
+{{- end }}
+{{- end }}

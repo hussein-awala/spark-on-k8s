@@ -72,6 +72,22 @@ def test_ambiguous_stale_build_output_blocks_release(release_modules, tmp_path):
         release_modules["artifacts"].prepare(args)
 
 
+def test_container_recipes_fetch_build_inputs_only_over_https():
+    from pathlib import Path
+
+    docker = Path(__file__).resolve().parents[2] / "docker"
+    recipes = [*docker.glob("*Dockerfile"), *docker.glob("scripts/*.sh")]
+    assert recipes
+    # Plain HTTP lets a network attacker substitute code that is baked into published images.
+    insecure = [
+        f"{path.name}:{number}"
+        for path in recipes
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1)
+        if "http://" in line and not line.lstrip().startswith("#")
+    ]
+    assert insecure == []
+
+
 def test_mutable_container_base_is_rejected(release_modules, tmp_path):
     args = inputs(tmp_path)
     args.dockerfile.write_text("FROM python:3.11-slim\n")

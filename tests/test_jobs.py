@@ -386,6 +386,55 @@ def test_plan_redacts_literal_environment_values():
     assert "PRIVATE_VALUE" not in json.dumps(plan.to_dict())
 
 
+@pytest.mark.parametrize(
+    "key",
+    [
+        "spark.hadoop.fs.azure.account.key.store.dfs.core.windows.net",
+        "spark.hadoop.fs.azure.sas.data.store.blob.core.windows.net",
+        "spark.hadoop.fs.s3a.encryption.key",
+        "spark.hadoop.fs.s3a.server-side-encryption.key",
+        "spark.openlineage.transport.auth.apiKey",
+        "spark.openlineage.transport.headers.Authorization",
+        "spark.es.net.http.auth.pass",
+        "spark.redis.auth",
+    ],
+)
+def test_plan_redacts_common_storage_and_service_credential_properties(key):
+    plan = SparkOnK8S().plan_app(
+        image="spark:test",
+        app_path="local:///job.py",
+        spark_conf={
+            key: "PRIVATE_VALUE",
+            "spark.io.encryption.keySizeBits": "256",
+            "spark.hadoop.fs.azure.account.auth.type": "OAuth",
+        },
+    )
+    shown = plan.to_dict()
+    driver = next(resource for resource in shown["resources"] if resource["kind"] == "Pod")["spec"][
+        "containers"
+    ][0]
+    assert f"{key}=<redacted>" in driver["args"]
+    assert "PRIVATE_VALUE" not in json.dumps(shown)
+    # Non-secret neighbours stay reviewable.
+    assert "spark.io.encryption.keySizeBits=256" in driver["args"]
+    assert "spark.hadoop.fs.azure.account.auth.type=OAuth" in driver["args"]
+
+
+def test_plan_redacts_signed_url_parameters():
+    jars = (
+        "https://store.blob.core.windows.net/jars/a.jar?sv=2024-01-01&sig=SAS_SIGNATURE,"
+        "https://bucket.s3.amazonaws.com/b.jar?X-Amz-Credential=AKIA&X-Amz-Signature=S3_SIGNATURE"
+        "&X-Amz-Security-Token=S3_SESSION"
+    )
+    plan = SparkOnK8S().plan_app(
+        image="spark:test", app_path="local:///job.py", spark_conf={"spark.jars": jars}
+    )
+    displayed = json.dumps(plan.to_dict())
+    for secret in ("SAS_SIGNATURE", "S3_SIGNATURE", "S3_SESSION"):
+        assert secret not in displayed
+    assert "https://store.blob.core.windows.net/jars/a.jar?sv=2024-01-01&sig=<redacted>" in displayed
+
+
 def test_plan_redacts_literal_executor_environment_properties():
     plan = SparkOnK8S().plan_app(
         image="spark:test",

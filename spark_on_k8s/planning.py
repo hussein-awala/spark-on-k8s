@@ -5,7 +5,15 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-_SENSITIVE = re.compile(r"password|passwd|secret|token|credential|access[._-]?key|private[._-]?key", re.I)
+_SENSITIVE = re.compile(
+    r"password|passwd|secret|token|credential|access[._-]?key|private[._-]?key|api[._-]?key|authorization"
+    # Azure storage account keys and SAS tokens, and S3 SSE-C keys, without matching
+    # non-secret neighbours such as keySizeBits, keyprovider or auth.type.
+    r"|(?:account|encryption)[._-]?key(?![a-z])|(?:^|[._-])sas(?:[._-]|$)"
+    # Connector passwords named only "...auth" or "...pass" (Redis, Elasticsearch).
+    r"|(?:^|[._-])(?:auth|pass)$",
+    re.I,
+)
 
 
 def redact(value: Any, *, key: str = "") -> Any:
@@ -22,8 +30,10 @@ def redact(value: Any, *, key: str = "") -> Any:
             or _SENSITIVE.search(value.partition("=")[0])
         ):
             return value.partition("=")[0] + "=<redacted>"
+        # Includes signed-URL parameters (Azure SAS sig, S3/GCS X-*-Signature and session tokens).
         value = re.sub(
-            r"([?;&](?:password|passwd|secret|token|credential|access[._-]?key|private[._-]?key)=)[^&#;\s]*",
+            r"([?;&](?:x-(?:amz|goog)-)?(?:password|passwd|secret|token|credential|access[._-]?key"
+            r"|private[._-]?key|api[._-]?key|sig|signature|security-token)=)[^&#;\s]*",
             r"\1<redacted>",
             value,
             flags=re.I,

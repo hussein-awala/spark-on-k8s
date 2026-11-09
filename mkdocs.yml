@@ -102,6 +102,7 @@ nav:
   - Home: index.md
   - Get started:
       - Choose your path: user-guide/start-here.md
+      - When to use it: user-guide/when-to-use.md
       - Install: user-guide/installation.md
       - Your first Kubernetes job: user-guide/getting_started.md
       - Supported Spark runtimes: user-guide/spark_compatibility.md

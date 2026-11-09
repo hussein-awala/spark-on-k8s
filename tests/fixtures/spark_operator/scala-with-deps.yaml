@@ -1,0 +1,64 @@
+# A Scala SparkApplication with dependencies, retries and literal credentials.
+# The credential values are fixture sentinels; the assessor must never echo them.
+apiVersion: sparkoperator.k8s.io/v1beta2
+kind: SparkApplication
+metadata:
+  name: orders-aggregation
+  namespace: analytics
+spec:
+  type: Scala
+  mode: cluster
+  image: registry.example.com/team/orders:2.1.0
+  imagePullSecrets:
+    - registry-credentials
+  mainClass: com.example.orders.Aggregate
+  mainApplicationFile: local:///opt/spark/jars/orders-assembly.jar
+  arguments:
+    - --date
+    - "2026-11-01"
+  sparkVersion: 4.0.5
+  deps:
+    jars:
+      - https://repo.example.com/libs/udf-helpers-1.4.jar
+      - /tmp/local-only.jar
+    packages:
+      - org.apache.hadoop:hadoop-aws:3.4.1
+    repositories:
+      - https://repo.example.com/maven
+  sparkConf:
+    spark.driver.memory: 2g
+    spark.hadoop.fs.s3a.endpoint: https://minio.example.com
+    spark.hadoop.fs.s3a.access.key: AKIAFIXTURESENTINEL1
+    spark.kubernetes.driver.secrets.db-tls: /etc/tls
+  hadoopConf:
+    fs.s3a.path.style.access: "true"
+    fs.s3a.secret.key: fixture-secret-sentinel-2
+  dynamicAllocation:
+    enabled: true
+    minExecutors: 1
+    maxExecutors: 6
+    initialExecutors: 2
+  restartPolicy:
+    type: OnFailure
+    onFailureRetries: 3
+    onFailureRetryInterval: 10
+    onSubmissionFailureRetries: 5
+    onSubmissionFailureRetryInterval: 20
+  driver:
+    cores: 1
+    serviceAccount: spark
+    javaOptions: -Dlog4j2.level=INFO
+    env:
+      - name: LOG_LEVEL
+        value: INFO
+      - name: DB_PASSWORD
+        value: fixture-password-sentinel-3
+  executor:
+    cores: 2
+    memory: 4g
+    env:
+      - name: WAREHOUSE_TOKEN
+        valueFrom:
+          secretKeyRef:
+            name: warehouse
+            key: token

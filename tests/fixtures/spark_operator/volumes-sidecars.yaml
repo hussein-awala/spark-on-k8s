@@ -1,0 +1,86 @@
+# A SparkApplication with volumes, sidecars and operator-only features.
+apiVersion: sparkoperator.k8s.io/v1beta2
+kind: SparkApplication
+metadata:
+  name: feature-builder
+  namespace: ml
+spec:
+  type: Python
+  mode: cluster
+  image: registry.example.com/ml/features:3.2
+  mainApplicationFile: local:///opt/app/build_features.py
+  sparkVersion: 4.0.5
+  volumes:
+    - name: shared-data
+      persistentVolumeClaim:
+        claimName: feature-data
+    - name: scratch
+      emptyDir: {}
+    - name: unused-cache
+      emptyDir: {}
+  sparkUIOptions:
+    serviceType: ClusterIP
+  monitoring:
+    exposeDriverMetrics: true
+    exposeExecutorMetrics: true
+    prometheus:
+      jmxExporterJar: /prometheus/jmx_prometheus_javaagent.jar
+      port: 8090
+  driver:
+    cores: 1
+    memory: 2g
+    serviceAccount: spark
+    volumeMounts:
+      - name: shared-data
+        mountPath: /data
+      - name: scratch
+        mountPath: /scratch
+    configMaps:
+      - name: feature-config
+        path: /etc/features
+    secrets:
+      - name: gcp-key
+        path: /var/secrets/google
+        secretType: GCPServiceAccount
+    podSecurityContext:
+      runAsNonRoot: true
+      fsGroup: 185
+    tolerations:
+      - key: dedicated
+        operator: Equal
+        value: spark
+        effect: NoSchedule
+    sidecars:
+      - name: log-shipper
+        image: registry.example.com/ops/log-shipper:2.0
+        args: ["--path", "/scratch/logs"]
+        volumeMounts:
+          - name: scratch
+            mountPath: /scratch
+    initContainers:
+      - name: fetch-model
+        image: registry.example.com/ml/fetcher:1.0
+        args: ["--target", "/data/model"]
+        volumeMounts:
+          - name: shared-data
+            mountPath: /data
+    futureOperatorField: true
+  executor:
+    instances: 3
+    cores: 2
+    memory: 4g
+    volumeMounts:
+      - name: shared-data
+        mountPath: /data
+    affinity:
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+            - matchExpressions:
+                - key: node-pool
+                  operator: In
+                  values: [spark]
+    secrets:
+      - name: gcp-key
+        path: /var/secrets/google
+        secretType: GCPServiceAccount

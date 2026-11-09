@@ -1,0 +1,28 @@
+# A ScheduledSparkApplication: the schedule needs a CronJob or Airflow.
+apiVersion: sparkoperator.k8s.io/v1beta2
+kind: ScheduledSparkApplication
+metadata:
+  name: nightly-report
+  namespace: reporting
+spec:
+  schedule: "@daily"
+  timeZone: Europe/Paris
+  concurrencyPolicy: Forbid
+  successfulRunHistoryLimit: 3
+  failedRunHistoryLimit: 5
+  template:
+    type: Python
+    mode: cluster
+    image: registry.example.com/team/report:1.0
+    mainApplicationFile: local:///opt/spark/work-dir/report.py
+    sparkVersion: 4.0.5
+    restartPolicy:
+      type: Never
+    driver:
+      cores: 1
+      memory: 1g
+      serviceAccount: spark
+    executor:
+      instances: 2
+      cores: 1
+      memory: 2g

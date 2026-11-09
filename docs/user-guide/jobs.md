@@ -33,6 +33,10 @@ spark-on-k8s job plan job.yaml --profile production --output json
 spark-on-k8s job submit job.yaml --profile production --output json
 ```
 
+Coming from the Kubeflow Spark Operator? `spark-on-k8s job assess-operator`
+reports how each `SparkApplication` field translates and drafts a job file; see
+[Migrate from the Spark Operator](spark-operator-migration.md).
+
 Validation and planning do not open a Kubernetes connection. Plans use the same
 resource builder as submission, with deterministic preview identifiers. They are
 illustrations, not reserved runs or manifests to apply with `kubectl`: owner

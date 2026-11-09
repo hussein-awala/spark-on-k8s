@@ -8,6 +8,7 @@ from decimal import Decimal
 from threading import Event, Lock, RLock
 from typing import Any
 
+from dbt.adapters.events.logging import AdapterLogger
 from dbt.adapters.exceptions import FailedToConnectError
 from dbt.adapters.spark.connections import PyhiveConnectionWrapper, _is_retryable_error
 from dbt_common.exceptions import DbtRuntimeError
@@ -17,6 +18,7 @@ from thrift.transport.TSocket import TSocket
 from thrift_sasl import TSaslClientTransport
 
 SOCKET_TIMEOUT_SECONDS = 15
+logger = AdapterLogger("Spark")
 
 
 class _RpcGuard:
@@ -164,7 +166,16 @@ class ManagedPyhiveConnectionWrapper(PyhiveConnectionWrapper):
             return
         try:
             if self._cursor is not None:
-                self._cursor.close()
+                try:
+                    self._cursor.close()
+                except Exception as error:
+                    # execute() already reported the statement's outcome. Like
+                    # dbt-spark, a failed CloseOperation must not fail the node.
+                    logger.debug(f"Exception while closing cursor: {error}")
+                    if self._guard.cancelled.is_set() or self._guard.broken.is_set():
+                        # An aborted stream cannot carry CloseSession. The local
+                        # transport is closed instead; compute is deleted at exit.
+                        return
             # Match pinned PyHive Connection.close's RPC, but keep ALL local
             # transport closure in the once-only guard. Calling raw.close would
             # perform an unguarded close after releasing the RPC lock.

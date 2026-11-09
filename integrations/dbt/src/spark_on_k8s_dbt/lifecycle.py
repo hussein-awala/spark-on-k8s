@@ -175,6 +175,8 @@ class InvocationOwner:
                     raise ValueError("One dbt invocation cannot mix compute configurations or transports")
                 if self.endpoint is None:
                     raise RuntimeError("Server creation already failed; inspect the receipt before retrying")
+                if self.forward is not None and self.forward.process.poll() is not None:
+                    self._reopen_tunnel()
                 return self.endpoint
             config = ComputeConfig.parse(method, compute)
             self.config = config
@@ -221,29 +223,7 @@ class InvocationOwner:
                     self.forward = PortForward(config, config.server.namespace, pod, port)
                     port = self.forward.start(self._remaining(deadline))
                     host = "127.0.0.1"
-                profile = None
-                if method == "connect":
-                    while True:
-                        port = self._refresh_tunnel(port, deadline)
-                        profile = ConnectProfile(
-                            endpoint=f"sc://{host}:{port}", tls=False, allow_insecure=config.in_cluster
-                        )
-                        try:
-                            self.sdk.wait_connect_server_ready(
-                                self.handle,
-                                profile=profile,
-                                timeout=min(5, self._remaining(deadline)),
-                                poll_interval=config.poll_interval,
-                            )
-                        except ConnectServerTimeout:
-                            self._remaining(deadline)
-                        else:
-                            break
-                else:
-                    port = self._wait_thrift(host, port, deadline)
-                    if self.backend.status(self.handle)["status"] != "running":
-                        raise RuntimeError("Thrift resources changed during readiness verification")
-                self.endpoint = Endpoint(host, port, profile)
+                self.endpoint = self._verified_endpoint(host, port, deadline)
                 self.state["stage"] = "ready"
                 self._save()
                 return self.endpoint
@@ -263,6 +243,8 @@ class InvocationOwner:
                     if handle is not None:
                         self.handle = handle
                         self.state["server"] = deepcopy(handle)
+                        if handle.get("creation_cleanup"):
+                            self.state["creation_cleanup"] = deepcopy(handle["creation_cleanup"])
                 self.state["creation_error"] = type(error).__name__
                 try:
                     self._save()
@@ -275,6 +257,11 @@ class InvocationOwner:
     def cancel(self):
         """Stop an in-progress startup at its next bounded wait; never deletes compute."""
         self._cancelled.set()
+
+    @property
+    def cancelled(self) -> bool:
+        """True after an interrupt or cleanup began: no new dbt connection may start."""
+        return self._cancelled.is_set()
 
     def _remaining(self, deadline):
         if self._cancelled.is_set():
@@ -299,6 +286,48 @@ class InvocationOwner:
             if observed.status.phase == "Running":
                 return
             self._cancelled.wait(min(self.config.poll_interval, self._remaining(deadline)))
+
+    def _verified_endpoint(self, host, port, deadline):
+        """Query this application's identity through the endpoint before handing it out."""
+        profile = None
+        if self.state["method"] == "connect":
+            while True:
+                port = self._refresh_tunnel(port, deadline)
+                profile = ConnectProfile(
+                    endpoint=f"sc://{host}:{port}", tls=False, allow_insecure=self.config.in_cluster
+                )
+                try:
+                    self.sdk.wait_connect_server_ready(
+                        self.handle,
+                        profile=profile,
+                        timeout=min(5, self._remaining(deadline)),
+                        poll_interval=self.config.poll_interval,
+                    )
+                except ConnectServerTimeout:
+                    self._remaining(deadline)
+                else:
+                    break
+        else:
+            port = self._wait_thrift(host, port, deadline)
+            if self.backend.status(self.handle)["status"] != "running":
+                raise RuntimeError("Thrift resources changed during readiness verification")
+        return Endpoint(host, port, profile)
+
+    def _reopen_tunnel(self):
+        # kubectl can exit mid-run, for example when its API stream is lost.
+        # Statements on the old tunnel have failed and are never replayed. Later
+        # connections get a new tunnel only to the same verified driver UID.
+        deadline = self._api_deadline = time.monotonic() + self.config.startup_timeout
+        self._wait_running(self.forward.pod, deadline)
+        self.forward.close()
+        port = self.forward.start(self._remaining(deadline))
+        try:
+            self.endpoint = self._verified_endpoint("127.0.0.1", port, deadline)
+        except BaseException:
+            # A live but unverified tunnel would leave the stale port in use;
+            # closing it makes the next open retry.
+            self.forward.close()
+            raise
 
     def _refresh_tunnel(self, port, deadline):
         # kubectl can exit after publishing its local listener if Spark has not
@@ -444,7 +473,11 @@ finally:
 
                             backend = self.backend or ThriftServer(self.sdk, None, self._record_server)
                             backend.delete(self.state["server"])
-                            backend.wait_deleted(self.state["server"], timeout=self.state["cleanup_timeout"])
+                            backend.wait_deleted(
+                                self.state["server"],
+                                timeout=self.state["cleanup_timeout"],
+                                poll_interval=self.state["poll_interval"],
+                            )
                     self.state.update(stage="cleaned", cleanup={"status": "deleted"})
                 elif self.state.get("run"):
                     raise RuntimeError(

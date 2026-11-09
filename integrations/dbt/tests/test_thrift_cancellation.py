@@ -29,6 +29,9 @@ class FakeClient:
         self.active = 0
         self.max_active = 0
         self.error = None
+        self.state = ttypes.TOperationState.RUNNING_STATE
+        self.error_message = None
+        self.close_operation_failure = None
         self.operation = ttypes.TOperationHandle(
             operationId=ttypes.THandleIdentifier(guid=b"g" * 16, secret=b"s" * 16),
             operationType=ttypes.TOperationType.EXECUTE_STATEMENT,
@@ -57,7 +60,7 @@ class FakeClient:
             if self.error is not None:
                 raise self.error
             return ttypes.TGetOperationStatusResp(
-                status=success(), operationState=ttypes.TOperationState.RUNNING_STATE
+                status=success(), operationState=self.state, errorMessage=self.error_message
             )
 
     def CancelOperation(self, request):
@@ -67,6 +70,14 @@ class FakeClient:
 
     def CloseOperation(self, request):
         with self.rpc("close_operation"):
+            if self.close_operation_failure == "transport":
+                raise TTransportException(TTransportException.END_OF_FILE, "stream closed by server")
+            if self.close_operation_failure == "status":
+                return ttypes.TCloseOperationResp(
+                    status=ttypes.TStatus(
+                        statusCode=ttypes.TStatusCode.ERROR_STATUS, errorMessage="Invalid OperationHandle"
+                    )
+                )
             return ttypes.TCloseOperationResp(status=success())
 
     def CloseSession(self, request):
@@ -318,3 +329,35 @@ def test_normal_close_uses_session_rpc_and_only_guarded_local_transport_close():
     assert client.calls == ["execute", "close_operation", "close_session"]
     transport.close.assert_called_once()
     wrapper.handle.close.assert_not_called()
+
+
+@pytest.mark.parametrize("failure", ["transport", "status"])
+def test_close_operation_failure_after_a_successful_statement_does_not_fail_the_node(failure):
+    client = FakeClient()
+    client.state = ttypes.TOperationState.FINISHED_STATE
+    client.close_operation_failure = failure
+    wrapper, transport = wrapper_for(client)
+    wrapper.execute("INSERT INTO t VALUES (1)")
+    # dbt's release() closes the handle; raising here would mark the already
+    # successful node as failed. dbt-spark also logs cursor-close errors.
+    wrapper.close()
+    # A failed exchange aborts the stream, so no CloseSession may follow it; an
+    # error status leaves the stream usable for the normal session close.
+    session = ["close_session"] if failure == "status" else []
+    assert client.calls == ["execute", "poll", "close_operation", *session]
+    transport.close.assert_called_once()
+
+
+def test_failed_statement_is_still_reported_when_close_operation_also_fails():
+    from dbt_common.exceptions import DbtDatabaseError
+
+    client = FakeClient()
+    client.state = ttypes.TOperationState.ERROR_STATE
+    client.error_message = "Table or view not found"
+    client.close_operation_failure = "transport"
+    wrapper, transport = wrapper_for(client)
+    with pytest.raises(DbtDatabaseError, match="Table or view not found"):
+        wrapper.execute("INSERT INTO missing VALUES (1)")
+    wrapper.close()
+    assert client.calls == ["execute", "poll", "close_operation"]
+    transport.close.assert_called_once()

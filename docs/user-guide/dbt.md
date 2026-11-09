@@ -33,8 +33,10 @@ The platform owner supplies:
 
 For a local client, install `kubectl` and provide an explicit kubeconfig path and
 context. The wrapper opens a loopback-only tunnel to its driver, using an
-OS-assigned local port. For a client already inside Kubernetes, set
-`in_cluster: true` and omit both kubeconfig fields; it connects to the private
+OS-assigned local port. If `kubectl` exits mid-run, statements on that tunnel fail
+and are not replayed; the next dbt connection gets a new tunnel after the driver
+UID and application identity are verified again. For a client already inside
+Kubernetes, set `in_cluster: true` and omit both kubeconfig fields; it connects to the private
 Service directly. The client's identity needs permission to create/read/delete
 its driver and Services, read the namespace/service account and observe executor
 pods, Services and ConfigMaps (including list permission for garbage-collection
@@ -173,6 +175,8 @@ directory must not already exist. Receipts have private file permissions and ret
 resource UIDs and cluster selection, not the original Spark configuration or its
 catalog credentials. Protect the dbt profile and normal dbt logs separately.
 
+With `--fail-fast`, dbt cancels running statements and then still runs `on-run-end`
+hooks on the same compute. After Ctrl-C/SIGTERM the adapter opens no new connection.
 Normal success, dbt failures and a graceful Ctrl-C/SIGTERM all attempt cleanup.
 Exit codes are 0 for success, 1 for a dbt execution failure, 2 for invocation or
 cleanup errors, and 130/143 for interruption. A cleanup failure preserves an
@@ -182,7 +186,11 @@ driver and Service identities and observes disappearance before reporting succes
 It never deletes the warehouse or metastore.
 
 A hard kill, machine loss, unavailable Kubernetes API, or ambiguous creation can
-leave compute running. After inspecting a **complete** receipt, retry safe cleanup:
+leave compute running. If creation fails after the driver's UID is confirmed, the
+wrapper requests deletion of that driver by UID (its Services are owned by it) and
+records the outcome as `creation_cleanup`. The receipt stays incomplete because
+disappearance was not observed; confirm the driver is gone. After inspecting a
+**complete** receipt, retry safe cleanup:
 
 ```bash
 /path/to/spark-on-k8s/.venv-dbt/bin/spark-on-k8s-dbt cleanup \

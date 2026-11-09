@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import dataclasses
+import logging
 import re
 import sqlite3
 from types import SimpleNamespace
@@ -33,6 +34,12 @@ def record(uid="one", namespace="analytics", phase="Running"):
     }
 
 
+@pytest.fixture(autouse=True)
+def readiness_log_state(monkeypatch):
+    # Readiness logs transitions per worker process; each test starts as a new worker.
+    monkeypatch.setattr(run_history, "_readiness", None)
+
+
 @pytest.fixture
 def api(tmp_path, monkeypatch):
     settings = HistorySettings(
@@ -56,14 +63,21 @@ def test_history_config_pagination_filtering_and_disappearance(api):
     client, store, lease, _, _ = api
     store.snapshot("analytics", [record("two", phase="Succeeded"), record("three")], lease)
     store.snapshot("outside", [record("unconfigured", "outside")], lease)
-    config = client.get("/runs/v1/config")
-    assert config.json() == {
+    config = client.get("/runs/v1/config").json()
+    collection = config.pop("collection")
+    assert config == {
         "schema_version": 1,
         "enabled": True,
         "namespaces": ["analytics"],
         "retention_days": 30,
         "max_rows": 10000,
+        "readiness": "degraded",
+        "freshness_seconds": 85,
     }
+    assert [(item["namespace"], item["fresh"], item["last_error"]) for item in collection] == [
+        ("analytics", True, None)
+    ]
+    assert collection[0]["last_success"].endswith("Z") and collection[0]["last_attempt"].endswith("Z")
     result = client.get("/runs/v1", params={"limit": 1})
     assert result.status_code == 200
     assert result.headers["cache-control"] == "no-store"
@@ -134,7 +148,116 @@ def test_readiness_requires_real_namespace_access_and_recent_collection(api):
     assert client.get("/ready").status_code == 503
 
 
-def test_readiness_timeout_cancels_stalled_access_and_returns_generic_error(api, monkeypatch):
+@pytest.fixture
+def two_namespaces(api, monkeypatch):
+    client, store, lease, settings, k8s = api
+    configured = dataclasses.replace(settings, namespaces=("analytics", "batch"))
+    monkeypatch.setattr(run_history, "get_history_settings", lambda: configured)
+    store.snapshot("batch", [record("batch-run", "batch")], lease)
+
+    def age(namespace, error=None):
+        with sqlite3.connect(store.path) as db:
+            db.execute(
+                "UPDATE collection SET last_success=last_success-?, last_error=? WHERE namespace=?",
+                (settings.freshness_seconds + 1, error, namespace),
+            )
+
+    return client, configured, k8s, age
+
+
+def test_one_stale_namespace_degrades_readiness_without_removing_the_api(two_namespaces, monkeypatch):
+    client, settings, _, age = two_namespaces
+    assert client.get("/ready").json() == {"status": "ready"}
+    age("batch", "forbidden")
+    degraded = client.get("/ready")
+    assert degraded.status_code == 200 and client.head("/ready").status_code == 200
+    # The public probe body names no namespace or error; the authorized config does.
+    assert degraded.json() == {"status": "degraded"}
+    collection = {item["namespace"]: item for item in client.get("/runs/v1/config").json()["collection"]}
+    assert collection["batch"]["fresh"] is False and collection["batch"]["last_error"] == "forbidden"
+    assert collection["analytics"]["fresh"] is True
+    strict = dataclasses.replace(settings, readiness="strict")
+    monkeypatch.setattr(run_history, "get_history_settings", lambda: strict)
+    assert client.get("/ready").json() == {"status": "not_ready"}
+    monkeypatch.setattr(run_history, "get_history_settings", lambda: settings)
+    age("analytics")
+    every = client.get("/ready")
+    assert every.status_code == 503 and every.json() == {"status": "not_ready"}
+
+
+def test_kubernetes_failure_in_every_namespace_is_not_ready_but_one_is_tolerated(two_namespaces, monkeypatch):
+    client, settings, k8s, _ = two_namespaces
+
+    async def listing(**kwargs):
+        if kwargs["namespace"] == "batch" or everywhere:
+            raise ApiException(status=429, reason="sensitive throttling details")
+        return object()
+
+    everywhere = False
+    k8s.list_namespaced_pod.side_effect = listing
+    # Collection is still fresh; a persistent failure surfaces once it makes the namespace stale.
+    assert client.get("/ready").json() == {"status": "ready"}
+    strict = dataclasses.replace(settings, readiness="strict")
+    monkeypatch.setattr(run_history, "get_history_settings", lambda: strict)
+    assert client.get("/ready").status_code == 503
+    monkeypatch.setattr(run_history, "get_history_settings", lambda: settings)
+    everywhere = True
+    response = client.get("/ready")
+    assert response.status_code == 503 and "sensitive" not in response.text
+
+
+def test_unusable_history_store_is_not_ready(two_namespaces):
+    client, *_ = two_namespaces
+    store = run_history._collector.store
+    with sqlite3.connect(store.path) as db:
+        db.execute("DROP TABLE collection")
+    assert client.get("/ready").json() == {"status": "not_ready"}
+    config = client.get("/runs/v1/config")
+    assert config.status_code == 503 and config.json()["detail"]["code"] == "history_unavailable"
+    assert str(store.path) not in config.text
+
+
+def test_readiness_logs_status_changes_once_without_error_text(two_namespaces, caplog):
+    client, _, k8s, age = two_namespaces
+    caplog.set_level(logging.INFO, logger=run_history.__name__)
+    for _ in range(3):
+        assert client.get("/ready").status_code == 200
+    assert caplog.messages == []
+    age("batch", "throttled")
+    for _ in range(3):
+        client.get("/ready")
+    age("analytics", "timeout")
+    for _ in range(3):
+        client.get("/ready")
+    store = run_history._collector.store
+    lease = store.acquire("collector", 300)
+    store.snapshot("analytics", [], lease)
+    store.snapshot("batch", [], lease)
+    for _ in range(3):
+        assert client.get("/ready").json() == {"status": "ready"}
+    k8s.list_namespaced_pod.side_effect = ApiException(status=403, reason="Bearer secret-token")
+    for _ in range(3):
+        client.get("/ready")
+    assert [(record.levelno, record.getMessage()) for record in caplog.records] == [
+        (
+            logging.WARNING,
+            "API is ready but degraded: run-history collection is stale in batch (last error: throttled)",
+        ),
+        (
+            logging.WARNING,
+            "API is not ready: no run-history namespace has a fresh collection: "
+            "analytics (last error: timeout), batch (last error: throttled)",
+        ),
+        (logging.INFO, "API readiness recovered"),
+        (
+            logging.WARNING,
+            "API is not ready: Kubernetes pod listing failed in analytics (forbidden), batch (forbidden)",
+        ),
+    ]
+    assert "secret-token" not in caplog.text
+
+
+def test_readiness_timeout_cancels_stalled_access_and_returns_generic_error(api, monkeypatch, caplog):
     client, _, _, _, k8s = api
     cancelled = []
 
@@ -148,6 +271,7 @@ def test_readiness_timeout_cancels_stalled_access_and_returns_generic_error(api,
     monkeypatch.setattr(run_history, "READY_TIMEOUT", 0.02)
     assert client.get("/ready").json() == {"status": "not_ready"}
     assert cancelled == [True]
+    assert caplog.messages == ["API is not ready: the readiness check timed out"]
 
 
 def test_metrics_are_low_cardinality_operational_counts_only(api):
@@ -164,9 +288,15 @@ def test_metrics_are_low_cardinality_operational_counts_only(api):
     assert (
         "report-driver" not in result.text and "completed" not in result.text and "spark:4" not in result.text
     )
+    assert 'spark_on_k8s_collection_stale{namespace="analytics"} 0' in result.text
+    with sqlite3.connect(store.path) as db:
+        db.execute("UPDATE collection SET last_success=last_success-?", (86,))
+    assert 'spark_on_k8s_collection_stale{namespace="analytics"} 1' in client.get("/metrics").text
     with sqlite3.connect(store.path) as db:
         db.execute("DELETE FROM collection")
-    assert 'spark_on_k8s_collection_age_seconds{namespace="analytics"} -1.000' in client.get("/metrics").text
+    never = client.get("/metrics").text
+    assert 'spark_on_k8s_collection_age_seconds{namespace="analytics"} -1.000' in never
+    assert 'spark_on_k8s_collection_stale{namespace="analytics"} 1' in never
 
 
 def test_metric_families_are_single_groups_for_multiple_namespaces(api, monkeypatch):
@@ -182,7 +312,7 @@ def test_metric_families_are_single_groups_for_multiple_namespaces(api, monkeypa
         groups[-1][1].append(line)
     names = [name for name, _ in groups]
     # The text exposition format requires each family's lines to be one group, metadata first.
-    assert len(names) == len(set(names)) == 5
+    assert len(names) == len(set(names)) == 6
     for name, lines in groups:
         metadata = [line for line in lines if line.startswith("#")]
         assert lines[: len(metadata)] == metadata
@@ -192,6 +322,10 @@ def test_metric_families_are_single_groups_for_multiple_namespaces(api, monkeypa
         'spark_on_k8s_runs_recorded{namespace="batch",status="Running"} 1'
         in dict(groups)["spark_on_k8s_runs_recorded"]
     )
+    assert dict(groups)["spark_on_k8s_collection_stale"][2:] == [
+        'spark_on_k8s_collection_stale{namespace="analytics"} 0',
+        'spark_on_k8s_collection_stale{namespace="batch"} 0',
+    ]
 
 
 def test_unavailable_database_returns_generic_history_and_metrics_errors(api):
@@ -226,11 +360,28 @@ def test_disabled_history_and_metrics_do_not_create_a_store(monkeypatch):
     assert "spark_on_k8s_history_enabled 0" in client.get("/metrics").text
 
 
-def test_enabled_store_not_yet_initialized_is_unavailable(api, monkeypatch):
+def test_without_history_kubernetes_failure_is_not_ready_and_logged(monkeypatch, caplog):
+    monkeypatch.setattr(run_history, "get_history_settings", HistorySettings)
+    monkeypatch.setattr(run_history.KubernetesClientSingleton, "client", AsyncMock(return_value=object()))
+    k8s = Mock(list_namespaced_pod=AsyncMock(side_effect=ApiException(status=401, reason="expired token")))
+    monkeypatch.setattr(run_history, "CoreV1Api", Mock(return_value=k8s))
+    app = FastAPI()
+    app.include_router(run_history.router)
+    client = TestClient(app)
+    assert client.get("/ready").json() == {"status": "not_ready"}
+    namespace = k8s.list_namespaced_pod.call_args.kwargs["namespace"]
+    assert caplog.messages == [
+        f"API is not ready: Kubernetes pod listing failed in {namespace} (unauthorized)"
+    ]
+    assert "expired token" not in caplog.text
+
+
+def test_enabled_store_not_yet_initialized_is_unavailable(api, monkeypatch, caplog):
     client, _, _, _, _ = api
     monkeypatch.setattr(run_history, "_collector", None)
     assert client.get("/runs/v1").status_code == 503
     assert client.get("/ready").status_code == 503
+    assert caplog.messages == ["API is not ready: the run-history store is unavailable"]
 
 
 def test_real_api_history_lifecycle_creates_database_and_releases_lease(tmp_path, monkeypatch):

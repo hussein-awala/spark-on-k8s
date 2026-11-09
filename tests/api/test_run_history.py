@@ -13,6 +13,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from kubernetes_asyncio.client import ApiException
+from kubernetes_asyncio.config import ConfigException
 from spark_on_k8s.api import remote_auth, run_history
 from spark_on_k8s.api.remote_auth import RemoteAccessMiddleware
 from spark_on_k8s.api.submission_policy import SubmissionSettings
@@ -374,6 +375,34 @@ def test_without_history_kubernetes_failure_is_not_ready_and_logged(monkeypatch,
         f"API is not ready: Kubernetes pod listing failed in {namespace} (unauthorized)"
     ]
     assert "expired token" not in caplog.text
+
+
+@pytest.mark.parametrize(
+    "error, category",
+    [
+        (ConfigException("Invalid kube-config file /var/run/secrets/token=abc123"), "unexpected"),
+        (ConnectionRefusedError("connect to https://10.0.0.1:443 token=abc123 refused"), "connection"),
+    ],
+)
+def test_kubernetes_client_failure_is_not_ready_without_error_text_and_recovers(
+    api, monkeypatch, caplog, error, category
+):
+    client, _, _, _, k8s = api
+    caplog.set_level(logging.INFO, logger=run_history.__name__)
+    # Loading credentials fails before any namespace can be listed or classified.
+    provider = AsyncMock(side_effect=error)
+    monkeypatch.setattr(run_history.KubernetesClientSingleton, "client", provider)
+    for _ in range(2):
+        response = client.get("/ready")
+        assert response.status_code == 503 and response.json() == {"status": "not_ready"}
+    k8s.list_namespaced_pod.assert_not_called()
+    provider.side_effect, provider.return_value = None, object()
+    assert client.get("/ready").json() == {"status": "ready"}
+    assert caplog.messages == [
+        f"API is not ready: the readiness check failed ({category})",
+        "API readiness recovered",
+    ]
+    assert "abc123" not in caplog.text and "abc123" not in response.text
 
 
 def test_enabled_store_not_yet_initialized_is_unavailable(api, monkeypatch, caplog):

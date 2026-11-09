@@ -117,6 +117,26 @@ def test_prune_text_delete_separates_failures_from_requests(mock_spark_app_manag
 
 
 @mock.patch("spark_on_k8s.utils.app_manager.SparkAppManager")
+def test_prune_without_matches_explains_why_drivers_were_not_selected(mock_spark_app_manager):
+    from spark_on_k8s.cli.apps import prune
+
+    manager = mock_spark_app_manager.return_value
+    manager.find_prunable_drivers.return_value = {
+        "items": [],
+        "excluded": {"active": 0, "recent": 2, "deleting": 1, "unverified": 3},
+    }
+    result = CliRunner().invoke(prune, ["-n", TEST_NAMESPACE, "--older-than", "3600", "--delete"])
+    assert result.exit_code == 0, result.output
+    assert result.stdout.splitlines() == [
+        "Not selected: 2 newer than --older-than, 1 already being deleted, "
+        "3 not verifiably created by spark-on-k8s.",
+        "No drivers matched.",
+    ]
+    # Excluded pods, including foreign ones that only share the labels, are never deleted.
+    manager.delete_prunable_driver.assert_not_called()
+
+
+@mock.patch("spark_on_k8s.utils.app_manager.SparkAppManager")
 def test_prune_active_drivers_need_an_explicit_age(mock_spark_app_manager):
     from spark_on_k8s.cli.apps import prune
 

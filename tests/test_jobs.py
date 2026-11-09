@@ -465,3 +465,16 @@ def test_max_runtime_is_planned_forwarded_and_removable_by_a_profile():
     unbounded = JobSpec.from_mapping(document, profile="interactive")
     pod = next(item for item in unbounded.plan().resources if item["kind"] == "Pod")
     assert "activeDeadlineSeconds" not in pod["spec"]
+
+
+def test_invalid_max_runtime_profile_is_a_structured_validation_failure(tmp_path):
+    document = definition(max_runtime=3600)
+    document["profiles"] = {"typo": {"spec": {"max_runtime": 3_600_000_000}}}
+    file = tmp_path / "job.yaml"
+    file.write_text(yaml.safe_dump(document))
+    result = CliRunner().invoke(job_cli, ["validate", str(file), "--all-profiles", "--output", "json"])
+    assert result.exit_code == 1
+    report = json.loads(result.stdout)
+    assert [item["valid"] for item in report["profiles"]] == [True, False]
+    assert report["error"]["code"] == "invalid_job"
+    assert "spec.max_runtime" in report["error"]["message"]

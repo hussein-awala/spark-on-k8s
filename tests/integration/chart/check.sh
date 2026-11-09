@@ -23,7 +23,7 @@ for path in ("/webserver/ui/kube-system/kube-dns/", "/webserver/api/apps?namespa
         urllib.request.urlopen("http://127.0.0.1:8000" + path)
     except urllib.error.HTTPError as error:
         assert error.code == 403, (path, error.code)
-        assert json.load(error)["detail"]["code"] == "namespace_forbidden", path
+        assert json.load(error)["error"]["code"] == "namespace_forbidden", path
     else:
         raise AssertionError(path + " reached a namespace outside the API scope")
 with urllib.request.urlopen("http://127.0.0.1:8000/webserver/api/apps?namespace=analytics") as response:

@@ -449,3 +449,8 @@ bash examples/java/submit.sh
 
 See the [TODO list](https://github.com/hussein-awala/spark-on-k8s/blob/main/TODO.md)
 for future work. Contributions are welcome!
+
+The [governance policy](https://github.com/hussein-awala/spark-on-k8s/blob/main/GOVERNANCE.md)
+describes maintainer roles and how contributors grow into them. If you use
+spark-on-k8s, add your organization to
+[ADOPTERS.md](https://github.com/hussein-awala/spark-on-k8s/blob/main/ADOPTERS.md).

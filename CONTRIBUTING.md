@@ -53,3 +53,10 @@ Use [Discussions](https://github.com/hussein-awala/spark-on-k8s/discussions/new/
 for usage questions or uncommitted ideas. For vulnerabilities, use
 [the private reporting policy](SECURITY.md#reporting-a-vulnerability).
 Community review is best effort; no response-time or long-term support SLA is offered.
+
+## Roles, review owners and adopters
+
+[GOVERNANCE.md](GOVERNANCE.md) describes the contributor, reviewer, area maintainer
+and maintainer roles, how decisions and releases are made, and how to move between
+roles. [CODEOWNERS](.github/CODEOWNERS) lists the review owners for each area. If
+you use spark-on-k8s, consider adding your organization to [ADOPTERS.md](ADOPTERS.md).

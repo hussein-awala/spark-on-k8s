@@ -1,0 +1,105 @@
+# Review owners for spark-on-k8s areas. Roles and how to become an area
+# maintainer are described in GOVERNANCE.md.
+#
+# GitHub requests a review from the owners of every path a pull request changes.
+# Owner approval is only required when branch protection enables "Require review
+# from Code Owners"; without it, this file routes review requests.
+#
+# The last matching pattern wins, so each line must list every owner of its paths
+# and any one of them can approve. To add an area maintainer, append their GitHub
+# handle to that area's lines in the same pull request that updates the roster in
+# GOVERNANCE.md. Keep a maintainer on every line. Owners need write access.
+#
+# Today @hussein-awala is the only maintainer and owns every area.
+
+# Default for anything not matched below, including packaging and dependencies.
+*                                       @hussein-awala
+
+# Documentation site and contributor guides. A guide that belongs to a single area
+# below is listed with that area.
+/docs/                                  @hussein-awala
+/mkdocs.yml                             @hussein-awala
+/overrides/                             @hussein-awala
+/scripts/check_docs.py                  @hussein-awala
+/tests/docs/                            @hussein-awala
+/README.md                              @hussein-awala
+/CONTRIBUTING.md                        @hussein-awala
+/TODO.md                                @hussein-awala
+
+# Python SDK: submission, lifecycle, configuration, Kubernetes access, job files,
+# offline planning, SQL, Spark Connect, diagnostics and application examples.
+/spark_on_k8s/                          @hussein-awala
+/tests/                                 @hussein-awala
+/examples/                              @hussein-awala
+
+# CLI commands and versioned automation contracts.
+/spark_on_k8s/cli/                      @hussein-awala
+/tests/cli/                             @hussein-awala
+/docs/user-guide/automation.md          @hussein-awala
+
+# API: FastAPI routes, remote submission policy, proxies and console hosting.
+/spark_on_k8s/api/                      @hussein-awala
+/spark_on_k8s/remote.py                 @hussein-awala
+/tests/api/                             @hussein-awala
+/docs/user-guide/remote-submission.md   @hussein-awala
+/docs/security-boundaries.md            @hussein-awala
+
+# Optional run history recorder.
+/spark_on_k8s/history/                  @hussein-awala
+/spark_on_k8s/api/run_history.py        @hussein-awala
+/tests/history/                         @hussein-awala
+/tests/api/test_run_history.py          @hussein-awala
+/docs/user-guide/run-history.md         @hussein-awala
+
+# Airflow provider, operators, triggers and native task UI backend.
+/spark_on_k8s/airflow/                  @hussein-awala
+/tests/airflow/                         @hussein-awala
+/tests/integration/airflow/             @hussein-awala
+/examples/airflow/                      @hussein-awala
+/docs/user-guide/airflow.md             @hussein-awala
+
+# Shared React console and both generated asset trees.
+/frontend/                              @hussein-awala
+/spark_on_k8s/api/webserver/static/ui/  @hussein-awala
+/spark_on_k8s/airflow/ui/static/        @hussein-awala
+
+# Helm chart and container images.
+/chart/                                 @hussein-awala
+/docker/                                @hussein-awala
+/tests/chart/                           @hussein-awala
+/tests/integration/chart/               @hussein-awala
+/examples/helm/                         @hussein-awala
+/docs/user-guide/chart-deployments.md   @hussein-awala
+
+# Experimental dbt adapter (separate distribution).
+/integrations/dbt/                      @hussein-awala
+/tests/integration/dbt/                 @hussein-awala
+/docs/user-guide/dbt.md                 @hussein-awala
+
+# Maintainer-only from here: workflows, release tooling and project policy control
+# publication and access, so they stay with maintainers rather than area owners.
+
+# CI and publication workflows, and this file.
+/.github/                               @hussein-awala
+/scripts/install-kind.sh                @hussein-awala
+
+# Governance, security and repository guidance.
+/GOVERNANCE.md                          @hussein-awala
+/ADOPTERS.md                            @hussein-awala
+/SECURITY.md                            @hussein-awala
+/CODE_OF_CONDUCT.md                     @hussein-awala
+/AGENTS.md                              @hussein-awala
+/LICENSE                                @hussein-awala
+/.agents/                               @hussein-awala
+
+# Release tooling, notes and runbook.
+/scripts/release_artifacts.py           @hussein-awala
+/scripts/release_eligibility.py         @hussein-awala
+/scripts/release_notes.py               @hussein-awala
+/scripts/chart_release.py               @hussein-awala
+/scripts/dbt_release.py                 @hussein-awala
+/tests/release/                         @hussein-awala
+/release-notes/                         @hussein-awala
+/mkdocs-release-notes.yml               @hussein-awala
+/docs/releases.md                       @hussein-awala
+/.agents/skills/spark-release/          @hussein-awala

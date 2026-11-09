@@ -186,6 +186,11 @@ Use `--host 0.0.0.0` to listen on all network interfaces when deploying behind a
 appropriate service or proxy. Client URLs should use the server's reachable host
 or address, not the wildcard bind address `0.0.0.0`.
 
+When a gateway serves the API below a path such as `/platform/spark` and removes that
+prefix before forwarding, pass `--root-path /platform/spark` or set
+`SPARK_ON_K8S_API_ROOT_PATH=/platform/spark`. See the
+[mounted path guidance](../security-boundaries.md#mounted-spark-ui-paths).
+
 ## Deploy the API with Helm
 
 The chart deploys the API, its Service and RBAC resources. Ingress and the optional
@@ -300,6 +305,7 @@ exclusive, including when supplied through environment variables.
 | `SPARK_ON_K8S_API_WORKERS` | API worker count (integer) | `4` |
 | `SPARK_ON_K8S_API_LOG_LEVEL` | API server log level | `info` |
 | `SPARK_ON_K8S_API_LIMIT_CONCURRENCY` | Maximum concurrent API connections/tasks (integer) | `1000` |
+| `SPARK_ON_K8S_API_ROOT_PATH` | Public path prefix, such as `/platform/spark`, that a gateway removes before forwarding to the API; `--root-path` default | empty string |
 | `SPARK_ON_K8S_API_SPARK_HISTORY_HOST` | Spark History Server host and port, optionally with an HTTP(S) scheme | unset |
 | `SPARK_ON_K8S_API_WEBSERVER_APPS_KILL_BUTTON` | Show the kill button in the applications page | `true` |
 | `SPARK_ON_K8S_API_WEBSERVER_APPS_DELETE_BUTTON` | Show the delete button in the applications page | `true` |

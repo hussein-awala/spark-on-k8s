@@ -68,7 +68,7 @@
   <meta name="documentation-channel" content="develop">
   <meta name="documentation-version" content="develop">
   
-    <meta name="documentation-source" content="328141a53393d8cc11f31fa0fae6f2b187c0476f">
+    <meta name="documentation-source" content="b9ab6b1dbcaf40124d5626ea6d4a5fcccb34a571">
   
 
   </head>
@@ -108,7 +108,7 @@
     <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
   
   
-    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/328141a53393d8cc11f31fa0fae6f2b187c0476f"><code>328141a53393</code></a>.
+    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/b9ab6b1dbcaf40124d5626ea6d4a5fcccb34a571"><code>b9ab6b1dbcaf</code></a>.
   
 
           </div>
@@ -2549,6 +2549,8 @@
       
         
       
+        
+      
     
     
     
@@ -2730,6 +2732,34 @@
     
   
     main
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/spark_on_k8s/api/namespace_scope/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    namespace_scope
   
 
     
@@ -5021,13 +5051,14 @@ Entries override the chart defaults for in-cluster authentication, API host
 <p>Path: <code>env</code></p>
 <hr />
 <h1 id="namespaces">namespaces<a class="headerlink" href="#namespaces" title="Permanent link">&para;</a></h1>
-<div class="highlight"><pre><span></span><code>List of namespaces to be managed by the Spark-on-K8S service
-If equal to "*", all namespaces will be managed, then a cluster role binding will
-be created. Otherwise, you can provide a list of namespaces as a string separated
-by commas in the form "namespace1,namespace2,namespace3", in this case, a role
-binding will be created for each namespace
+<div class="highlight"><pre><span></span><code>Namespaces the Spark-on-K8S API serves and, with chart-managed RBAC, can access.
+Empty (the default) selects only the release namespace, with a Role and RoleBinding
+there. "*" selects every namespace, with a cluster role binding. A comma-separated
+string such as "namespace1,namespace2" selects those namespaces, with a Role and
+RoleBinding in each. The API refuses other namespaces, including in its Spark UI
+proxy and log streams.
 </code></pre></div>
-<p>Default: <code>"*"</code></p>
+<p>Default: <code>""</code></p>
 <p>Type: string</p>
 <p>Path: <code>namespaces</code></p>
 <hr />
@@ -5059,7 +5090,7 @@ and if false, it will be able to exec into pods and create/delete pods and servi
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 9, 2026 08:31:28 UTC">November 9, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 9, 2026 08:39:25 UTC">November 9, 2026</span>
   </span>
 
     

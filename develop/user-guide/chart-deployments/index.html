@@ -68,7 +68,7 @@
   <meta name="documentation-channel" content="develop">
   <meta name="documentation-version" content="develop">
   
-    <meta name="documentation-source" content="328141a53393d8cc11f31fa0fae6f2b187c0476f">
+    <meta name="documentation-source" content="b9ab6b1dbcaf40124d5626ea6d4a5fcccb34a571">
   
 
   </head>
@@ -108,7 +108,7 @@
     <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
   
   
-    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/328141a53393d8cc11f31fa0fae6f2b187c0476f"><code>328141a53393</code></a>.
+    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/b9ab6b1dbcaf40124d5626ea6d4a5fcccb34a571"><code>b9ab6b1dbcaf</code></a>.
   
 
           </div>
@@ -2668,6 +2668,8 @@
       
         
       
+        
+      
     
     
     
@@ -2849,6 +2851,34 @@
     
   
     main
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/api/namespace_scope/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    namespace_scope
   
 
     
@@ -5137,11 +5167,14 @@ The administrator must grant that account the needed access in the selected
 application namespaces. Review the rendered resources and adjust the example's
 namespaces, resource requests and limits for your deployment. The example does
 not establish availability, throughput or cloud-identity compatibility.</p>
-<p>The default <code>readOnly: true</code> remains unchanged. With chart-managed RBAC and an
-explicit namespace string, the chart creates namespace Roles and RoleBindings.
-<code>namespaces: "*"</code> intentionally selects a cluster-wide binding instead. Neither
-namespace selection nor hiding UI buttons provides user or tenant authorization;
-use the <a href="../remote-submission/">remote-submission security boundary</a>.</p>
+<p>The default <code>readOnly: true</code> remains unchanged. With chart-managed RBAC, the default
+empty <code>namespaces</code> creates a Role and RoleBinding in the release namespace, and an
+explicit namespace string creates them in each listed namespace.
+<code>namespaces: "*"</code> intentionally selects a cluster-wide binding instead. The chart
+passes the same scope to the API as <code>SPARK_ON_K8S_API_NAMESPACES</code>, so the API refuses
+other namespaces even where Service DNS would reach them. Neither the namespace scope
+nor hiding UI buttons provides user or tenant authorization; use the
+<a href="../remote-submission/">remote-submission security boundary</a>.</p>
 <h2 id="decide-who-owns-the-account-and-permissions">Decide who owns the account and permissions<a class="headerlink" href="#decide-who-owns-the-account-and-permissions" title="Permanent link">&para;</a></h2>
 <p><code>rbac.create</code> controls API roles and bindings independently of
 <code>serviceAccount.create</code>. Its default, <code>null</code>, follows <code>serviceAccount.create</code> to
@@ -5273,9 +5306,9 @@ one positive target.</p>
 <p>The <a href="../run-history/">metadata recorder</a> is separate from the Spark History
 Server. Enabling <code>runHistory</code> requires exactly one API replica, no API autoscaling,
 an existing writable persistent claim, and one to twenty explicit namespace
-entries. With chart-managed RBAC and an explicit <code>namespaces</code> list, every
-<code>runHistory.namespaces</code> entry must also appear in <code>namespaces</code>; otherwise the API
-cannot list its driver pods and never becomes ready, so rendering fails. The chart
+entries. Unless <code>namespaces</code> is <code>"*"</code>, every <code>runHistory.namespaces</code> entry must also
+be in the API scope: the release namespace by default, or the listed namespaces.
+Otherwise the API refuses to start, and with chart-managed RBAC rendering fails. The chart
 uses a <code>Recreate</code> rollout. It neither provisions the claim nor
 validates its filesystem locking behavior; use supported block/local storage,
 rehearse backups and allow for rollout downtime.</p>
@@ -5327,6 +5360,11 @@ bindings, and verify access under the service account. Switching the value in a
 normal Helm upgrade replaces the old resources; schedule that transition if a
 brief permissions interruption is unacceptable. Never reuse legacy names for two
 releases managing the same shared scope.</p>
+<p>The default <code>namespaces</code> value changed from <code>"*"</code> to empty, which selects only the
+release namespace. A release that relied on the old default loses its cluster-wide
+binding on upgrade, and the API then refuses other namespaces. Set <code>namespaces: "*"</code>
+or list the namespaces before upgrading. With <code>"*"</code>, the console opens the API's own
+namespace unless <code>SPARK_ON_K8S_API_DEFAULT_NAMESPACE</code> is set in <code>env</code>.</p>
 <p>History configuration updates now roll its Deployment automatically. History
 <code>affinity</code> and <code>tolerations</code> are passed to the Pod. The rare long-name suffix
 collision is disambiguated; existing installations using those colliding names
@@ -5351,7 +5389,7 @@ need a reviewed recreation because Deployment selectors are immutable.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 9, 2026 08:30:39 UTC">November 9, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 9, 2026 08:37:22 UTC">November 9, 2026</span>
   </span>
 
     

@@ -68,7 +68,7 @@
   <meta name="documentation-channel" content="develop">
   <meta name="documentation-version" content="develop">
   
-    <meta name="documentation-source" content="328141a53393d8cc11f31fa0fae6f2b187c0476f">
+    <meta name="documentation-source" content="b9ab6b1dbcaf40124d5626ea6d4a5fcccb34a571">
   
 
   </head>
@@ -108,7 +108,7 @@
     <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
   
   
-    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/328141a53393d8cc11f31fa0fae6f2b187c0476f"><code>328141a53393</code></a>.
+    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/b9ab6b1dbcaf40124d5626ea6d4a5fcccb34a571"><code>b9ab6b1dbcaf</code></a>.
   
 
           </div>
@@ -1454,6 +1454,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#namespace-scope" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Namespace scope
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#proxy-request-headers" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2624,6 +2635,8 @@
       
         
       
+        
+      
     
     
     
@@ -2805,6 +2818,34 @@
     
   
     main
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/spark_on_k8s/api/namespace_scope/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    namespace_scope
   
 
     
@@ -4949,6 +4990,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#namespace-scope" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Namespace scope
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#proxy-request-headers" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5008,6 +5060,16 @@
 
 <h1 id="browser-and-gateway-security-boundaries">Browser and gateway security boundaries<a class="headerlink" href="#browser-and-gateway-security-boundaries" title="Permanent link">&para;</a></h1>
 <p>The API is an operator tool. The optional remote submission mode uses a shared operator bearer; it does not provide tenant isolation or per-user authorization. A gateway is responsible for authenticating browser users and deciding which users may reach the console. Keep operator credentials out of browser storage, page bootstrap data and WebSocket URLs.</p>
+<h2 id="namespace-scope">Namespace scope<a class="headerlink" href="#namespace-scope" title="Permanent link">&para;</a></h2>
+<p>The Spark UI proxy connects to <code>&lt;service&gt;.&lt;namespace&gt;.svc</code> directly, so Kubernetes
+RBAC does not bound it. <code>SPARK_ON_K8S_API_NAMESPACES</code> does: the API serves its current
+namespace by default, <code>*</code> for every namespace, or a comma-separated list. Requests,
+proxy connections and log streams for other namespaces fail with <code>403</code> and the
+<code>namespace_forbidden</code> code before the API contacts Kubernetes or a Spark UI. At
+startup, the API also refuses a default namespace, run-history namespace or
+submission-policy namespace outside the scope. Within a namespace in scope, the proxy
+reaches any Service on port 4040; scope namespaces to the workloads the API should
+expose. The scope limits what the API can reach, not who can use it.</p>
 <h2 id="proxy-request-headers">Proxy request headers<a class="headerlink" href="#proxy-request-headers" title="Permanent link">&para;</a></h2>
 <p>Spark UI and History Server requests forward only the existing content-negotiation, cache-validation, range and content-type header allowlist, regardless of whether remote submission is enabled. Authorization, Cookie, Proxy-Authorization, custom identity headers and arbitrary tracing headers are not forwarded to those upstream services.</p>
 <p>This changes the previous behavior of deployments with remote submission disabled. Deployments that relied on implicit gateway credential forwarding must arrange upstream authentication explicitly outside this proxy; there is no arbitrary-header forwarding override. These controls do not isolate untrusted Spark or History HTML from the console's browser origin. Operate those upstream services within the same trust boundary.</p>
@@ -5061,7 +5123,7 @@ streaming behavior.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 9, 2026 08:30:39 UTC">November 9, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 9, 2026 08:37:22 UTC">November 9, 2026</span>
   </span>
 
     

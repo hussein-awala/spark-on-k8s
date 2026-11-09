@@ -32,7 +32,7 @@ The examples use namespace `spark` and service account `spark`.
 
 | Component/action | Credential and authorization boundary |
 | --- | --- |
-| Worker submits, waits or performs configured cleanup | The selected Airflow Kubernetes connection; grant the required pod/service and optional Secret/ConfigMap operations only in approved namespaces |
+| Worker submits, waits or performs configured cleanup | The selected Airflow Kubernetes connection; grant the required pod/service and optional Secret/ConfigMap operations only in approved namespaces. A [failure postmortem](#failure-postmortem) also lists pods and events and reads pod logs |
 | Triggerer observes a deferred application | The same connection ID resolved in the triggerer's own environment; it needs observation access, not permission to submit another job |
 | Spark driver creates executors | The submission's `service_account` in its application namespace, independently of the worker's identity |
 | Native tab reads details/logs | Airflow task/task-log access, verified task ownership, and the Spark API's own permissions |
@@ -117,6 +117,8 @@ edit invokes `on_kill`. A termination request also does not prove that applicati
 output was rolled back. The SDK/CLI retain applications after observation timeout
 or interruption; the Airflow startup-timeout deletion policy is intentionally
 different. See the [automation contract](automation.md).
+Before this cleanup, the task logs a bounded [failure postmortem](#failure-postmortem)
+for an unsuccessful application.
 
 When task-local XCom still contains the recorded namespace and driver name, a
 retry adopts a Pending or Running application. Confirmed absence (Kubernetes
@@ -191,6 +193,83 @@ contexts. Inspect all six cases in `result.json`, the Airflow log, cluster
 pods/events/logs and kind logs. A passing unit suite or an unexecuted workflow is
 not real-cluster evidence. See the [development guide](../development.md) for
 installed-wheel checks and the complete validation policy.
+
+## Failure postmortem
+
+When a waiting task's Spark application does not succeed, `SparkOnK8SOperator`
+and `SparkSqlOnK8SOperator` write a bounded postmortem to the Airflow task log
+before any cleanup can delete the driver, its logs and its Kubernetes evidence.
+This applies to synchronous and deferred waiting on Airflow 2.11 and 3. A deferred
+task writes it in the worker when the task resumes, not in the triggerer.
+
+| Event | Postmortem |
+| --- | --- |
+| Spark `Failed` or `Unknown` | Before finish cleanup, also when `on_finish_action` retains the application |
+| Driver startup deadline expires | Before the startup-timeout deletion |
+| Deferred trigger reports an observation error | Before finish cleanup |
+| `on_kill` with `on_kill_action="delete"` | Before the deletion; task log only, no XCom |
+| Spark succeeds, `app_waiter="no_wait"`, a synchronous non-timeout observation error, or `on_kill` with `"keep"` or `"kill"` | None |
+
+The postmortem has two parts:
+
+- A [diagnosis](diagnostics.md) of the driver and its owned executors, from the
+  same collector as `spark-on-k8s app diagnose`: each finding's severity, code,
+  pod, container, summary, redacted evidence and next step, at most 20 findings.
+  No findings means that no specific cause was observed, not that none exists.
+  Set `failure_diagnostics=False` to skip it.
+- The driver container's last `failure_log_tail_lines` lines: 100 by default, at
+  most 1000, and `0` skips them. They are skipped when the attempt already streamed
+  the driver log with `app_waiter="log"` (a trigger observation error replays no
+  log, so it still gets the tail) and when the driver container never started, for
+  example while unschedulable. Kubernetes sends at most 1 MiB, lines longer than
+  2,000 characters are cut, and at most 64 KiB of the most recent lines are logged;
+  the tail's header says when lines were left out.
+
+All reads share one five-second budget, of which the diagnosis may use three, so
+the postmortem delays cleanup by about five seconds at most. It is best effort: if
+the driver cannot be read or the budget runs out, the task log names the failed
+part with an exception type and HTTP status, never a Kubernetes response body. The
+task then keeps its original outcome and error, and cleanup proceeds as configured.
+
+The worker's Kubernetes connection reads the driver, lists pods and events, and
+reads the driver log in the application namespace. Without event or log access,
+the diagnosis is marked incomplete or the tail is reported unavailable. Like the
+streamed driver log, the tail contains what the application printed. URL
+credentials and `password`, `token`, `secret`, `credential` or access-key values
+written as `key=value` or `key: value` are replaced with `<redacted>`, and Airflow's
+secret masker applies as to any task log line. Use `failure_log_tail_lines=0` when
+driver logs must not reach the task log. `failure_diagnostics=False` together with
+`failure_log_tail_lines=0` disables the postmortem and its Kubernetes reads.
+
+When a diagnosis is collected outside `on_kill`, the task also pushes a compact
+summary to the `spark_failure_diagnosis` XCom key
+(`SparkOnK8SOperator.XCOM_FAILURE_DIAGNOSIS`). Evidence and next steps stay in the
+task log:
+
+```json
+{
+  "version": 1,
+  "status": "Failed",
+  "namespace": "analytics",
+  "app_id": "daily-transform-20260101",
+  "driver_pod": "daily-transform-20260101-driver",
+  "incomplete": false,
+  "findings": [
+    {
+      "code": "oom_killed",
+      "severity": "error",
+      "resource": "daily-transform-20260101-driver",
+      "container": "driver"
+    }
+  ],
+  "omitted_findings": 0
+}
+```
+
+`status` is the Spark status, `startup_timeout` or `error` (trigger observation
+error). A failure callback can read it with
+`ti.xcom_pull(task_ids=ti.task_id, map_indexes=ti.map_index, key="spark_failure_diagnosis")`.
+Airflow removes it when the next attempt starts.
 
 ## Native task tab in Airflow 3
 

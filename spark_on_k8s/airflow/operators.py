@@ -11,6 +11,7 @@ from kubernetes.client import ApiException
 
 from spark_on_k8s.airflow._compat import BaseOperator, get_current_context
 from spark_on_k8s.airflow.operator_links import SparkOnK8SOperatorLink
+from spark_on_k8s.airflow.postmortem import MAX_LOG_TAIL_LINES, describe_error, log_failure_postmortem
 from spark_on_k8s.airflow.triggers import SparkOnK8STrigger
 from spark_on_k8s.k8s.sync_client import KubernetesClientManager
 from spark_on_k8s.sql import SQL_MOUNT_PATH, prepare_sql_configmap, reserves_sql_mount
@@ -108,6 +109,12 @@ class SparkOnK8SOperator(BaseOperator):
             Defaults to "keep".
         on_kill_action (OnKillAction, optional): Action to take when the operator is killed.
             Defaults to "delete".
+        failure_diagnostics (bool, optional): When the application does not succeed, or before
+            on_kill deletes it, log a bounded diagnosis of the driver and executor pods and their
+            events before any cleanup, and push a compact summary to the
+            "spark_failure_diagnosis" XCom key (not from on_kill). Defaults to True.
+        failure_log_tail_lines (int, optional): Also log the driver's last lines (0 to 1000) in that
+            case, unless this attempt already streamed the driver log. 0 disables. Defaults to 100.
         startup_timeout (int, optional): Timeout for the Spark application to start.
             Defaults to 0 (no timeout).
     """
@@ -115,9 +122,11 @@ class SparkOnK8SOperator(BaseOperator):
     _XCOM_DRIVER_POD_NAMESPACE = "driver_pod_namespace"
     _XCOM_DRIVER_POD_NAME = "driver_pod_name"
     XCOM_SPARK_UI_LINK = "spark_ui_link"
+    XCOM_FAILURE_DIAGNOSIS = "spark_failure_diagnosis"
 
     _driver_pod_name: str | None = None
     _spark_app_id: str | None = None
+    _driver_log_streamed: bool = False
 
     operator_extra_links = (SparkOnK8SOperatorLink(),)
 
@@ -194,10 +203,18 @@ class SparkOnK8SOperator(BaseOperator):
         # TODO: Change to OnFinishAction.KEEP_IF_FAILED in the stable version
         on_finish_action: OnFinishAction = OnFinishAction.KEEP,
         on_kill_action: OnKillAction = OnKillAction.DELETE,
+        failure_diagnostics: bool = True,
+        failure_log_tail_lines: int = 100,
         startup_timeout: int = 0,
         **kwargs,
     ):
         super().__init__(**kwargs)
+        if (
+            isinstance(failure_log_tail_lines, bool)
+            or not isinstance(failure_log_tail_lines, int)
+            or not 0 <= failure_log_tail_lines <= MAX_LOG_TAIL_LINES
+        ):
+            raise ValueError(f"failure_log_tail_lines must be an integer from 0 to {MAX_LOG_TAIL_LINES}")
         self.image = image
         self.app_path = app_path
         self.namespace = namespace
@@ -239,6 +256,8 @@ class SparkOnK8SOperator(BaseOperator):
         self.deferrable = deferrable
         self.on_finish_action = on_finish_action
         self.on_kill_action = on_kill_action
+        self.failure_diagnostics = failure_diagnostics
+        self.failure_log_tail_lines = failure_log_tail_lines
         self.startup_timeout = startup_timeout
 
     def _render_nested_template_fields(
@@ -513,6 +532,38 @@ class SparkOnK8SOperator(BaseOperator):
                 f"Something went wrong: on_finish_action={self.on_finish_action}, app_status={app_status}"
             )
 
+    def _log_failure_postmortem(
+        self, spark_app_manager: SparkAppManager, status: str, context: Context | None = None
+    ) -> None:
+        """Log bounded failure evidence before cleanup can delete the driver and its logs.
+
+        Best effort: it never raises, so it cannot change the task outcome or replace its error,
+        and its reads share a short time budget. Never call it for a successful application.
+        """
+        # A streamed driver log is already in this task log; do not repeat its end.
+        tail_lines = 0 if self._driver_log_streamed else self.failure_log_tail_lines
+        if not self._driver_pod_name or not (self.failure_diagnostics or tail_lines):
+            return
+        try:
+            summary = log_failure_postmortem(
+                self.log,
+                spark_app_manager.k8s_client_manager,
+                namespace=self.namespace,
+                pod_name=self._driver_pod_name,
+                status=status,
+                diagnose=self.failure_diagnostics,
+                log_tail_lines=tail_lines,
+            )
+            if summary is not None and context and context.get("ti"):
+                context["ti"].xcom_push(key=self.XCOM_FAILURE_DIAGNOSIS, value=summary)
+        except Exception as error:
+            self.log.warning(
+                "Could not complete the Spark failure postmortem for %s/%s (%s); continuing.",
+                self.namespace,
+                self._driver_pod_name,
+                describe_error(error),
+            )
+
     def execute(self, context: Context):
         from spark_on_k8s.utils.app_manager import SparkAppManager
 
@@ -549,6 +600,7 @@ class SparkOnK8SOperator(BaseOperator):
                     startup_timeout=self.startup_timeout,
                 )
             elif self.app_waiter == AppWaiter.LOG:
+                self._driver_log_streamed = True
                 spark_app_manager.stream_logs(
                     namespace=self.namespace,
                     pod_name=self._driver_pod_name,
@@ -561,6 +613,7 @@ class SparkOnK8SOperator(BaseOperator):
                     poll_interval=1,
                 )
         except TimeoutError:
+            self._log_failure_postmortem(spark_app_manager, "startup_timeout", context)
             self.log.info("Deleting Spark application due to startup timeout...")
             spark_app_manager.delete_app(
                 namespace=self.namespace,
@@ -572,6 +625,8 @@ class SparkOnK8SOperator(BaseOperator):
             pod_name=self._driver_pod_name,
         )
         self._persist_spark_history_ui_link(context)
+        if app_status != SparkAppStatus.Succeeded:
+            self._log_failure_postmortem(spark_app_manager, app_status, context)
         self._clean_up(spark_app_manager, app_status)
         if app_status == SparkAppStatus.Succeeded:
             return app_status
@@ -588,6 +643,7 @@ class SparkOnK8SOperator(BaseOperator):
             k8s_client_manager=k8s_client_manager,
         )
         if event["status"] == "startup_timeout":
+            self._log_failure_postmortem(spark_app_manager, "startup_timeout", context)
             self.log.info("Deleting Spark application due to startup timeout...")
             failure = AirflowException("Spark application startup timeout exceeded")
             try:
@@ -600,6 +656,7 @@ class SparkOnK8SOperator(BaseOperator):
                 raise failure from cleanup_error
             raise failure
         if self.app_waiter == AppWaiter.LOG and event["status"] != "error":
+            self._driver_log_streamed = True
             spark_app_manager.stream_logs(
                 namespace=event["namespace"],
                 pod_name=event["pod_name"],
@@ -614,6 +671,7 @@ class SparkOnK8SOperator(BaseOperator):
             )
         else:
             failure = AirflowException(f"The job finished with status: {event['status']}")
+        self._log_failure_postmortem(spark_app_manager, event["status"], context)
         try:
             self._clean_up(spark_app_manager, event["status"])
         except Exception as cleanup_error:
@@ -635,6 +693,7 @@ class SparkOnK8SOperator(BaseOperator):
                 k8s_client_manager=k8s_client_manager,
             )
             if self.on_kill_action == OnKillAction.DELETE:
+                self._log_failure_postmortem(spark_app_manager, "killed")
                 self.log.info("Deleting Spark application...")
                 spark_app_manager.delete_app(
                     namespace=self.namespace,

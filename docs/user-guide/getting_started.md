@@ -140,9 +140,13 @@ spark-on-k8s apps --help
 
 ## REST API
 
-Install the `api` extra before starting the REST API and web UI. For local access:
+Install the `api` extra before starting the REST API and web UI. The API serves
+only its current namespace unless `SPARK_ON_K8S_API_NAMESPACES` names others; outside
+a cluster, that is the namespace of the kubeconfig context. For local access to the
+`spark` namespace:
 
 ```bash
+export SPARK_ON_K8S_API_NAMESPACES=spark
 spark-on-k8s api start \
     --host "127.0.0.1" \
     --port 8080 \
@@ -222,14 +226,16 @@ helm install spark-on-k8s-release ./chart --values examples/helm/values.yaml \
 
 Choose one chart source for a release. The commands above use example values from
 this checkout; adapt them to your cluster and selected chart version.
-The source chart defaults to `readOnly: true`, `namespaces: "*"`, a ClusterIP Service
-on port `8000`, and disabled ingress. Set `namespaces` to a comma-separated string
-such as `"spark"` or `"spark,analytics"` to scope the chart-created Kubernetes
-permissions to those namespaces.
+The source chart defaults to `readOnly: true`, `namespaces: ""` (the release
+namespace), a ClusterIP Service on port `8000`, and disabled ingress. Set `namespaces`
+to a comma-separated string such as `"spark"` or `"spark,analytics"` to serve those
+namespaces, or to `"*"` to serve every namespace through a cluster-wide binding. The
+chart-created Kubernetes permissions follow the same value, and the API refuses
+requests, Spark UI proxy connections and log streams for other namespaces.
 Enable `readOnly: false` only if the API should be able to kill or
 delete applications. The separate web UI button settings control visibility,
-not Kubernetes authorization. The API has no built-in user authentication, and
-`namespaces` does not restrict the HTTP reverse proxy. Expose the API through
+not Kubernetes authorization. The API has no built-in user authentication; its
+namespace scope limits what it can reach, not who can use it. Expose the API through
 access-controlled networking or an authenticating proxy.
 
 The source chart supplies in-cluster Kubernetes configuration and the API bind
@@ -299,7 +305,8 @@ exclusive, including when supplied through environment variables.
 | `SPARK_ON_K8S_SPARK_EXECUTOR_ANNOTATIONS` | CLI executor annotations as a JSON object | `{}` |
 | `SPARK_ON_K8S_EXECUTOR_POD_TEMPLATE_PATH` | Executor template path already available to the driver | unset |
 | `SPARK_ON_K8S_EXECUTOR_TEMPLATE` | Executor template YAML or local file path; creates and mounts a ConfigMap | unset |
-| `SPARK_ON_K8S_API_DEFAULT_NAMESPACE` | Default namespace displayed by the API/web UI | `default` |
+| `SPARK_ON_K8S_API_NAMESPACES` | Namespaces the API serves: empty for its current namespace (the pod's, or the kubeconfig context's), `*` for every namespace, or a comma-separated list | empty |
+| `SPARK_ON_K8S_API_DEFAULT_NAMESPACE` | Namespace the API/web UI uses when a request names none; must be in the scope | the first namespace in scope; with `*`, the current namespace |
 | `SPARK_ON_K8S_API_HOST` | API bind address | `127.0.0.1` |
 | `SPARK_ON_K8S_API_PORT` | API listen port (integer) | `8000` |
 | `SPARK_ON_K8S_API_WORKERS` | API worker count (integer) | `4` |

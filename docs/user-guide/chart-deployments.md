@@ -53,11 +53,14 @@ application namespaces. Review the rendered resources and adjust the example's
 namespaces, resource requests and limits for your deployment. The example does
 not establish availability, throughput or cloud-identity compatibility.
 
-The default `readOnly: true` remains unchanged. With chart-managed RBAC and an
-explicit namespace string, the chart creates namespace Roles and RoleBindings.
-`namespaces: "*"` intentionally selects a cluster-wide binding instead. Neither
-namespace selection nor hiding UI buttons provides user or tenant authorization;
-use the [remote-submission security boundary](remote-submission.md).
+The default `readOnly: true` remains unchanged. With chart-managed RBAC, the default
+empty `namespaces` creates a Role and RoleBinding in the release namespace, and an
+explicit namespace string creates them in each listed namespace.
+`namespaces: "*"` intentionally selects a cluster-wide binding instead. The chart
+passes the same scope to the API as `SPARK_ON_K8S_API_NAMESPACES`, so the API refuses
+other namespaces even where Service DNS would reach them. Neither the namespace scope
+nor hiding UI buttons provides user or tenant authorization; use the
+[remote-submission security boundary](remote-submission.md).
 
 ## Decide who owns the account and permissions
 
@@ -127,9 +130,9 @@ one positive target.
 The [metadata recorder](run-history.md) is separate from the Spark History
 Server. Enabling `runHistory` requires exactly one API replica, no API autoscaling,
 an existing writable persistent claim, and one to twenty explicit namespace
-entries. With chart-managed RBAC and an explicit `namespaces` list, every
-`runHistory.namespaces` entry must also appear in `namespaces`; otherwise the API
-cannot list its driver pods and never becomes ready, so rendering fails. The chart
+entries. Unless `namespaces` is `"*"`, every `runHistory.namespaces` entry must also
+be in the API scope: the release namespace by default, or the listed namespaces.
+Otherwise the API refuses to start, and with chart-managed RBAC rendering fails. The chart
 uses a `Recreate` rollout. It neither provisions the claim nor
 validates its filesystem locking behavior; use supported block/local storage,
 rehearse backups and allow for rollout downtime.
@@ -188,6 +191,12 @@ bindings, and verify access under the service account. Switching the value in a
 normal Helm upgrade replaces the old resources; schedule that transition if a
 brief permissions interruption is unacceptable. Never reuse legacy names for two
 releases managing the same shared scope.
+
+The default `namespaces` value changed from `"*"` to empty, which selects only the
+release namespace. A release that relied on the old default loses its cluster-wide
+binding on upgrade, and the API then refuses other namespaces. Set `namespaces: "*"`
+or list the namespaces before upgrading. With `"*"`, the console opens the API's own
+namespace unless `SPARK_ON_K8S_API_DEFAULT_NAMESPACE` is set in `env`.
 
 History configuration updates now roll its Deployment automatically. History
 `affinity` and `tolerations` are passed to the Pod. The rare long-name suffix

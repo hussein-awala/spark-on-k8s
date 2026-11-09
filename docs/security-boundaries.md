@@ -2,6 +2,18 @@
 
 The API is an operator tool. The optional remote submission mode uses a shared operator bearer; it does not provide tenant isolation or per-user authorization. A gateway is responsible for authenticating browser users and deciding which users may reach the console. Keep operator credentials out of browser storage, page bootstrap data and WebSocket URLs.
 
+## Namespace scope
+
+The Spark UI proxy connects to `<service>.<namespace>.svc` directly, so Kubernetes
+RBAC does not bound it. `SPARK_ON_K8S_API_NAMESPACES` does: the API serves its current
+namespace by default, `*` for every namespace, or a comma-separated list. Requests,
+proxy connections and log streams for other namespaces fail with `403` and the
+`namespace_forbidden` code before the API contacts Kubernetes or a Spark UI. At
+startup, the API also refuses a default namespace, run-history namespace or
+submission-policy namespace outside the scope. Within a namespace in scope, the proxy
+reaches any Service on port 4040; scope namespaces to the workloads the API should
+expose. The scope limits what the API can reach, not who can use it.
+
 ## Proxy request headers
 
 Spark UI and History Server requests forward only the existing content-negotiation, cache-validation, range and content-type header allowlist, regardless of whether remote submission is enabled. Authorization, Cookie, Proxy-Authorization, custom identity headers and arbitrary tracing headers are not forwarded to those upstream services.

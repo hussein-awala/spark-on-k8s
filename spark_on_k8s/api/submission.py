@@ -9,6 +9,7 @@ from kubernetes.client.exceptions import ApiException
 from starlette.concurrency import run_in_threadpool
 from starlette.responses import JSONResponse
 
+from spark_on_k8s.api.namespace_scope import namespace_scope
 from spark_on_k8s.api.submission_policy import (
     MAX_DOCUMENT_BYTES,
     AdmissionError,
@@ -81,6 +82,9 @@ def _validate_plan(plan, options):
 def _execute(document, preview):
     settings = get_submission_settings()
     options = settings.policy.admit(document)
+    # Startup rejects policies outside the scope; keep the boundary local to each operation too.
+    if not namespace_scope().allows(options["namespace"]):
+        raise AdmissionError("The namespace is outside this API's namespace scope.")
     # Random run identities prevent same-name requests within one second from colliding.
     suffix = "-" + uuid4().hex
     options["app_id_suffix"] = lambda: suffix

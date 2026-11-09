@@ -126,7 +126,9 @@ The API must be able to read files mounted from volumes, such as a
 remote-submission token or policy, or a kubeconfig selected with
 `SPARK_ON_K8S_CONFIG_FILE`. Its home directory is `/home/spark-on-k8s`; `/root`
 is not readable. Keep `service.port` at 1024 or above, because some container
-runtimes do not let a non-root process bind lower ports.
+runtimes do not let a non-root process bind lower ports. Mount a remote-submission
+Secret as a directory rather than with `subPath`, so a
+[token rotation](remote-submission.md#rotate-the-token) reaches running pods.
 
 A run-history claim written by an earlier root API process holds root-owned
 files. On volume types that support `fsGroup`, such as most block-storage CSI

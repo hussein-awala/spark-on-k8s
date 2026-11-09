@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import hmac
-
 from starlette.responses import JSONResponse
 
 from spark_on_k8s.api.submission_policy import get_submission_settings
@@ -28,7 +26,7 @@ class RemoteAccessMiddleware:
         if settings.enabled and not health:
             values = [value for key, value in scope["headers"] if key.lower() == b"authorization"]
             scheme, _, credential = values[0].partition(b" ") if len(values) == 1 else (b"", b"", b"")
-            if scheme.lower() != b"bearer" or not hmac.compare_digest(credential, settings.token):
+            if scheme.lower() != b"bearer" or not settings.accepts(credential):
                 if scope["type"] == "websocket":
                     await send({"type": "websocket.close", "code": 1008})
                 else:

@@ -50,3 +50,41 @@ except urllib.error.HTTPError as error:
 else:
     raise AssertionError("Root endpoint must require authentication")
 '
+# Rotate the token through Secret volume updates; the same API process must apply each change.
+rotate_token() {
+  kubectl create secret generic remote-test --namespace control-b --from-literal=token="$1" \
+    --from-file=policy.json=tests/integration/chart/policy.json --dry-run=client --output yaml |
+    kubectl apply --filename -
+}
+# Waits until the old and new fixture tokens get the expected statuses, then prints the pod
+# name and the start time of its API process, so callers can detect a restart or replacement.
+expect_statuses() {
+  kubectl exec --namespace control-b deployment/console-spark-on-k8s -- python -c '
+import socket, sys, time, urllib.error, urllib.request
+tokens = ("chart-ci-public-test-token-at-least-32-characters", "chart-ci-public-next-token-at-least-32-characters")
+expected = [int(code) for code in sys.argv[1:]]
+def status(token):
+    request = urllib.request.Request(
+        "http://127.0.0.1:8000/openapi.json", headers={"Authorization": "Bearer " + token}
+    )
+    try:
+        with urllib.request.urlopen(request) as response:
+            return response.status
+    except urllib.error.HTTPError as error:
+        return error.code
+# The kubelet projects Secret updates after its sync period; the API then reloads them.
+deadline = time.monotonic() + 240
+while (observed := [status(token) for token in tokens]) != expected:
+    assert time.monotonic() < deadline, f"statuses {observed}, expected {expected}"
+    time.sleep(5)
+with open("/proc/1/stat") as stat:
+    print(socket.gethostname(), stat.read().rsplit(")", 1)[1].split()[19])
+' "$@"
+}
+api_process="$(expect_statuses 200 401)"
+rotate_token $'chart-ci-public-test-token-at-least-32-characters\nchart-ci-public-next-token-at-least-32-characters'
+overlap_process="$(expect_statuses 200 200)"
+rotate_token chart-ci-public-next-token-at-least-32-characters
+rotated_process="$(expect_statuses 401 200)"
+test "$overlap_process" = "$api_process"
+test "$rotated_process" = "$api_process"

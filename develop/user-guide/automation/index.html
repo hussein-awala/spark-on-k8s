@@ -68,7 +68,7 @@
   <meta name="documentation-channel" content="develop">
   <meta name="documentation-version" content="develop">
   
-    <meta name="documentation-source" content="c0fe2bba87195589c4dccfa79787daf9d9d9cd43">
+    <meta name="documentation-source" content="e87e75058164990116d504a8d952e74c47c4292f">
   
 
   </head>
@@ -108,7 +108,7 @@
     <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
   
   
-    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/c0fe2bba87195589c4dccfa79787daf9d9d9cd43"><code>c0fe2bba8719</code></a>.
+    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/e87e75058164990116d504a8d952e74c47c4292f"><code>e87e75058164</code></a>.
   
 
           </div>
@@ -5121,7 +5121,11 @@ a confirmed driver UID immediately after receiving its creation response. Result
 include <code>submission_phase</code> (<code>preparing</code>, <code>creating_resources</code>, <code>driver_created</code>,
 <code>resources_created</code>) so a later owner-reference or Service failure can still return
 the known driver identity. If creation itself has an ambiguous transport result,
-no confirmed receipt is invented. Inspect the cluster before retrying.</p>
+no confirmed receipt is invented. Inspect the cluster before retrying. When the API
+server definitively rejects the driver Pod or a ConfigMap (a 4xx response other
+than 408), the client deletes only the Secret and ConfigMaps it created earlier in
+that submission, using their creation UIDs as preconditions. Server errors, timeouts
+and interruptions keep them because the driver may exist.</p>
 <p><code>--timeout</code> takes positive, finite seconds and requires a wait or log waiter on
 submission. It limits observation after submission, including a running job and
 a quiet log stream. It does not bound initial resource creation or an external
@@ -5367,7 +5371,7 @@ is not supported. Persist the returned immutable run handle per operation.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 8, 2026 23:15:41 UTC">November 8, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 9, 2026 07:39:13 UTC">November 9, 2026</span>
   </span>
 
     

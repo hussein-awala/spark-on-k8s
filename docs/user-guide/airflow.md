@@ -195,7 +195,8 @@ installed-wheel checks and the complete validation policy.
 ## Native task tab in Airflow 3
 
 The optional **Spark on Kubernetes** tab is available for `SparkOnK8SOperator` and
-`SparkSqlOnK8SOperator` task instances on Airflow 3.4 or newer, below Airflow 4.
+`SparkSqlOnK8SOperator` task instances, and for
+[listed subclasses](#operator-subclasses), on Airflow 3.4 or newer, below Airflow 4.
 It reuses the standalone console's React components for application details,
 logs, actions and history links. Airflow 2.11.2 continues to support the operators
 and **Spark Job UI** link, but does not load this tab.
@@ -229,6 +230,11 @@ export SPARK_ON_K8S_AIRFLOW_ALLOW_WRITES='false'
 | `SPARK_ON_K8S_AIRFLOW_SERVICE_URL` | Administrator-configured Spark API base URL reachable from the Airflow API server. Required to register the tab. | unset; tab disabled |
 | `SPARK_ON_K8S_AIRFLOW_PUBLIC_URL` | Browser-reachable base URL for external Spark UI and history links. | service URL |
 | `SPARK_ON_K8S_AIRFLOW_ALLOW_WRITES` | Set to `true` to permit kill/delete requests after task ownership and Airflow permissions are checked. | `false` |
+| `SPARK_ON_K8S_AIRFLOW_OPERATOR_SUBCLASSES` | Comma-separated class names of operator subclasses that also show the tab, for example `TeamSparkOperator,TeamSqlOperator`. | unset |
+| `SPARK_ON_K8S_AIRFLOW_SNAPSHOT_TTL` | Seconds, from 0 to 60, for which viewers of one task attempt share an application snapshot. `0` disables sharing. | `5` |
+
+An invalid URL, subclass list or snapshot TTL disables the tab and logs a warning
+in the Airflow API server.
 
 Both URLs may include a deployment path prefix and must be HTTP(S) URLs without
 embedded credentials, query parameters or fragments. The service URL is chosen
@@ -275,3 +281,52 @@ The native task log proxy accepts individual text messages up to 16 MiB, includi
 long driver log lines. A larger message interrupts the stream rather than being
 silently truncated. The proxy uses a small receive queue to keep buffering bounded;
 the console's separate line-count limit still applies.
+
+### Operator subclasses
+
+Airflow decides where to show a plugin tab by matching the task instance's exact
+operator class name; it does not see base classes. To show the tab for a platform
+wrapper, list the wrapper's class name and restart the Airflow API server:
+
+```python
+from spark_on_k8s.airflow.operators import SparkOnK8SOperator
+
+
+class TeamSparkOperator(SparkOnK8SOperator):
+    """Applies the platform team's defaults."""
+```
+
+```bash
+export SPARK_ON_K8S_AIRFLOW_OPERATOR_SUBCLASSES='TeamSparkOperator'
+```
+
+The list only decides where the tab appears. Airflow's serialized task definition
+records the operator's class name but not its base classes, so for any other
+operator the tab's backend looks in that definition for the provider's
+**Spark Job UI** operator link (`SparkOnK8SOperatorLink`) before it reads the
+task's XCom record. Both provider operators declare this link, and subclasses,
+including mapped tasks, inherit it. A subclass that replaces
+`operator_extra_links` must keep `SparkOnK8SOperatorLink()` among its links.
+Otherwise, or for a listed operator that does not inherit from a provider
+operator, the tab reports that the task has no Spark application binding and
+does not read a record that the task pushed to XCom.
+
+### Refresh and shared snapshots
+
+By default, the tab refreshes every 10 seconds while the application is pending,
+running or in an unknown state. Once the application has succeeded or failed,
+live refresh ends and the tab says so; **Refresh** still loads the current state
+on demand. A driver log stream ends when the driver terminates and shows
+**Stream ended**; **Reconnect** requests the available logs again.
+
+Viewers of the same task attempt share the application snapshot that the Spark API
+reads from Kubernetes for `SPARK_ON_K8S_AIRFLOW_SNAPSHOT_TTL` seconds, and
+concurrent requests share one lookup. Each request is still authorized by Airflow
+and resolves its own task binding before it can receive a shared snapshot, and
+different task attempts never share one. Kill and delete verify the driver's
+current application directly, then discard the shared snapshot. A failed lookup
+is not reused after it completes. Each Airflow API server process keeps its own
+bounded in-memory snapshots, so a deployment with several API server workers or
+replicas can still perform one lookup per process for each interval. History
+records, the History Server capability check and diagnostics are requested for
+each viewer.

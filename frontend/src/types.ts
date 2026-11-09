@@ -15,6 +15,12 @@ export interface ConsoleConfig {
   /** Namespaces the server allows; null or absent when any namespace may be entered. */
   namespaces?: string[] | null;
   contextLabel?: string;
+  /**
+   * Stop automatic refresh once every loaded live application has succeeded or
+   * failed. For views of one task's application; a namespace view can gain new
+   * applications at any time and keeps refreshing.
+   */
+  stopRefreshWhenFinished?: boolean;
 }
 
 export interface ConsoleApplication {

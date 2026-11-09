@@ -157,7 +157,7 @@ translations are:
 | Spark Operator field | SparkJob setting |
 | --- | --- |
 | `metadata.name`, `metadata.namespace` | `metadata.name`, `spec.namespace` |
-| `metadata.labels` | `driver_labels` and `executor_labels` |
+| `metadata.labels` | `driver_labels` and `executor_labels`, except `kueue.x-k8s.io/` labels, which the operator does not copy to pods (unsupported) |
 | `image`, `driver.image`, `executor.image` | `image`; a different executor image becomes `spark.kubernetes.executor.container.image` |
 | `imagePullPolicy`, `imagePullSecrets` | `image_pull_policy`; pull secrets in the driver template and `spark.kubernetes.container.image.pullSecrets` |
 | `mainApplicationFile`, `mainClass`, `arguments` | `app_path`, `class_name`, `app_arguments` |
@@ -178,6 +178,8 @@ Notable approximations and unsupported fields:
   values become `spark.kubernetes.executor.request.cores` and `limit.cores`.
 - A driver sidecar that keeps running keeps the driver pod, and any waiting,
   running. Prefer a native sidecar; see [driver pod templates](driver_pod_templates.md).
+- `gpu` and `hostNetwork` are unsupported: add GPU limits or host networking to
+  the pod templates yourself, then verify the running driver and executor pods.
 - Dependencies given as local paths are unsupported: the driver resolves them in
   its own pod. Bake them into the image and use `local://`, or use a remote URI.
 - `sparkConf` keys that shape a cluster-mode driver pod

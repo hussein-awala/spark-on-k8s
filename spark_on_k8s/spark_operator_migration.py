@@ -270,23 +270,18 @@ def _conf_string(value: Any) -> str:
 
 def _mebibytes(value: Any) -> tuple[int, bool] | None:
     """Spark memory strings default to MiB; return the whole MiB value and whether it was exact."""
-    if type(value) is int and value >= 0:
-        return value, True
     match = _MEMORY.fullmatch(value.strip()) if isinstance(value, str) else None
     if match is None:
         return None
-    unit = match[2].lower()[:1] if match[2].lower() != "b" else "b"
-    kib = int(match[1]) * _MEMORY_KIB[unit or "m"]
+    suffix = match[2].lower()
+    kib = int(match[1]) * _MEMORY_KIB[suffix[:1] or "m"]
     return math.ceil(kib / 1024), kib % 1024 == 0
 
 
 def _cores(value: Any) -> float | None:
+    """Kubernetes CPU quantities such as 500m or 1.5; the CRD stores them as strings."""
     match = _CPU.fullmatch(value.strip()) if isinstance(value, str) else None
-    if type(value) in {int, float} and value > 0:
-        return float(value)
-    if match is None:
-        return None
-    quantity = float(match[1]) / (1000 if match[2] else 1)
+    quantity = float(match[1]) / (1000 if match[2] else 1) if match else 0
     return quantity if quantity > 0 else None
 
 
@@ -317,13 +312,9 @@ class _Pod:
         base = f"spec.{self.role}_pod_template.spec"
         return f"{base}.containers[{self.role}].{field}" if container else f"{base}.{field}"
 
-    def set(self, field: str, value: Any, *, container: bool = False) -> str | None:
-        """Assign a template field, returning a conflict message instead of overwriting it."""
-        owner = self.container if container else self.spec
-        if field in owner and owner[field] != value:
-            return f"{self.target(field, container=container)} is already set by another source field."
-        owner[field] = copy.deepcopy(value)
-        return None
+    def set(self, field: str, value: Any, *, container: bool = False) -> None:
+        # Each template field has exactly one source field, so this never overwrites.
+        (self.container if container else self.spec)[field] = copy.deepcopy(value)
 
     def append(self, field: str, item: Any, key: str | None, *, container: bool = False) -> str | None:
         owner = self.container if container else self.spec
@@ -496,15 +487,10 @@ def _choice(target, choices):
     return handler
 
 
-def _text_field(target):
-    def handler(a, path, value, spec):
-        if not _text(value):
-            return a.invalid(path, "a string")
-        if _value_secret(value):
-            return a.secret(path)
-        a.assign(path, [(target, value)])
-
-    return handler
+def _main_class(a, path, value, spec):
+    if not _text(value):
+        return a.invalid(path, "a string")
+    a.assign(path, [(("class_name",), value)])
 
 
 def _main_file(a, path, value, spec):
@@ -548,11 +534,8 @@ def _hadoop_conf(a, path, value, spec):
 
 
 def _spark_property(a: _Assessment, path: str, key: str, value: Any) -> None:
-    if (
-        not isinstance(value, (str, int, float, bool))
-        or isinstance(value, float)
-        and not math.isfinite(value)
-    ):
+    # The CRD stores strings; unquoted YAML scalars are accepted as their string form.
+    if not isinstance(value, (str, int, float)):
         return a.invalid(path, "a string")
     text = _conf_string(value)
     if _sensitive_key(key) or _value_secret(text):
@@ -562,7 +545,7 @@ def _spark_property(a: _Assessment, path: str, key: str, value: Any) -> None:
             _SECRET_ALT,
         )
     if key in _RESOURCE_CONF:
-        return _resource(a, path, _RESOURCE_CONF[key], value)
+        return _resource(a, path, _RESOURCE_CONF[key], text)
     if key in _ALLOCATION_CONF:
         return _allocation_value(a, path, _ALLOCATION_CONF[key], text)
     for prefix, heads in _DRIVER_MAP_CONF.items():
@@ -588,10 +571,9 @@ def _spark_property(a: _Assessment, path: str, key: str, value: Any) -> None:
 
 def _resource(a, path, target, value):
     if target[1] == "cpu":
-        cores = int(value) if isinstance(value, str) and value.isdigit() else value
-        if not _count(cores, 1):
+        if not value.isdigit() or int(value) < 1:
             return a.invalid(path, "a whole number of cores")
-        return a.assign(path, [(target, cores)])
+        return a.assign(path, [(target, int(value))])
     size = _mebibytes(value)
     if size is None:
         return a.invalid(path, "a Spark memory size such as 512m or 2g")
@@ -809,9 +791,9 @@ def _unsupported(note, alternative):
     return handler
 
 
-def _approximated(note, expected=_text):
+def _approximated(note):
     def handler(a, path, value, spec):
-        if expected(value):
+        if _text(value):
             a.record(path, APPROXIMATED, None, note)
         else:
             a.invalid(path, "a string")
@@ -819,49 +801,19 @@ def _approximated(note, expected=_text):
     return handler
 
 
-def _application_type(a, path, value, spec):
-    if value not in {"Python", "Scala", "Java", "R"}:
-        return a.invalid(path, "Python, Scala, Java or R")
-    a.record(
-        path,
-        APPROXIMATED,
-        None,
-        "SparkJob has no type field: spark-submit infers it from app_path, and class_name selects the JVM "
-        "main class.",
-    )
-
-
-def _python_version(a, path, value, spec):
-    if str(value) == "3":
-        a.record(
-            path,
-            APPROXIMATED,
-            None,
-            "The image's Python interpreter runs the application; set spark.pyspark.python in "
-            "spark_conf to choose another interpreter in the image.",
-        )
-    elif str(value) == "2":
-        a.unsupported(path, "Supported Spark runtimes do not run Python 2.", "Use a Python 3 image.")
-    else:
-        a.invalid(path, '"2" or "3"')
-
-
-def _mode(a, path, value, spec):
-    if value not in {"cluster", "client"}:
-        return a.invalid(path, "cluster or client")
-    a.record(
-        path,
-        APPROXIMATED,
-        None,
-        "spark-on-k8s creates the driver pod itself and runs spark-submit in client mode inside it; "
-        "Spark settings that shape a cluster-mode driver pod do not apply.",
-    )
-
-
 _APPLICATION_FIELDS = {
-    "type": _application_type,
-    "pythonVersion": _python_version,
-    "mode": _mode,
+    "type": _approximated(
+        "SparkJob has no type field: spark-submit infers it from app_path, and class_name selects the JVM "
+        "main class."
+    ),
+    "pythonVersion": _approximated(
+        "The image's Python interpreter runs the application; set spark.pyspark.python in spark_conf to "
+        "choose another interpreter in the image."
+    ),
+    "mode": _approximated(
+        "spark-on-k8s creates the driver pod itself and runs spark-submit in client mode inside it; "
+        "Spark settings that shape a cluster-mode driver pod do not apply."
+    ),
     "sparkVersion": _approximated(
         "SparkJob has no version field; the image determines the Spark runtime. "
         "Check it against the supported runtimes."
@@ -869,7 +821,7 @@ _APPLICATION_FIELDS = {
     "image": _image,
     "imagePullPolicy": _choice(("image_pull_policy",), {"Always", "Never", "IfNotPresent"}),
     "imagePullSecrets": lambda a, path, value, spec: _pull_secrets(a, path, value),
-    "mainClass": _text_field(("class_name",)),
+    "mainClass": _main_class,
     "mainApplicationFile": _main_file,
     "arguments": _arguments,
     "sparkConf": _spark_conf,
@@ -924,12 +876,8 @@ def _pull_secrets(a: _Assessment, path: str, value: Any) -> None:
     if not _text_list(value):
         return a.invalid(path, "a list of Secret names")
     driver = a.pods["driver"]
-    conflict = next(
-        (message for name in value if (message := driver.append("imagePullSecrets", {"name": name}, "name"))),
-        None,
-    )
-    if conflict:
-        return a.unsupported(path, conflict, "Keep one definition in the source manifest.")
+    for name in value:
+        driver.append("imagePullSecrets", {"name": name}, None)
     a.assign(
         path,
         [(("spark_conf", "spark.kubernetes.container.image.pullSecrets"), ",".join(value))],
@@ -991,30 +939,6 @@ def _pod_image(a, path, value, context):
     if value == driver:
         return a.record(path, MAPPED, "spec.image", "Same as the driver image.")
     a.assign(path, [(("spark_conf", _EXECUTOR_IMAGE), value)])
-
-
-def _pod_gpu(a, path, value, context):
-    if (
-        not isinstance(value, dict)
-        or set(value) - {"name", "quantity"}
-        or not _text(value.get("name"))
-        or not _count(value.get("quantity"), 1)
-    ):
-        return a.invalid(path, "an object with name and a positive quantity")
-    limits = context.pod.container.setdefault("resources", {}).setdefault("limits", {})
-    conflict = None
-    if limits.setdefault(value["name"], value["quantity"]) != value["quantity"]:
-        conflict = f"{context.pod.target('resources.limits', container=True)} already sets {value['name']}."
-    if context.role == "driver":
-        a.template(path, conflict, context.pod.target("resources.limits", container=True))
-    else:
-        a.template(
-            path,
-            conflict,
-            context.pod.target("resources.limits", container=True),
-            status=APPROXIMATED,
-            note="Spark manages executor CPU and memory; confirm that executor pods keep this limit.",
-        )
 
 
 def _mount(a, path, context, volume, mount, *, status=MAPPED, note=None):
@@ -1104,9 +1028,7 @@ def _pod_env(a, path, value, context):
             and not isinstance(entry["value"], str)
         ):
             a.invalid(item_path, "an environment variable with a name and a string value or valueFrom")
-        elif "value" in entry and (_sensitive_key(entry["name"]) and entry["value"] or _value_secret(entry)):
-            a.secret(item_path)
-        elif _value_secret(entry.get("valueFrom")):
+        elif _sensitive_key(entry["name"]) and entry.get("value") or _value_secret(entry):
             a.secret(item_path)
         else:
             _env_entry(a, item_path, context, entry["name"], entry)
@@ -1139,8 +1061,8 @@ def _pod_env_from(a, path, value, context):
     if not isinstance(value, list) or not all(isinstance(item, dict) for item in value):
         return a.invalid(path, "a list of objects")
     for index, item in enumerate(value):
-        conflict = context.pod.append("envFrom", item, None, container=True)
-        a.template(f"{path}[{index}]", conflict, context.pod.target("envFrom", container=True))
+        context.pod.append("envFrom", item, None, container=True)
+        a.record(f"{path}[{index}]", MAPPED, context.pod.target("envFrom", container=True))
 
 
 def _pod_map(field):
@@ -1178,19 +1100,16 @@ def _pod_volume_mounts(a, path, value, context):
 _TYPE_NAMES = {dict: "an object", list: "a list", str: "a string", bool: "a boolean", int: "an integer"}
 
 
-def _pod_template_field(field, expected, *, container=False, note=None):
+def _pod_template_field(field, expected, *, container=False):
+    """Copy a Pod field the driver template merge preserves and Spark keeps in executor templates."""
+
     def handler(a, path, value, context):
         if not isinstance(value, expected) or isinstance(value, bool) and expected is not bool:
             return a.invalid(path, _TYPE_NAMES[expected])
         if _value_secret(value):
             return a.secret(path)
-        conflict = context.pod.set(field, value, container=container)
-        status, message = (
-            (APPROXIMATED, note(context.role)) if note and note(context.role) else (MAPPED, None)
-        )
-        a.template(
-            path, conflict, context.pod.target(field, container=container), status=status, note=message
-        )
+        context.pod.set(field, value, container=container)
+        a.record(path, MAPPED, context.pod.target(field, container=container))
 
     return handler
 
@@ -1271,7 +1190,11 @@ _POD_FIELDS = {
     "coreLimit": _pod_core_quantity("spark.kubernetes.{role}.limit.cores"),
     "memory": _pod_memory("memory"),
     "memoryOverhead": _pod_memory("memory_overhead"),
-    "gpu": _pod_gpu,
+    "gpu": _pod_unsupported(
+        "GPU limits are not translated automatically.",
+        "Add the resource limit to the container in driver_pod_template and executor_pod_template, then "
+        "confirm that the running executor pods carry it.",
+    ),
     "image": _pod_image,
     "configMaps": _pod_config_maps,
     "secrets": _pod_secrets,
@@ -1291,14 +1214,10 @@ _POD_FIELDS = {
     "priorityClassName": _pod_template_field("priorityClassName", str),
     "dnsConfig": _pod_template_field("dnsConfig", dict),
     "hostAliases": _pod_template_field("hostAliases", list),
-    "hostNetwork": _pod_template_field(
-        "hostNetwork",
-        bool,
-        note=lambda role: (
-            "Host networking is not exercised with directly created drivers; verify driver connectivity."
-            if role == "driver"
-            else None
-        ),
+    "hostNetwork": _pod_unsupported(
+        "Host networking changes driver and executor addresses and is not exercised with directly created "
+        "drivers.",
+        "Set hostNetwork in the pod templates only after verifying driver-executor connectivity.",
     ),
     "shareProcessNamespace": _pod_template_field("shareProcessNamespace", bool),
     "terminationGracePeriodSeconds": _pod_template_field("terminationGracePeriodSeconds", int),
@@ -1372,6 +1291,14 @@ def _metadata(a: _Assessment, metadata: dict, job_name: str) -> None:
                 continue
             for label, item in value.items():
                 item_path = f"{path}[{label}]"
+                if label.startswith("kueue.x-k8s.io/"):
+                    a.unsupported(
+                        item_path,
+                        "The operator does not copy Kueue labels to pods, and no custom resource is created "
+                        "for Kueue to admit.",
+                        "See the batch scheduler recipe before adding Kueue labels to the pod templates.",
+                    )
+                    continue
                 applied = a.assign_default(
                     item_path, [((f"{role}_labels", label), item) for role in ("driver", "executor")]
                 )

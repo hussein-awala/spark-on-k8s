@@ -429,3 +429,583 @@ def test_cli_text_report_and_draft_files(tmp_path):
     assert again.exit_code == 1
     assert "already exists" in json.loads(again.stdout)["error"]["message"]
     assert draft.read_text() == content
+
+
+# Field rules, one table row per branch. Patches merge into the PySpark fixture.
+
+REMOVE = object()
+
+
+def merge(base: dict, patch: dict) -> dict:
+    for key, value in patch.items():
+        if value is REMOVE:
+            base.pop(key, None)
+        elif isinstance(value, dict) and isinstance(base.get(key), dict):
+            merge(base[key], value)
+        else:
+            base[key] = value
+    return base
+
+
+def assess_patch(patch: dict, fixture: str = "pyspark-pi.yaml") -> dict:
+    return assess_document(merge(load(fixture), patch))
+
+
+def spec(**fields) -> dict:
+    return {"spec": fields}
+
+
+def driver(**fields) -> dict:
+    return spec(driver=fields)
+
+
+def executor(**fields) -> dict:
+    return spec(executor=fields)
+
+
+EXECUTOR_CONF = "spec.spark_conf[spark.kubernetes.executor"
+DRIVER_TEMPLATE = "spec.driver_pod_template.spec"
+EXECUTOR_TEMPLATE = "spec.executor_pod_template.spec"
+FIELD_RULES = [
+    # Application fields.
+    (spec(proxyUser=None), "spec.proxyUser", "ignored", None),
+    (spec(managedBy="team"), "spec.managedBy", "unsupported", None),
+    (spec(mode="in-cluster-client"), "spec.mode", "approximated", None),
+    (driver(image="registry.example.com/spark/pyspark:3.5.9"), "spec.image", "mapped", "spec.image"),
+    (spec(driver={"image": "d:1"}, executor={"image": "e:1"}), "spec.image", "ignored", None),
+    (
+        spec(driver={"image": "d:1"}, executor={"image": "e:1"}),
+        "spec.executor.image",
+        "mapped",
+        "spec.spark_conf[spark.kubernetes.executor.container.image]",
+    ),
+    (
+        executor(image="registry.example.com/spark/pyspark:3.5.9"),
+        "spec.executor.image",
+        "mapped",
+        "spec.image",
+    ),
+    (spec(mainApplicationFile="/opt/app.py"), "spec.mainApplicationFile", "approximated", "spec.app_path"),
+    (spec(mainClass="com.example.Main"), "spec.mainClass", "mapped", "spec.class_name"),
+    (
+        spec(hadoopConf={"fs.s3a.endpoint": "http://minio:9000"}),
+        "spec.hadoopConf[fs.s3a.endpoint]",
+        "mapped",
+        "spec.spark_conf[spark.hadoop.fs.s3a.endpoint]",
+    ),
+    (spec(nodeSelector={"pool": "spark"}), "spec.nodeSelector[pool]", "mapped", None),
+    (
+        spec(nodeSelector={"pool": "a"}, driver={"nodeSelector": {"pool": "b"}}),
+        "spec.nodeSelector[pool]",
+        "approximated",
+        "spec.executor_node_selector[pool]",
+    ),
+    (spec(restartPolicy={"type": "Never", "backoff": 1}), "spec.restartPolicy.backoff", "unsupported", None),
+    (
+        spec(dynamicAllocation={"shuffleTrackingTimeout": 60000}),
+        "spec.dynamicAllocation.shuffleTrackingTimeout",
+        "mapped",
+        "spec.spark_conf[spark.dynamicAllocation.shuffleTracking.timeout]",
+    ),
+    (
+        spec(dynamicAllocation={"shuffleTrackingEnabled": True}),
+        "spec.dynamicAllocation.shuffleTrackingEnabled",
+        "mapped",
+        "spec.spark_conf[spark.dynamicAllocation.shuffleTracking.enabled]",
+    ),
+    (spec(deps={"excludePackages": ["a:b"]}), "spec.deps.excludePackages", "mapped", None),
+    (
+        spec(deps={"files": ["local:///opt/f.txt"]}),
+        "spec.deps.files[0]",
+        "mapped",
+        "spec.spark_conf[spark.files]",
+    ),
+    (spec(volumes=[{"name": "v", "emptyDir": {}}] * 2), "spec.volumes[0]", "ignored", None),
+    (spec(batchScheduler="volcano"), "spec.batchScheduler", "unsupported", None),
+    # Spark properties.
+    *(
+        (spec(sparkConf={key: value}), f"spec.sparkConf[{key}]", status, target)
+        for key, value, status, target in [
+            ("spark.driver.cores", "1", "mapped", "spec.driver_resources.cpu"),
+            ("spark.executor.memory", "512m", "mapped", "spec.executor_resources.memory"),
+            ("spark.executor.instances", "2", "mapped", "spec.executor_instances.initial"),
+            ("spark.kubernetes.driver.label.tier", "gold", "mapped", "spec.driver_labels[tier]"),
+            ("spark.kubernetes.driver.annotation.note", "x", "mapped", "spec.driver_annotations[note]"),
+            (
+                "spark.kubernetes.node.selector.disk",
+                "ssd",
+                "mapped",
+                "spec.driver_node_selector[disk], spec.executor_node_selector[disk]",
+            ),
+            ("spark.kubernetes.authenticate.driver.serviceAccountName", "spark-driver", "mapped", None),
+            ("spark.kubernetes.executor.podTemplateFile", "/opt/t.yaml", "approximated", None),
+            ("spark.kubernetes.executor.secretKeyRef.DB", "db:pw", "mapped", None),
+            ("spark.kubernetes.driverEnv.MODE", "batch", "mapped", None),
+            ("spark.sql.shuffle.partitions", 16, "mapped", None),
+            ("spark.app.name", "other", "unsupported", None),
+            ("spark.kubernetes.memoryOverheadFactor", "0.2", "unsupported", None),
+            ("spark.kubernetes.driver.volumes.pvc.data.mount.path", "/data", "unsupported", None),
+        ]
+    ),
+    (
+        spec(
+            sparkConf={"spark.dynamicAllocation.enabled": "true", "spark.dynamicAllocation.maxExecutors": "4"}
+        ),
+        "spec.sparkConf[spark.dynamicAllocation.maxExecutors]",
+        "mapped",
+        "spec.executor_instances.max",
+    ),
+    # Driver and executor fields.
+    (driver(cores=REMOVE, coreRequest="1500m"), "spec.driver.coreRequest", "approximated", None),
+    (driver(coreRequest="500m"), "spec.driver.coreRequest", "approximated", "spec.driver_resources.cpu"),
+    (executor(coreRequest="500m"), "spec.executor.coreRequest", "mapped", f"{EXECUTOR_CONF}.request.cores]"),
+    (executor(coreLimit="2"), "spec.executor.coreLimit", "mapped", f"{EXECUTOR_CONF}.limit.cores]"),
+    (driver(gpu={"name": "nvidia.com/gpu", "quantity": 1}), "spec.driver.gpu", "unsupported", None),
+    (executor(hostNetwork=True), "spec.executor.hostNetwork", "unsupported", None),
+    (driver(memoryLimit="2g"), "spec.driver.memoryLimit", "unsupported", None),
+    (driver(podName=None), "spec.driver.podName", "ignored", None),
+    (
+        driver(configMaps=[{"name": "cfg", "path": "/etc/cfg"}]),
+        "spec.driver.configMaps[0]",
+        "mapped",
+        f"{DRIVER_TEMPLATE}.containers[driver].volumeMounts",
+    ),
+    (driver(secrets=[{"name": "s", "path": "/s"}]), "spec.driver.secrets[0]", "mapped", None),
+    (
+        executor(secrets=[{"name": "tok", "path": "/t", "secretType": "HadoopDelegationToken"}]),
+        "spec.executor.secrets[0]",
+        "approximated",
+        f"{EXECUTOR_CONF}.secrets.tok]",
+    ),
+    (
+        driver(envVars={"A": "1"}),
+        "spec.driver.envVars[A]",
+        "mapped",
+        f"{DRIVER_TEMPLATE}.containers[driver].env[A]",
+    ),
+    (
+        executor(envVars={"A": "1"}),
+        "spec.executor.envVars[A]",
+        "mapped",
+        "spec.spark_conf[spark.executorEnv.A]",
+    ),
+    (
+        driver(env=[{"name": "A", "value": "1"}], envVars={"A": "1"}),
+        "spec.driver.envVars[A]",
+        "mapped",
+        f"{DRIVER_TEMPLATE}.containers[driver].env[A]",
+    ),
+    (
+        driver(envSecretKeyRefs={"DB": {"name": "db", "key": "pw"}}),
+        "spec.driver.envSecretKeyRefs[DB]",
+        "mapped",
+        f"{DRIVER_TEMPLATE}.containers[driver].env[DB]",
+    ),
+    (
+        executor(envSecretKeyRefs={"DB": {"name": "db", "key": "pw"}}),
+        "spec.executor.envSecretKeyRefs[DB]",
+        "mapped",
+        f"{EXECUTOR_CONF}.secretKeyRef.DB]",
+    ),
+    (
+        executor(env=[{"name": "C", "valueFrom": {"configMapKeyRef": {"name": "c", "key": "k"}}}]),
+        "spec.executor.env[0]",
+        "mapped",
+        f"{EXECUTOR_TEMPLATE}.containers[executor].env[C]",
+    ),
+    (driver(envFrom=[{"secretRef": {"name": "s"}}]), "spec.driver.envFrom[0]", "mapped", None),
+    (driver(annotations={"a": "b"}), "spec.driver.annotations[a]", "mapped", "spec.driver_annotations[a]"),
+    (
+        executor(nodeSelector={"p": "q"}),
+        "spec.executor.nodeSelector[p]",
+        "mapped",
+        "spec.executor_node_selector[p]",
+    ),
+    *(
+        (driver(**{field: value}), f"spec.driver.{field}", "mapped", target)
+        for field, value, target in [
+            ("affinity", {"nodeAffinity": {}}, f"{DRIVER_TEMPLATE}.affinity"),
+            ("tolerations", [{"key": "a", "operator": "Exists"}], f"{DRIVER_TEMPLATE}.tolerations"),
+            ("podSecurityContext", {"fsGroup": 185}, f"{DRIVER_TEMPLATE}.securityContext"),
+            ("securityContext", {"runAsUser": 185}, f"{DRIVER_TEMPLATE}.containers[driver].securityContext"),
+            ("schedulerName", "volcano", f"{DRIVER_TEMPLATE}.schedulerName"),
+            ("priorityClassName", "high", f"{DRIVER_TEMPLATE}.priorityClassName"),
+            ("dnsConfig", {"nameservers": ["1.1.1.1"]}, f"{DRIVER_TEMPLATE}.dnsConfig"),
+            ("hostAliases", [{"ip": "10.0.0.1", "hostnames": ["db"]}], f"{DRIVER_TEMPLATE}.hostAliases"),
+            ("shareProcessNamespace", True, f"{DRIVER_TEMPLATE}.shareProcessNamespace"),
+            ("terminationGracePeriodSeconds", 30, f"{DRIVER_TEMPLATE}.terminationGracePeriodSeconds"),
+            ("lifecycle", {"preStop": {"exec": {"command": ["true"]}}}, None),
+            ("ports", [{"name": "m", "containerPort": 9090, "protocol": "TCP"}], None),
+            ("javaOptions", "-XX:+UseG1GC", "spec.spark_conf[spark.driver.extraJavaOptions]"),
+        ]
+    ),
+    (
+        driver(initContainers=[{"name": "init", "image": "i:1"}]),
+        "spec.driver.initContainers[0]",
+        "mapped",
+        f"{DRIVER_TEMPLATE}.initContainers[init]",
+    ),
+    (
+        executor(sidecars=[{"name": "side", "image": "s:1"}]),
+        "spec.executor.sidecars[0]",
+        "mapped",
+        f"{EXECUTOR_TEMPLATE}.containers[side]",
+    ),
+    (
+        executor(serviceAccount="exec"),
+        "spec.executor.serviceAccount",
+        "mapped",
+        "spec.spark_conf[spark.kubernetes.authenticate.executor.serviceAccountName]",
+    ),
+    (
+        executor(deleteOnTermination=False),
+        "spec.executor.deleteOnTermination",
+        "mapped",
+        f"{EXECUTOR_CONF}.deleteOnTermination]",
+    ),
+    *(
+        (driver(**{field: value}), f"spec.driver.{field}", "unsupported", None)
+        for field, value in [
+            ("template", {"spec": {}}),
+            ("kubernetesMaster", "https://k8s"),
+            ("serviceLabels", {"a": "b"}),
+            ("serviceAnnotations", {"a": "b"}),
+            ("podName", "fixed"),
+        ]
+    ),
+    (
+        driver(volumeMounts=[{"name": "missing", "mountPath": "/m"}]),
+        "spec.driver.volumeMounts[0]",
+        "unsupported",
+        None,
+    ),
+    # Metadata and document fields.
+    (
+        {"metadata": {"labels": {"kueue.x-k8s.io/queue-name": "q"}}},
+        "metadata.labels[kueue.x-k8s.io/queue-name]",
+        "unsupported",
+        None,
+    ),
+    ({"metadata": {"labels": {"version": "x"}}}, "metadata.labels[version]", "ignored", None),
+    ({"metadata": {"annotations": {"owner": "a"}}}, "metadata.annotations[owner]", "unsupported", None),
+    (
+        {"metadata": {"annotations": {"kubectl.kubernetes.io/last-applied-configuration": "{}"}}},
+        "metadata.annotations[kubectl.kubernetes.io/last-applied-configuration]",
+        "ignored",
+        None,
+    ),
+    ({"metadata": {"uid": "1234"}}, "metadata.uid", "ignored", None),
+    (
+        {"metadata": {"ownerReferences": [{"kind": "ScheduledSparkApplication"}]}},
+        "metadata.ownerReferences",
+        "unsupported",
+        None,
+    ),
+    ({"metadata": {"clusterName": "c"}}, "metadata.clusterName", "unsupported", None),
+    ({"status": {"applicationState": {"state": "COMPLETED"}}}, "status", "ignored", None),
+    ({"extra": 1}, "extra", "unsupported", None),
+]
+
+
+@pytest.mark.parametrize("patch_, path, status, target", FIELD_RULES)
+def test_field_rules(patch_, path, status, target):
+    finding = findings(assess_patch(copy.deepcopy(patch_)))[path]
+    assert finding["status"] == status, finding
+    if target is not None:
+        assert finding["target"] == target
+    if status == "unsupported":
+        assert finding["note"] and finding["alternative"]
+    if status == "mapped":
+        assert finding["target"] or finding["note"]
+
+
+def test_translated_values_reach_the_draft():
+    result = assess_patch(
+        merge(
+            spec(
+                sparkConf={"spark.sql.shuffle.partitions": 16, "spark.dynamicAllocation.enabled": "true"},
+                dynamicAllocation={"shuffleTrackingTimeout": 60000, "maxExecutors": 4},
+                deps={"excludePackages": ["a:b", "c:d"]},
+                imagePullSecrets=["regcred", "regcred"],
+            ),
+            driver(cores=REMOVE, coreRequest="1500m", envFrom=[{"secretRef": {"name": "s"}}] * 2),
+        )
+    )
+    draft = result["draft"]["spec"]
+    assert draft["driver_resources"]["cpu"] == 2
+    assert draft["executor_instances"] == {"min": 0, "max": 4, "initial": 2}
+    assert draft["spark_conf"]["spark.sql.shuffle.partitions"] == "16"
+    assert draft["spark_conf"]["spark.dynamicAllocation.shuffleTracking.timeout"] == "60000ms"
+    assert draft["spark_conf"]["spark.jars.excludes"] == "a:b,c:d"
+    template = draft["driver_pod_template"]["spec"]
+    assert template["imagePullSecrets"] == [{"name": "regcred"}]
+    assert template["containers"][0]["envFrom"] == [{"secretRef": {"name": "s"}}]
+
+
+INVALID = [
+    (spec(driver="x"), "spec.driver"),
+    (spec(image=""), "spec.image"),
+    (spec(imagePullPolicy="Sometimes"), "spec.imagePullPolicy"),
+    (spec(imagePullSecrets="regcred"), "spec.imagePullSecrets"),
+    (spec(mainClass=5), "spec.mainClass"),
+    (spec(mainApplicationFile=""), "spec.mainApplicationFile"),
+    (spec(arguments="a b"), "spec.arguments"),
+    (spec(sparkConf=["x"]), "spec.sparkConf"),
+    (spec(hadoopConf="x"), "spec.hadoopConf"),
+    (spec(sparkConf={"spark.x": {"nested": 1}}), "spec.sparkConf[spark.x]"),
+    (spec(sparkConf={"spark.driver.cores": "0"}), "spec.sparkConf[spark.driver.cores]"),
+    (spec(sparkConf={"spark.driver.memory": "lots"}), "spec.sparkConf[spark.driver.memory]"),
+    (
+        spec(sparkConf={"spark.dynamicAllocation.enabled": "maybe"}),
+        "spec.sparkConf[spark.dynamicAllocation.enabled]",
+    ),
+    (spec(sparkConf={"spark.executor.instances": "two"}), "spec.sparkConf[spark.executor.instances]"),
+    (spec(dynamicAllocation="on"), "spec.dynamicAllocation"),
+    (spec(dynamicAllocation={"enabled": "yes"}), "spec.dynamicAllocation.enabled"),
+    (spec(dynamicAllocation={"maxExecutors": -1}), "spec.dynamicAllocation.maxExecutors"),
+    (
+        spec(dynamicAllocation={"shuffleTrackingTimeout": "1m"}),
+        "spec.dynamicAllocation.shuffleTrackingTimeout",
+    ),
+    (
+        spec(dynamicAllocation={"shuffleTrackingEnabled": "true"}),
+        "spec.dynamicAllocation.shuffleTrackingEnabled",
+    ),
+    (spec(deps=["a.jar"]), "spec.deps"),
+    (spec(deps={"jars": "a.jar"}), "spec.deps.jars"),
+    (spec(restartPolicy="Never"), "spec.restartPolicy"),
+    (spec(restartPolicy={"type": "Sometimes"}), "spec.restartPolicy.type"),
+    (spec(nodeSelector={"a": 1}), "spec.nodeSelector"),
+    (spec(volumes={"name": "v"}), "spec.volumes"),
+    (spec(volumes=[{"name": "v"}, {"name": "v"}]), "spec.volumes[1]"),
+    (spec(sparkVersion=3), "spec.sparkVersion"),
+    (driver(cores=0), "spec.driver.cores"),
+    (driver(coreLimit="lots"), "spec.driver.coreLimit"),
+    (driver(memory=512), "spec.driver.memory"),
+    (driver(image=""), "spec.driver.image"),
+    (driver(configMaps="cfg"), "spec.driver.configMaps"),
+    (driver(configMaps=[{"name": "cfg"}]), "spec.driver.configMaps[0]"),
+    (driver(secrets="s"), "spec.driver.secrets"),
+    (driver(secrets=[{"name": "s", "path": "/s", "secretType": "Other"}]), "spec.driver.secrets[0]"),
+    (driver(env="A=1"), "spec.driver.env"),
+    (driver(env=[{"value": "x"}]), "spec.driver.env[0]"),
+    (driver(envVars={"A": 1}), "spec.driver.envVars"),
+    (driver(envSecretKeyRefs="s"), "spec.driver.envSecretKeyRefs"),
+    (driver(envSecretKeyRefs={"A": {"name": "s"}}), "spec.driver.envSecretKeyRefs[A]"),
+    (driver(envFrom=["s"]), "spec.driver.envFrom"),
+    (driver(labels={"a": 1}), "spec.driver.labels"),
+    (driver(volumeMounts="v"), "spec.driver.volumeMounts"),
+    (driver(volumeMounts=[{"name": "v"}]), "spec.driver.volumeMounts[0]"),
+    (driver(affinity=[]), "spec.driver.affinity"),
+    (driver(terminationGracePeriodSeconds=True), "spec.driver.terminationGracePeriodSeconds"),
+    (driver(sidecars="s"), "spec.driver.sidecars"),
+    (driver(sidecars=[{"image": "s:1"}]), "spec.driver.sidecars[0]"),
+    (driver(serviceAccount=""), "spec.driver.serviceAccount"),
+    (driver(javaOptions=""), "spec.driver.javaOptions"),
+    (executor(instances=-1), "spec.executor.instances"),
+    (executor(deleteOnTermination="no"), "spec.executor.deleteOnTermination"),
+    ({"metadata": {"namespace": 5}}, "metadata.namespace"),
+    ({"metadata": {"labels": "team"}}, "metadata.labels"),
+    ({"metadata": {"annotations": ["a"]}}, "metadata.annotations"),
+]
+
+
+@pytest.mark.parametrize("patch_, path", INVALID)
+def test_invalid_values_are_unsupported_without_echoing_them(patch_, path):
+    result = assess_patch(copy.deepcopy(patch_))
+    finding = findings(result)[path]
+    assert finding["status"] == "unsupported"
+    assert finding["note"].startswith("Unexpected value; expected ")
+    assert result["migration_ready"] is False
+
+
+CONFLICTS = [
+    (
+        spec(sparkConf={"spark.kubernetes.authenticate.driver.serviceAccountName": "other"}),
+        "spec.sparkConf[spark.kubernetes.authenticate.driver.serviceAccountName]",
+        "Conflicts with spec.driver.serviceAccount",
+    ),
+    (
+        spec(sparkConf={"spark.executor.instances": "5"}),
+        "spec.sparkConf[spark.executor.instances]",
+        "Conflicts with spec.executor.instances",
+    ),
+    (
+        spec(sparkConf={"spark.jars": "x.jar"}, deps={"jars": ["local:///a.jar"]}),
+        "spec.deps.jars",
+        "Conflicts with spec.sparkConf[spark.jars]",
+    ),
+    (
+        driver(env=[{"name": "A", "value": "1"}], envVars={"A": "2"}),
+        "spec.driver.envVars[A]",
+        "already has an entry with name 'A'",
+    ),
+    (
+        driver(configMaps=[{"name": "a", "path": "/etc/x"}, {"name": "b", "path": "/etc/x"}]),
+        "spec.driver.configMaps[1]",
+        "already has an entry with mountPath '/etc/x'",
+    ),
+    (
+        spec(
+            volumes=[{"name": "cfg-vol", "emptyDir": {}}],
+            driver={
+                "volumeMounts": [{"name": "cfg-vol", "mountPath": "/a"}],
+                "configMaps": [{"name": "cfg", "path": "/b"}],
+            },
+        ),
+        "spec.driver.configMaps[0]",
+        "different volume named 'cfg-vol'",
+    ),
+    (
+        driver(sidecars=[{"name": "driver", "image": "x"}]),
+        "spec.driver.sidecars[0]",
+        "container named 'driver'",
+    ),
+    (
+        driver(initContainers=[{"name": "i", "image": "a"}, {"name": "i", "image": "b"}]),
+        "spec.driver.initContainers[1]",
+        "entry with name 'i'",
+    ),
+]
+
+
+@pytest.mark.parametrize("patch_, path, message", CONFLICTS)
+def test_conflicting_sources_are_unsupported(patch_, path, message):
+    result = assess_patch(copy.deepcopy(patch_))
+    finding = findings(result)[path]
+    assert finding["status"] == "unsupported"
+    assert message in finding["note"]
+    assert result["migration_ready"] is False
+
+
+CREDENTIALS = [
+    (
+        spec(
+            volumes=[
+                {"name": "d", "csi": {"driver": "s3", "volumeAttributes": {"url": "https://u:hunter2@s3"}}}
+            ],
+            driver={"volumeMounts": [{"name": "d", "mountPath": "/d"}]},
+        ),
+        ["spec.driver.volumeMounts[0]", "spec.volumes[0]"],
+    ),
+    (
+        driver(lifecycle={"preStop": {"exec": {"command": ["curl", "https://u:hunter2@hook"]}}}),
+        ["spec.driver.lifecycle"],
+    ),
+    (spec(deps={"repositories": ["https://u:hunter2@repo"]}), ["spec.deps.repositories"]),
+    (driver(envVars={"DB_PASSWORD": "hunter2"}), ["spec.driver.envVars[DB_PASSWORD]"]),
+    (spec(arguments=["--db-token", "hunter2"]), ["spec.arguments"]),
+]
+
+
+@pytest.mark.parametrize("patch_, paths", CREDENTIALS)
+def test_credentials_in_any_field_are_withheld(patch_, paths):
+    result = assess_patch(copy.deepcopy(patch_))
+    for path in paths:
+        assert findings(result)[path]["note"].startswith("The value looks like a credential")
+    assert "hunter2" not in json.dumps(result)
+
+
+@pytest.mark.parametrize(
+    "value, expected",
+    [
+        ("512m", (512, True)),
+        ("2g", (2048, True)),
+        ("1536k", (2, False)),
+        ("1048576b", (1, True)),
+        ("7", (7, True)),
+    ],
+)
+def test_spark_memory_strings(value, expected):
+    document = load("pyspark-pi.yaml")
+    document["spec"]["driver"]["memory"] = value
+    result = assess_document(document)
+    assert result["draft"]["spec"]["driver_resources"]["memory"] == expected[0]
+    assert findings(result)["spec.driver.memory"]["status"] == ("mapped" if expected[1] else "approximated")
+
+
+def test_scheduled_application_null_and_unknown_fields():
+    result = assess_patch(
+        {"spec": {"suspend": True, "timeZone": None, "jitter": "5m"}}, fixture="scheduled.yaml"
+    )
+    by_path = findings(result)
+    assert by_path["spec.suspend"]["status"] == "unsupported"
+    assert "CronJob spec.suspend" in by_path["spec.suspend"]["alternative"]
+    assert by_path["spec.timeZone"]["status"] == "ignored"
+    assert by_path["spec.jitter"]["note"].startswith("Unrecognized")
+
+
+def test_notes_name_missing_namespace_and_service_account():
+    result = assess_patch({"metadata": {"namespace": REMOVE}, "spec": {"driver": {"serviceAccount": REMOVE}}})
+    notes = " ".join(result["notes"])
+    assert "no namespace" in notes and "no driver service account" in notes
+    assert "namespace" not in result["draft"]["spec"]
+
+
+def test_the_final_accounting_pass_reports_fields_a_rule_missed(monkeypatch):
+    from spark_on_k8s import spark_operator_migration as migration
+
+    def noop(a, path, value, spec):
+        pass
+
+    monkeypatch.setitem(migration._APPLICATION_FIELDS, "mainClass", noop)
+    monkeypatch.setitem(migration._APPLICATION_FIELDS, "sparkConf", noop)
+    result = assess_patch(spec(mainClass="Main"))
+    by_path = findings(result)
+    for path in ("spec.mainClass", "spec.sparkConf[spark.sql.shuffle.partitions]"):
+        assert by_path[path]["status"] == "unsupported"
+        assert by_path[path]["note"] == migration._UNACCOUNTED
+    assert result["migration_ready"] is False
+
+
+@pytest.mark.parametrize(
+    "content, message",
+    [
+        (
+            "apiVersion: sparkoperator.k8s.io/v1beta2\nkind: SparkApplication\n"
+            "metadata: {name: a}\nspec: []\n",
+            "spec must be an object",
+        ),
+        (
+            "apiVersion: sparkoperator.k8s.io/v1beta2\nkind: ScheduledSparkApplication\n"
+            "metadata: {name: a}\nspec: {schedule: '@daily'}\n",
+            "spec.template must be an object",
+        ),
+        ("a: " + "x" * (1024 * 1024), "no larger than 1 MiB"),
+    ],
+)
+def test_structurally_invalid_documents_are_errors(content, message):
+    with pytest.raises(ManifestError, match=message):
+        assess_manifests(content)
+
+
+def test_cli_text_report_with_skipped_documents_and_partial_drafts(tmp_path):
+    valid = load("pyspark-pi.yaml")
+    invalid = merge(load("pyspark-pi.yaml"), {"metadata": {"name": "no-image"}, "spec": {"image": REMOVE}})
+    manifests = tmp_path / "manifests.yaml"
+    # The leading empty document is ignored but still counts as a document position.
+    manifests.write_text(
+        "---\n---\n" + yaml.safe_dump_all([{"apiVersion": "v1", "kind": "ConfigMap"}, valid, invalid])
+    )
+    runner = CliRunner()
+    report = runner.invoke(job_cli, ["assess-operator", str(manifests)])
+    assert report.exit_code == 0, report.output
+    assert "Draft: valid offline; write it with --draft-dir." in report.stdout
+    assert "Draft: not produced: spec.image is required." in report.stdout
+    assert "Skipped document 2 (v1 ConfigMap)" in report.stdout
+    drafts = tmp_path / "drafts"
+    drafts.mkdir()
+    written = runner.invoke(job_cli, ["assess-operator", str(manifests), "--draft-dir", str(drafts)])
+    assert written.exit_code == 0, written.output
+    assert sorted(path.name for path in drafts.iterdir()) == ["pyspark-pi.yaml"]
+
+
+def test_cli_refuses_two_drafts_for_one_file(tmp_path):
+    first = load("pyspark-pi.yaml")
+    second = merge(load("pyspark-pi.yaml"), {"metadata": {"namespace": "other"}})
+    manifests = tmp_path / "manifests.yaml"
+    manifests.write_text(yaml.safe_dump_all([first, second]))
+    result = CliRunner().invoke(job_cli, ["assess-operator", str(manifests), "--draft-dir", str(tmp_path)])
+    assert result.exit_code == 1
+    assert "Two drafts would be written" in result.stderr
+    assert not (tmp_path / "pyspark-pi.yaml").exists()

@@ -317,6 +317,23 @@ export function Applications({
     );
   }, [apps, query, statusFilter]);
   const selected = apps.find((app) => app.app_id === selectedId);
+  useEffect(() => {
+    // A selection that a completed refresh no longer lists would otherwise keep
+    // auto-refresh paused with no visible dialog, then reopen if the app returns.
+    if (
+      selected ||
+      !selectedId ||
+      initialLoading ||
+      refreshing ||
+      historyLoading
+    )
+      return;
+    setSelectedId(null);
+    container.current?.querySelector<HTMLElement>("h1")?.focus();
+    setFeedback(
+      "The selected application is no longer listed. Its details were closed.",
+    );
+  }, [selectedId, selected, initialLoading, refreshing, historyLoading]);
   const running = apps.filter((app) => app.status === "Running").length;
   const pending = apps.filter((app) => app.status === "Pending").length;
   const failed = apps.filter((app) => app.status === "Failed").length;

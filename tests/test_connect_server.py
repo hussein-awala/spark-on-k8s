@@ -7,7 +7,7 @@ import pytest
 from kubernetes import client as k8s
 from kubernetes.client.exceptions import ApiException
 from spark_on_k8s.client import ExecutorInstances, PodResources, SparkOnK8S
-from spark_on_k8s.connect import ConnectError, ConnectProfile
+from spark_on_k8s.connect import ConnectClientUnavailable, ConnectError, ConnectProfile
 from spark_on_k8s.connect_server import (
     ConnectServerConfig,
     ConnectServerCreateError,
@@ -210,6 +210,20 @@ def test_readiness_timeout_never_deletes(cluster, monkeypatch, pending):
     assert error.value.cleanup["status"] == "not_attempted"
     api.delete_namespaced_pod.assert_not_called()
     api.delete_namespaced_service.assert_not_called()
+
+
+def test_readiness_without_a_local_client_fails_without_polling_or_deleting(cluster, monkeypatch):
+    sdk, api, objects = cluster
+    handle = sdk.create_connect_server(config())
+    probe = MagicMock(side_effect=ConnectClientUnavailable("Install spark-on-k8s[connect]"))
+    monkeypatch.setattr(ConnectProfile, "probe", probe)
+    with pytest.raises(ConnectClientUnavailable, match="Install spark-on-k8s"):
+        sdk.wait_connect_server_ready(
+            handle, profile=ConnectProfile(endpoint="sc://localhost", tls=False), timeout=60
+        )
+    probe.assert_called_once()
+    api.delete_namespaced_pod.assert_not_called()
+    assert handle.run.driver_pod in objects["pod"]
 
 
 def test_terminal_server_is_not_reported_ready(cluster, monkeypatch):

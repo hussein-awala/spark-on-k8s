@@ -9507,7 +9507,17 @@ function oe({ restoreLogsFor: e, onFocusRestored: t, config: n, transport: r, na
 		Fe,
 		me,
 		ge
-	]), P = Fe.find((e) => e.app_id === Se), Le = Fe.filter((e) => e.status === "Running").length, Re = Fe.filter((e) => e.status === "Pending").length, ze = Fe.filter((e) => e.status === "Failed").length, Be = [.../* @__PURE__ */ new Set([
+	]), P = Fe.find((e) => e.app_id === Se);
+	(0, l.useEffect)(() => {
+		P || !Se || w || oe || ce || (Ce(null), s.current?.querySelector("h1")?.focus(), Oe("The selected application is no longer listed. Its details were closed."));
+	}, [
+		Se,
+		P,
+		w,
+		oe,
+		ce
+	]);
+	let Le = Fe.filter((e) => e.status === "Running").length, Re = Fe.filter((e) => e.status === "Pending").length, ze = Fe.filter((e) => e.status === "Failed").length, Be = [.../* @__PURE__ */ new Set([
 		0,
 		5,
 		10,

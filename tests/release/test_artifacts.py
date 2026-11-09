@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import io
 import json
+import os
+import subprocess
 import tarfile
 import zipfile
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -127,6 +130,32 @@ def test_inventory_rejects_wrong_installed_version(release_modules, tmp_path, mo
     monkeypatch.setattr(module.metadata, "version", lambda name: "0.12.1")
     with pytest.raises(ValueError, match="Installed package version"):
         module.inventory(args.output)
+
+
+def test_api_image_entrypoint_replaces_the_shell_with_the_server(tmp_path):
+    # Without exec, the container's PID 1 is bash, which neither handles nor forwards SIGTERM.
+    entrypoint = Path(__file__).resolve().parents[2] / "docker" / "scripts" / "entrypoint.sh"
+    record = tmp_path / "server.txt"
+    stub = tmp_path / "bin" / "spark-on-k8s"
+    stub.parent.mkdir()
+    stub.write_text('#!/bin/sh\necho "$$ $*" > "$RECORD"\n')
+    stub.chmod(0o755)
+    environment = {
+        "PATH": f"{stub.parent}{os.pathsep}{os.environ['PATH']}",
+        "RECORD": str(record),
+        "SPARK_ON_K8S_API_HOST": "0.0.0.0",
+        "SPARK_ON_K8S_API_PORT": "8000",
+        "SPARK_ON_K8S_API_WORKERS": "4",
+        "SPARK_ON_K8S_API_LOG_LEVEL": "info",
+        "SPARK_ON_K8S_API_LIMIT_CONCURRENCY": "1000",
+    }
+    process = subprocess.Popen(["bash", str(entrypoint)], env=environment)
+    assert process.wait(timeout=30) == 0
+    pid, arguments = record.read_text().strip().split(" ", 1)
+    assert int(pid) == process.pid
+    assert arguments == (
+        "api start --host 0.0.0.0 --port 8000 --workers 4 --log-level info --limit-concurrency 1000"
+    )
 
 
 def test_inventory_captures_runtime_packages(release_modules, tmp_path, monkeypatch):

@@ -58,7 +58,9 @@ def start(
     try:
         import uvicorn
     except ImportError:
-        raise ImportError("Please install API dependencies with `pip install spark-on-k8s[api]`.") from None
+        raise click.ClickException(
+            "The API requires the 'api' extra: pip install 'spark-on-k8s[api]'"
+        ) from None
 
     uvicorn.run(
         "spark_on_k8s.api.main:app",

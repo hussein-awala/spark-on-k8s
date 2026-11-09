@@ -168,6 +168,8 @@ a stale receipt cannot delete a same-name replacement.
 A readiness timeout exits with code 5 and leaves the server running. Inspect the
 driver logs or diagnostics, repair connectivity or configuration, and retry the
 check. Do not create another server simply because a readiness check timed out.
+Without a compatible local client, the wait fails immediately with exit code 1 and
+the client installation message instead of polling until its timeout.
 Creation failures include their phase, available partial identity and cleanup
 outcome. If creation confirmed ownership of a driver and later setup fails, the
 helper attempts to remove only that owned driver. An uncertain create response is

@@ -11,6 +11,7 @@ import yaml
 
 from spark_on_k8s.client import ExecutorInstances, PodResources, SparkOnK8S
 from spark_on_k8s.k8s.sync_client import KubernetesClientManager
+from spark_on_k8s.utils.run import validate_max_runtime
 
 if TYPE_CHECKING:
     from spark_on_k8s.planning import ApplicationPlan
@@ -47,6 +48,7 @@ _FIELDS = (
         "image_pull_policy",
         "ui_reverse_proxy",
         "startup_timeout",
+        "max_runtime",
         "app_waiter",
         "executor_pod_template",
         "driver_pod_template",
@@ -165,6 +167,10 @@ def _validate_spec(spec: dict):
         raise JobValidationError("spec.ui_reverse_proxy must be a boolean.")
     if "startup_timeout" in spec:
         _integer(spec["startup_timeout"], "spec.startup_timeout")
+    try:
+        validate_max_runtime(spec.get("max_runtime"), "spec.max_runtime")
+    except ValueError as error:
+        raise JobValidationError(str(error)) from None
     for field in ("driver_pod_template", "executor_pod_template"):
         if field in spec and not isinstance(spec[field], (str, dict)):
             raise JobValidationError(f"spec.{field} must be YAML text or a Pod object.")

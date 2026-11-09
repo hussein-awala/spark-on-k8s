@@ -159,7 +159,17 @@ and cleanup of its owned Services/executors. It reports a deletion request, not
 instantaneous completion. Closing a client session or tunnel leaves the server
 running. Keep the receipt until Kubernetes has removed the resources.
 
-Status reports observed resource presence and driver phase, including missing or
+To bound a server that might be forgotten, or whose receipt or client is lost, add
+`--max-runtime SECONDS` to `create` (`max_runtime` in `ConnectServerConfig`). Kubernetes
+stops the driver that long after its pod starts, whether or not anyone deletes it.
+Choose a value longer than any session you need: open sessions then fail and the
+server is not restarted. Status reports `terminated` with `driver_reason:
+"DeadlineExceeded"`. The stopped driver pod and its Services remain until `delete`
+(or [`apps prune`](automation.md#prune-finished-or-orphaned-drivers)) removes them;
+see [driver lifetime limits](automation.md#limit-how-long-a-driver-can-run).
+
+Status reports observed resource presence, driver phase and the driver pod's
+Kubernetes `driver_reason` (or `null`), including missing or
 terminating resources. Permission errors and unreachable Kubernetes APIs remain
 errors, not evidence that a server has disappeared. Destructive operations verify
 all recorded resource identities before issuing UID-conditional deletion requests;

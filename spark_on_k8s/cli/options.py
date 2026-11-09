@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 import click
 
 from spark_on_k8s.utils.configuration import Configuration
+from spark_on_k8s.utils.run import MAX_RUNTIME_LIMIT
 
 if TYPE_CHECKING:
     from click.core import Context, Parameter
@@ -326,4 +327,13 @@ driver_container_name_option = click.Option(
     ("--driver-container-name",),
     type=str,
     help="Driver container to select from the template; defaults to driver or the sole container.",
+)
+max_runtime_option = click.Option(
+    ("--max-runtime",),
+    type=click.IntRange(min=1, max=MAX_RUNTIME_LIMIT),
+    default=None,
+    help=(
+        "Stop the driver this many seconds after its pod starts (Kubernetes activeDeadlineSeconds); "
+        "the run then fails with reason DeadlineExceeded. Unlike --timeout, this ends the application."
+    ),
 )

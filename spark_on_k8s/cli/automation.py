@@ -57,6 +57,8 @@ def execution(operation: str, namespace: str, output: str):
             message = "Interrupted; inspect the reported resource identity and cleanup outcome."
         elif operation == "connect_check":
             message = "Interrupted; the Spark Connect server was not stopped."
+        elif operation == "prune":
+            message = "Interrupted; deletion may already have been requested for reported drivers."
         else:
             message = "Interrupted; the application was not stopped."
         result["error"] = {"code": "interrupted", "message": message}

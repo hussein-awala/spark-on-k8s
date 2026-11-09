@@ -18,7 +18,7 @@ from spark_on_k8s.utils.app_manager import SparkAppManager
 from spark_on_k8s.utils.configuration import Configuration
 from spark_on_k8s.utils.driver_pod_template import load_driver_pod_template, merge_driver_pod_template
 from spark_on_k8s.utils.logging_mixin import LoggingMixin
-from spark_on_k8s.utils.run import RunHandle, WaitDeadline
+from spark_on_k8s.utils.run import RunHandle, WaitDeadline, validate_max_runtime
 from spark_on_k8s.utils.types import NOTSET, ArgNotSet
 
 if TYPE_CHECKING:
@@ -311,6 +311,7 @@ class SparkOnK8S(LoggingMixin):
         driver_host_aliases: list[k8s.V1HostAlias] | ArgNotSet = NOTSET,
         driver_pod_template: str | Path | Mapping[str, Any] | None = None,
         driver_container_name: str | None = None,
+        max_runtime: int | None = None,
         dry_run: bool = False,
     ) -> str | ApplicationPlan:
         """Submit a Spark app to Kubernetes
@@ -363,6 +364,9 @@ class SparkOnK8S(LoggingMixin):
                 Generated identity and launch settings override the template; other fields are preserved.
             driver_container_name: Container to use as the driver in the template. Defaults to the
                 container named "driver", or the sole container. Ambiguous templates are rejected.
+            max_runtime: Maximum driver lifetime in whole seconds, set as the driver pod's
+                ``activeDeadlineSeconds``. Kubernetes counts it from the pod's start, then stops the
+                driver and marks it Failed with reason ``DeadlineExceeded``. Unset (None) by default.
             dry_run: Build an offline plan without opening a Kubernetes connection or creating resources.
 
         Returns:
@@ -376,6 +380,7 @@ class SparkOnK8S(LoggingMixin):
             self.last_submitted_app_id = None
             self.last_submission_phase = "preparing"
         WaitDeadline(wait_timeout)
+        validate_max_runtime(max_runtime)
         if driver_container_name is not None and driver_pod_template is None:
             raise ValueError("driver_container_name requires driver_pod_template")
         template = load_driver_pod_template(driver_pod_template) if driver_pod_template is not None else None
@@ -669,6 +674,7 @@ class SparkOnK8S(LoggingMixin):
             tolerations=driver_tolerations,
             init_containers=driver_init_containers,
             host_aliases=driver_host_aliases,
+            active_deadline_seconds=max_runtime,
         )
         if template is not None:
             pod = merge_driver_pod_template(pod, template, driver_container_name)

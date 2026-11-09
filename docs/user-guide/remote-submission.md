@@ -96,6 +96,13 @@ the executor count also bounds dynamic allocation, which must declare an explici
 The ordinary portable job defaults still apply: one CPU, 1024 MB plus 512 MB overhead per
 process, and two executors. A policy below those defaults requires explicit smaller job values.
 
+Remote jobs may set `spec.max_runtime` (seconds), which makes Kubernetes stop the driver that
+long after its pod starts; it can only shorten a run. To bound runs whose remote client is
+lost or never stops them, an administrator can add the optional `"max_runtime": 86400` to
+`limits`. Every remote job must then set `spec.max_runtime` no greater than that limit, or it
+is rejected; it is never filled in silently. Policies without this key keep their current
+behavior. See [driver lifetime limits](automation.md#limit-how-long-a-driver-can-run).
+
 Remote requests reject pod templates, packages, secret imports, custom labels/annotations,
 node selectors, profiles, Kubernetes credentials and all other unsupported fields.
 Only these Spark tuning keys can appear in the administrator's explicit value allowlist:

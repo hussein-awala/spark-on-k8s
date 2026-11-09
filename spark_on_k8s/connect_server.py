@@ -13,7 +13,7 @@ from urllib3.exceptions import MaxRetryError, NewConnectionError, TimeoutError a
 
 from spark_on_k8s.client import ExecutorInstances, PodResources
 from spark_on_k8s.connect import ConnectClientUnavailable, ConnectError, ConnectProfile
-from spark_on_k8s.utils.run import RunHandle, WaitDeadline
+from spark_on_k8s.utils.run import RunHandle, WaitDeadline, validate_max_runtime
 
 if TYPE_CHECKING:
     from spark_on_k8s.client import SparkOnK8S
@@ -91,6 +91,7 @@ class ConnectServerConfig:
     The image must contain the specified Connect server JAR and a Spark entrypoint.
     This configuration creates neither namespaces nor service accounts. Its plaintext
     ClusterIP service requires a trusted network or a separately managed gateway.
+    An optional max_runtime (seconds) stops the server's driver even if no client deletes it.
     """
 
     image: str
@@ -106,6 +107,7 @@ class ConnectServerConfig:
     spark_conf: dict[str, str] = field(default_factory=dict)
     packages: list[str] = field(default_factory=list)
     driver_node_selector: dict[str, str] = field(default_factory=dict)
+    max_runtime: int | None = None
 
     def __post_init__(self):
         if not isinstance(self.image, str) or not self.image or any(c.isspace() for c in self.image):
@@ -186,6 +188,7 @@ class ConnectServerConfig:
             for p in self.packages
         ):
             raise ValueError("packages must contain explicit Maven group:artifact:version coordinates")
+        validate_max_runtime(self.max_runtime)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -321,6 +324,7 @@ def _options(config: ConnectServerConfig, token: str) -> dict:
         "driver_host_aliases": [],
         "driver_pod_template": None,
         "driver_container_name": None,
+        "max_runtime": config.max_runtime,
     }
 
 
@@ -556,6 +560,8 @@ def connect_server_status(client: SparkOnK8S, handle: ConnectServerHandle, *, ti
         if obj is None
     ]
     phase = pod.status.phase if pod is not None and pod.status else None
+    # Kubernetes sets a pod-level reason such as DeadlineExceeded (max_runtime) or Evicted.
+    reason = getattr(pod.status, "reason", None) if pod is not None and pod.status else None
     deleting = any(
         obj is not None and obj.metadata.deletion_timestamp is not None for obj in (pod, transport, service)
     )
@@ -575,6 +581,7 @@ def connect_server_status(client: SparkOnK8S, handle: ConnectServerHandle, *, ti
     return {
         "status": state,
         "driver_phase": phase,
+        "driver_reason": reason if isinstance(reason, str) else None,
         "missing": missing,
         "endpoint": handle.endpoint,
         "query_ready": None,

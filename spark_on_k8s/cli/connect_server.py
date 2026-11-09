@@ -12,6 +12,7 @@ from spark_on_k8s.client import ExecutorInstances, PodResources, SparkOnK8S
 from spark_on_k8s.connect import ConnectProfile
 from spark_on_k8s.connect_server import ConnectServerConfig, ConnectServerCreateError, ConnectServerHandle
 from spark_on_k8s.k8s.sync_client import KubernetesClientManager
+from spark_on_k8s.utils.run import MAX_RUNTIME_LIMIT
 
 
 def _cluster_options(function):
@@ -112,6 +113,12 @@ def server_cli():
 )
 @click.option("--package", "packages", multiple=True, help="Additional Maven package coordinate.")
 @click.option(
+    "--max-runtime",
+    type=click.IntRange(min=1, max=MAX_RUNTIME_LIMIT),
+    default=None,
+    help="Stop the server's driver this many seconds after it starts, even if it is never deleted.",
+)
+@click.option(
     "--receipt-file",
     type=click.Path(dir_okay=False, path_type=Path),
     required=True,
@@ -136,6 +143,7 @@ def create(
     executors,
     spark_conf,
     packages,
+    max_runtime,
     receipt_file,
     kubeconfig,
     context,
@@ -160,6 +168,7 @@ def create(
             executor_instances=ExecutorInstances(initial=executors),
             spark_conf=spark_conf,
             packages=list(packages),
+            max_runtime=max_runtime,
         )
         with receipt_writer(receipt_file, field="server") as save:
             spark_client = _client(kubeconfig, context)

@@ -66,6 +66,10 @@ def test_profiles_merge_maps_replace_lists_and_do_not_mutate_input():
         {"driver_labels": {"x": 4}},
         {"packages": "one,two"},
         {"startup_timeout": -1},
+        {"max_runtime": 0},
+        {"max_runtime": "1h"},
+        {"max_runtime": True},
+        {"max_runtime": 31 * 24 * 3600},
         {"ui_reverse_proxy": "false"},
         {"image_pull_policy": "sometimes"},
         {"app_waiter": "forever"},
@@ -448,3 +452,16 @@ def test_plan_redacts_literal_executor_environment_properties():
     assert "spark.executorEnv.DB_PASS=<redacted>" in driver["args"]
     assert "spark.sql.shuffle.partitions=8" in driver["args"]
     assert "PRIVATE_VALUE" not in json.dumps(shown)
+
+
+def test_max_runtime_is_planned_forwarded_and_removable_by_a_profile():
+    document = definition(max_runtime=7200)
+    document["profiles"] = {"interactive": {"spec": {"max_runtime": None}}}
+    job = JobSpec.from_mapping(document)
+    assert job.to_submit_kwargs()["max_runtime"] == 7200
+    pod = next(item for item in job.plan().to_dict()["resources"] if item["kind"] == "Pod")
+    assert pod["spec"]["activeDeadlineSeconds"] == 7200
+    assert job.to_operator_kwargs()["max_runtime"] == 7200
+    unbounded = JobSpec.from_mapping(document, profile="interactive")
+    pod = next(item for item in unbounded.plan().resources if item["kind"] == "Pod")
+    assert "activeDeadlineSeconds" not in pod["spec"]

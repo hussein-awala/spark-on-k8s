@@ -50,3 +50,23 @@ except urllib.error.HTTPError as error:
 else:
     raise AssertionError("Root endpoint must require authentication")
 '
+# "*" binds a chart-owned ClusterRole with the namespace rules, never the built-in view/edit.
+helm install console chart --namespace control-c --create-namespace \
+  --set image.tag=chart-ci --set image.pullPolicy=Never \
+  --set-string 'namespaces=*' --wait --timeout 180s
+helm test console --namespace control-c --timeout 120s
+cluster_account=system:serviceaccount:control-c:console-spark-on-k8s
+test "$(kubectl auth can-i list pods --namespace kube-system --as="$cluster_account")" = yes
+test "$(kubectl auth can-i get secrets --all-namespaces --as="$cluster_account")" = no
+test "$(kubectl auth can-i create pods/exec --namespace analytics --as="$cluster_account")" = no
+# Cluster-wide write access needs an explicit acknowledgement; rendering fails before any change.
+if helm upgrade console chart --namespace control-c --reuse-values --set readOnly=false; then
+  echo "cluster-wide write access rendered without rbac.allowClusterWideWrite" >&2
+  exit 1
+fi
+helm upgrade console chart --namespace control-c --reuse-values --set readOnly=false \
+  --set rbac.allowClusterWideWrite=true --wait --timeout 180s
+test "$(kubectl auth can-i create pods/exec --namespace analytics --as="$cluster_account")" = yes
+test "$(kubectl auth can-i get secrets --all-namespaces --as="$cluster_account")" = no
+test "$(kubectl auth can-i create configmaps --namespace analytics --as="$cluster_account")" = no
+helm uninstall console --namespace control-c

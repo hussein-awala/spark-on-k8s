@@ -40,6 +40,9 @@ rbac:
   create: null
   # Preserve old shared RBAC names only for an existing installation.
   legacyNames: false
+  # Required to render namespaces "*" with readOnly false, which grants pod create,
+  # delete and exec in every namespace.
+  allowClusterWideWrite: false
 
 # Annotations to be added to the Spark-on-K8S deployment pods
 podAnnotations: {}
@@ -133,14 +136,16 @@ env: []
 
 # Namespaces the Spark-on-K8S API serves and, with chart-managed RBAC, can access.
 # Empty (the default) selects only the release namespace, with a Role and RoleBinding
-# there. "*" selects every namespace, with a cluster role binding. A comma-separated
-# string such as "namespace1,namespace2" selects those namespaces, with a Role and
-# RoleBinding in each. The API refuses other namespaces, including in its Spark UI
-# proxy and log streams.
+# there. "*" selects every namespace, with a ClusterRole and ClusterRoleBinding that
+# grant the same rules cluster-wide. A comma-separated string such as
+# "namespace1,namespace2" selects those namespaces, with a Role and RoleBinding in
+# each. The API refuses other namespaces, including in its Spark UI proxy and log
+# streams.
 namespaces: ""
 
 # If true, the Spark-on-K8S service will be able to read pods, services, pods logs,
 # and if false, it will be able to exec into pods and create/delete pods and services.
+# With namespaces "*", false also requires rbac.allowClusterWideWrite.
 readOnly: true
 
 # Configuration for the Spark History Server

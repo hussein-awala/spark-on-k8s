@@ -35,6 +35,7 @@ from spark_on_k8s.cli.options import (
     force_option,
     image_pull_policy_option,
     logs_option,
+    max_runtime_option,
     namespace_option,
     scheduler_backlog_timeout_option,
     secret_env_var_option,
@@ -168,6 +169,7 @@ def wait(app_id: str, namespace: str, output: str, timeout: float | None):
         executor_template_option,
         driver_pod_template_option,
         driver_container_name_option,
+        max_runtime_option,
     ],
     help="Submit a Spark application.",
 )
@@ -214,6 +216,7 @@ def submit(
     timeout: float | None,
     driver_pod_template: str | None,
     driver_container_name: str | None,
+    max_runtime: int | None,
     receipt_file,
 ):
     from spark_on_k8s.client import ExecutorInstances, PodResources, SparkOnK8S
@@ -262,6 +265,7 @@ def submit(
         "executor_pod_template": executor_pod_template,
         "driver_pod_template": driver_pod_template,
         "driver_container_name": driver_container_name,
+        "max_runtime": max_runtime,
     }
     execute_submission(SparkOnK8S(), kwargs, output=output, timeout=timeout, receipt_file=receipt_file)
 

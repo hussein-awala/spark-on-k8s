@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import re
 import time
+from datetime import UTC, datetime
 from threading import Event, Timer
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from kubernetes import client as k8s, watch
 from kubernetes.client import ApiException
@@ -12,7 +14,7 @@ from kubernetes.stream import stream
 
 from spark_on_k8s.k8s.sync_client import KubernetesClientManager
 from spark_on_k8s.utils.logging_mixin import LoggingMixin
-from spark_on_k8s.utils.run import WaitDeadline
+from spark_on_k8s.utils.run import RunHandle, WaitDeadline
 from spark_on_k8s.utils.spark_app_status import (
     SparkAppStatus,
     driver_container_name,
@@ -421,6 +423,107 @@ class SparkAppManager(LoggingMixin):
                 ),
             )
 
+    def find_prunable_drivers(
+        self,
+        *,
+        namespace: str,
+        older_than: float = 0,
+        include_active: bool = False,
+    ) -> dict[str, Any]:
+        """Select drivers created by this client for cleanup, without changing anything.
+
+        Only pods labeled ``spark-role=driver`` with a ``spark-app-id`` whose name is the driver
+        name this client derives from that ID are considered. Terminal (Succeeded or Failed)
+        drivers created at least ``older_than`` seconds ago are selected; ``include_active`` also
+        selects Pending, Running and Unknown drivers, whose deletion stops the application.
+
+        Args:
+            namespace (str): Namespace.
+            older_than (float, optional): Minimum age in seconds since pod creation. Defaults to 0.
+            include_active (bool, optional): Also select non-terminal drivers. Defaults to False.
+
+        Returns:
+            dict: ``items``, one identity/status mapping per selected driver, and ``excluded``,
+            the number of other matching pods by reason (``active``, ``recent``, ``deleting``,
+            ``unverified``).
+        """
+        if isinstance(older_than, bool) or not isinstance(older_than, int | float) or not older_than >= 0:
+            raise ValueError("older_than must be a nonnegative number of seconds")
+        if include_active and older_than <= 0:
+            raise ValueError("Selecting active drivers requires a positive older_than")
+        with self.k8s_client_manager.client() as client:
+            api = k8s.CoreV1Api(client)
+            pods = api.list_namespaced_pod(
+                namespace=namespace,
+                label_selector="spark-role=driver,spark-app-id",
+            ).items
+        now = datetime.now(UTC)
+        items = []
+        excluded = dict.fromkeys(("active", "recent", "deleting", "unverified"), 0)
+        for pod in pods:
+            app_id = (pod.metadata.labels or {}).get("spark-app-id")
+            created = pod.metadata.creation_timestamp
+            # Older releases truncated long IDs instead of hashing them; both names are this client's.
+            if (
+                not isinstance(app_id, str)
+                or not re.fullmatch(r"[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?", app_id)
+                or pod.metadata.name
+                not in {self._resource_name(app_id=app_id, suffix="-driver"), f"{app_id[:56]}-driver"}
+                or not pod.metadata.uid
+                or not isinstance(created, datetime)
+            ):
+                excluded["unverified"] += 1
+                continue
+            if pod.metadata.deletion_timestamp is not None:
+                excluded["deleting"] += 1
+                continue
+            phase = (pod.status.phase if pod.status else None) or SparkAppStatus.Unknown.value
+            if phase not in {SparkAppStatus.Succeeded, SparkAppStatus.Failed} and not include_active:
+                excluded["active"] += 1
+                continue
+            age = (now - (created if created.tzinfo else created.replace(tzinfo=UTC))).total_seconds()
+            if age < older_than:
+                excluded["recent"] += 1
+                continue
+            items.append(
+                {
+                    "app_id": app_id,
+                    "driver_pod": pod.metadata.name,
+                    "driver_uid": pod.metadata.uid,
+                    "phase": phase,
+                    "reason": pod.status.reason if pod.status else None,
+                    "created_at": created.isoformat(),
+                    "age_seconds": max(int(age), 0),
+                }
+            )
+        return {"items": items, "excluded": excluded}
+
+    def delete_prunable_driver(self, *, namespace: str, item: dict[str, Any]) -> str:
+        """Request deletion of one selected driver, guarded by its recorded identity.
+
+        Owned executors, Services, ConfigMaps and Secrets are removed by Kubernetes garbage
+        collection after the driver. Returns ``deletion_requested``, ``absent`` when the driver
+        no longer exists, or ``replaced`` when a different pod now has its name (not deleted).
+        Other failures raise.
+        """
+        run = RunHandle(
+            namespace=namespace,
+            app_id=item["app_id"],
+            driver_pod=item["driver_pod"],
+            driver_uid=item["driver_uid"],
+        )
+        try:
+            self.cancel_run(run)
+        except ApiException as error:
+            if error.status == 404:
+                return "absent"
+            if error.status == 409:
+                return "replaced"
+            raise
+        except ValueError:
+            return "replaced"
+        return "deletion_requested"
+
     @staticmethod
     def create_spark_pod_spec(
         *,
@@ -443,6 +546,7 @@ class SparkAppManager(LoggingMixin):
         tolerations: list[k8s.V1Toleration] | None = None,
         init_containers: list[k8s.V1Container] | None = None,
         host_aliases: list[k8s.V1HostAlias] | None = None,
+        active_deadline_seconds: int | None = None,
     ) -> k8s.V1PodTemplateSpec:
         """Create a pod spec for a Spark application
 
@@ -466,6 +570,8 @@ class SparkAppManager(LoggingMixin):
             tolerations: List of tolerations to use for the pod
             init_containers: List of init containers to run before the main container
             host_aliases: List of host aliases to add to the pod
+            active_deadline_seconds: Seconds after pod start before Kubernetes stops the pod and
+                marks it Failed (DeadlineExceeded). None sets no deadline.
 
         Returns:
             Pod template spec for the Spark application
@@ -500,6 +606,7 @@ class SparkAppManager(LoggingMixin):
             tolerations=tolerations,
             init_containers=init_containers,
             host_aliases=host_aliases,
+            active_deadline_seconds=active_deadline_seconds,
         )
         template = k8s.V1PodTemplateSpec(
             metadata=pod_metadata,

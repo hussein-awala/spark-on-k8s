@@ -190,6 +190,8 @@ spark-on-k8s apps --help
 
 Use `--output json` for versioned submission receipts and machine-readable list/status results.
 Waiting commands report failed workloads with nonzero exit codes; `--timeout` bounds observation.
+`--max-runtime SECONDS` instead makes Kubernetes stop the driver, and `apps prune` reports (or, with
+`--delete`, deletes) finished drivers left in a namespace.
 See the [automation guide](https://hussein.awala.fr/spark-on-k8s/latest/user-guide/automation/) for exit codes and Python run handles.
 
 ### REST API

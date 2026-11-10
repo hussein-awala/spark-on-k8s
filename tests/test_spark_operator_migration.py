@@ -686,6 +686,13 @@ FIELD_RULES = [
         "unsupported",
         None,
     ),
+    # Only the exact Kueue prefix is recognized; a longer domain is an ordinary label.
+    (
+        {"metadata": {"labels": {"kueue.x-k8s.io.example.com/queue-name": "q"}}},
+        "metadata.labels[kueue.x-k8s.io.example.com/queue-name]",
+        "mapped",
+        None,
+    ),
     ({"metadata": {"labels": {"version": "x"}}}, "metadata.labels[version]", "ignored", None),
     ({"metadata": {"annotations": {"owner": "a"}}}, "metadata.annotations[owner]", "unsupported", None),
     (

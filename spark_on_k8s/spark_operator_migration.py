@@ -1291,7 +1291,8 @@ def _metadata(a: _Assessment, metadata: dict, job_name: str) -> None:
                 continue
             for label, item in value.items():
                 item_path = f"{path}[{label}]"
-                if label.startswith("kueue.x-k8s.io/"):
+                prefix, slash, _ = label.partition("/")
+                if slash and prefix == "kueue.x-k8s.io":
                     a.unsupported(
                         item_path,
                         "The operator does not copy Kueue labels to pods, and no custom resource is created "

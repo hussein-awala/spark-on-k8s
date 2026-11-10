@@ -68,7 +68,7 @@
   <meta name="documentation-channel" content="develop">
   <meta name="documentation-version" content="develop">
   
-    <meta name="documentation-source" content="795a41ff0c457f3a1b9b5098bb7207fcd1fa3aa0">
+    <meta name="documentation-source" content="db28ce708e64611182d9e50628aca5da701dba6a">
   
 
   </head>
@@ -108,7 +108,7 @@
     <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
   
   
-    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/795a41ff0c457f3a1b9b5098bb7207fcd1fa3aa0"><code>795a41ff0c45</code></a>.
+    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/db28ce708e64611182d9e50628aca5da701dba6a"><code>db28ce708e64</code></a>.
   
 
           </div>
@@ -5386,7 +5386,7 @@ to the minimum (or zero when only a maximum is given).</p>
 <p>Settings under <code>spec</code> match the Python SDK names: <code>image</code>, <code>app_path</code>, <code>namespace</code>,
 <code>service_account</code>, <code>class_name</code>, <code>packages</code>, <code>app_arguments</code>, <code>spark_conf</code>,
 <code>driver_resources</code>, <code>executor_resources</code>, <code>executor_instances</code>, <code>image_pull_policy</code>,
-<code>app_waiter</code>, <code>startup_timeout</code>, <code>ui_reverse_proxy</code>, driver/executor node selectors,
+<code>app_waiter</code>, <code>startup_timeout</code>, <code>max_runtime</code>, <code>ui_reverse_proxy</code>, driver/executor node selectors,
 labels and annotations, <code>driver_env_vars_from_secrets</code>, and <code>executor_pod_template</code>
 or <code>executor_pod_template_path</code>, plus <code>driver_pod_template</code> and <code>driver_container_name</code>. Secrets are referenced by name; literal secret
 payloads are deliberately not a job-file field.</p>
@@ -5397,6 +5397,11 @@ for conversion, precedence and Secret handling.</p>
 two executors, and 1 CPU/1024 MiB memory/512 MiB overhead per pod. Job files do not
 inherit <code>SPARK_ON_K8S_*</code> submission defaults. Set <code>spec.app_waiter: wait</code> or <code>log</code> to
 wait, and optionally bound CLI waiting with <code>--timeout SECONDS</code>.</p>
+<p><code>spec.max_runtime</code> (whole seconds, at most 30 days) makes Kubernetes stop the driver
+that long after its pod starts, even if nothing is still watching the run; the plan
+shows it as the driver pod's <code>activeDeadlineSeconds</code>. A profile can set it to <code>null</code>
+to remove a base value. See <a href="../automation/#limit-how-long-a-driver-can-run">driver lifetime limits</a>
+for what Kubernetes does to the driver, executors and owned objects.</p>
 <p>A driver or executor template may be a Pod mapping, inline YAML, or a <code>.yaml</code>/<code>.yml</code> filename.
 Local filenames resolve relative to the job file, not the current directory.
 <code>executor_pod_template_path</code> is a path visible to Spark, not a local file to upload.
@@ -5489,7 +5494,7 @@ this Kubernetes section and use the reviewed Airflow connection instead.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 9, 2026 08:59:45 UTC">November 9, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 10, 2026 10:31:13 UTC">November 10, 2026</span>
   </span>
 
     

@@ -68,7 +68,7 @@
   <meta name="documentation-channel" content="develop">
   <meta name="documentation-version" content="develop">
   
-    <meta name="documentation-source" content="795a41ff0c457f3a1b9b5098bb7207fcd1fa3aa0">
+    <meta name="documentation-source" content="db28ce708e64611182d9e50628aca5da701dba6a">
   
 
   </head>
@@ -108,7 +108,7 @@
     <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
   
   
-    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/795a41ff0c457f3a1b9b5098bb7207fcd1fa3aa0"><code>795a41ff0c45</code></a>.
+    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/db28ce708e64611182d9e50628aca5da701dba6a"><code>db28ce708e64</code></a>.
   
 
           </div>
@@ -1183,6 +1183,28 @@
     <span class="md-ellipsis">
       
         Cancel the recorded run
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#limit-how-long-a-driver-can-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Limit how long a driver can run
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#prune-finished-or-orphaned-drivers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prune finished or orphaned drivers
       
     </span>
   </a>
@@ -5358,6 +5380,28 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#limit-how-long-a-driver-can-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Limit how long a driver can run
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#prune-finished-or-orphaned-drivers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prune finished or orphaned drivers
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#contract-coverage-and-lifecycle-ownership" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5604,6 +5648,76 @@ the identity checks. No timeout automatically invokes cancellation.
 An unreadable or invalid receipt is a runtime failure (exit 1): the JSON result has
 <code>run: null</code>, an empty <code>namespace</code> and an <code>operation_error</code>. A receipt path that does
 not exist is a CLI usage error (exit 2) without a JSON document.</p>
+<h2 id="limit-how-long-a-driver-can-run">Limit how long a driver can run<a class="headerlink" href="#limit-how-long-a-driver-can-run" title="Permanent link">&para;</a></h2>
+<p><code>--timeout</code> and <code>wait_timeout</code> only limit observation. To stop an application that
+runs too long, including one whose submitting process, CI runner or Airflow worker
+was killed, set a maximum driver lifetime in whole seconds:</p>
+<div class="highlight"><pre><span></span><code>spark-on-k8s<span class="w"> </span>app<span class="w"> </span>submit<span class="w"> </span>--namespace<span class="w"> </span>spark<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--image<span class="w"> </span>registry.example.com/team/job:version<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--path<span class="w"> </span>local:///opt/spark/work-dir/job.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--max-runtime<span class="w"> </span><span class="m">7200</span><span class="w"> </span>--wait<span class="w"> </span>--output<span class="w"> </span>json
+</code></pre></div>
+<p>The same setting is <code>max_runtime</code> in <code>submit_app</code>/<code>submit_run</code>, <code>spec.max_runtime</code>
+in <a href="../jobs/">job files</a>, <code>--max-runtime</code> on <code>sql submit</code> and
+<a href="../spark_connect_server/"><code>connect server create</code></a>, <code>ConnectServerConfig.max_runtime</code>,
+<code>compute.max_runtime</code> for <a href="../dbt/">managed dbt</a> and the <a href="../airflow/">Airflow operators'</a>
+<code>max_runtime</code> argument. It is unset by default and has no environment-variable
+default. Values range from 1 to 2592000 seconds (30 days); offline plans show it.</p>
+<p>The client sets the driver pod's <code>spec.activeDeadlineSeconds</code>; no process needs to
+keep running. Kubernetes counts the deadline from the pod's <code>startTime</code>, when the
+kubelet accepts the scheduled pod (image pulls count; time spent unschedulable does
+not, so keep <code>startup_timeout</code> for that). When it elapses, the kubelet stops the
+driver containers with the pod's termination grace period and marks the pod <code>Failed</code>
+with reason <code>DeadlineExceeded</code>. The driver is not restarted. Waiting commands report
+<code>Failed</code> (exit code 3), and <code>app diagnose</code> reports a <code>deadline_exceeded</code> finding.
+Unlike an observation timeout, this deliberately ends the application. It is a hard
+stop rather than a drain: interrupted work can leave partial output, as with any
+killed run. Choose a value well above the expected duration.</p>
+<p>On that termination signal, Spark's driver shutdown normally deletes its executor
+pods (unless <code>spark.kubernetes.executor.deleteOnTermination=false</code>); an executor that
+loses its driver exits. The <code>Failed</code> driver pod itself remains, with its logs and the
+objects it owns: the driver Service, ConfigMaps, Secret and any retained executor
+pods. They request no further CPU or memory, but stay until the driver pod is
+deleted, after which Kubernetes garbage collection removes them. Delete the run with
+<code>app cancel --receipt</code> or <code>app delete</code>, or use <code>apps prune</code> below. With a <a href="../driver_pod_templates/">driver pod template</a>,
+<code>max_runtime</code> replaces the template's <code>activeDeadlineSeconds</code>; when unset, a template
+value is kept.</p>
+<h2 id="prune-finished-or-orphaned-drivers">Prune finished or orphaned drivers<a class="headerlink" href="#prune-finished-or-orphaned-drivers" title="Permanent link">&para;</a></h2>
+<p><code>apps prune</code> finds drivers submitted by spark-on-k8s in one namespace. It only
+reports them unless you add <code>--delete</code>:</p>
+<div class="highlight"><pre><span></span><code>spark-on-k8s<span class="w"> </span>apps<span class="w"> </span>prune<span class="w"> </span>--namespace<span class="w"> </span>spark<span class="w"> </span>--older-than<span class="w"> </span><span class="m">86400</span><span class="w"> </span>--output<span class="w"> </span>json
+spark-on-k8s<span class="w"> </span>apps<span class="w"> </span>prune<span class="w"> </span>--namespace<span class="w"> </span>spark<span class="w"> </span>--older-than<span class="w"> </span><span class="m">86400</span><span class="w"> </span>--delete<span class="w"> </span>--output<span class="w"> </span>json
+</code></pre></div>
+<p>A driver is selected only when it has the <code>spark-role=driver</code> and <code>spark-app-id</code>
+labels and the pod name that this client derives from that application ID. This
+covers drivers created by the SDK, CLI, remote API, Airflow operators, Connect server
+helper and dbt adapter. Pods from other launchers, or that merely copy the labels,
+are counted as <code>unverified</code> and never deleted. By default, only terminal (<code>Succeeded</code>
+or <code>Failed</code>) drivers are selected, including those stopped by <code>max_runtime</code>.
+<code>--older-than SECONDS</code> (default 0) sets a minimum age since pod creation, as shown by
+<code>kubectl get pods</code>, not since completion. <code>--include-active</code> also selects <code>Pending</code>,
+<code>Running</code> and <code>Unknown</code> drivers, and deleting them stops those applications; it
+requires a positive <code>--older-than</code>. Pods already being deleted are skipped.</p>
+<p>With <code>--delete</code>, each selected driver is checked and deleted like <code>app cancel</code>: the
+current pod must still have the listed UID, application label and driver role, and
+the request carries a UID precondition with foreground propagation. Kubernetes then
+garbage-collects the executors, Services, ConfigMaps and Secret that the driver
+owns. An accepted request is not completed cleanup. Objects that were never owned
+by a driver, such as a Secret left by a submission interrupted before its driver
+existed, are not selected; the command does not list or read Secrets. It needs
+<code>list</code>, <code>get</code> and <code>delete</code> access to pods in the namespace. This is a one-time
+command, not a controller. Python callers can use the same steps through
+<code>SparkAppManager.find_prunable_drivers(...)</code> and <code>delete_prunable_driver(...)</code>.</p>
+<p>The JSON document adds <code>dry_run</code>, <code>criteria</code> (<code>older_than</code>, <code>include_active</code>),
+<code>items</code> and <code>excluded</code> to the common fields. Each item contains <code>app_id</code>,
+<code>driver_pod</code>, <code>driver_uid</code>, <code>phase</code>, the pod's <code>reason</code> (for example
+<code>DeadlineExceeded</code>) or <code>null</code>, <code>created_at</code>, <code>age_seconds</code>, <code>action</code> and <code>error</code>.
+<code>action</code> is <code>would_delete</code> without <code>--delete</code>, otherwise <code>deletion_requested</code>,
+<code>absent</code> (already gone), <code>replaced</code> (another pod now has that name; not deleted) or
+<code>failed</code> with an item <code>error</code>. <code>excluded</code> counts other matching pods as <code>active</code>,
+<code>recent</code>, <code>deleting</code> or <code>unverified</code>. If listing fails, <code>items</code> is <code>null</code>. If some
+deletions fail, the remaining requests are still sent and the command exits 1 with
+an <code>operation_error</code>; an interruption exits 130 and reports the requests made so far.</p>
 <h2 id="contract-coverage-and-lifecycle-ownership">Contract coverage and lifecycle ownership<a class="headerlink" href="#contract-coverage-and-lifecycle-ownership" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -5626,6 +5740,12 @@ not exist is a CLI usage error (exit 2) without a JSON document.</p>
 <td><code>--output json</code></td>
 <td>Versioned result</td>
 <td>Query/deletion request succeeded, not data correctness</td>
+</tr>
+<tr>
+<td>apps prune</td>
+<td><code>--output json</code></td>
+<td>Versioned result with per-driver errors</td>
+<td>Selection only, or deletion requests accepted; not completed cleanup</td>
 </tr>
 <tr>
 <td>job validate</td>
@@ -5687,7 +5807,8 @@ runs inside Airflow's web server, follows Airflow's own error format.</p>
 reconciled controller. The caller submits and decides whether to observe or retry.
 Kubernetes runs the created workload after the client exits. Airflow owns scheduling
 and task retry policy when its operator is used. SDK/CLI observation timeouts retain
-the application; Airflow startup timeouts deliberately delete it. A kill signal is
+the application; Airflow startup timeouts deliberately delete it, and an elapsed
+<code>max_runtime</code> deliberately stops its driver. A kill signal is
 a termination request, not evidence of a completed streaming drain or checkpoint.</p>
 <p>Disable caching for workflow submission steps. Reusing a cached receipt does not
 establish that this workflow executed the data job. Observe the same run before
@@ -5715,7 +5836,7 @@ is not supported. Persist the returned immutable run handle per operation.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 10, 2026 09:18:26 UTC">November 10, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 10, 2026 10:31:13 UTC">November 10, 2026</span>
   </span>
 
     

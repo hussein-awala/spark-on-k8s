@@ -68,7 +68,7 @@
   <meta name="documentation-channel" content="develop">
   <meta name="documentation-version" content="develop">
   
-    <meta name="documentation-source" content="795a41ff0c457f3a1b9b5098bb7207fcd1fa3aa0">
+    <meta name="documentation-source" content="db28ce708e64611182d9e50628aca5da701dba6a">
   
 
   </head>
@@ -108,7 +108,7 @@
     <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
   
   
-    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/795a41ff0c457f3a1b9b5098bb7207fcd1fa3aa0"><code>795a41ff0c45</code></a>.
+    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/db28ce708e64611182d9e50628aca5da701dba6a"><code>db28ce708e64</code></a>.
   
 
           </div>
@@ -5308,7 +5308,7 @@
 
 <h1 id="diagnose-a-spark-application">Diagnose a Spark application<a class="headerlink" href="#diagnose-a-spark-application" title="Permanent link">&para;</a></h1>
 <p>These commands are available from the current source tree. Check the documentation for your installed release before using them with a published package.</p>
-<p>Diagnostics collect a bounded snapshot of driver and executor pod states and Kubernetes events. They explain observed image-pull failures, scheduling constraints, denied operations, OOM kills, crash loops and unavailable persistent volume claims. Each finding contains a stable <code>code</code>, <code>severity</code>, affected resource, evidence and a suggested next step. An unsuccessful exit code alone is not treated as proof of an OOM kill or another specific cause.</p>
+<p>Diagnostics collect a bounded snapshot of driver and executor pod states and Kubernetes events. They explain observed image-pull failures, scheduling constraints, denied operations, OOM kills, crash loops, unavailable persistent volume claims and pods stopped by an elapsed <a href="../automation/#limit-how-long-a-driver-can-run"><code>max_runtime</code></a> (<code>deadline_exceeded</code>). Each finding contains a stable <code>code</code>, <code>severity</code>, affected resource, evidence and a suggested next step. An unsuccessful exit code alone is not treated as proof of an OOM kill or another specific cause.</p>
 <h2 id="inspect-an-application">Inspect an application<a class="headerlink" href="#inspect-an-application" title="Permanent link">&para;</a></h2>
 <p>Use the application ID returned by submission:</p>
 <div class="highlight"><pre><span></span><code>spark-on-k8s<span class="w"> </span>app<span class="w"> </span>diagnose<span class="w"> </span>--namespace<span class="w"> </span>spark<span class="w"> </span>--app-id<span class="w"> </span>YOUR_APPLICATION_ID
@@ -5365,7 +5365,7 @@ spark-on-k8s<span class="w"> </span>doctor<span class="w"> </span>--namespace<sp
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 9, 2026 07:39:13 UTC">November 9, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 10, 2026 10:31:13 UTC">November 10, 2026</span>
   </span>
 
     

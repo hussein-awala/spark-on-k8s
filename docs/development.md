@@ -23,6 +23,11 @@ messages. Treat active, absent, terminal and unknown outcomes as different state
 See [support boundaries](user-guide/support.md) before adding a public contract, and
 classify a new surface in [interface stability](user-guide/stability.md).
 
+[CODEOWNERS](https://github.com/hussein-awala/spark-on-k8s/blob/main/.github/CODEOWNERS)
+maps these areas to their review owners; update it when an area is added or moved.
+The [governance policy](https://github.com/hussein-awala/spark-on-k8s/blob/main/GOVERNANCE.md)
+explains how contributors become reviewers and area maintainers.
+
 ## Choose checks by change
 
 | Touched behavior | Minimum relevant route before PR |

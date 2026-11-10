@@ -82,3 +82,9 @@ private data. Security reports follow the
 which also states which release lines receive security fixes.
 The [deployment security boundary](../security-boundaries.md) describes gateway,
 proxy and browser responsibilities.
+
+The project currently has a single maintainer. The
+[governance policy](https://github.com/hussein-awala/spark-on-k8s/blob/main/GOVERNANCE.md)
+describes roles, how decisions and releases are made, and how contributors become
+reviewers or area maintainers. Organizations that use the project can list
+themselves in [ADOPTERS.md](https://github.com/hussein-awala/spark-on-k8s/blob/main/ADOPTERS.md).

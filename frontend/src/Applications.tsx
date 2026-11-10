@@ -19,6 +19,8 @@ import type {
 
 const PAGE_SIZE = 50;
 const statuses = ["Running", "Pending", "Succeeded", "Failed", "Unknown"];
+// Unknown is uncertain, not finished: it keeps refreshing.
+const finishedStatuses = ["Succeeded", "Failed"];
 
 export function StatusBadge({ status }: { status: string }) {
   const known = statuses.includes(status) ? status.toLowerCase() : "unknown";
@@ -278,8 +280,13 @@ export function Applications({
     return () => historyRequest.current?.abort();
   }, [loadHistory]);
 
+  const refreshEnded =
+    Boolean(config.stopRefreshWhenFinished) &&
+    live.length > 0 &&
+    live.every((app) => finishedStatuses.includes(app.status));
+
   useEffect(() => {
-    if (!refreshInterval || selectedId || confirmation) return;
+    if (!refreshInterval || selectedId || confirmation || refreshEnded) return;
     const timer = window.setInterval(() => {
       if (!document.hidden && !busy.current) {
         void loadApps();
@@ -287,7 +294,14 @@ export function Applications({
       }
     }, refreshInterval * 1000);
     return () => window.clearInterval(timer);
-  }, [refreshInterval, loadApps, loadHistory, selectedId, confirmation]);
+  }, [
+    refreshInterval,
+    loadApps,
+    loadHistory,
+    selectedId,
+    confirmation,
+    refreshEnded,
+  ]);
 
   useEffect(() => {
     if (!restoreLogsFor || initialLoading) return;
@@ -463,18 +477,26 @@ export function Applications({
           </span>
         )}
         <div className="refresh-settings">
-          <label htmlFor="console-refresh">Auto-refresh</label>
-          <select
-            id="console-refresh"
-            value={refreshInterval}
-            onChange={(event) => setRefreshInterval(Number(event.target.value))}
-          >
-            {intervals.map((interval) => (
-              <option key={interval} value={interval}>
-                {interval ? `Every ${interval}s` : "Off"}
-              </option>
-            ))}
-          </select>
+          {refreshEnded ? (
+            <span>Auto-refresh ended</span>
+          ) : (
+            <>
+              <label htmlFor="console-refresh">Auto-refresh</label>
+              <select
+                id="console-refresh"
+                value={refreshInterval}
+                onChange={(event) =>
+                  setRefreshInterval(Number(event.target.value))
+                }
+              >
+                {intervals.map((interval) => (
+                  <option key={interval} value={interval}>
+                    {interval ? `Every ${interval}s` : "Off"}
+                  </option>
+                ))}
+              </select>
+            </>
+          )}
         </div>
       </div>
 
@@ -515,6 +537,16 @@ export function Applications({
         </div>
       </section>
 
+      {refreshEnded && (
+        <div className="notice notice-info" role="status">
+          <Icon name="clock" />
+          <span>
+            <strong>Live refresh ended.</strong> The application has finished,
+            so this view no longer updates automatically. Use Refresh to check
+            its latest state.
+          </span>
+        </div>
+      )}
       {feedback && (
         <div className="notice notice-success" role="status">
           <Icon name="check" />
@@ -771,9 +803,11 @@ export function Applications({
               }
               label="Application snapshot"
             />{" "}
-            {refreshInterval > 0
-              ? "Auto-refresh paused while details are open."
-              : "Auto-refresh is off."}
+            {refreshEnded
+              ? "Auto-refresh ended because the application finished."
+              : refreshInterval > 0
+                ? "Auto-refresh paused while details are open."
+                : "Auto-refresh is off."}
           </p>
           <button
             className="button button-secondary"

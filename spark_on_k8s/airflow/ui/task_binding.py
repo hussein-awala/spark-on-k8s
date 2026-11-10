@@ -7,11 +7,10 @@ from uuid import UUID  # noqa: TC003 -- Pydantic and FastAPI resolve runtime ann
 from fastapi import HTTPException, Query
 from pydantic import BaseModel, Field, ValidationError
 
-from spark_on_k8s.airflow.ui_config import CONSOLE_XCOM_KEY
+from spark_on_k8s.airflow.ui_config import CONSOLE_XCOM_KEY, PROVIDER_OPERATORS
 from spark_on_k8s.utils.console_models import AirflowTaskContext
 
 KUBERNETES_NAME = r"^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$"
-OPERATORS = {"SparkOnK8SOperator", "SparkSqlOnK8SOperator"}
 
 
 class TaskReference(BaseModel):
@@ -58,6 +57,23 @@ def failure(code: str, message: str, status: int = 404) -> HTTPException:
     return HTTPException(status, detail={"code": code, "message": message})
 
 
+def runs_provider_operator(task, resolver) -> bool:
+    """Whether the task's operator is a provider operator or inherits from one."""
+    if task.operator in PROVIDER_OPERATORS:
+        return True
+    from spark_on_k8s.airflow.operator_links import SparkOnK8SOperatorLink
+
+    # Airflow serializes an operator's class name, not its base classes, and does not keep
+    # custom class attributes on mapped tasks. Every provider operator declares the Spark job
+    # link; subclasses inherit it and Airflow serializes it for plain and mapped tasks alike.
+    operator = resolver.find_task(task)
+    return any(
+        getattr(link, "name", None) == SparkOnK8SOperatorLink.name
+        and getattr(link, "xcom_key", None) == SparkOnK8SOperatorLink.xcom_key
+        for link in getattr(operator, "operator_extra_links", None) or ()
+    )
+
+
 def load_task_binding(reference: TaskReference, dag_bag) -> TaskBinding:
     """Read only the current, authorized task attempt's small JSON binding."""
     from airflow.api_fastapi.core_api.services.public.task_coordinates import resolve_task_scope
@@ -87,7 +103,7 @@ def load_task_binding(reference: TaskReference, dag_bag) -> TaskBinding:
                 TaskInstance.region_index == scope.region_index,
             )
         )
-        if task is None or task.operator not in OPERATORS:
+        if task is None or not runs_provider_operator(task, resolver):
             raise failure("task_not_found", "This task has no Spark application binding.")
         if task.try_number != reference.try_number:
             raise failure(

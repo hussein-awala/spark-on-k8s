@@ -95,3 +95,48 @@ assert "plugins" not in get_provider_info()
     subprocess.run(
         [sys.executable, "-I", "-B", "-c", code], check=True, env=env, capture_output=True, text=True
     )
+
+
+@pytest.mark.parametrize(
+    "variable,value",
+    [
+        ("SPARK_ON_K8S_AIRFLOW_OPERATOR_SUBCLASSES", "TeamSparkOperator,team.module.Operator"),
+        ("SPARK_ON_K8S_AIRFLOW_OPERATOR_SUBCLASSES", "Team Spark Operator"),
+        ("SPARK_ON_K8S_AIRFLOW_SNAPSHOT_TTL", "-1"),
+        ("SPARK_ON_K8S_AIRFLOW_SNAPSHOT_TTL", "61"),
+        ("SPARK_ON_K8S_AIRFLOW_SNAPSHOT_TTL", "nan"),
+        ("SPARK_ON_K8S_AIRFLOW_SNAPSHOT_TTL", "five"),
+    ],
+)
+def test_invalid_task_tab_tuning_disables_activation(monkeypatch, variable, value):
+    from spark_on_k8s.airflow.ui_config import ui_plugin_enabled
+
+    monkeypatch.setenv("SPARK_ON_K8S_AIRFLOW_SERVICE_URL", "https://spark.example")
+    monkeypatch.setenv(variable, value)
+    with mock.patch("spark_on_k8s.airflow.ui_config.version", return_value="3.4.0"):
+        assert not ui_plugin_enabled()
+
+
+def test_task_tab_tuning_defaults_and_explicit_values(monkeypatch):
+    from spark_on_k8s.airflow.ui_config import UISettings
+
+    monkeypatch.setenv("SPARK_ON_K8S_AIRFLOW_SERVICE_URL", "https://spark.example")
+    monkeypatch.delenv("SPARK_ON_K8S_AIRFLOW_OPERATOR_SUBCLASSES", raising=False)
+    monkeypatch.delenv("SPARK_ON_K8S_AIRFLOW_SNAPSHOT_TTL", raising=False)
+    defaults = UISettings.from_environment()
+    assert defaults.task_operators == ["SparkOnK8SOperator", "SparkSqlOnK8SOperator"]
+    assert defaults.snapshot_ttl == 5
+
+    monkeypatch.setenv(
+        "SPARK_ON_K8S_AIRFLOW_OPERATOR_SUBCLASSES",
+        " TeamSparkOperator, ,TeamSqlOperator,TeamSparkOperator,SparkOnK8SOperator ",
+    )
+    monkeypatch.setenv("SPARK_ON_K8S_AIRFLOW_SNAPSHOT_TTL", "0")
+    settings = UISettings.from_environment()
+    assert settings.task_operators == [
+        "SparkOnK8SOperator",
+        "SparkSqlOnK8SOperator",
+        "TeamSparkOperator",
+        "TeamSqlOperator",
+    ]
+    assert settings.snapshot_ttl == 0

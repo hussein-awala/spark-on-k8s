@@ -162,3 +162,20 @@ def test_zero_ttl_disables_sharing():
 
     assert run(scenario()) == 0
     assert lookups.await_count == 3
+
+
+def test_binding_without_task_context_reads_the_driver_without_the_cache(monkeypatch):
+    from spark_on_k8s.airflow.ui import backend
+    from spark_on_k8s.airflow.ui.task_binding import TaskBinding
+
+    binding = TaskBinding(version=1, namespace="spark", driver_pod="app-driver", try_number=1)
+    snapshots = mock.Mock(spec=SnapshotCache)
+    connection = mock.Mock()
+    connection.app.state.snapshots = snapshots
+    application_for = mock.AsyncMock(return_value="current application")
+    monkeypatch.setattr(backend, "application_for", application_for)
+
+    assert backend.snapshot_key(binding) is None
+    assert run(backend.snapshot_for(connection, binding)) == "current application"
+    application_for.assert_awaited_once_with(connection, binding)
+    snapshots.get.assert_not_called()

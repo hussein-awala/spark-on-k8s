@@ -68,7 +68,7 @@
   <meta name="documentation-channel" content="develop">
   <meta name="documentation-version" content="develop">
   
-    <meta name="documentation-source" content="f8ebc94d8dd24d19ce8a623539d1f935e160ad2b">
+    <meta name="documentation-source" content="5ead32145a1dd1fff58bb94a6ebdc295abc8ffe0">
   
 
   </head>
@@ -108,7 +108,7 @@
     <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
   
   
-    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/f8ebc94d8dd24d19ce8a623539d1f935e160ad2b"><code>f8ebc94d8dd2</code></a>.
+    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/5ead32145a1dd1fff58bb94a6ebdc295abc8ffe0"><code>5ead32145a1d</code></a>.
   
 
           </div>
@@ -5244,7 +5244,16 @@
 <span class="normal">31</span>
 <span class="normal">32</span>
 <span class="normal">33</span>
-<span class="normal">34</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@connect_cli</span><span class="o">.</span><span class="n">command</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">"check"</span><span class="p">)</span>
+<span class="normal">34</span>
+<span class="normal">35</span>
+<span class="normal">36</span>
+<span class="normal">37</span>
+<span class="normal">38</span>
+<span class="normal">39</span>
+<span class="normal">40</span>
+<span class="normal">41</span>
+<span class="normal">42</span>
+<span class="normal">43</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@connect_cli</span><span class="o">.</span><span class="n">command</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">"check"</span><span class="p">)</span>
 <span class="nd">@click</span><span class="o">.</span><span class="n">argument</span><span class="p">(</span><span class="s2">"file"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">click</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="n">exists</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">dir_okay</span><span class="o">=</span><span class="kc">False</span><span class="p">))</span>
 <span class="nd">@click</span><span class="o">.</span><span class="n">option</span><span class="p">(</span><span class="s2">"--profile"</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s2">"default"</span><span class="p">,</span> <span class="n">show_default</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 <span class="nd">@click</span><span class="o">.</span><span class="n">option</span><span class="p">(</span>
@@ -5259,11 +5268,20 @@
 <span class="w">    </span><span class="sd">"""Run a tiny remote query, then close only the check's session."""</span>
     <span class="c1"># The check uses no Kubernetes namespace; the shared contract maps failures to exit codes.</span>
     <span class="k">with</span> <span class="n">execution</span><span class="p">(</span><span class="s2">"connect_check"</span><span class="p">,</span> <span class="s2">""</span><span class="p">,</span> <span class="n">output</span><span class="p">)</span> <span class="k">as</span> <span class="n">result</span><span class="p">:</span>
-        <span class="n">result</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">status</span><span class="o">=</span><span class="s2">"error"</span><span class="p">,</span> <span class="n">spark_version</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+        <span class="n">result</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">status</span><span class="o">=</span><span class="s2">"error"</span><span class="p">,</span> <span class="n">spark_version</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">client_version</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">warnings</span><span class="o">=</span><span class="p">[])</span>
         <span class="n">probe</span> <span class="o">=</span> <span class="n">ConnectProfile</span><span class="o">.</span><span class="n">from_file</span><span class="p">(</span><span class="n">file</span><span class="p">,</span> <span class="n">profile</span><span class="o">=</span><span class="n">profile</span><span class="p">)</span><span class="o">.</span><span class="n">probe</span><span class="p">(</span><span class="n">timeout</span><span class="o">=</span><span class="n">timeout</span><span class="p">)</span>
-        <span class="n">result</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">status</span><span class="o">=</span><span class="n">probe</span><span class="p">[</span><span class="s2">"status"</span><span class="p">],</span> <span class="n">spark_version</span><span class="o">=</span><span class="n">probe</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"spark_version"</span><span class="p">))</span>
+        <span class="n">result</span><span class="o">.</span><span class="n">update</span><span class="p">(</span>
+            <span class="n">status</span><span class="o">=</span><span class="n">probe</span><span class="p">[</span><span class="s2">"status"</span><span class="p">],</span>
+            <span class="n">spark_version</span><span class="o">=</span><span class="n">probe</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"spark_version"</span><span class="p">),</span>
+            <span class="n">client_version</span><span class="o">=</span><span class="n">probe</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"client_version"</span><span class="p">),</span>
+            <span class="n">warnings</span><span class="o">=</span><span class="n">probe</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"warnings"</span><span class="p">,</span> <span class="p">[]),</span>
+        <span class="p">)</span>
         <span class="k">if</span> <span class="n">output</span> <span class="o">==</span> <span class="s2">"text"</span><span class="p">:</span>
-            <span class="n">click</span><span class="o">.</span><span class="n">echo</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Connected to Spark </span><span class="si">{</span><span class="n">result</span><span class="p">[</span><span class="s1">'spark_version'</span><span class="p">]</span><span class="si">}</span><span class="s2">; check session closed."</span><span class="p">)</span>
+            <span class="n">click</span><span class="o">.</span><span class="n">echo</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"Connected to Spark </span><span class="si">{</span><span class="n">result</span><span class="p">[</span><span class="s1">'spark_version'</span><span class="p">]</span><span class="si">}</span><span class="s2"> with client "</span>
+                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">result</span><span class="p">[</span><span class="s1">'client_version'</span><span class="p">]</span><span class="w"> </span><span class="ow">or</span><span class="w"> </span><span class="s1">'unknown'</span><span class="si">}</span><span class="s2">; check session closed."</span>
+            <span class="p">)</span>
+        <span class="n">report_warnings</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">"warnings"</span><span class="p">],</span> <span class="n">output</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -5297,7 +5315,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 10, 2026 09:18:06 UTC">November 10, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 10, 2026 09:18:50 UTC">November 10, 2026</span>
   </span>
 
     

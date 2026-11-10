@@ -68,7 +68,7 @@
   <meta name="documentation-channel" content="develop">
   <meta name="documentation-version" content="develop">
   
-    <meta name="documentation-source" content="f8ebc94d8dd24d19ce8a623539d1f935e160ad2b">
+    <meta name="documentation-source" content="5ead32145a1dd1fff58bb94a6ebdc295abc8ffe0">
   
 
   </head>
@@ -108,7 +108,7 @@
     <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
   
   
-    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/f8ebc94d8dd24d19ce8a623539d1f935e160ad2b"><code>f8ebc94d8dd2</code></a>.
+    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/5ead32145a1dd1fff58bb94a6ebdc295abc8ffe0"><code>5ead32145a1d</code></a>.
   
 
           </div>
@@ -2317,6 +2317,17 @@
     <span class="md-ellipsis">
       
         delete_connect_server
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#spark_on_k8s.connect_server.list_connect_servers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        list_connect_servers
       
     </span>
   </a>
@@ -5373,6 +5384,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#spark_on_k8s.connect_server.list_connect_servers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        list_connect_servers
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#spark_on_k8s.connect_server.wait_connect_server_ready" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5471,9 +5493,7 @@ ClusterIP service requires a trusted network or a separately managed gateway.</p
 
               <details class="mkdocstrings-source">
                 <summary>Source code in <code>spark_on_k8s/connect_server.py</code></summary>
-                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 87</span>
-<span class="normal"> 88</span>
-<span class="normal"> 89</span>
+                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 89</span>
 <span class="normal"> 90</span>
 <span class="normal"> 91</span>
 <span class="normal"> 92</span>
@@ -5572,7 +5592,9 @@ ClusterIP service requires a trusted network or a separately managed gateway.</p
 <span class="normal">185</span>
 <span class="normal">186</span>
 <span class="normal">187</span>
-<span class="normal">188</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">kw_only</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="normal">188</span>
+<span class="normal">189</span>
+<span class="normal">190</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">kw_only</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">ConnectServerConfig</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Explicit inputs for one private, single-driver Spark Connect server.</span>
 
@@ -5726,8 +5748,8 @@ ClusterIP service requires a trusted network or a separately managed gateway.</p
 
               <details class="mkdocstrings-source">
                 <summary>Source code in <code>spark_on_k8s/connect_server.py</code></summary>
-                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">258</span>
-<span class="normal">259</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">ConnectServerCreateError</span><span class="p">(</span><span class="n">ConnectServerError</span><span class="p">):</span>
+                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">260</span>
+<span class="normal">261</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">ConnectServerCreateError</span><span class="p">(</span><span class="n">ConnectServerError</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">"""Creation failed; inspect run, phase and cleanup for partial resource effects."""</span>
 </code></pre></div></td></tr></table></div>
               </details>
@@ -5781,15 +5803,15 @@ ClusterIP service requires a trusted network or a separately managed gateway.</p
 
               <details class="mkdocstrings-source">
                 <summary>Source code in <code>spark_on_k8s/connect_server.py</code></summary>
-                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">247</span>
-<span class="normal">248</span>
-<span class="normal">249</span>
+                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">249</span>
 <span class="normal">250</span>
 <span class="normal">251</span>
 <span class="normal">252</span>
 <span class="normal">253</span>
 <span class="normal">254</span>
-<span class="normal">255</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">ConnectServerError</span><span class="p">(</span><span class="ne">RuntimeError</span><span class="p">):</span>
+<span class="normal">255</span>
+<span class="normal">256</span>
+<span class="normal">257</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">ConnectServerError</span><span class="p">(</span><span class="ne">RuntimeError</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">"""Server operation failed without interpreting uncertainty as absence."""</span>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">message</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">handle</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">run</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">phase</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">cleanup</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
@@ -5852,9 +5874,7 @@ ClusterIP service requires a trusted network or a separately managed gateway.</p
 
               <details class="mkdocstrings-source">
                 <summary>Source code in <code>spark_on_k8s/connect_server.py</code></summary>
-                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">191</span>
-<span class="normal">192</span>
-<span class="normal">193</span>
+                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">193</span>
 <span class="normal">194</span>
 <span class="normal">195</span>
 <span class="normal">196</span>
@@ -5905,7 +5925,9 @@ ClusterIP service requires a trusted network or a separately managed gateway.</p
 <span class="normal">241</span>
 <span class="normal">242</span>
 <span class="normal">243</span>
-<span class="normal">244</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">kw_only</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="normal">244</span>
+<span class="normal">245</span>
+<span class="normal">246</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">kw_only</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">ConnectServerHandle</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Credential-free identity for a server and both owned Kubernetes Services."""</span>
 
@@ -6033,8 +6055,8 @@ ClusterIP service requires a trusted network or a separately managed gateway.</p
 
               <details class="mkdocstrings-source">
                 <summary>Source code in <code>spark_on_k8s/connect_server.py</code></summary>
-                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">262</span>
-<span class="normal">263</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">ConnectServerOwnershipError</span><span class="p">(</span><span class="n">ConnectServerError</span><span class="p">):</span>
+                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">264</span>
+<span class="normal">265</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">ConnectServerOwnershipError</span><span class="p">(</span><span class="n">ConnectServerError</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">"""Observed resources do not match the recorded identity; no adoption is allowed."""</span>
 </code></pre></div></td></tr></table></div>
               </details>
@@ -6088,15 +6110,15 @@ ClusterIP service requires a trusted network or a separately managed gateway.</p
 
               <details class="mkdocstrings-source">
                 <summary>Source code in <code>spark_on_k8s/connect_server.py</code></summary>
-                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">266</span>
-<span class="normal">267</span>
-<span class="normal">268</span>
+                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">268</span>
 <span class="normal">269</span>
 <span class="normal">270</span>
 <span class="normal">271</span>
 <span class="normal">272</span>
 <span class="normal">273</span>
-<span class="normal">274</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">ConnectServerTimeout</span><span class="p">(</span><span class="ne">TimeoutError</span><span class="p">):</span>
+<span class="normal">274</span>
+<span class="normal">275</span>
+<span class="normal">276</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">ConnectServerTimeout</span><span class="p">(</span><span class="ne">TimeoutError</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">"""Readiness observation expired; the server was not deleted."""</span>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">handle</span><span class="p">):</span>
@@ -6146,34 +6168,7 @@ ClusterIP service requires a trusted network or a separately managed gateway.</p
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>spark_on_k8s/connect_server.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">546</span>
-<span class="normal">547</span>
-<span class="normal">548</span>
-<span class="normal">549</span>
-<span class="normal">550</span>
-<span class="normal">551</span>
-<span class="normal">552</span>
-<span class="normal">553</span>
-<span class="normal">554</span>
-<span class="normal">555</span>
-<span class="normal">556</span>
-<span class="normal">557</span>
-<span class="normal">558</span>
-<span class="normal">559</span>
-<span class="normal">560</span>
-<span class="normal">561</span>
-<span class="normal">562</span>
-<span class="normal">563</span>
-<span class="normal">564</span>
-<span class="normal">565</span>
-<span class="normal">566</span>
-<span class="normal">567</span>
-<span class="normal">568</span>
-<span class="normal">569</span>
-<span class="normal">570</span>
-<span class="normal">571</span>
-<span class="normal">572</span>
-<span class="normal">573</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">573</span>
 <span class="normal">574</span>
 <span class="normal">575</span>
 <span class="normal">576</span>
@@ -6182,7 +6177,26 @@ ClusterIP service requires a trusted network or a separately managed gateway.</p
 <span class="normal">579</span>
 <span class="normal">580</span>
 <span class="normal">581</span>
-<span class="normal">582</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">connect_server_status</span><span class="p">(</span><span class="n">client</span><span class="p">:</span> <span class="n">SparkOnK8S</span><span class="p">,</span> <span class="n">handle</span><span class="p">:</span> <span class="n">ConnectServerHandle</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">10</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="normal">582</span>
+<span class="normal">583</span>
+<span class="normal">584</span>
+<span class="normal">585</span>
+<span class="normal">586</span>
+<span class="normal">587</span>
+<span class="normal">588</span>
+<span class="normal">589</span>
+<span class="normal">590</span>
+<span class="normal">591</span>
+<span class="normal">592</span>
+<span class="normal">593</span>
+<span class="normal">594</span>
+<span class="normal">595</span>
+<span class="normal">596</span>
+<span class="normal">597</span>
+<span class="normal">598</span>
+<span class="normal">599</span>
+<span class="normal">600</span>
+<span class="normal">601</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">connect_server_status</span><span class="p">(</span><span class="n">client</span><span class="p">:</span> <span class="n">SparkOnK8S</span><span class="p">,</span> <span class="n">handle</span><span class="p">:</span> <span class="n">ConnectServerHandle</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">10</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Read matching resource state. Only confirmed 404 means missing; errors propagate."""</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">handle</span><span class="p">,</span> <span class="n">ConnectServerHandle</span><span class="p">):</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"handle must be ConnectServerHandle"</span><span class="p">)</span>
@@ -6198,24 +6212,16 @@ ClusterIP service requires a trusted network or a separately managed gateway.</p
     <span class="n">deleting</span> <span class="o">=</span> <span class="nb">any</span><span class="p">(</span>
         <span class="n">obj</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">obj</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">deletion_timestamp</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">for</span> <span class="n">obj</span> <span class="ow">in</span> <span class="p">(</span><span class="n">pod</span><span class="p">,</span> <span class="n">transport</span><span class="p">,</span> <span class="n">service</span><span class="p">)</span>
     <span class="p">)</span>
-    <span class="n">state</span> <span class="o">=</span> <span class="p">(</span>
-        <span class="s2">"missing"</span>
-        <span class="k">if</span> <span class="n">missing</span>
-        <span class="k">else</span> <span class="s2">"deleting"</span>
-        <span class="k">if</span> <span class="n">deleting</span>
-        <span class="k">else</span> <span class="s2">"terminated"</span>
-        <span class="k">if</span> <span class="n">phase</span> <span class="ow">in</span> <span class="p">{</span><span class="s2">"Succeeded"</span><span class="p">,</span> <span class="s2">"Failed"</span><span class="p">}</span>
-        <span class="k">else</span> <span class="s2">"running"</span>
-        <span class="k">if</span> <span class="n">phase</span> <span class="o">==</span> <span class="s2">"Running"</span>
-        <span class="k">else</span> <span class="s2">"starting"</span>
-        <span class="k">if</span> <span class="n">phase</span> <span class="o">==</span> <span class="s2">"Pending"</span>
-        <span class="k">else</span> <span class="s2">"unknown"</span>
-    <span class="p">)</span>
+    <span class="n">created</span><span class="p">,</span> <span class="n">age</span> <span class="o">=</span> <span class="n">_created</span><span class="p">(</span><span class="n">pod</span><span class="p">,</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">(</span><span class="n">UTC</span><span class="p">))</span>
     <span class="k">return</span> <span class="p">{</span>
-        <span class="s2">"status"</span><span class="p">:</span> <span class="n">state</span><span class="p">,</span>
+        <span class="s2">"status"</span><span class="p">:</span> <span class="s2">"missing"</span> <span class="k">if</span> <span class="n">missing</span> <span class="k">else</span> <span class="n">_driver_state</span><span class="p">(</span><span class="n">phase</span><span class="p">,</span> <span class="n">deleting</span><span class="p">),</span>
         <span class="s2">"driver_phase"</span><span class="p">:</span> <span class="n">phase</span><span class="p">,</span>
         <span class="s2">"missing"</span><span class="p">:</span> <span class="n">missing</span><span class="p">,</span>
         <span class="s2">"endpoint"</span><span class="p">:</span> <span class="n">handle</span><span class="o">.</span><span class="n">endpoint</span><span class="p">,</span>
+        <span class="s2">"created_at"</span><span class="p">:</span> <span class="n">_timestamp</span><span class="p">(</span><span class="n">created</span><span class="p">),</span>
+        <span class="s2">"age_seconds"</span><span class="p">:</span> <span class="n">age</span><span class="p">,</span>
+        <span class="c1"># Kubernetes observation cannot learn the server version; only an optional label is reported.</span>
+        <span class="s2">"spark_version"</span><span class="p">:</span> <span class="p">(</span><span class="n">pod</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">labels</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"spark-version"</span><span class="p">)</span> <span class="k">if</span> <span class="n">pod</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
         <span class="s2">"query_ready"</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
         <span class="s2">"message"</span><span class="p">:</span> <span class="s2">"Kubernetes observation only; query readiness has not been checked"</span><span class="p">,</span>
     <span class="p">}</span>
@@ -6244,9 +6250,7 @@ The raised error retains the planned/confirmed run and rollback outcome.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>spark_on_k8s/connect_server.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">426</span>
-<span class="normal">427</span>
-<span class="normal">428</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">428</span>
 <span class="normal">429</span>
 <span class="normal">430</span>
 <span class="normal">431</span>
@@ -6350,7 +6354,9 @@ The raised error retains the planned/confirmed run and rollback outcome.</p>
 <span class="normal">529</span>
 <span class="normal">530</span>
 <span class="normal">531</span>
-<span class="normal">532</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">create_connect_server</span><span class="p">(</span><span class="n">client</span><span class="p">:</span> <span class="n">SparkOnK8S</span><span class="p">,</span> <span class="n">config</span><span class="p">:</span> <span class="n">ConnectServerConfig</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ConnectServerHandle</span><span class="p">:</span>
+<span class="normal">532</span>
+<span class="normal">533</span>
+<span class="normal">534</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">create_connect_server</span><span class="p">(</span><span class="n">client</span><span class="p">:</span> <span class="n">SparkOnK8S</span><span class="p">,</span> <span class="n">config</span><span class="p">:</span> <span class="n">ConnectServerConfig</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ConnectServerHandle</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Create a driver and private gRPC Service, without claiming query readiness.</span>
 
 <span class="sd">    A failed create attempts rollback only after receiving a confirmed driver UID.</span>
@@ -6482,42 +6488,42 @@ a partially applied deletion; UID preconditions protect replacement resources.</
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>spark_on_k8s/connect_server.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">641</span>
-<span class="normal">642</span>
-<span class="normal">643</span>
-<span class="normal">644</span>
-<span class="normal">645</span>
-<span class="normal">646</span>
-<span class="normal">647</span>
-<span class="normal">648</span>
-<span class="normal">649</span>
-<span class="normal">650</span>
-<span class="normal">651</span>
-<span class="normal">652</span>
-<span class="normal">653</span>
-<span class="normal">654</span>
-<span class="normal">655</span>
-<span class="normal">656</span>
-<span class="normal">657</span>
-<span class="normal">658</span>
-<span class="normal">659</span>
-<span class="normal">660</span>
-<span class="normal">661</span>
-<span class="normal">662</span>
-<span class="normal">663</span>
-<span class="normal">664</span>
-<span class="normal">665</span>
-<span class="normal">666</span>
-<span class="normal">667</span>
-<span class="normal">668</span>
-<span class="normal">669</span>
-<span class="normal">670</span>
-<span class="normal">671</span>
-<span class="normal">672</span>
-<span class="normal">673</span>
-<span class="normal">674</span>
-<span class="normal">675</span>
-<span class="normal">676</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">delete_connect_server</span><span class="p">(</span><span class="n">client</span><span class="p">:</span> <span class="n">SparkOnK8S</span><span class="p">,</span> <span class="n">handle</span><span class="p">:</span> <span class="n">ConnectServerHandle</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">10</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">711</span>
+<span class="normal">712</span>
+<span class="normal">713</span>
+<span class="normal">714</span>
+<span class="normal">715</span>
+<span class="normal">716</span>
+<span class="normal">717</span>
+<span class="normal">718</span>
+<span class="normal">719</span>
+<span class="normal">720</span>
+<span class="normal">721</span>
+<span class="normal">722</span>
+<span class="normal">723</span>
+<span class="normal">724</span>
+<span class="normal">725</span>
+<span class="normal">726</span>
+<span class="normal">727</span>
+<span class="normal">728</span>
+<span class="normal">729</span>
+<span class="normal">730</span>
+<span class="normal">731</span>
+<span class="normal">732</span>
+<span class="normal">733</span>
+<span class="normal">734</span>
+<span class="normal">735</span>
+<span class="normal">736</span>
+<span class="normal">737</span>
+<span class="normal">738</span>
+<span class="normal">739</span>
+<span class="normal">740</span>
+<span class="normal">741</span>
+<span class="normal">742</span>
+<span class="normal">743</span>
+<span class="normal">744</span>
+<span class="normal">745</span>
+<span class="normal">746</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">delete_connect_server</span><span class="p">(</span><span class="n">client</span><span class="p">:</span> <span class="n">SparkOnK8S</span><span class="p">,</span> <span class="n">handle</span><span class="p">:</span> <span class="n">ConnectServerHandle</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">10</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Verify all three resource identities before requesting UID-conditional deletion.</span>
 
 <span class="sd">    Missing resources are idempotent. Success means deletion was requested, not that</span>
@@ -6562,39 +6568,23 @@ a partially applied deletion; UID preconditions protect replacement resources.</
 <div class="doc doc-object doc-function">
 
 
-<h2 id="spark_on_k8s.connect_server.wait_connect_server_ready" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">wait_connect_server_ready</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="n">handle</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">profile</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="mi">60</span><span class="p">,</span> <span class="n">poll_interval</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span></code>
+<h2 id="spark_on_k8s.connect_server.list_connect_servers" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">list_connect_servers</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="n">namespace</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span></code>
 
-<a href="#spark_on_k8s.connect_server.wait_connect_server_ready" class="headerlink" title="Permanent link">&para;</a></h2>
+<a href="#spark_on_k8s.connect_server.list_connect_servers" class="headerlink" title="Permanent link">&para;</a></h2>
 
 
     <div class="doc doc-contents ">
 
-        <p>Require a real query against this application, then revalidate Kubernetes identity.</p>
+        <p>List driver pods labeled as servers created by this helper in one namespace, oldest first.</p>
+<p>This is a read-only, label-based observation: it neither verifies receipts, Services
+or query readiness nor deletes anything. A matching label is not proof of ownership;
+deletion still requires the recorded identity checks. Errors propagate.</p>
 
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>spark_on_k8s/connect_server.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">585</span>
-<span class="normal">586</span>
-<span class="normal">587</span>
-<span class="normal">588</span>
-<span class="normal">589</span>
-<span class="normal">590</span>
-<span class="normal">591</span>
-<span class="normal">592</span>
-<span class="normal">593</span>
-<span class="normal">594</span>
-<span class="normal">595</span>
-<span class="normal">596</span>
-<span class="normal">597</span>
-<span class="normal">598</span>
-<span class="normal">599</span>
-<span class="normal">600</span>
-<span class="normal">601</span>
-<span class="normal">602</span>
-<span class="normal">603</span>
-<span class="normal">604</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">604</span>
 <span class="normal">605</span>
 <span class="normal">606</span>
 <span class="normal">607</span>
@@ -6628,7 +6618,141 @@ a partially applied deletion; UID preconditions protect replacement resources.</
 <span class="normal">635</span>
 <span class="normal">636</span>
 <span class="normal">637</span>
-<span class="normal">638</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">wait_connect_server_ready</span><span class="p">(</span>
+<span class="normal">638</span>
+<span class="normal">639</span>
+<span class="normal">640</span>
+<span class="normal">641</span>
+<span class="normal">642</span>
+<span class="normal">643</span>
+<span class="normal">644</span>
+<span class="normal">645</span>
+<span class="normal">646</span>
+<span class="normal">647</span>
+<span class="normal">648</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">list_connect_servers</span><span class="p">(</span><span class="n">client</span><span class="p">:</span> <span class="n">SparkOnK8S</span><span class="p">,</span> <span class="n">namespace</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">10</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""List driver pods labeled as servers created by this helper in one namespace, oldest first.</span>
+
+<span class="sd">    This is a read-only, label-based observation: it neither verifies receipts, Services</span>
+<span class="sd">    or query readiness nor deletes anything. A matching label is not proof of ownership;</span>
+<span class="sd">    deletion still requires the recorded identity checks. Errors propagate.</span>
+<span class="sd">    """</span>
+    <span class="n">_name</span><span class="p">(</span><span class="n">namespace</span><span class="p">,</span> <span class="s2">"namespace"</span><span class="p">)</span>
+    <span class="n">deadline</span> <span class="o">=</span> <span class="n">_deadline</span><span class="p">(</span><span class="n">timeout</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">client</span><span class="o">.</span><span class="n">k8s_client_manager</span><span class="o">.</span><span class="n">client</span><span class="p">()</span> <span class="k">as</span> <span class="n">raw</span><span class="p">:</span>
+        <span class="n">pods</span> <span class="o">=</span> <span class="n">_api</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span><span class="o">.</span><span class="n">list_namespaced_pod</span><span class="p">(</span>
+            <span class="n">namespace</span><span class="o">=</span><span class="n">namespace</span><span class="p">,</span>
+            <span class="n">label_selector</span><span class="o">=</span><span class="sa">f</span><span class="s2">"spark-role=driver,</span><span class="si">{</span><span class="n">_SERVER_LABEL</span><span class="si">}</span><span class="s2">=true"</span><span class="p">,</span>
+            <span class="o">**</span><span class="n">deadline</span><span class="o">.</span><span class="n">request_options</span><span class="p">(),</span>
+        <span class="p">)</span>
+    <span class="n">now</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">(</span><span class="n">UTC</span><span class="p">)</span>
+    <span class="n">servers</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">pod</span> <span class="ow">in</span> <span class="n">pods</span><span class="o">.</span><span class="n">items</span><span class="p">:</span>
+        <span class="n">labels</span> <span class="o">=</span> <span class="n">pod</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">labels</span> <span class="ow">or</span> <span class="p">{}</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">labels</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"spark-app-id"</span><span class="p">):</span>
+            <span class="k">continue</span>  <span class="c1"># The helper always records an application ID on its driver.</span>
+        <span class="n">phase</span> <span class="o">=</span> <span class="n">pod</span><span class="o">.</span><span class="n">status</span><span class="o">.</span><span class="n">phase</span> <span class="k">if</span> <span class="n">pod</span><span class="o">.</span><span class="n">status</span> <span class="k">else</span> <span class="kc">None</span>
+        <span class="n">containers</span> <span class="o">=</span> <span class="p">(</span><span class="n">pod</span><span class="o">.</span><span class="n">spec</span><span class="o">.</span><span class="n">containers</span> <span class="k">if</span> <span class="n">pod</span><span class="o">.</span><span class="n">spec</span> <span class="k">else</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[]</span>
+        <span class="n">name</span> <span class="o">=</span> <span class="n">driver_container_name</span><span class="p">(</span><span class="n">pod</span><span class="p">)</span> <span class="k">if</span> <span class="n">containers</span> <span class="k">else</span> <span class="kc">None</span>
+        <span class="n">created</span><span class="p">,</span> <span class="n">age</span> <span class="o">=</span> <span class="n">_created</span><span class="p">(</span><span class="n">pod</span><span class="p">,</span> <span class="n">now</span><span class="p">)</span>
+        <span class="n">servers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+            <span class="p">(</span>
+                <span class="n">created</span><span class="p">,</span>
+                <span class="p">{</span>
+                    <span class="s2">"app_id"</span><span class="p">:</span> <span class="n">labels</span><span class="p">[</span><span class="s2">"spark-app-id"</span><span class="p">],</span>
+                    <span class="s2">"name"</span><span class="p">:</span> <span class="n">labels</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"spark-app-name"</span><span class="p">),</span>
+                    <span class="s2">"namespace"</span><span class="p">:</span> <span class="n">pod</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">namespace</span> <span class="ow">or</span> <span class="n">namespace</span><span class="p">,</span>
+                    <span class="s2">"driver_pod"</span><span class="p">:</span> <span class="n">pod</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+                    <span class="s2">"driver_uid"</span><span class="p">:</span> <span class="n">pod</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">uid</span><span class="p">,</span>
+                    <span class="s2">"status"</span><span class="p">:</span> <span class="n">_driver_state</span><span class="p">(</span><span class="n">phase</span><span class="p">,</span> <span class="n">pod</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">deletion_timestamp</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">),</span>
+                    <span class="s2">"driver_phase"</span><span class="p">:</span> <span class="n">phase</span><span class="p">,</span>
+                    <span class="s2">"spark_version"</span><span class="p">:</span> <span class="n">labels</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"spark-version"</span><span class="p">),</span>
+                    <span class="s2">"image"</span><span class="p">:</span> <span class="nb">next</span><span class="p">((</span><span class="n">c</span><span class="o">.</span><span class="n">image</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">containers</span> <span class="k">if</span> <span class="n">c</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="n">name</span><span class="p">),</span> <span class="kc">None</span><span class="p">),</span>
+                    <span class="s2">"created_at"</span><span class="p">:</span> <span class="n">_timestamp</span><span class="p">(</span><span class="n">created</span><span class="p">),</span>
+                    <span class="s2">"age_seconds"</span><span class="p">:</span> <span class="n">age</span><span class="p">,</span>
+                <span class="p">},</span>
+            <span class="p">)</span>
+        <span class="p">)</span>
+    <span class="n">servers</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">item</span><span class="p">:</span> <span class="p">(</span><span class="n">item</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">,</span> <span class="n">item</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">or</span> <span class="n">now</span><span class="p">,</span> <span class="n">item</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="s2">"app_id"</span><span class="p">]))</span>
+    <span class="k">return</span> <span class="p">[</span><span class="n">server</span> <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">server</span> <span class="ow">in</span> <span class="n">servers</span><span class="p">]</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="spark_on_k8s.connect_server.wait_connect_server_ready" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">wait_connect_server_ready</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="n">handle</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">profile</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="mi">60</span><span class="p">,</span> <span class="n">poll_interval</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span></code>
+
+<a href="#spark_on_k8s.connect_server.wait_connect_server_ready" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Require a real query against this application, then revalidate Kubernetes identity.</p>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>spark_on_k8s/connect_server.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">651</span>
+<span class="normal">652</span>
+<span class="normal">653</span>
+<span class="normal">654</span>
+<span class="normal">655</span>
+<span class="normal">656</span>
+<span class="normal">657</span>
+<span class="normal">658</span>
+<span class="normal">659</span>
+<span class="normal">660</span>
+<span class="normal">661</span>
+<span class="normal">662</span>
+<span class="normal">663</span>
+<span class="normal">664</span>
+<span class="normal">665</span>
+<span class="normal">666</span>
+<span class="normal">667</span>
+<span class="normal">668</span>
+<span class="normal">669</span>
+<span class="normal">670</span>
+<span class="normal">671</span>
+<span class="normal">672</span>
+<span class="normal">673</span>
+<span class="normal">674</span>
+<span class="normal">675</span>
+<span class="normal">676</span>
+<span class="normal">677</span>
+<span class="normal">678</span>
+<span class="normal">679</span>
+<span class="normal">680</span>
+<span class="normal">681</span>
+<span class="normal">682</span>
+<span class="normal">683</span>
+<span class="normal">684</span>
+<span class="normal">685</span>
+<span class="normal">686</span>
+<span class="normal">687</span>
+<span class="normal">688</span>
+<span class="normal">689</span>
+<span class="normal">690</span>
+<span class="normal">691</span>
+<span class="normal">692</span>
+<span class="normal">693</span>
+<span class="normal">694</span>
+<span class="normal">695</span>
+<span class="normal">696</span>
+<span class="normal">697</span>
+<span class="normal">698</span>
+<span class="normal">699</span>
+<span class="normal">700</span>
+<span class="normal">701</span>
+<span class="normal">702</span>
+<span class="normal">703</span>
+<span class="normal">704</span>
+<span class="normal">705</span>
+<span class="normal">706</span>
+<span class="normal">707</span>
+<span class="normal">708</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">wait_connect_server_ready</span><span class="p">(</span>
     <span class="n">client</span><span class="p">:</span> <span class="n">SparkOnK8S</span><span class="p">,</span>
     <span class="n">handle</span><span class="p">:</span> <span class="n">ConnectServerHandle</span><span class="p">,</span>
     <span class="o">*</span><span class="p">,</span>
@@ -6666,6 +6790,10 @@ a partially applied deletion; UID preconditions protect replacement resources.</
                             <span class="o">**</span><span class="n">after</span><span class="p">,</span>
                             <span class="s2">"status"</span><span class="p">:</span> <span class="s2">"ready"</span><span class="p">,</span>
                             <span class="s2">"query_ready"</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+                            <span class="c1"># The query reports the running server's version, unlike the optional label.</span>
+                            <span class="s2">"spark_version"</span><span class="p">:</span> <span class="n">result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"spark_version"</span><span class="p">),</span>
+                            <span class="s2">"client_version"</span><span class="p">:</span> <span class="n">result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"client_version"</span><span class="p">),</span>
+                            <span class="s2">"warnings"</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"warnings"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[]),</span>
                             <span class="s2">"probe"</span><span class="p">:</span> <span class="n">result</span><span class="p">,</span>
                             <span class="s2">"message"</span><span class="p">:</span> <span class="s2">"Connect query and application identity verified"</span><span class="p">,</span>
                         <span class="p">}</span>
@@ -6715,7 +6843,7 @@ a partially applied deletion; UID preconditions protect replacement resources.</
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 10, 2026 09:18:06 UTC">November 10, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 10, 2026 09:18:50 UTC">November 10, 2026</span>
   </span>
 
     

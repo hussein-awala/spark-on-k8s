@@ -68,7 +68,7 @@
   <meta name="documentation-channel" content="develop">
   <meta name="documentation-version" content="develop">
   
-    <meta name="documentation-source" content="f8ebc94d8dd24d19ce8a623539d1f935e160ad2b">
+    <meta name="documentation-source" content="5ead32145a1dd1fff58bb94a6ebdc295abc8ffe0">
   
 
   </head>
@@ -108,7 +108,7 @@
     <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
   
   
-    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/f8ebc94d8dd24d19ce8a623539d1f935e160ad2b"><code>f8ebc94d8dd2</code></a>.
+    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/5ead32145a1dd1fff58bb94a6ebdc295abc8ffe0"><code>5ead32145a1d</code></a>.
   
 
           </div>
@@ -1954,6 +1954,17 @@
     <span class="md-ellipsis">
       
         doctor
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#spark_on_k8s.client.SparkOnK8S.list_connect_servers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        list_connect_servers
       
     </span>
   </a>
@@ -5423,6 +5434,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#spark_on_k8s.client.SparkOnK8S.list_connect_servers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        list_connect_servers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#spark_on_k8s.client.SparkOnK8S.plan_app" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -7054,7 +7076,13 @@ dynamic allocation. Defaults to sustained_scheduler_backlog_timeout.</p>
 <span class="normal">1129</span>
 <span class="normal">1130</span>
 <span class="normal">1131</span>
-<span class="normal">1132</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">SparkOnK8S</span><span class="p">(</span><span class="n">LoggingMixin</span><span class="p">):</span>
+<span class="normal">1132</span>
+<span class="normal">1133</span>
+<span class="normal">1134</span>
+<span class="normal">1135</span>
+<span class="normal">1136</span>
+<span class="normal">1137</span>
+<span class="normal">1138</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">SparkOnK8S</span><span class="p">(</span><span class="n">LoggingMixin</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">"""Client for submitting Spark apps to Kubernetes</span>
 
 <span class="sd">    Examples:</span>
@@ -7109,6 +7137,12 @@ dynamic allocation. Defaults to sustained_scheduler_backlog_timeout.</p>
         <span class="kn">from</span><span class="w"> </span><span class="nn">spark_on_k8s.connect_server</span><span class="w"> </span><span class="kn">import</span> <span class="n">connect_server_status</span>
 
         <span class="k">return</span> <span class="n">connect_server_status</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">handle</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="n">timeout</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">list_connect_servers</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">namespace</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">10</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">"""List drivers labeled as Connect servers in one namespace; read-only and label-based."""</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">spark_on_k8s.connect_server</span><span class="w"> </span><span class="kn">import</span> <span class="n">list_connect_servers</span>
+
+        <span class="k">return</span> <span class="n">list_connect_servers</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">namespace</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="n">timeout</span><span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">wait_connect_server_ready</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
@@ -8128,9 +8162,9 @@ dynamic allocation. Defaults to sustained_scheduler_backlog_timeout.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>spark_on_k8s/client.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">809</span>
-<span class="normal">810</span>
-<span class="normal">811</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">cancel_run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">run</span><span class="p">:</span> <span class="n">RunHandle</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">force</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">815</span>
+<span class="normal">816</span>
+<span class="normal">817</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">cancel_run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">run</span><span class="p">:</span> <span class="n">RunHandle</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">force</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Request deletion of exactly the recorded driver; does not wait for cleanup."""</span>
     <span class="bp">self</span><span class="o">.</span><span class="n">app_manager</span><span class="o">.</span><span class="n">cancel_run</span><span class="p">(</span><span class="n">run</span><span class="p">,</span> <span class="n">force</span><span class="o">=</span><span class="n">force</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
@@ -8217,11 +8251,11 @@ dynamic allocation. Defaults to sustained_scheduler_backlog_timeout.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>spark_on_k8s/client.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">162</span>
-<span class="normal">163</span>
-<span class="normal">164</span>
-<span class="normal">165</span>
-<span class="normal">166</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">delete_connect_server</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">handle</span><span class="p">:</span> <span class="n">ConnectServerHandle</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">10</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">168</span>
+<span class="normal">169</span>
+<span class="normal">170</span>
+<span class="normal">171</span>
+<span class="normal">172</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">delete_connect_server</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">handle</span><span class="p">:</span> <span class="n">ConnectServerHandle</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">10</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Request deletion only after validating all recorded server resource identities."""</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">spark_on_k8s.connect_server</span><span class="w"> </span><span class="kn">import</span> <span class="n">delete_connect_server</span>
 
@@ -8248,13 +8282,7 @@ dynamic allocation. Defaults to sustained_scheduler_backlog_timeout.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>spark_on_k8s/client.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">187</span>
-<span class="normal">188</span>
-<span class="normal">189</span>
-<span class="normal">190</span>
-<span class="normal">191</span>
-<span class="normal">192</span>
-<span class="normal">193</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">193</span>
 <span class="normal">194</span>
 <span class="normal">195</span>
 <span class="normal">196</span>
@@ -8288,7 +8316,13 @@ dynamic allocation. Defaults to sustained_scheduler_backlog_timeout.</p>
 <span class="normal">224</span>
 <span class="normal">225</span>
 <span class="normal">226</span>
-<span class="normal">227</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">diagnose_app</span><span class="p">(</span>
+<span class="normal">227</span>
+<span class="normal">228</span>
+<span class="normal">229</span>
+<span class="normal">230</span>
+<span class="normal">231</span>
+<span class="normal">232</span>
+<span class="normal">233</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">diagnose_app</span><span class="p">(</span>
     <span class="bp">self</span><span class="p">,</span>
     <span class="o">*</span><span class="p">,</span>
     <span class="n">namespace</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
@@ -8351,14 +8385,14 @@ dynamic allocation. Defaults to sustained_scheduler_backlog_timeout.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>spark_on_k8s/client.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">229</span>
-<span class="normal">230</span>
-<span class="normal">231</span>
-<span class="normal">232</span>
-<span class="normal">233</span>
-<span class="normal">234</span>
-<span class="normal">235</span>
-<span class="normal">236</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">doctor</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">namespace</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">service_account</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"spark"</span><span class="p">,</span> <span class="n">timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">10</span><span class="p">):</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">235</span>
+<span class="normal">236</span>
+<span class="normal">237</span>
+<span class="normal">238</span>
+<span class="normal">239</span>
+<span class="normal">240</span>
+<span class="normal">241</span>
+<span class="normal">242</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">doctor</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">namespace</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">service_account</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"spark"</span><span class="p">,</span> <span class="n">timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">10</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">"""Check caller access and driver service-account existence without applying changes."""</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">spark_on_k8s.doctor</span><span class="w"> </span><span class="kn">import</span> <span class="n">check_cluster</span>
 
@@ -8366,6 +8400,37 @@ dynamic allocation. Defaults to sustained_scheduler_backlog_timeout.</p>
         <span class="k">return</span> <span class="n">check_cluster</span><span class="p">(</span>
             <span class="n">client</span><span class="p">,</span> <span class="n">namespace</span><span class="o">=</span><span class="n">namespace</span><span class="p">,</span> <span class="n">service_account</span><span class="o">=</span><span class="n">service_account</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="n">timeout</span>
         <span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="spark_on_k8s.client.SparkOnK8S.list_connect_servers" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">list_connect_servers</span><span class="p">(</span><span class="n">namespace</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span></code>
+
+<a href="#spark_on_k8s.client.SparkOnK8S.list_connect_servers" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>List drivers labeled as Connect servers in one namespace; read-only and label-based.</p>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>spark_on_k8s/client.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">147</span>
+<span class="normal">148</span>
+<span class="normal">149</span>
+<span class="normal">150</span>
+<span class="normal">151</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">list_connect_servers</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">namespace</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">10</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""List drivers labeled as Connect servers in one namespace; read-only and label-based."""</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">spark_on_k8s.connect_server</span><span class="w"> </span><span class="kn">import</span> <span class="n">list_connect_servers</span>
+
+    <span class="k">return</span> <span class="n">list_connect_servers</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">namespace</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="n">timeout</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -8388,14 +8453,14 @@ dynamic allocation. Defaults to sustained_scheduler_backlog_timeout.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>spark_on_k8s/client.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">860</span>
-<span class="normal">861</span>
-<span class="normal">862</span>
-<span class="normal">863</span>
-<span class="normal">864</span>
-<span class="normal">865</span>
-<span class="normal">866</span>
-<span class="normal">867</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">plan_app</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ApplicationPlan</span><span class="p">:</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">866</span>
+<span class="normal">867</span>
+<span class="normal">868</span>
+<span class="normal">869</span>
+<span class="normal">870</span>
+<span class="normal">871</span>
+<span class="normal">872</span>
+<span class="normal">873</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">plan_app</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ApplicationPlan</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Render a deterministic offline preview using the same builder as submission."""</span>
     <span class="n">kwargs</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s2">"app_id_suffix"</span><span class="p">,</span> <span class="k">lambda</span><span class="p">:</span> <span class="s2">"-preview"</span><span class="p">)</span>
     <span class="n">kwargs</span><span class="p">[</span><span class="s2">"dry_run"</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
@@ -9043,13 +9108,7 @@ It does not stop or delete the application. None preserves unlimited waiting.</p
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>spark_on_k8s/client.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">273</span>
-<span class="normal">274</span>
-<span class="normal">275</span>
-<span class="normal">276</span>
-<span class="normal">277</span>
-<span class="normal">278</span>
-<span class="normal">279</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">279</span>
 <span class="normal">280</span>
 <span class="normal">281</span>
 <span class="normal">282</span>
@@ -9577,7 +9636,13 @@ It does not stop or delete the application. None preserves unlimited waiting.</p
 <span class="normal">804</span>
 <span class="normal">805</span>
 <span class="normal">806</span>
-<span class="normal">807</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">submit_app</span><span class="p">(</span>
+<span class="normal">807</span>
+<span class="normal">808</span>
+<span class="normal">809</span>
+<span class="normal">810</span>
+<span class="normal">811</span>
+<span class="normal">812</span>
+<span class="normal">813</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">submit_app</span><span class="p">(</span>
     <span class="bp">self</span><span class="p">,</span>
     <span class="o">*</span><span class="p">,</span>
     <span class="n">image</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">ArgNotSet</span> <span class="o">=</span> <span class="n">NOTSET</span><span class="p">,</span>
@@ -10176,13 +10241,7 @@ Set <code>dry_run=True</code> to return an offline :class:<code>ApplicationPlan<
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>spark_on_k8s/client.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">168</span>
-<span class="normal">169</span>
-<span class="normal">170</span>
-<span class="normal">171</span>
-<span class="normal">172</span>
-<span class="normal">173</span>
-<span class="normal">174</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">174</span>
 <span class="normal">175</span>
 <span class="normal">176</span>
 <span class="normal">177</span>
@@ -10193,7 +10252,13 @@ Set <code>dry_run=True</code> to return an offline :class:<code>ApplicationPlan<
 <span class="normal">182</span>
 <span class="normal">183</span>
 <span class="normal">184</span>
-<span class="normal">185</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">submit_sql</span><span class="p">(</span>
+<span class="normal">185</span>
+<span class="normal">186</span>
+<span class="normal">187</span>
+<span class="normal">188</span>
+<span class="normal">189</span>
+<span class="normal">190</span>
+<span class="normal">191</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">submit_sql</span><span class="p">(</span>
     <span class="bp">self</span><span class="p">,</span>
     <span class="o">*</span><span class="p">,</span>
     <span class="n">sql</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -10233,20 +10298,20 @@ Set <code>dry_run=True</code> to return an offline :class:<code>ApplicationPlan<
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>spark_on_k8s/client.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">147</span>
-<span class="normal">148</span>
-<span class="normal">149</span>
-<span class="normal">150</span>
-<span class="normal">151</span>
-<span class="normal">152</span>
-<span class="normal">153</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">153</span>
 <span class="normal">154</span>
 <span class="normal">155</span>
 <span class="normal">156</span>
 <span class="normal">157</span>
 <span class="normal">158</span>
 <span class="normal">159</span>
-<span class="normal">160</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">wait_connect_server_ready</span><span class="p">(</span>
+<span class="normal">160</span>
+<span class="normal">161</span>
+<span class="normal">162</span>
+<span class="normal">163</span>
+<span class="normal">164</span>
+<span class="normal">165</span>
+<span class="normal">166</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">wait_connect_server_ready</span><span class="p">(</span>
     <span class="bp">self</span><span class="p">,</span>
     <span class="n">handle</span><span class="p">:</span> <span class="n">ConnectServerHandle</span><span class="p">,</span>
     <span class="o">*</span><span class="p">,</span>
@@ -10360,7 +10425,7 @@ Set <code>dry_run=True</code> to return an offline :class:<code>ApplicationPlan<
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 10, 2026 09:18:05 UTC">November 10, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 10, 2026 09:18:49 UTC">November 10, 2026</span>
   </span>
 
     

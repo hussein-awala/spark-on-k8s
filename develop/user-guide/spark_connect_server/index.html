@@ -68,7 +68,7 @@
   <meta name="documentation-channel" content="develop">
   <meta name="documentation-version" content="develop">
   
-    <meta name="documentation-source" content="f8ebc94d8dd24d19ce8a623539d1f935e160ad2b">
+    <meta name="documentation-source" content="5ead32145a1dd1fff58bb94a6ebdc295abc8ffe0">
   
 
   </head>
@@ -108,7 +108,7 @@
     <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
   
   
-    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/f8ebc94d8dd24d19ce8a623539d1f935e160ad2b"><code>f8ebc94d8dd2</code></a>.
+    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/5ead32145a1dd1fff58bb94a6ebdc295abc8ffe0"><code>5ead32145a1d</code></a>.
   
 
           </div>
@@ -1228,6 +1228,17 @@
     <span class="md-ellipsis">
       
         Observe, stop and recover
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#find-forgotten-servers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Find forgotten servers
       
     </span>
   </a>
@@ -5193,6 +5204,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#find-forgotten-servers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Find forgotten servers
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -5234,7 +5256,8 @@ authentication gateways and the Helm chart are outside this lifecycle helper.</p
 <li>Prepare the namespace and driver service account using the existing
   <a href="../getting_started/#set-up-the-kubernetes-namespace">namespace setup guide</a>.
   The driver needs permission to create and manage its executors. The caller needs
-  permission to create/read/delete driver pods and Services in that namespace.</li>
+  permission to create/read/delete driver pods and Services in that namespace, and
+  to list pods there for <code>connect server list</code>.</li>
 <li>Use a Spark 4 image containing the Connect server JAR. Specify its exact
   <code>local:///</code> path; the helper does not download a guessed Spark/Scala artifact.
   Kubernetes integration tests cover the pinned Spark 4.0.5 and 4.3.0 images in
@@ -5297,6 +5320,12 @@ Create <code>connect.toml</code>:</p>
 against the receipt. A successful query against a different server is rejected.
 Resource identities are checked again before reporting readiness. A Kubernetes
 <code>Running</code> phase alone does not establish query readiness.</p>
+<p>The readiness result reports the <code>spark_version</code> returned by the server, the local
+<code>client_version</code> that ran the query and <code>warnings</code>. A client and server that differ
+in major or minor version produce a <code>version_skew</code> warning, as described in
+<a href="../spark_connect/#client-and-server-versions">client and server versions</a>; readiness
+still succeeds. <code>connect server wait</code> prints the warning on stderr in text mode and
+copies it to a top-level <code>warnings</code> array in JSON.</p>
 <p>Inside the cluster, use the returned private endpoint in a profile with
 <code>tls = false</code> and an explicit <code>allow_insecure = true</code> only for your trusted network.
 Files, connectors and data permissions belong to the server image and service
@@ -5349,8 +5378,14 @@ and cleanup of its owned Services/executors. It reports a deletion request, not
 instantaneous completion. Closing a client session or tunnel leaves the server
 running. Keep the receipt until Kubernetes has removed the resources.</p>
 <p>Status reports observed resource presence and driver phase, including missing or
-terminating resources. Permission errors and unreachable Kubernetes APIs remain
-errors, not evidence that a server has disappeared. Destructive operations verify
+terminating resources. It also reports the driver's <code>created_at</code> time (UTC) and
+<code>age_seconds</code>, computed with your local clock and never negative; both are <code>null</code>
+when the driver is missing. Status does not run a query, so it cannot learn the
+server's Spark version: <code>spark_version</code> is reported only from a <code>spark-version</code>
+label on the driver pod, which this helper does not set, and is otherwise <code>null</code>.
+Use <code>connect server wait</code> for the server-reported version and version warnings.
+Permission errors and unreachable Kubernetes APIs remain errors, not evidence that
+a server has disappeared. Destructive operations verify
 all recorded resource identities before issuing UID-conditional deletion requests;
 a stale receipt cannot delete a same-name replacement.</p>
 <p>A readiness timeout exits with code 5 and leaves the server running. Inspect the
@@ -5371,6 +5406,45 @@ Interruption retains any confirmed partial identity and does not initiate extra
 cleanup. If it interrupts rollback or deletion already in progress, that request
 may have reached Kubernetes; inspect the reported cleanup outcome.
 Status can successfully report missing resources without treating that observation as a transport error.</p>
+<h2 id="find-forgotten-servers">Find forgotten servers<a class="headerlink" href="#find-forgotten-servers" title="Permanent link">&para;</a></h2>
+<p>A server keeps its driver and executors running after the notebook, tunnel or
+script that created it has gone. To find servers in a namespace without a receipt:</p>
+<div class="highlight"><pre><span></span><code>spark-on-k8s<span class="w"> </span>connect<span class="w"> </span>server<span class="w"> </span>list<span class="w"> </span>--namespace<span class="w"> </span>spark
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>APP ID                                     STATUS   AGE   CREATED               SPARK  IMAGE
+notebook-6f0c3b8e2d4a4f1c9e7b5a3d1f2e4c6b  running  3d4h  2026-11-06T08:00:00Z  -      apache/spark:4.3.0-scala2.13-java21-python3-ubuntu
+</code></pre></div>
+<p>The command is read-only. It lists driver pods labeled <code>spark-role=driver</code> and
+<code>spark-on-k8s.io/connect-server=true</code> with an application ID, oldest first. Servers
+created through the CLI, SDK, notebook example or tools built on them carry these
+labels. It does not verify receipts, Services or query readiness, and it never
+deletes anything. Labels are not proof of ownership: anyone able to create pods in
+the namespace can apply them. The helper records no creator identity, so choose a
+recognizable <code>--name</code> (<code>name</code> in the list) when creating a server.</p>
+<p>With <code>--output json</code>, the <a href="../automation/">versioned document</a> has
+<code>"operation": "connect_server_list"</code>, the namespace and <code>items</code> (<code>null</code> on error). Each item
+contains <code>app_id</code>, <code>name</code>, <code>namespace</code>, <code>driver_pod</code>, <code>driver_uid</code>, <code>status</code>
+(<code>starting</code>, <code>running</code>, <code>terminated</code>, <code>deleting</code> or <code>unknown</code>), <code>driver_phase</code>,
+<code>spark_version</code> (from the optional <code>spark-version</code> label, usually <code>null</code>), the driver
+<code>image</code>, <code>created_at</code> and <code>age_seconds</code>. Exit codes match the other server commands.
+The SDK equivalent <code>client.list_connect_servers("spark")</code> returns the same items.
+Each call inspects one namespace. A cluster administrator can find servers in every
+namespace with
+<code>kubectl get pods --all-namespaces -l spark-role=driver,spark-on-k8s.io/connect-server=true</code>.</p>
+<p>To stop a server you no longer need:</p>
+<ol>
+<li>Prefer its receipt, such as <code>connect-server.json</code> or the notebook example's
+   <code>server-receipt.json</code>: <code>spark-on-k8s connect server delete RECEIPT</code> verifies
+   every recorded identity before requesting deletion.</li>
+<li>If the receipt is lost, confirm that nobody still uses the server: deletion ends
+   every session on it. Then delete its driver by the listed application ID:
+   <code>spark-on-k8s app delete --namespace spark --app-id APP_ID</code>. The command looks up
+   that single driver and deletes it with its UID as a precondition. Kubernetes then
+   garbage-collects the Services and executors it owns, asynchronously.</li>
+<li>Run <code>connect server list</code> again. The server shows <code>deleting</code> until Kubernetes
+   removes the driver, then disappears from the list. A <code>terminated</code> server has
+   stopped Spark but its resources remain until deleted.</li>
+</ol>
 <p>For upstream configuration details, see the
 <a href="https://spark.apache.org/docs/4.3.0/configuration.html#spark-connect">Spark Connect server configuration</a>
 and <a href="https://spark.apache.org/docs/4.3.0/running-on-kubernetes.html#client-mode">Kubernetes client-mode requirements</a>.</p>
@@ -5394,7 +5468,7 @@ and <a href="https://spark.apache.org/docs/4.3.0/running-on-kubernetes.html#clie
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 9, 2026 07:58:32 UTC">November 9, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 10, 2026 09:18:26 UTC">November 10, 2026</span>
   </span>
 
     

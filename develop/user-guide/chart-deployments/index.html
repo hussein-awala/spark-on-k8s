@@ -68,7 +68,7 @@
   <meta name="documentation-channel" content="develop">
   <meta name="documentation-version" content="develop">
   
-    <meta name="documentation-source" content="0d25b428ab3de30ec63af6964376eb5e44d29913">
+    <meta name="documentation-source" content="83f4020ef5c1295148473af6e685dc8d647a242a">
   
 
   </head>
@@ -108,7 +108,7 @@
     <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
   
   
-    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/0d25b428ab3de30ec63af6964376eb5e44d29913"><code>0d25b428ab3d</code></a>.
+    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/83f4020ef5c1295148473af6e685dc8d647a242a"><code>83f4020ef5c1</code></a>.
   
 
           </div>
@@ -6105,7 +6105,9 @@ keys in your values file, or set a key to <code>null</code> to remove it; an ima
 another user needs matching IDs. The History Server keeps its own security settings.</p>
 <p>The API must be able to read files mounted from volumes, such as a
 remote-submission token or policy, or a kubeconfig selected with
-<code>SPARK_ON_K8S_CONFIG_FILE</code>. Its home directory is <code>/home/spark-on-k8s</code>; <code>/root</code>
+<code>SPARK_ON_K8S_CONFIG_FILE</code>. The chart sets <code>SPARK_ON_K8S_IN_CLUSTER=true</code> unless
+<code>env</code> sets <code>SPARK_ON_K8S_IN_CLUSTER</code> or <code>SPARK_ON_K8S_CONFIG_FILE</code>, so a selected
+kubeconfig is used instead of the pod's service account. Its home directory is <code>/home/spark-on-k8s</code>; <code>/root</code>
 is not readable. Keep <code>service.port</code> at 1024 or above, because some container
 runtimes do not let a non-root process bind lower ports. Mount a remote-submission
 Secret as a directory rather than with <code>subPath</code>, so a
@@ -6446,7 +6448,7 @@ need a reviewed recreation because Deployment selectors are immutable.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 10, 2026 11:26:32 UTC">November 10, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 10, 2026 14:08:58 UTC">November 10, 2026</span>
   </span>
 
     

@@ -68,7 +68,7 @@
   <meta name="documentation-channel" content="develop">
   <meta name="documentation-version" content="develop">
   
-    <meta name="documentation-source" content="5ead32145a1dd1fff58bb94a6ebdc295abc8ffe0">
+    <meta name="documentation-source" content="09ef7dad357da2af603ae331c061882044ba9a06">
   
 
   </head>
@@ -108,7 +108,7 @@
     <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
   
   
-    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/5ead32145a1dd1fff58bb94a6ebdc295abc8ffe0"><code>5ead32145a1d</code></a>.
+    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/09ef7dad357da2af603ae331c061882044ba9a06"><code>09ef7dad357d</code></a>.
   
 
           </div>
@@ -1273,6 +1273,17 @@
     <span class="md-ellipsis">
       
         Configure a managed profile
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#check-a-profile-before-running" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Check a profile before running
       
     </span>
   </a>
@@ -5205,6 +5216,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#check-a-profile-before-running" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Check a profile before running
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#run-dbt-with-automatic-compute-cleanup" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5302,7 +5324,9 @@ Kubernetes, set <code>in_cluster: true</code> and omit both kubeconfig fields; i
 Service directly. The client's identity needs permission to create/read/delete
 its driver and Services, read the namespace/service account and observe executor
 pods, Services and ConfigMaps (including list permission for garbage-collection
-checks); local access also needs pod port-forward permission.</p>
+checks); local access also needs pod port-forward permission.
+<a href="#check-a-profile-before-running"><code>spark-on-k8s-dbt check</code></a> verifies these
+permissions without creating anything.</p>
 <h2 id="install-from-the-repository">Install from the repository<a class="headerlink" href="#install-from-the-repository" title="Permanent link">&para;</a></h2>
 <p>Until the experimental distribution is separately published, build both wheels
 from the same checkout. These commands use an isolated Python 3.12 environment:</p>
@@ -5372,6 +5396,99 @@ Thrift fixes its managed port to 10000. Managed identity, ports and routing cann
 be overridden through <code>spark_conf</code>. Put static Hive/catalog configuration in
 <code>compute.spark_conf</code>; <code>server_side_parameters</code> accepts runtime <code>spark.sql.*</code> settings; catalog, warehouse,
 Hive metastore and extension settings are excluded.</p>
+<h2 id="check-a-profile-before-running">Check a profile before running<a class="headerlink" href="#check-a-profile-before-running" title="Permanent link">&para;</a></h2>
+<p><code>spark-on-k8s-dbt check</code> validates the selected output and its cluster access
+without creating a Spark server or any other Kubernetes resource, so configuration
+errors appear in seconds instead of after compute has been requested. It accepts
+dbt's profile-selection options with dbt's defaults and environment variables:
+<code>--project-dir</code> (<code>DBT_PROJECT_DIR</code>), <code>--profiles-dir</code> (<code>DBT_PROFILES_DIR</code>),
+<code>--profile</code> (<code>DBT_PROFILE</code>), <code>--target</code>/<code>-t</code> (<code>DBT_TARGET</code>) and <code>--vars</code>. With
+<code>--profile</code>, a dbt project is not required.</p>
+<div class="highlight"><pre><span></span><code>/path/to/spark-on-k8s/.venv-dbt/bin/spark-on-k8s-dbt<span class="w"> </span>check<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--project-dir<span class="w"> </span>/path/to/analytics<span class="w"> </span>--profiles-dir<span class="w"> </span>/path/to/analytics<span class="w"> </span>--target<span class="w"> </span>connect
+</code></pre></div>
+<p>Each check reports <code>pass</code>, <code>fail</code> or <code>skip</code>; a failure includes a next step:</p>
+<table>
+<thead>
+<tr>
+<th>Check</th>
+<th>Verifies</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>profile</code></td>
+<td>dbt renders and selects the output (including <code>env_var()</code> and <code>--vars</code>) and the adapter accepts its credentials, through the same code dbt uses.</td>
+</tr>
+<tr>
+<td><code>compute</code></td>
+<td>The adapter's <code>compute</code> validation, including the kubeconfig path and the Thrift server's managed settings.</td>
+</tr>
+<tr>
+<td><code>client_libraries</code></td>
+<td>The transport client imports: the Spark Connect client, or PyHive with its Thrift SASL and HiveServer2 modules.</td>
+</tr>
+<tr>
+<td><code>kubectl</code></td>
+<td><code>kubectl</code> is on <code>PATH</code> for a local client. Skipped with <code>in_cluster: true</code>.</td>
+</tr>
+<tr>
+<td><code>kubernetes_config</code></td>
+<td>The selected kubeconfig and context, or the in-cluster configuration, loads.</td>
+</tr>
+<tr>
+<td><code>namespace</code></td>
+<td>The namespace exists, is not terminating, and the invoking identity can read it.</td>
+</tr>
+<tr>
+<td><code>service_account</code></td>
+<td>The driver service account exists. Its own permissions are not verified.</td>
+</tr>
+<tr>
+<td><code>permission.&lt;verb&gt;.&lt;resource&gt;</code></td>
+<td>A SelfSubjectAccessReview for each request the wrapper makes as the invoking identity.</td>
+</tr>
+</tbody>
+</table>
+<p>The permission checks cover <code>get</code> on the namespace and driver service account;
+<code>create</code>, <code>get</code>, <code>list</code> and <code>delete</code> on Pods and Services; <code>list</code> on ConfigMaps for
+cleanup observation; and, for a local client, <code>create</code> on <code>pods/portforward</code>. The
+wrapper itself creates no Secrets or ConfigMaps; executor resources are created by
+the driver's service account. The API server evaluates access reviews without
+storing them. A review that cannot be performed fails rather than being assumed
+allowed. A missing namespace, rejected credentials or an unreachable API server
+skip the dependent checks. Kubernetes requests share a total <code>--timeout</code> (default
+30 seconds).</p>
+<p><code>--output json</code> prints one versioned document on stdout; dbt's own warnings and
+other messages go to stderr. Every check ID appears once, in a fixed order:</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"schema_version"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"operation"</span><span class="p">:</span><span class="w"> </span><span class="s2">"dbt_check"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"status"</span><span class="p">:</span><span class="w"> </span><span class="s2">"fail"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"profile"</span><span class="p">:</span><span class="w"> </span><span class="s2">"analytics"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"target"</span><span class="p">:</span><span class="w"> </span><span class="s2">"connect"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"method"</span><span class="p">:</span><span class="w"> </span><span class="s2">"connect"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"namespace"</span><span class="p">:</span><span class="w"> </span><span class="s2">"spark"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"checks"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="p">{</span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"profile"</span><span class="p">,</span><span class="w"> </span><span class="nt">"status"</span><span class="p">:</span><span class="w"> </span><span class="s2">"pass"</span><span class="p">,</span><span class="w"> </span><span class="nt">"message"</span><span class="p">:</span><span class="w"> </span><span class="s2">"..."</span><span class="p">,</span><span class="w"> </span><span class="nt">"remediation"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">},</span>
+<span class="w">    </span><span class="p">{</span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"permission.delete.pods"</span><span class="p">,</span><span class="w"> </span><span class="nt">"status"</span><span class="p">:</span><span class="w"> </span><span class="s2">"fail"</span><span class="p">,</span><span class="w"> </span><span class="nt">"message"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Denied: delete pods in namespace spark."</span><span class="p">,</span>
+<span class="w">     </span><span class="nt">"remediation"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Grant the invoking identity delete on pods in namespace spark."</span><span class="p">}</span>
+<span class="w">  </span><span class="p">],</span>
+<span class="w">  </span><span class="nt">"error"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span>
+<span class="p">}</span>
+</code></pre></div>
+<p><code>status</code> is <code>fail</code> when any check fails. <code>error</code> is <code>null</code> unless the check was
+interrupted (<code>interrupted</code>) or stopped unexpectedly (<code>operation_error</code>). The command
+exits 0 when no check failed, 1 when any check failed, 2 for invalid options and
+130 when interrupted.</p>
+<div class="admonition note">
+<p class="admonition-title">A passing check is not a successful run</p>
+<p>The check does not pull the image, schedule a driver, start Spark or contact
+the warehouse and metastore. Image pull failures, quotas, admission policies,
+node capacity, the driver service account's permissions, network policy and
+Spark configuration errors still surface only when <code>spark-on-k8s-dbt run</code>
+starts compute.</p>
+</div>
 <h2 id="run-dbt-with-automatic-compute-cleanup">Run dbt with automatic compute cleanup<a class="headerlink" href="#run-dbt-with-automatic-compute-cleanup" title="Permanent link">&para;</a></h2>
 <p>Use the installed executable's absolute path if your current directory is a
 separate dbt project:</p>
@@ -5389,6 +5506,24 @@ finishes. Tables remain in the external warehouse/catalog for the next invocatio
 Commands that never open a database connection do not provision compute.
 Using plain <code>dbt</code> with this managed adapter reports that the wrapper is required;
 there is no unbounded background server hidden behind a connection-close hook.</p>
+<p>While the server starts, and while it is deleted at the end, the wrapper writes
+short progress lines with the elapsed time to <strong>stderr</strong>:</p>
+<div class="highlight"><pre><span></span><code>Managed Spark +0s: requesting a Spark Connect server in namespace spark (startup timeout 180s)
+Managed Spark +1s: driver pod dbt-connect-0f3c...-driver created
+Managed Spark +1s: waiting for the driver pod to be scheduled (Unschedulable: 0/3 nodes are available: 3 Insufficient cpu.)
+Managed Spark +12s: driver pod scheduled on worker-2; container spark-kubernetes-driver is ContainerCreating
+Managed Spark +40s: driver container running
+Managed Spark +40s: opening a kubectl port-forward tunnel to the driver
+Managed Spark +41s: waiting for the Spark Connect endpoint to answer a query
+Managed Spark +55s: Spark Connect server ready (application dbt-connect-0f3c...)
+</code></pre></div>
+<p>A new phase prints immediately; an unchanged phase repeats at most every 30
+seconds. Image pull errors point at <code>compute.image</code>, so you can interrupt instead of
+waiting for <code>startup_timeout</code>. The lines never go to stdout, so dbt's stdout,
+including <code>--log-format json</code> events, is unchanged; they are also not written to
+dbt's log file. They follow dbt's resolved console settings: <code>--quiet</code>
+(<code>DBT_QUIET</code>) or <code>--log-level warn</code>, <code>error</code> or <code>none</code> (<code>DBT_LOG_LEVEL</code>, or the
+project's <code>flags</code>) suppresses them. The receipt path is always printed.</p>
 <p>Statements are not automatically replayed (<code>query_retries</code> must be 0). Spark SQL
 is not transactional: failure and cancellation can leave successfully written
 tables or rows. Review dbt's normal incremental/idempotency behavior before retrying.
@@ -5433,8 +5568,10 @@ separate process ownership protects compute, not conflicting SQL writes.</p>
 <h2 id="what-the-tests-exercise">What the tests exercise<a class="headerlink" href="#what-the-tests-exercise" title="Permanent link">&para;</a></h2>
 <p>The <a href="../../development/#experimental-dbt-integration">integration harness</a> runs
 installed wheels on disposable Kubernetes with a shared HDFS warehouse and an
-external metastore fixture. It checks both transports, parallel dbt workers,
-seeds/models/data tests, fresh compute across commands, catalog persistence,
+external metastore fixture. It first runs <code>spark-on-k8s-dbt check</code> against each
+generated profile and requires every check to pass without creating compute. It
+checks both transports, parallel dbt workers, seeds/models/data tests, fresh
+compute across commands, startup and cleanup progress, catalog persistence,
 documentation generation, failed SQL and graceful cancellation. Fixture storage
 is temporary and is not a production storage deployment recipe.</p>
 
@@ -5457,7 +5594,7 @@ is temporary and is not a production storage deployment recipe.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 9, 2026 07:39:08 UTC">November 9, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 10, 2026 09:19:07 UTC">November 10, 2026</span>
   </span>
 
     

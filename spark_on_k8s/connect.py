@@ -25,6 +25,44 @@ class ConnectClientUnavailable(ConnectError):
 
 
 _CLIENT_UNAVAILABLE = "client_unavailable"
+# Bounded digits: a remote server controls its version string.
+_MAJOR_MINOR = re.compile(r"([0-9]{1,9})\.([0-9]{1,9})(?![0-9])")
+
+
+def version_warnings(client_version: str | None, server_version: str | None) -> list[dict[str, str]]:
+    """Return a ``version_skew`` warning when client and server major.minor versions differ.
+
+    Patch releases are not compared. An unknown or unparseable version yields no warning,
+    which does not establish compatibility. A warning never fails a successful query.
+    """
+    versions = []
+    for value in (client_version, server_version):
+        match = _MAJOR_MINOR.match(value) if isinstance(value, str) else None
+        if match is None:
+            return []
+        versions.append((int(match[1]), int(match[2])))
+    (client_major, client_minor), (server_major, server_minor) = versions
+    if (client_major, client_minor) == (server_major, server_minor):
+        return []
+    return [
+        {
+            "code": "version_skew",
+            "message": (
+                f"Spark Connect client {client_major}.{client_minor} and server "
+                f"{server_major}.{server_minor} differ in major or minor version; later queries can "
+                "fail with errors unrelated to your code. Use a client matching the server's "
+                "major.minor version."
+            ),
+        }
+    ]
+
+
+def _client_version() -> str | None:
+    try:
+        from pyspark.version import __version__
+    except ImportError:
+        return None
+    return __version__ if isinstance(__version__, str) else None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -142,7 +180,11 @@ class ConnectProfile:
                 ) from None
 
     def probe(self, *, timeout: float = 15, expected_app_id: str | None = None) -> dict:
-        """Execute a tiny remote query in a child process with a hard total timeout."""
+        """Execute a tiny remote query in a child process with a hard total timeout.
+
+        The result reports the server's ``spark_version``, the child's PySpark
+        ``client_version`` (``None`` when unknown) and advisory ``warnings``.
+        """
         if type(timeout) not in {int, float} or not math.isfinite(timeout) or timeout <= 0:
             raise ConnectError("timeout must be a positive finite number of seconds.")
         if expected_app_id is not None and (
@@ -179,9 +221,12 @@ class ConnectProfile:
                 raise ValueError
             if expected_app_id is not None and payload.get("app_id") != expected_app_id:
                 raise ValueError
-            return payload
         except (ValueError, AttributeError):
             raise ConnectError("Spark Connect check returned an invalid response.") from None
+        payload.setdefault("client_version", None)
+        # The query succeeded; a version skew is reported without turning it into a failure.
+        payload["warnings"] = version_warnings(payload["client_version"], payload.get("spark_version"))
+        return payload
 
 
 def _probe_worker():
@@ -197,7 +242,12 @@ def _probe_worker():
                     raise ConnectError("The endpoint is not the expected Spark application")
             assert session.range(1).count() == 1
             version = session.version
-        payload = {"schema_version": 1, "status": "ok", "spark_version": version}
+        payload = {
+            "schema_version": 1,
+            "status": "ok",
+            "spark_version": version,
+            "client_version": _client_version(),
+        }
         if expected_app_id is not None:
             payload["app_id"] = app_id
         code = 0

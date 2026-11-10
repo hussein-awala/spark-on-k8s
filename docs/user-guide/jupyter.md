@@ -229,7 +229,17 @@ the checkout, use the same environment and explicit cluster settings:
 ```
 
 Deletion requests cleanup; keep the receipt until the resources are observed
-absent. To continue work instead, use the receipt-only recovery instructions at
+absent. If you no longer know which artifact directory belongs to a server, for
+example after several forgotten notebooks, list the servers and their ages in the
+namespace, then follow [finding forgotten servers](spark_connect_server.md#find-forgotten-servers)
+to stop the ones nobody uses:
+
+```bash
+.venv-notebook/bin/spark-on-k8s connect server list --namespace "$SPARK_NOTEBOOK_NAMESPACE" \
+  --kubeconfig "$SPARK_NOTEBOOK_KUBECONFIG" --context "$SPARK_NOTEBOOK_CONTEXT"
+```
+
+To continue work instead, use the receipt-only recovery instructions at
 the end of the notebook: restore `ConnectServerHandle` from the receipt's inner
 `server` mapping, open a new tunnel, verify readiness, and create a new session.
 That workflow does not require the planned-restart evidence file.
@@ -244,6 +254,7 @@ before creating a replacement with a new receipt.
 | Problem | Next action |
 | --- | --- |
 | Wrong kernel or import failure | Select the registered kernel and check its printed interpreter and package versions |
+| Readiness `warnings` contains `version_skew` | Install the client for the server's major.minor version from the [client/server pairs](#start-an-isolated-jupyter-kernel), then restart the kernel |
 | Pending driver or listener timeout | Inspect scheduling, image/JAR, service-account permissions and driver logs; retain the receipt |
 | Lost tunnel or readiness timeout | Repair connectivity and retry readiness for the recorded server; do not create a duplicate |
 | Receipt or pending creation guard already exists | Inspect the saved/partial identity and reconnect or finish cleanup; an uncertain response is not absence |

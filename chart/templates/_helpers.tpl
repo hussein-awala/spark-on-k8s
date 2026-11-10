@@ -122,6 +122,40 @@ Create the name of the service account to use for the history server
 {{- end -}}
 
 {{/*
+The API's Kubernetes permissions in each namespace it serves. Namespace Roles and the
+cluster-wide ClusterRole both render these rules, so the two scopes cannot drift.
+*/}}
+{{- define "spark-on-k8s.rbacRules" -}}
+{{- if .Values.readOnly -}}
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["pods/log"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["services"]
+  verbs: ["get", "list", "watch"]
+{{- else -}}
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "watch", "create", "delete"]
+- apiGroups: [""]
+  resources: ["pods/exec"]
+  verbs: ["get", "create"]
+- apiGroups: [""]
+  resources: ["pods/log"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["services"]
+  verbs: ["get", "list", "watch", "create", "delete"]
+{{- end }}
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["list"]
+{{- end }}
+
+{{/*
 Namespaces the API serves: "*", or a comma-separated list that defaults to the release namespace.
 */}}
 {{- define "spark-on-k8s.namespaces" -}}

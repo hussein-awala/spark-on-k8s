@@ -20,7 +20,8 @@ current CI matrices; adjust this guide when those files change.
 Keep UI behavior in shared components; host entry points only supply transports and
 context. Preserve machine-readable schemas and exit codes separately from human
 messages. Treat active, absent, terminal and unknown outcomes as different states.
-See [support boundaries](user-guide/support.md) before adding a public contract.
+See [support boundaries](user-guide/support.md) before adding a public contract, and
+classify a new surface in [interface stability](user-guide/stability.md).
 
 ## Choose checks by change
 
@@ -200,8 +201,9 @@ at an arbitrary current kubeconfig context.
 - `.github/workflows/spark-connect.yml` runs `tests/integration/connect/run.py`
   against a separate local Spark Connect server for client compatibility. Its
   Kubernetes job additionally creates Spark 4.0.5/4.3.0 servers with real executors
-  and exercises SDK/CLI receipts, query readiness, session independence, failure
-  handling and ownership-safe deletion using `tests/integration/connect/run_kubernetes.py`.
+  and exercises SDK/CLI receipts, query readiness and version reporting, label-based
+  server listing, session independence, failure handling and ownership-safe deletion
+  using `tests/integration/connect/run_kubernetes.py`.
   The same image matrix runs `tests/integration/jupyter/run_kubernetes.py`, executing
   the canonical `examples/jupyter/spark_connect.ipynb` with a real IPython kernel.
   It performs a planned kernel restart, reconnects to the same driver, verifies
@@ -224,6 +226,41 @@ at an arbitrary current kubeconfig context.
 - `tests/integration/starters/check.py` verifies ETL/Iceberg output and replay in
   the selected Spark image. Its container-local results do not validate shared
   storage provisioning on a target cluster.
+- `.github/workflows/chart-kubernetes.yml` builds a `chart-ci` API image from the
+  checkout and runs two jobs, each on its own kind cluster. `tests/integration/chart/check.sh`
+  installs and upgrades the source chart. `tests/integration/chart/upgrade.sh`
+  rehearses upgrades from the newest published chart, pinned by digest with the
+  API image of its `appVersion`. It installs two releases with
+  `tests/integration/chart/published-values.yaml` and checks that plain `--reuse-values`
+  fails with the documented schema error. It upgrades one release by passing its
+  values again with `rbac.legacyNames: true`. It upgrades the other, which relied on
+  the old `"*"` namespace default, with `--reset-then-reuse-values`, `namespaces: "*"`
+  and the default names. After each upgrade and after rolling both back to the
+  published chart, it checks readiness, `helm test`, service-account access, the
+  pod user (non-root after upgrading, the old image's root user after rolling back)
+  and the RBAC object names. It pulls the published chart, API image and `busybox`
+  test image, so it needs network access.
+
+Run the upgrade rehearsal locally on a disposable kind cluster. The separate
+kubeconfig keeps kind's context out of your default configuration; the script
+refuses any context other than `kind-chart-upgrade-ci`. Set `KIND_NODE_IMAGE` to
+the workflow's pinned `kindest/node` reference:
+
+```bash
+uv export --locked --no-default-groups --extra api --no-emit-project --output-file tests/integration/chart/requirements.txt
+uv build --wheel --out-dir tests/integration/chart/dist
+docker build -t ghcr.io/hussein-awala/spark-on-k8s:chart-ci tests/integration/chart
+export KUBECONFIG="$(mktemp -d)/kubeconfig"
+kind create cluster --name chart-upgrade-ci --image "$KIND_NODE_IMAGE" --wait 120s
+kind load docker-image --name chart-upgrade-ci ghcr.io/hussein-awala/spark-on-k8s:chart-ci
+bash tests/integration/chart/upgrade.sh
+kind delete cluster --name chart-upgrade-ci
+rm tests/integration/chart/requirements.txt
+```
+
+The image installs every wheel in `tests/integration/chart/dist`, so remove stale
+wheels before building. The generated `requirements.txt` is not ignored; do not
+commit it.
 
 After the Airflow workflow's wheel/image build and disposable-cluster setup, its
 host command is:

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import click
 
-from spark_on_k8s.cli.automation import execution, output_option, validate_timeout
+from spark_on_k8s.cli.automation import execution, output_option, report_warnings, validate_timeout
 from spark_on_k8s.cli.options import validate_dictionary_option
 from spark_on_k8s.cli.receipts import receipt_writer
 from spark_on_k8s.client import ExecutorInstances, PodResources, SparkOnK8S
@@ -260,6 +260,52 @@ def status(receipt, kubeconfig, context, timeout, output):
             click.echo(json.dumps(result["observation"], indent=2))
 
 
+def _age(seconds: int | None) -> str:
+    if seconds is None:
+        return "-"
+    days, rest = divmod(seconds, 86400)
+    hours, rest = divmod(rest, 3600)
+    minutes, seconds = divmod(rest, 60)
+    if days:
+        return f"{days}d{hours}h"
+    if hours:
+        return f"{hours}h{minutes}m"
+    return f"{minutes}m" if minutes else f"{seconds}s"
+
+
+@server_cli.command(
+    name="list",
+    help="List labeled Connect server drivers in a namespace, oldest first; read-only, no receipt needed.",
+)
+@click.option("--namespace", required=True, help="Kubernetes namespace to inspect.")
+@_cluster_options
+@_timeout(10)
+@output_option
+def list_servers(namespace, kubeconfig, context, timeout, output):
+    with execution("connect_server_list", namespace, output) as result:
+        result["items"] = None
+        result["items"] = _client(kubeconfig, context).list_connect_servers(namespace, timeout=timeout)
+        if output == "text" and not result["items"]:
+            click.echo(f"No Spark Connect server drivers created by spark-on-k8s were found in {namespace}.")
+        elif output == "text":
+            rows = [("APP ID", "STATUS", "AGE", "CREATED", "SPARK", "IMAGE")] + [
+                (
+                    item["app_id"],
+                    item["status"],
+                    _age(item["age_seconds"]),
+                    item["created_at"] or "-",
+                    item["spark_version"] or "-",
+                    item["image"] or "-",
+                )
+                for item in result["items"]
+            ]
+            widths = [max(len(row[column]) for row in rows) for column in range(len(rows[0]))]
+            for row in rows:
+                click.echo(
+                    "  ".join(cell.ljust(width) for cell, width in zip(row, widths, strict=True)).rstrip()
+                )
+
+
 @server_cli.command(
     name="wait", help="Wait for a successful query from the server identified by this receipt."
 )
@@ -271,6 +317,7 @@ def status(receipt, kubeconfig, context, timeout, output):
 @output_option
 def wait(receipt, profile_file, profile_name, kubeconfig, context, timeout, output):
     with execution("connect_server_wait", "", output) as result:
+        result["warnings"] = []
         handle = _read_server_receipt(receipt)
         result.update(namespace=handle.run.namespace, server=handle.to_dict(), query_ready=False)
         profile = ConnectProfile.from_file(profile_file, profile=profile_name)
@@ -278,8 +325,10 @@ def wait(receipt, profile_file, profile_name, kubeconfig, context, timeout, outp
             handle, profile=profile, timeout=timeout
         )
         result["query_ready"] = True
+        result["warnings"] = result["observation"].get("warnings", [])
         if output == "text":
             click.echo(f"Server {handle.run.app_id} accepted a query through the selected profile.")
+        report_warnings(result["warnings"], output)
 
 
 @server_cli.command(

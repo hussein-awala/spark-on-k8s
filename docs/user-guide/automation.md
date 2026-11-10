@@ -84,6 +84,13 @@ JSON error messages exclude Kubernetes response bodies. Receipts do not contain 
 configuration or secrets. Driver logs remain application-controlled data and may
 contain sensitive information. Consumers should check `schema_version`, tolerate
 additional fields, and avoid depending on object-key order or human messages.
+
+Some results also contain `warnings`, an array of `{ "code": "...", "message": "..." }`
+advisories. `connect check` and `connect server wait` use the `version_skew` code
+when the Spark Connect client and server differ in major or minor version (see
+[client and server versions](spark_connect.md#client-and-server-versions)). A warning
+never changes `error` or the exit code; text output prints it on stderr. Tolerate
+unknown warning codes, and test the array explicitly if a script must fail on one.
 CLI argument errors are reported by Click on stderr before execution and do not
 produce a JSON document. `--help` remains human-readable.
 
@@ -292,7 +299,7 @@ an `operation_error`; an interruption exits 130 and reports the requests made so
 | job validate | `--output json`, per-profile results | Versioned result; `error` repeats the first failing profile's error | Offline validation only |
 | job plan | `--output json` | Load/build errors remain Click text | Redacted preview, no reservation |
 | app diagnose, doctor | `--output json` report | Click text error, exit 1 (including a missing application) | Observed evidence, not a health certification |
-| connect check, connect server | `--output json` | Versioned result | Tiny query succeeded on existing server; server requests accepted |
+| connect check, connect server | `--output json` | Versioned result | Tiny query succeeded on existing server; server requests accepted; `server list` is a label-based observation |
 | remote plan/submit | JSON by default | Versioned result | Request admitted or accepted, not workload completion |
 | legacy kill/delete/log commands | Text | Text | Signal/deletion request or log observation |
 

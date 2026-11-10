@@ -17,7 +17,8 @@ authentication gateways and the Helm chart are outside this lifecycle helper.
 - Prepare the namespace and driver service account using the existing
   [namespace setup guide](getting_started.md#set-up-the-kubernetes-namespace).
   The driver needs permission to create and manage its executors. The caller needs
-  permission to create/read/delete driver pods and Services in that namespace.
+  permission to create/read/delete driver pods and Services in that namespace, and
+  to list pods there for `connect server list`.
 - Use a Spark 4 image containing the Connect server JAR. Specify its exact
   `local:///` path; the helper does not download a guessed Spark/Scala artifact.
   Kubernetes integration tests cover the pinned Spark 4.0.5 and 4.3.0 images in
@@ -99,6 +100,13 @@ against the receipt. A successful query against a different server is rejected.
 Resource identities are checked again before reporting readiness. A Kubernetes
 `Running` phase alone does not establish query readiness.
 
+The readiness result reports the `spark_version` returned by the server, the local
+`client_version` that ran the query and `warnings`. A client and server that differ
+in major or minor version produce a `version_skew` warning, as described in
+[client and server versions](spark_connect.md#client-and-server-versions); readiness
+still succeeds. `connect server wait` prints the warning on stderr in text mode and
+copies it to a top-level `warnings` array in JSON.
+
 Inside the cluster, use the returned private endpoint in a profile with
 `tls = false` and an explicit `allow_insecure = true` only for your trusted network.
 Files, connectors and data permissions belong to the server image and service
@@ -169,11 +177,17 @@ server is not restarted. Status reports `terminated` with `driver_reason:
 see [driver lifetime limits](automation.md#limit-how-long-a-driver-can-run).
 
 Status reports observed resource presence, driver phase and the driver pod's
-Kubernetes `driver_reason` (or `null`), including missing or
-terminating resources. Permission errors and unreachable Kubernetes APIs remain
-errors, not evidence that a server has disappeared. Destructive operations verify
-all recorded resource identities before issuing UID-conditional deletion requests;
-a stale receipt cannot delete a same-name replacement.
+Kubernetes `driver_reason` (or `null`), including missing or terminating resources.
+It also reports the driver's `created_at` time (UTC) and `age_seconds`, computed
+with your local clock and never negative; both are `null` when the driver is
+missing. Status does not run a query, so it cannot learn the server's Spark version:
+`spark_version` is reported only from a `spark-version` label on the driver pod,
+which this helper does not set, and is otherwise `null`. Use `connect server wait`
+for the server-reported version and version warnings. Permission errors and
+unreachable Kubernetes APIs remain errors, not evidence that a server has
+disappeared. Destructive operations verify all recorded resource identities before
+issuing UID-conditional deletion requests; a stale receipt cannot delete a same-name
+replacement.
 
 A readiness timeout exits with code 5 and leaves the server running. Inspect the
 driver logs or diagnostics, repair connectivity or configuration, and retry the
@@ -194,6 +208,53 @@ Interruption retains any confirmed partial identity and does not initiate extra
 cleanup. If it interrupts rollback or deletion already in progress, that request
 may have reached Kubernetes; inspect the reported cleanup outcome.
 Status can successfully report missing resources without treating that observation as a transport error.
+
+## Find forgotten servers
+
+A server keeps its driver and executors running after the notebook, tunnel or
+script that created it has gone. To find servers in a namespace without a receipt:
+
+```bash
+spark-on-k8s connect server list --namespace spark
+```
+
+```text
+APP ID                                     STATUS   AGE   CREATED               SPARK  IMAGE
+notebook-6f0c3b8e2d4a4f1c9e7b5a3d1f2e4c6b  running  3d4h  2026-11-06T08:00:00Z  -      apache/spark:4.3.0-scala2.13-java21-python3-ubuntu
+```
+
+The command is read-only. It lists driver pods labeled `spark-role=driver` and
+`spark-on-k8s.io/connect-server=true` with an application ID, oldest first. Servers
+created through the CLI, SDK, notebook example or tools built on them carry these
+labels. It does not verify receipts, Services or query readiness, and it never
+deletes anything. Labels are not proof of ownership: anyone able to create pods in
+the namespace can apply them. The helper records no creator identity, so choose a
+recognizable `--name` (`name` in the list) when creating a server.
+
+With `--output json`, the [versioned document](automation.md) has
+`"operation": "connect_server_list"`, the namespace and `items` (`null` on error). Each item
+contains `app_id`, `name`, `namespace`, `driver_pod`, `driver_uid`, `status`
+(`starting`, `running`, `terminated`, `deleting` or `unknown`), `driver_phase`,
+`spark_version` (from the optional `spark-version` label, usually `null`), the driver
+`image`, `created_at` and `age_seconds`. Exit codes match the other server commands.
+The SDK equivalent `client.list_connect_servers("spark")` returns the same items.
+Each call inspects one namespace. A cluster administrator can find servers in every
+namespace with
+`kubectl get pods --all-namespaces -l spark-role=driver,spark-on-k8s.io/connect-server=true`.
+
+To stop a server you no longer need:
+
+1. Prefer its receipt, such as `connect-server.json` or the notebook example's
+   `server-receipt.json`: `spark-on-k8s connect server delete RECEIPT` verifies
+   every recorded identity before requesting deletion.
+2. If the receipt is lost, confirm that nobody still uses the server: deletion ends
+   every session on it. Then delete its driver by the listed application ID:
+   `spark-on-k8s app delete --namespace spark --app-id APP_ID`. The command looks up
+   that single driver and deletes it with its UID as a precondition. Kubernetes then
+   garbage-collects the Services and executors it owns, asynchronously.
+3. Run `connect server list` again. The server shows `deleting` until Kubernetes
+   removes the driver, then disappears from the list. A `terminated` server has
+   stopped Spark but its resources remain until deleted.
 
 For upstream configuration details, see the
 [Spark Connect server configuration](https://spark.apache.org/docs/4.3.0/configuration.html#spark-connect)

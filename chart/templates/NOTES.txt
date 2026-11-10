@@ -29,3 +29,14 @@
    The ingress terminates TLS, so browser log streams are rejected until env sets
    SPARK_ON_K8S_API_WEBSOCKET_ALLOWED_ORIGINS to the public https:// origins.
 {{- end }}
+{{- $networkPolicy := .Values.networkPolicy | default dict }}
+{{- if $networkPolicy.enabled }}
+{{- if not (dig "ingress" "from" (list) $networkPolicy) }}
+   networkPolicy admits only this release's pods to the API. List your ingress controller,
+   gateway, clients and Prometheus in networkPolicy.ingress.from.
+{{- end }}
+{{- if and (dig "egress" "enabled" false $networkPolicy) (not (dig "egress" "kubernetesApi" "to" (list) $networkPolicy)) }}
+   networkPolicy.egress.kubernetesApi.to is empty, so this policy does not let the API reach
+   the Kubernetes API server; the API stays unready unless another policy allows it.
+{{- end }}
+{{- end }}

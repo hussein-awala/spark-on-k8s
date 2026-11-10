@@ -64,9 +64,30 @@ def test_list(mock_uvicorn_run, host, port, workers, log_level, limit_concurrenc
         port=expected_port,
         workers=expected_workers,
         log_level=expected_log_level,
+        log_config=mock.ANY,
         limit_concurrency=expected_limit_concurrency,
         root_path=APIConfiguration.SPARK_ON_K8S_API_ROOT_PATH,
     )
+    # Package records use the server's handler and log level instead of Python's WARNING fallback.
+    loggers = mock_uvicorn_run.call_args.kwargs["log_config"]["loggers"]
+    assert loggers["spark_on_k8s"] == {
+        "handlers": ["default"],
+        "level": expected_log_level.upper(),
+        "propagate": False,
+    }
+    assert "uvicorn.access" in loggers
+
+
+@mock.patch("uvicorn.run")
+def test_start_does_not_change_the_shared_uvicorn_logging_defaults(mock_uvicorn_run):
+    from spark_on_k8s.cli.api import start
+    from uvicorn.config import LOGGING_CONFIG
+
+    assert CliRunner().invoke(start, ["--log-level", "warning"]).exit_code == 0
+    assert "spark_on_k8s" not in LOGGING_CONFIG["loggers"]
+    log_config = mock_uvicorn_run.call_args.kwargs["log_config"]
+    assert log_config["loggers"]["spark_on_k8s"]["level"] == "WARNING"
+    assert set(log_config["loggers"]["spark_on_k8s"]["handlers"]) <= set(log_config["handlers"])
 
 
 def start_command(monkeypatch, root_path_environment=None):

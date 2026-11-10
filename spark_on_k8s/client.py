@@ -144,6 +144,12 @@ class SparkOnK8S(LoggingMixin):
 
         return connect_server_status(self, handle, timeout=timeout)
 
+    def list_connect_servers(self, namespace: str, *, timeout: float = 10) -> list[dict]:
+        """List drivers labeled as Connect servers in one namespace; read-only and label-based."""
+        from spark_on_k8s.connect_server import list_connect_servers
+
+        return list_connect_servers(self, namespace, timeout=timeout)
+
     def wait_connect_server_ready(
         self,
         handle: ConnectServerHandle,

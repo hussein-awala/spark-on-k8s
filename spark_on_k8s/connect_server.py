@@ -4,6 +4,7 @@ import math
 import re
 from copy import deepcopy
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
@@ -14,6 +15,7 @@ from urllib3.exceptions import MaxRetryError, NewConnectionError, TimeoutError a
 from spark_on_k8s.client import ExecutorInstances, PodResources
 from spark_on_k8s.connect import ConnectClientUnavailable, ConnectError, ConnectProfile
 from spark_on_k8s.utils.run import RunHandle, WaitDeadline, validate_max_runtime
+from spark_on_k8s.utils.spark_app_status import driver_container_name
 
 if TYPE_CHECKING:
     from spark_on_k8s.client import SparkOnK8S
@@ -547,6 +549,31 @@ def _resources(api, handle, deadline):
     return pod, transport, service
 
 
+def _driver_state(phase: str | None, deleting: bool) -> str:
+    if deleting:
+        return "deleting"
+    return {
+        "Succeeded": "terminated",
+        "Failed": "terminated",
+        "Running": "running",
+        "Pending": "starting",
+    }.get(phase, "unknown")
+
+
+def _created(pod, now: datetime) -> tuple[datetime | None, int | None]:
+    """Return the driver creation time in UTC and its age by the local clock, if known."""
+    created = pod.metadata.creation_timestamp if pod is not None else None
+    if not isinstance(created, datetime):
+        return None, None
+    created = created.astimezone(UTC) if created.tzinfo else created.replace(tzinfo=UTC)
+    # Clock skew between this machine and the API server must not produce a negative age.
+    return created, max(0, int((now - created).total_seconds()))
+
+
+def _timestamp(value: datetime | None) -> str | None:
+    return value.isoformat().replace("+00:00", "Z") if value is not None else None
+
+
 def connect_server_status(client: SparkOnK8S, handle: ConnectServerHandle, *, timeout: float = 10) -> dict:
     """Read matching resource state. Only confirmed 404 means missing; errors propagate."""
     if not isinstance(handle, ConnectServerHandle):
@@ -565,28 +592,67 @@ def connect_server_status(client: SparkOnK8S, handle: ConnectServerHandle, *, ti
     deleting = any(
         obj is not None and obj.metadata.deletion_timestamp is not None for obj in (pod, transport, service)
     )
-    state = (
-        "missing"
-        if missing
-        else "deleting"
-        if deleting
-        else "terminated"
-        if phase in {"Succeeded", "Failed"}
-        else "running"
-        if phase == "Running"
-        else "starting"
-        if phase == "Pending"
-        else "unknown"
-    )
+    created, age = _created(pod, datetime.now(UTC))
     return {
-        "status": state,
+        "status": "missing" if missing else _driver_state(phase, deleting),
         "driver_phase": phase,
         "driver_reason": reason if isinstance(reason, str) else None,
         "missing": missing,
         "endpoint": handle.endpoint,
+        "created_at": _timestamp(created),
+        "age_seconds": age,
+        # Kubernetes observation cannot learn the server version; only an optional label is reported.
+        "spark_version": (pod.metadata.labels or {}).get("spark-version") if pod is not None else None,
         "query_ready": None,
         "message": "Kubernetes observation only; query readiness has not been checked",
     }
+
+
+def list_connect_servers(client: SparkOnK8S, namespace: str, *, timeout: float = 10) -> list[dict]:
+    """List driver pods labeled as servers created by this helper in one namespace, oldest first.
+
+    This is a read-only, label-based observation: it neither verifies receipts, Services
+    or query readiness nor deletes anything. A matching label is not proof of ownership;
+    deletion still requires the recorded identity checks. Errors propagate.
+    """
+    _name(namespace, "namespace")
+    deadline = _deadline(timeout)
+    with client.k8s_client_manager.client() as raw:
+        pods = _api(raw).list_namespaced_pod(
+            namespace=namespace,
+            label_selector=f"spark-role=driver,{_SERVER_LABEL}=true",
+            **deadline.request_options(),
+        )
+    now = datetime.now(UTC)
+    servers = []
+    for pod in pods.items:
+        labels = pod.metadata.labels or {}
+        if not labels.get("spark-app-id"):
+            continue  # The helper always records an application ID on its driver.
+        phase = pod.status.phase if pod.status else None
+        containers = (pod.spec.containers if pod.spec else None) or []
+        name = driver_container_name(pod) if containers else None
+        created, age = _created(pod, now)
+        servers.append(
+            (
+                created,
+                {
+                    "app_id": labels["spark-app-id"],
+                    "name": labels.get("spark-app-name"),
+                    "namespace": pod.metadata.namespace or namespace,
+                    "driver_pod": pod.metadata.name,
+                    "driver_uid": pod.metadata.uid,
+                    "status": _driver_state(phase, pod.metadata.deletion_timestamp is not None),
+                    "driver_phase": phase,
+                    "spark_version": labels.get("spark-version"),
+                    "image": next((c.image for c in containers if c.name == name), None),
+                    "created_at": _timestamp(created),
+                    "age_seconds": age,
+                },
+            )
+        )
+    servers.sort(key=lambda item: (item[0] is None, item[0] or now, item[1]["app_id"]))
+    return [server for _, server in servers]
 
 
 def wait_connect_server_ready(
@@ -627,6 +693,10 @@ def wait_connect_server_ready(
                             **after,
                             "status": "ready",
                             "query_ready": True,
+                            # The query reports the running server's version, unlike the optional label.
+                            "spark_version": result.get("spark_version"),
+                            "client_version": result.get("client_version"),
+                            "warnings": list(result.get("warnings") or []),
                             "probe": result,
                             "message": "Connect query and application identity verified",
                         }

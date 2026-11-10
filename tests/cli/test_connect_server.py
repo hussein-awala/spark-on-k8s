@@ -480,6 +480,178 @@ def test_receipt_write_failure_does_not_erase_partial_identity_or_original_failu
     client.delete_connect_server.assert_not_called()
 
 
+def listed(handle, **updates):
+    return {
+        "app_id": handle.run.app_id,
+        "name": "notebook",
+        "namespace": handle.run.namespace,
+        "driver_pod": handle.run.driver_pod,
+        "driver_uid": handle.run.driver_uid,
+        "status": "running",
+        "driver_phase": "Running",
+        "spark_version": None,
+        "image": "apache/spark:4.3.0",
+        "created_at": "2026-11-06T08:00:00Z",
+        "age_seconds": 3 * 86400 + 4 * 3600 + 59,
+        **updates,
+    }
+
+
+def test_list_is_read_only_and_uses_explicit_cluster_namespace_and_timeout(server, tmp_path):
+    handle, client, factory, _, _ = server
+    client.list_connect_servers.return_value = [listed(handle)]
+    kubeconfig = tmp_path / "kubeconfig"
+    kubeconfig.write_text("only a CLI fixture")
+    result = CliRunner().invoke(
+        connect_cli,
+        [
+            "server",
+            "list",
+            "--namespace",
+            "spark",
+            "--kubeconfig",
+            str(kubeconfig),
+            "--context",
+            "chosen",
+            "--timeout",
+            "17",
+            "--output",
+            "json",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert result.stderr == ""
+    assert json.loads(result.stdout) == {
+        "schema_version": 1,
+        "operation": "connect_server_list",
+        "namespace": "spark",
+        "error": None,
+        "items": [listed(handle)],
+    }
+    factory.assert_called_once_with(kubeconfig, "chosen")
+    client.list_connect_servers.assert_called_once_with("spark", timeout=17)
+    client.delete_connect_server.assert_not_called()
+    client.create_connect_server.assert_not_called()
+    client.wait_connect_server_ready.assert_not_called()
+
+
+def test_list_text_shows_age_and_versions_or_an_empty_namespace(server):
+    handle, client, _, _, _ = server
+    client.list_connect_servers.return_value = [
+        listed(handle),
+        listed(handle, app_id="other-1", status="deleting", age_seconds=None, created_at=None, image=None),
+    ]
+    result = CliRunner().invoke(connect_cli, ["server", "list", "--namespace", "spark"])
+    assert result.exit_code == 0, result.output
+    header, first, second = result.stdout.splitlines()
+    assert header.split() == ["APP", "ID", "STATUS", "AGE", "CREATED", "SPARK", "IMAGE"]
+    assert first.split() == [
+        handle.run.app_id,
+        "running",
+        "3d4h",
+        "2026-11-06T08:00:00Z",
+        "-",
+        "apache/spark:4.3.0",
+    ]
+    assert second.split() == ["other-1", "deleting", "-", "-", "-", "-"]
+    client.list_connect_servers.return_value = []
+    empty = CliRunner().invoke(connect_cli, ["server", "list", "--namespace", "spark"])
+    assert empty.exit_code == 0, empty.output
+    assert "No Spark Connect server drivers created by spark-on-k8s were found in spark." in empty.stdout
+
+
+@pytest.mark.parametrize(
+    "seconds, text",
+    [(None, "-"), (0, "0s"), (59, "59s"), (60, "1m"), (3599, "59m"), (3600, "1h0m"), (90061, "1d1h")],
+)
+def test_list_age_is_compact(seconds, text):
+    assert cli._age(seconds) == text
+
+
+def test_list_requires_a_namespace_before_cluster_access(server):
+    _, _, factory, _, _ = server
+    result = CliRunner().invoke(connect_cli, ["server", "list", "--output", "json"])
+    assert result.exit_code == 2
+    assert result.stdout == ""
+    factory.assert_not_called()
+
+
+@pytest.mark.parametrize("code", [403, 404])
+def test_list_errors_are_versioned_without_response_bodies(server, code):
+    _, client, _, _, _ = server
+    error = ApiException(status=code, reason="Forbidden" if code == 403 else "Not Found")
+    error.body = "PRIVATE_TOKEN"
+    client.list_connect_servers.side_effect = error
+    result = CliRunner().invoke(connect_cli, ["server", "list", "--namespace", "spark", "--output", "json"])
+    assert result.exit_code == (4 if code == 404 else 1)
+    assert "PRIVATE_TOKEN" not in result.output
+    value = json.loads(result.stdout)
+    assert value["items"] is None
+    assert value["error"]["code"] == ("not_found" if code == 404 else "api_error")
+
+
+@pytest.mark.parametrize("output", ["json", "text"])
+def test_wait_reports_version_skew_warnings_without_failing(server, output):
+    from spark_on_k8s.connect import version_warnings
+
+    handle, client, _, receipt, profile = server
+    save(handle, receipt)
+    warnings = version_warnings("4.3.0", "4.0.5")
+    client.wait_connect_server_ready.return_value = {
+        "status": "ready",
+        "query_ready": True,
+        "spark_version": "4.0.5",
+        "client_version": "4.3.0",
+        "warnings": warnings,
+    }
+    result = CliRunner().invoke(
+        connect_cli,
+        [
+            "server",
+            "wait",
+            str(receipt),
+            "--profile-file",
+            str(profile),
+            "--profile",
+            "notebook",
+            "--output",
+            output,
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    if output == "json":
+        value = json.loads(result.stdout)
+        assert value["query_ready"] is True
+        assert value["warnings"] == warnings
+        assert value["observation"]["client_version"] == "4.3.0"
+        assert value["error"] is None
+    else:
+        assert f"Server {handle.run.app_id} accepted a query" in result.stdout
+        assert "Warning: Spark Connect client 4.3 and server 4.0 differ" in result.stderr
+
+
+def test_failed_wait_keeps_an_empty_warning_list(server):
+    handle, client, _, receipt, profile = server
+    save(handle, receipt)
+    client.wait_connect_server_ready.side_effect = ConnectServerTimeout(handle)
+    result = CliRunner().invoke(
+        connect_cli,
+        [
+            "server",
+            "wait",
+            str(receipt),
+            "--profile-file",
+            str(profile),
+            "--profile",
+            "notebook",
+            "--output",
+            "json",
+        ],
+    )
+    assert result.exit_code == 5
+    assert json.loads(result.stdout)["warnings"] == []
+
+
 @pytest.mark.parametrize("namespace", ["Uppercase", "invalid/name", "a" * 64])
 def test_invalid_namespace_rejected_before_receipt_or_cluster_access(server, namespace):
     _, client, factory, receipt, _ = server

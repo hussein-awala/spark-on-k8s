@@ -40,6 +40,8 @@ def compute(tmp_path):
         ("cleanup_timeout", 3601),
         ("startup_timeout", 10**20),
         ("in_cluster", "false"),
+        ("max_runtime", 0),
+        ("max_runtime", 1.5),
     ],
 )
 def test_reject_invalid_runtime_before_submission(tmp_path, field, value):
@@ -47,6 +49,14 @@ def test_reject_invalid_runtime_before_submission(tmp_path, field, value):
     config[field] = value
     with pytest.raises(ValueError):
         ComputeConfig.parse("connect", config)
+
+
+@pytest.mark.parametrize("method", ["connect", "thrift"])
+def test_max_runtime_is_an_optional_server_lifetime(tmp_path, method):
+    values = compute(tmp_path)
+    assert ComputeConfig.parse(method, values).server.max_runtime is None
+    values["max_runtime"] = 7200
+    assert ComputeConfig.parse(method, values).server.max_runtime == 7200
 
 
 def test_explicit_cluster_and_persistent_catalog_required(tmp_path):

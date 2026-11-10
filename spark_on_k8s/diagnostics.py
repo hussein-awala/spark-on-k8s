@@ -80,6 +80,15 @@ def classify_pod(pod: dict, events: list[dict]) -> list[DiagnosticFinding]:
             ),
         )
 
+    # The kubelet reports an elapsed activeDeadlineSeconds (max_runtime) on the pod, not on a container.
+    if status.get("reason") == "DeadlineExceeded":
+        add(
+            "deadline_exceeded",
+            "Pod exceeded its maximum runtime and was stopped by Kubernetes",
+            status.get("message") or "DeadlineExceeded",
+            "The pod's activeDeadlineSeconds (max_runtime) elapsed. Check driver logs for stalled or "
+            "slow work before raising max_runtime; outputs written before the stop may be partial.",
+        )
     for container in (status.get("init_container_statuses") or []) + (status.get("container_statuses") or []):
         container_name = container.get("name")
         current = container.get("state") or {}

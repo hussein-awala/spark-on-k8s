@@ -1,0 +1,16 @@
+# spark-on-k8s chart values for a console reached only through the oauth2-proxy
+# gateway in this directory. See docs/user-guide/sso-gateway.md.
+# Install as release "spark-console": gateway.yaml and network-policy.yaml refer to
+# the resulting Service name and pod labels. Combine with your image and access values.
+service:
+  type: ClusterIP
+  port: 8000
+# The gateway owns the public route; do not also publish the API Service.
+ingress:
+  enabled: false
+env:
+  # The exact browser origin. The gateway terminates TLS, so the API's direct
+  # Host/scheme comparison cannot match it and log streams need this list.
+  - name: SPARK_ON_K8S_API_WEBSOCKET_ALLOWED_ORIGINS
+    value: https://spark.example.com
+# Remote submission stays disabled: SSO users do not hold the operator bearer token.

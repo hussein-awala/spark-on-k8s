@@ -93,6 +93,8 @@ jobs:
     timeout-minutes: 15
     needs: [candidate, eligibility]
     if: ${{ !cancelled() && needs.candidate.result == 'success' && (github.event_name == 'pull_request' || needs.eligibility.result == 'success') }}
+    outputs:
+      image_labels: ${{ steps.labels.outputs.labels }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -135,7 +137,17 @@ jobs:
           name: release-container-inputs
           path: docker/
           if-no-files-found: error
+      # Computed once so both architecture images carry identical labels.
+      - name: Extract API image labels
+        id: labels
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          flavor: latest=false
+          tags: |
+            type=sha
+            type=pep440,pattern={{version}}
 
+  # The image published by docker-release is the one exported and checked here, never a rebuild.
   container-check:
     name: Verify frozen API image (${{ matrix.arch }})
     runs-on: ubuntu-26.04
@@ -146,7 +158,18 @@ jobs:
       fail-fast: false
       matrix:
         arch: [amd64, arm64]
+    services:
+      # Job-local registry, so the checks pull the exported image by its digest.
+      registry:
+        image: registry:3.1.1@sha256:325b4b29b041e82803abeb703e201655e4e23ab83264ec1a7c9ddb0a5b14a6e0
+        ports:
+          - 5000:5000
     steps:
+      # Only the release scripts; the image context is the frozen inputs artifact alone.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          sparse-checkout: scripts
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: release-container-inputs
@@ -157,24 +180,29 @@ jobs:
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: ./docker
-          load: true
-          push: false
-          tags: spark-on-k8s-release-check:${{ matrix.arch }}
           platforms: linux/${{ matrix.arch }}
-          provenance: false
-      - name: Check packaged API and save installed inventory
+          labels: ${{ needs.python-release-build.outputs.image_labels }}
+          outputs: type=oci,dest=${{ runner.temp }}/image.tar
+          sbom: true
+          provenance: mode=max
+      - name: Check packaged API by digest and save installed inventory
         env:
           IMAGE_ARCH: ${{ matrix.arch }}
         run: |
           set -euo pipefail
-          image="spark-on-k8s-release-check:$IMAGE_ARCH"
+          mkdir -p release-evidence
+          digest="$(python3 scripts/release_image.py describe --archive "$RUNNER_TEMP/image.tar" \
+            --architecture "$IMAGE_ARCH" --output release-evidence/image.json)"
+          skopeo copy --all --preserve-digests --dest-tls-verify=false --digestfile "$RUNNER_TEMP/pushed.digest" \
+            "oci-archive:$RUNNER_TEMP/image.tar" "docker://localhost:5000/spark-on-k8s:$IMAGE_ARCH"
+          test "$(cat "$RUNNER_TEMP/pushed.digest")" = "$digest"
+          image="localhost:5000/spark-on-k8s@$digest"
           docker run --rm --platform "linux/$IMAGE_ARCH" --entrypoint python "$image" \
             -c 'from spark_on_k8s.api.main import app; assert app is not None'
           # The chart's runAsUser/fsGroup defaults and run-history mount rely on this identity.
           docker run --rm --platform "linux/$IMAGE_ARCH" --entrypoint python "$image" -c \
             'import os; assert (os.getuid(), os.getgid()) == (10001, 10001); assert os.access("/var/lib/spark-on-k8s", os.W_OK)'
           docker create --name release-evidence --platform "linux/$IMAGE_ARCH" "$image"
-          mkdir -p release-evidence
           docker cp release-evidence:/opt/spark-on-k8s/release/installed.json release-evidence/installed.json
           docker rm release-evidence
           cp docker/release/manifest.json release-evidence/manifest.json
@@ -183,10 +211,72 @@ jobs:
           name: release-installed-${{ matrix.arch }}
           path: release-evidence/
           if-no-files-found: error
+      - name: Upload the checked image layout
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-image-${{ matrix.arch }}
+          path: ${{ runner.temp }}/image.tar
+          if-no-files-found: error
+          compression-level: 0
+
+  container-image:
+    name: Assemble the checked multi-arch image
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+    needs: container-check
+    if: ${{ !cancelled() && needs.container-check.result == 'success' }}
+    outputs:
+      digest: ${{ steps.assemble.outputs.digest }}
+    services:
+      registry:
+        image: registry:3.1.1@sha256:325b4b29b041e82803abeb703e201655e4e23ab83264ec1a7c9ddb0a5b14a6e0
+        ports:
+          - 5000:5000
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          sparse-checkout: scripts
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: release-image-*
+          path: release-checked
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: release-installed-*
+          path: release-checked
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+      - name: Assemble the index from the checked digests and rehearse its push
+        id: assemble
+        run: |
+          set -euo pipefail
+          images=()
+          for arch in amd64 arm64; do
+            images+=(--image "$arch" "release-checked/release-image-$arch/image.tar" \
+              "release-checked/release-installed-$arch/image.json")
+          done
+          digest="$(python3 scripts/release_image.py assemble "${images[@]}" \
+            --output release-image/layout --summary release-image/image.json)"
+          # The same copy that docker-release performs, into the job-local registry.
+          skopeo copy --all --preserve-digests --dest-tls-verify=false --digestfile "$RUNNER_TEMP/pushed.digest" \
+            oci:release-image/layout:release docker://localhost:5000/spark-on-k8s:release
+          test "$(cat "$RUNNER_TEMP/pushed.digest")" = "$digest"
+          for platform in amd64:x86_64 arm64:aarch64; do
+            machine="$(docker run --rm --pull always --platform "linux/${platform%%:*}" --entrypoint python \
+              "localhost:5000/spark-on-k8s@$digest" -c 'import platform; print(platform.machine())')"
+            test "$machine" = "${platform#*:}"
+          done
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-image
+          path: release-image/
+          if-no-files-found: error
+          compression-level: 0
 
   pypi-publish:
     runs-on: ubuntu-26.04
-    needs: [python-release-build, container-check]
+    needs: [python-release-build, container-check, container-image]
     if: github.event_name == 'push'
     environment:
       name: pypi
@@ -206,8 +296,10 @@ jobs:
     name: Push Docker image to GitHub Container Registry
     runs-on: ubuntu-26.04
     timeout-minutes: 30
-    needs: [candidate, eligibility, pypi-publish]
+    needs: [candidate, eligibility, container-image, pypi-publish]
     if: github.event_name == 'push'
+    outputs:
+      digest: ${{ steps.push.outputs.digest }}
     permissions:
       contents: read
       packages: write
@@ -216,7 +308,11 @@ jobs:
         with:
           name: release-container-inputs
           path: docker
-      - name: Extract metadata (tags, labels) for Docker
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-image
+          path: release-image
+      - name: Extract metadata (tags) for Docker
         id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
@@ -229,10 +325,6 @@ jobs:
             type=pep440,pattern={{version}}
             type=pep440,pattern={{major}}.{{minor}},enable=${{ needs.eligibility.outputs.promote_minor == 'true' }}
             type=raw,value=latest,enable=${{ needs.eligibility.outputs.promote_latest == 'true' }}
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - name: Login to DockerHub
         uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
@@ -244,21 +336,27 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build and push verified image inputs
-        id: build
-        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
-        with:
-          context: ./docker
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          platforms: linux/amd64,linux/arm64
-          sbom: true
-          provenance: mode=max
+      - name: Push the checked image without rebuilding
+        id: push
+        env:
+          IMAGE_DIGEST: ${{ needs.container-image.outputs.digest }}
+          IMAGE_TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          set -euo pipefail
+          [[ "$IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+          # Every tag receives the assembled layout unchanged; blobs already present are skipped.
+          while IFS= read -r tag; do
+            [ -n "$tag" ] || continue
+            skopeo copy --all --preserve-digests --retry-times 3 --digestfile "$RUNNER_TEMP/pushed.digest" \
+              oci:release-image/layout:release "docker://$tag"
+            test "$(cat "$RUNNER_TEMP/pushed.digest")" = "$IMAGE_DIGEST"
+            test "sha256:$(skopeo inspect --raw --retry-times 3 "docker://$tag" | sha256sum | cut -d' ' -f1)" \
+              = "$IMAGE_DIGEST"
+          done <<< "$IMAGE_TAGS"
+          echo "digest=$IMAGE_DIGEST" >> "$GITHUB_OUTPUT"
       - name: Record published image identity
         env:
-          BUILD_METADATA: ${{ steps.build.outputs.metadata }}
-          IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
+          IMAGE_DIGEST: ${{ steps.push.outputs.digest }}
           IMAGE_TAGS: ${{ steps.meta.outputs.tags }}
         run: |
           python3 - <<'PY'
@@ -266,12 +364,70 @@ jobs:
           import os
           from pathlib import Path
           manifest = json.loads(Path('docker/release/manifest.json').read_text())
-          manifest['image'] = {'digest': os.environ['IMAGE_DIGEST'], 'tags': os.environ['IMAGE_TAGS'].splitlines()}
-          manifest['build_metadata'] = json.loads(os.environ['BUILD_METADATA'])
+          image = json.loads(Path('release-image/image.json').read_text())
+          if image['digest'] != os.environ['IMAGE_DIGEST']:
+              raise SystemExit('Pushed digest differs from the assembled image')
+          manifest['image'] = {
+              'digest': image['digest'],
+              'tags': os.environ['IMAGE_TAGS'].splitlines(),
+              'platforms': image['platforms'],
+          }
           Path('release-manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
           PY
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: published-release-manifest
           path: release-manifest.json
+          if-no-files-found: error
+
+  # A separate job, so the steps that push image content never hold an OIDC token.
+  image-sign:
+    name: Sign the published image
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    needs: docker-release
+    if: github.event_name == 'push'
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    env:
+      IMAGE_DIGEST: ${{ needs.docker-release.outputs.digest }}
+      GHCR_IMAGE: ghcr.io/${{ github.repository_owner }}/spark-on-k8s
+      DOCKERHUB_IMAGE: docker.io/husseinawala/spark-on-k8s
+    steps:
+      - uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
+        with:
+          cosign-release: v3.1.4
+      - name: Login to DockerHub
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Sign the published digest in each registry
+        run: |
+          set -euo pipefail
+          [[ "$IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+          # By digest, never by tag: a tag can move, the digest names the checked bytes.
+          cosign sign --yes "$GHCR_IMAGE@$IMAGE_DIGEST" "$DOCKERHUB_IMAGE@$IMAGE_DIGEST"
+      - name: Verify the signatures as a user would
+        run: |
+          set -euo pipefail
+          mkdir -p release-evidence
+          for image in "$GHCR_IMAGE" "$DOCKERHUB_IMAGE"; do
+            cosign verify "$image@$IMAGE_DIGEST" \
+              --certificate-identity "https://github.com/$GITHUB_WORKFLOW_REF" \
+              --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+              --certificate-github-workflow-sha "$GITHUB_SHA" > "release-evidence/${image%%/*}.json"
+          done
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-image-signature
+          path: release-evidence/
           if-no-files-found: error

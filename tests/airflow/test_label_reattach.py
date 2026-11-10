@@ -442,3 +442,20 @@ def test_sql_operator_uses_the_same_task_key(cluster):
 
     cluster.submit.assert_not_called()
     assert_waited_for(cluster, "sql-driver")
+
+
+@pytest.mark.parametrize("map_index", [0, 1])
+def test_mapped_task_instances_label_and_look_up_only_their_own_drivers(cluster, map_index):
+    # Mapped instances share dag_id, run_id and task_id; only map_index tells their drivers apart.
+    own = identity(map_index=map_index).task_key()
+    assert own != identity(map_index=1 - map_index).task_key()
+
+    make_operator().execute({"ti": task_instance(map_index=map_index, try_number=1)})
+
+    (lookup,) = [
+        call
+        for call in cluster.api.list_namespaced_pod.call_args_list
+        if TASK_KEY_LABEL in call.kwargs.get("label_selector", "")
+    ]
+    assert lookup.kwargs["label_selector"] == f"spark-role=driver,{TASK_KEY_LABEL}={own}"
+    assert cluster.submit.call_args.kwargs["driver_labels"][TASK_KEY_LABEL] == own

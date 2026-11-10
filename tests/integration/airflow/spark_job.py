@@ -4,6 +4,7 @@ import json
 import os
 import socket
 import sys
+import time
 
 from pyspark.sql import SparkSession
 
@@ -53,6 +54,9 @@ try:
     )
     if sys.argv[2] == "failure":
         raise RuntimeError("AIRFLOW_SPARK_EXPECTED_FAILURE")
+    if sys.argv[2] == "slow":
+        # Keeps the driver running while a mapped task's retry looks for it.
+        time.sleep(90)
     print("AIRFLOW_SPARK_SUCCESS", flush=True)
 finally:
     spark.stop()

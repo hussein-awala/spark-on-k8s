@@ -16,6 +16,8 @@ CASES = (
     "deferred-failure",
     "sync-timeout",
     "deferred-timeout",
+    "mapped-deferred",
+    "mapped-reattach",
 )
 PREFIX = "AIRFLOW_K8S_CASE_RESULT "
 
@@ -42,9 +44,10 @@ def main():
     failed = False
     for scenario in CASES:
         env = os.environ | {"AIRFLOW_K8S_CASE": scenario}
+        script = "mapped" if scenario.startswith("mapped") else "lifecycle"
         try:
             result = subprocess.run(
-                [sys.executable, "-I", "/opt/airflow/tests/dags/lifecycle.py"],
+                [sys.executable, "-I", f"/opt/airflow/tests/dags/{script}.py"],
                 env=env,
                 text=True,
                 stdout=subprocess.PIPE,
@@ -62,9 +65,12 @@ def main():
             )
             if scenario.endswith("timeout"):
                 assert "Spark application startup timeout exceeded" in result.stdout, "Wrong failure reason"
-            if scenario.startswith("deferred"):
+            if scenario.startswith("deferred") or scenario == "mapped-deferred":
                 # Both supported Airflow versions emit this only after running the inline trigger.
                 assert "Trigger completed" in result.stdout, "Airflow did not resume a real trigger"
+            if scenario == "mapped-reattach":
+                # Airflow cleared the lost try's XCom, so only the task-key label can find its driver.
+                assert "found by its task-key label" in result.stdout, "The retry did not reattach by label"
         except Exception as error:
             if isinstance(error, subprocess.TimeoutExpired) and error.stdout:
                 print(error.stdout.decode() if isinstance(error.stdout, bytes) else error.stdout, flush=True)

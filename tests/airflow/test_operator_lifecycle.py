@@ -264,3 +264,57 @@ def test_incomplete_retry_record_does_not_lookup_or_adopt_an_unidentified_driver
     assert operator._driver_pod_name is None
     manager.app_status.assert_not_called()
     manager.delete_app.assert_not_called()
+
+
+@pytest.mark.parametrize("finish_action", ["delete", "keep_if_failed"])
+def test_synchronous_success_survives_a_driver_that_is_already_deleted(
+    make_operator, task_context, app_manager, finish_action
+):
+    from kubernetes.client import ApiException
+    from spark_on_k8s.utils.spark_app_status import SparkAppStatus
+
+    _, manager = app_manager
+    manager.app_status.return_value = SparkAppStatus.Succeeded
+    manager.delete_app.side_effect = ApiException(status=404, reason="Not Found")
+    operator = make_operator(on_finish_action=finish_action)
+    with mock.patch("spark_on_k8s.client.SparkOnK8S.submit_app", return_value="application-driver"):
+        assert operator.execute(task_context) == "Succeeded"
+    manager.delete_app.assert_called_once_with(namespace="spark", pod_name="application-driver")
+
+
+@pytest.mark.parametrize("status", ["Failed", "Unknown"])
+def test_synchronous_cleanup_failure_does_not_replace_terminal_status(
+    make_operator, task_context, app_manager, status
+):
+    from airflow.exceptions import AirflowException
+    from kubernetes.client import ApiException
+    from spark_on_k8s.utils.spark_app_status import SparkAppStatus
+
+    _, manager = app_manager
+    manager.app_status.return_value = SparkAppStatus(status)
+    cleanup_error = ApiException(status=503, reason="Kubernetes unavailable")
+    manager.delete_app.side_effect = cleanup_error
+    operator = make_operator(on_finish_action="delete", failure_diagnostics=False, failure_log_tail_lines=0)
+    with (
+        mock.patch("spark_on_k8s.client.SparkOnK8S.submit_app", return_value="application-driver"),
+        pytest.raises(AirflowException, match=f"^The job finished with status: {status}$") as failure,
+    ):
+        operator.execute(task_context)
+    assert failure.value.__cause__ is cleanup_error
+
+
+def test_synchronous_cleanup_failure_does_not_hide_startup_timeout(make_operator, task_context, app_manager):
+    from airflow.exceptions import AirflowException
+    from kubernetes.client import ApiException
+
+    _, manager = app_manager
+    manager.wait_for_app.side_effect = TimeoutError("still pending")
+    cleanup_error = ApiException(status=503, reason="Kubernetes unavailable")
+    manager.delete_app.side_effect = cleanup_error
+    operator = make_operator(startup_timeout=30, failure_diagnostics=False, failure_log_tail_lines=0)
+    with (
+        mock.patch("spark_on_k8s.client.SparkOnK8S.submit_app", return_value="application-driver"),
+        pytest.raises(AirflowException, match="^Spark application startup timeout exceeded$") as failure,
+    ):
+        operator.execute(task_context)
+    assert failure.value.__cause__ is cleanup_error

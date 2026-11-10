@@ -16,11 +16,14 @@ RUN groupadd --gid 10001 spark-on-k8s \
 COPY --chmod=755 scripts/entrypoint.sh /entrypoint.sh
 # Prepared by scripts/release_artifacts.py from the exact release wheel and uv export.
 COPY release/ /opt/spark-on-k8s/release/
+# pip and the base image's setuptools and wheel only install the frozen inputs; the API never
+# imports them, so they are removed before the inventory instead of shipping their advisories.
 RUN cd /opt/spark-on-k8s/release \
     && sha256sum --check inputs.sha256 \
     && python -m pip install --no-cache-dir --require-hashes --only-binary=:all: -r requirements.txt \
     && python -m pip install --no-cache-dir --no-deps --no-index ./*.whl \
     && python -m pip check \
+    && python -m pip uninstall --yes setuptools wheel pip \
     && python verify.py inventory --directory /opt/spark-on-k8s/release
 
 # Packages stay root-owned and read-only to the API; run-history data goes to /var/lib/spark-on-k8s.

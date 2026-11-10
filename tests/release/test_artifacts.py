@@ -172,6 +172,16 @@ def test_api_image_runs_as_a_fixed_numeric_non_root_user(dockerfile):
     assert f"install -d -o {uid} -g {gid} -m 0770 /var/lib/spark-on-k8s" in recipe
 
 
+@pytest.mark.parametrize("dockerfile", ["docker/Dockerfile", "tests/integration/chart/Dockerfile"])
+def test_api_image_removes_packaging_tools_after_installing(dockerfile):
+    # pip, setuptools and wheel are build tools; leaving them in the image ships their advisories.
+    recipe = (Path(__file__).resolve().parents[2] / dockerfile).read_text()
+    commands = [line for line in recipe.splitlines() if "pip " in line and not line.lstrip().startswith("#")]
+    assert "pip check" in commands[-2]
+    uninstall = commands[-1].strip(" \\").removeprefix("&& ")
+    assert uninstall == "python -m pip uninstall --yes setuptools wheel pip"
+
+
 def test_inventory_captures_runtime_packages(release_modules, tmp_path, monkeypatch):
     module = release_modules["artifacts"]
     args = inputs(tmp_path)

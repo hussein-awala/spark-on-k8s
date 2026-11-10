@@ -229,10 +229,13 @@ it no longer resolves the project version from PyPI. Generated build inputs live
 under `docker/release/` and must not be committed. Their manifest records source
 SHA, wheel/sdist hashes, lock/requirements hashes, pinned base reference and the
 actual bundled frontend components from the wheel's license notices. Airflow's
-host-supplied React is not counted as a bundled dependency. Each architecture
-records installed Python packages at `/opt/spark-on-k8s/release/installed.json`
-and checks that the image runs as UID/GID 10001, which the chart's security
-context defaults assume, with a writable `/var/lib/spark-on-k8s`.
+host-supplied React is not counted as a bundled dependency. After installing,
+the build removes pip and the base image's setuptools and wheel, which the API does
+not use, so the image carries no packaging tools or their advisories. Each
+architecture records installed Python packages at
+`/opt/spark-on-k8s/release/installed.json` and checks that the image runs as
+UID/GID 10001, which the chart's security context defaults assume, with a
+writable `/var/lib/spark-on-k8s`.
 
 The `release-eligibility`, `release-container-inputs`, `release-installed-*`,
 `published-release-manifest` and `release-image-signature` workflow artifacts

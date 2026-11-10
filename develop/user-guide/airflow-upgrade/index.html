@@ -68,7 +68,7 @@
   <meta name="documentation-channel" content="develop">
   <meta name="documentation-version" content="develop">
   
-    <meta name="documentation-source" content="d32afec543854c86bbb4494a1e1d42fb8b12254e">
+    <meta name="documentation-source" content="a5d08b8f1341b68aa55e750de60ad74971241a47">
   
 
   </head>
@@ -108,7 +108,7 @@
     <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
   
   
-    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/d32afec543854c86bbb4494a1e1d42fb8b12254e"><code>d32afec54385</code></a>.
+    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/a5d08b8f1341b68aa55e750de60ad74971241a47"><code>a5d08b8f1341</code></a>.
   
 
           </div>
@@ -6103,7 +6103,11 @@ Spark 4 also changes SQL behavior, including ANSI mode by default.</p>
   failed later, while creating the Kubernetes resources. Long application names
   produce different driver Pod names, and reruns no longer collide.</li>
 <li><strong>What to do:</strong> Lowercase the suffix, for example
-  <code>app_id_suffix="-{{ ts_nodash | lower }}"</code>. Find drivers from the
+  <code>app_id_suffix="-{{ ts_nodash | lower }}"</code>. That suffix is the same for every try
+  and every mapped instance of a task run; for mapped tasks, or retries that may
+  submit again while an earlier driver is kept, add <code>-{{ ti.map_index }}</code> and
+  <code>-{{ ti.try_number }}</code> (or give each mapped instance its own <code>app_name</code>), because
+  two drivers cannot share an application ID. Find drivers from the
   <code>driver_pod_name</code> XCom value or the <code>spark-app-id=&lt;app-id&gt;,spark-role=driver</code>
   labels instead of deriving Pod names from the application ID.</li>
 </ul>
@@ -6120,7 +6124,11 @@ templates (<code>SPARK_ON_K8S_EXECUTOR_POD_TEMPLATE_PATH</code> and the new
 fails if both an executor template and a template path resolve.</p>
 <p>The XCom keys <code>driver_pod_namespace</code>, <code>driver_pod_name</code> and <code>spark_ui_link</code> and the
 task's return value are unchanged. Each task also pushes <code>spark_on_k8s.console.v1</code>,
-a small record that the task tab reads. The <strong>Spark Job UI</strong> link now uses the
+a small record that the task tab reads. A task whose application fails, times out
+at startup or is killed also logs a bounded postmortem (the diagnosis and the
+driver's last 100 log lines) in the task log and pushes <code>spark_failure_diagnosis</code>.
+Set <code>failure_log_tail_lines=0</code> where driver logs must not reach Airflow logs, or
+<code>failure_diagnostics=False</code> to turn the postmortem off. The <strong>Spark Job UI</strong> link now uses the
 recorded application ID instead of deriving it from the driver Pod name, which
 differs for long application IDs.</p>
 <h2 id="timeouts-and-cleanup">Timeouts and cleanup<a class="headerlink" href="#timeouts-and-cleanup" title="Permanent link">&para;</a></h2>
@@ -6171,15 +6179,25 @@ deadline passed. Airflow's <code>execution_timeout</code> reaches the applicatio
 <td>The cleanup error could replace the Spark outcome</td>
 <td>The task reports the trigger error, startup timeout or Spark status, with the cleanup error as its cause</td>
 </tr>
+<tr>
+<td>Cleanup fails after a synchronous failure or startup timeout</td>
+<td>The cleanup error replaced the Spark outcome</td>
+<td>As for a deferred completion</td>
+</tr>
+<tr>
+<td>The driver is already deleted when cleanup runs</td>
+<td>The 404 failed the task, even after success</td>
+<td>Treated as cleaned up</td>
+</tr>
 </tbody>
 </table>
 <p>The operator does not handle <code>execution_timeout</code> itself. Airflow 2.11.2 and 3.4.0
 call <code>on_kill</code> when it interrupts synchronous waiting on a worker; the default
 <code>on_kill_action="delete"</code> then requests deletion. While a task is deferred, no
 worker holds its driver, so a failure that does not resume <code>execute_complete</code>
-performs no cleanup. If a deferred task needs a hard runtime limit, enforce it in
-the application or with a separate cleanup step rather than relying on
-<code>execution_timeout</code>. The SDK and CLI never cancel on timeout; see the
+performs no cleanup. If a deferred task needs a hard runtime limit, set
+<code>max_runtime</code>: Kubernetes stops the driver at that deadline even when no worker or
+triggerer watches it. Do not rely on <code>execution_timeout</code> for that. The SDK and CLI never cancel on timeout; see the
 <a href="../automation/">automation contract</a>.</p>
 <h2 id="optional-native-task-tab">Optional: native task tab<a class="headerlink" href="#optional-native-task-tab" title="Permanent link">&para;</a></h2>
 <ul>
@@ -6254,7 +6272,7 @@ It does not replace testing your DAGs.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 10, 2026 19:41:08 UTC">November 10, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 10, 2026 22:12:31 UTC">November 10, 2026</span>
   </span>
 
     

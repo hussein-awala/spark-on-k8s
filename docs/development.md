@@ -20,7 +20,8 @@ current CI matrices; adjust this guide when those files change.
 Keep UI behavior in shared components; host entry points only supply transports and
 context. Preserve machine-readable schemas and exit codes separately from human
 messages. Treat active, absent, terminal and unknown outcomes as different states.
-See [support boundaries](user-guide/support.md) before adding a public contract.
+See [support boundaries](user-guide/support.md) before adding a public contract, and
+classify a new surface in [interface stability](user-guide/stability.md).
 
 ## Choose checks by change
 

@@ -17,7 +17,8 @@ same React console components inside Airflow; see the [Airflow guide](https://hu
 
 Choose your route in the [start-here guide](https://hussein.awala.fr/spark-on-k8s/latest/user-guide/start-here/) and check the [support boundaries](https://hussein.awala.fr/spark-on-k8s/latest/user-guide/support/) before adopting a new integration.
 The [release notes](https://hussein.awala.fr/spark-on-k8s/release-notes/) describe every published
-release and the release in preparation.
+release and the release in preparation. Report vulnerabilities privately as described in the
+[security policy](https://github.com/hussein-awala/spark-on-k8s/blob/main/SECURITY.md).
 
 ## Installation
 

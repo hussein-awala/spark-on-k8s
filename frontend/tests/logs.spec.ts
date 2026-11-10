@@ -105,6 +105,35 @@ test("log buffering is bounded, paused autoscroll still receives logs, and wrap 
   await expect(page.locator(".log-footer")).toContainText("Following output");
 });
 
+test("auto-scroll follows a fast stream until the reader scrolls up", async ({
+  page,
+}) => {
+  let socket: WebSocketRoute | undefined;
+  await page.routeWebSocket("**/webserver/ws/logs/**", (route) => {
+    socket = route;
+  });
+  await page.goto("/tests/fixture.html?view=logs&history=false");
+  await expect.poll(() => socket !== undefined).toBe(true);
+  const line = (index: number) =>
+    `26/11/10 10:00:00 INFO TaskSetManager: Finished task ${index}.0 in stage 3.0 (TID ${index}) in 12 ms on 10.0.0.7 (executor 4)`;
+  // The API sends one message per line, so a busy driver arrives as a burst.
+  for (let index = 0; index < 3000; index++) socket!.send(`${line(index)}\n`);
+  await expect(page.getByTestId("log-text")).toContainText(line(2999), {
+    timeout: 30_000,
+  });
+  const viewport = page.getByLabel("Log output", { exact: true });
+  await expect(page.locator(".log-footer")).toContainText("Following output");
+  expect(
+    await viewport.evaluate(
+      (element) =>
+        element.scrollHeight - element.scrollTop - element.clientHeight,
+    ),
+  ).toBeLessThanOrEqual(40);
+  await viewport.hover();
+  await page.mouse.wheel(0, -600);
+  await expect(page.locator(".log-footer")).toContainText("Auto-scroll paused");
+});
+
 test("tail changes and reconnects open fresh streams and report policy failures", async ({
   page,
 }) => {

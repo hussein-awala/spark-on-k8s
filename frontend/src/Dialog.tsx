@@ -33,7 +33,15 @@ export function Dialog({
         event.preventDefault();
         onClose();
       }}
-      onClose={onClose}
+      onClose={() => {
+        onClose();
+        // A repeated Escape closes a modal dialog without a cancelable event.
+        // If the owner keeps the dialog, show it again so its content (such as
+        // a pending action and its failure) cannot stay hidden.
+        window.setTimeout(() => {
+          if (ref.current && !ref.current.open) ref.current.showModal();
+        });
+      }}
     >
       <div className="dialog-heading">
         <h2 id={titleId}>{title}</h2>

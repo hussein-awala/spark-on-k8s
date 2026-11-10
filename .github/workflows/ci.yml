@@ -390,4 +390,7 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: coverage.xml
           disable_search: true
-          fail_ci_if_error: true
+          # Dependabot runs get no Actions secrets, and Codecov refuses a tokenless
+          # upload from a branch of this repository. The step above still requires
+          # and reports their coverage; only a refused upload is tolerated.
+          fail_ci_if_error: ${{ github.actor != 'dependabot[bot]' }}

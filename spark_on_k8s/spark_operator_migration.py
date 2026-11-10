@@ -67,6 +67,13 @@ _RETRY = (
     "Retry from the caller (Airflow task retries, or a Kubernetes Job or CronJob backoffLimit around "
     "`job submit` with a wait waiter). Every retry is a new submission; keep outputs idempotent.",
 )
+_ALWAYS = (
+    "spark-on-k8s submits once; no controller restarts an application that fails, is evicted or "
+    "loses its node.",
+    "Retry from the caller (a Kubernetes Job backoffLimit around `job submit`) only if each restart "
+    "resumes from its checkpoint. A long-running or streaming application that must always run needs a "
+    "supervisor; keep it on the operator.",
+)
 _SCHEDULE = (
     "spark-on-k8s has no scheduler.",
     "Run `spark-on-k8s job submit` from a Kubernetes CronJob or an Airflow DAG; see the CronJob recipe.",
@@ -717,7 +724,9 @@ def _dependencies(a, path, value, spec):
 def _restart_policy(a, path, value, spec):
     if not isinstance(value, dict):
         return a.invalid(path, "an object")
-    if value.get("type") in {"OnFailure", "Always"}:
+    if value.get("type") == "Always":
+        return a.unsupported(path, *_ALWAYS)
+    if value.get("type") == "OnFailure":
         return a.unsupported(path, *_RETRY)
     retries = {
         "onFailureRetries",

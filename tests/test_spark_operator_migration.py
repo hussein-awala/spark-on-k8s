@@ -155,6 +155,16 @@ def test_an_unsupported_lifecycle_setting_is_never_migration_ready(restart_polic
     )
 
 
+def test_always_restarting_applications_are_told_that_no_controller_restarts_them():
+    document = load("pyspark-pi.yaml")
+    document["spec"]["restartPolicy"] = {"type": "Always"}
+    (finding,) = [
+        item for item in assess_document(document)["findings"] if item["path"] == "spec.restartPolicy"
+    ]
+    # Batch retry advice alone would suggest a Job backoffLimit fits a streaming application.
+    assert "loses its node" in finding["note"] and "supervisor" in finding["alternative"]
+
+
 def test_scheduled_application_reports_the_schedule_and_drafts_its_template():
     result = application("scheduled.yaml")
     assert result["kind"] == "ScheduledSparkApplication"

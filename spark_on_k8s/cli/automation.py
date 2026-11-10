@@ -27,7 +27,7 @@ timeout_option = click.option(
     type=click.FloatRange(min=0, min_open=True),
     callback=validate_timeout,
     default=None,
-    help="Maximum seconds to wait after submission (does not stop or delete the application).",
+    help="Maximum seconds to wait for the application (does not stop or delete it).",
 )
 
 

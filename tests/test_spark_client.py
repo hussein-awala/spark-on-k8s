@@ -1280,3 +1280,21 @@ metadata:
                 executor_pod_template_path="s3a://bucket/executor.yml",
                 startup_timeout=5,
             )
+
+
+def test_default_app_id_suffix_uses_utc(monkeypatch):
+    from datetime import UTC, datetime, timedelta, timezone
+
+    from spark_on_k8s import client
+
+    instant = datetime(2026, 10, 25, 1, 30, tzinfo=UTC)
+
+    class Clock:
+        @staticmethod
+        def now(tz=None):
+            # A local clock two hours ahead of UTC, as in Paris during summer time.
+            local = instant.astimezone(timezone(timedelta(hours=2))).replace(tzinfo=None)
+            return local if tz is None else instant.astimezone(tz)
+
+    monkeypatch.setattr(client, "datetime", Clock)
+    assert default_app_id_suffix() == "-20261025013000"

@@ -122,7 +122,8 @@ or the upstream `method: session` workaround. Connect uses a separate explicit
 remote session for each dbt connection. Thrift uses PyHive's HiveServer2 protocol,
 not a JDBC client.
 
-`compute` accepts the explicit image, namespace, service account, resource,
+`compute` accepts `app_name` (default `dbt-connect` or `dbt-thrift`; set one per project or
+pipeline so its servers are recognizable), the explicit image, namespace, service account, resource,
 executor-allocation, package, node-selector and `max_runtime` fields of
 [`ConnectServerConfig`](spark_connect_server.md), plus the cluster-selection
 fields above, `startup_timeout`, `cleanup_timeout` and `poll_interval` (positive seconds, at
@@ -233,7 +234,9 @@ the server startup once for several of them, see
 The server survives dbt's intermediate connection cleanup, including the
 compilation phase of `docs generate`. It is removed only when the entire command
 finishes. Tables remain in the external warehouse/catalog for the next invocation.
-Commands that never open a database connection do not provision compute.
+Commands that never open a database connection, such as `parse` and `ls`, do not
+provision compute. `compile` opens one to fill its relation cache unless you pass
+`--no-populate-cache`.
 Using plain `dbt` with this managed adapter reports that the wrapper is required;
 there is no unbounded background server hidden behind a connection-close hook.
 
@@ -339,7 +342,9 @@ attach to it.
 The wrapper prints the recovery receipt path to stderr. By default each invocation
 gets a unique directory under `.spark-on-k8s/dbt/` in the working directory. Set
 `--receipt-dir /new/private/directory` before `--` to choose it explicitly; the
-directory must not already exist. Receipts have private file permissions and retain
+directory must not already exist. Add `.spark-on-k8s/` to the project's
+`.gitignore`; every invocation, including one that starts no server, creates a
+directory there. Receipts have private file permissions and retain
 resource UIDs and cluster selection, not the original Spark configuration or its
 catalog credentials. Protect the dbt profile and normal dbt logs separately.
 

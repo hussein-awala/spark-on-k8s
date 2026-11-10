@@ -27,3 +27,14 @@ def test_cli_runs_as_a_module():
     )
     assert result.returncode == 0, result.stderr
     assert "app" in result.stdout
+
+
+def test_cli_reports_its_version_and_accepts_short_help():
+    from importlib.metadata import version
+
+    from click.testing import CliRunner
+    from spark_on_k8s.cli import cli
+
+    assert CliRunner().invoke(cli, ["--version"]).output.strip().endswith(version("spark-on-k8s"))
+    short = CliRunner().invoke(cli, ["-h"])
+    assert short.exit_code == 0 and "without an operator" in short.output

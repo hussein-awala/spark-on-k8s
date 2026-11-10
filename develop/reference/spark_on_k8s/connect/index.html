@@ -68,7 +68,7 @@
   <meta name="documentation-channel" content="develop">
   <meta name="documentation-version" content="develop">
   
-    <meta name="documentation-source" content="83f4020ef5c1295148473af6e685dc8d647a242a">
+    <meta name="documentation-source" content="fbf06c54672be05f48694e11d5ee3b9f2acf2eca">
   
 
   </head>
@@ -108,7 +108,7 @@
     <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
   
   
-    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/83f4020ef5c1295148473af6e685dc8d647a242a"><code>83f4020ef5c1</code></a>.
+    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/fbf06c54672be05f48694e11d5ee3b9f2acf2eca"><code>fbf06c54672b</code></a>.
   
 
           </div>
@@ -5980,7 +5980,16 @@
 <span class="normal">229</span>
 <span class="normal">230</span>
 <span class="normal">231</span>
-<span class="normal">232</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">kw_only</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="normal">232</span>
+<span class="normal">233</span>
+<span class="normal">234</span>
+<span class="normal">235</span>
+<span class="normal">236</span>
+<span class="normal">237</span>
+<span class="normal">238</span>
+<span class="normal">239</span>
+<span class="normal">240</span>
+<span class="normal">241</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">kw_only</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">ConnectProfile</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Connection to an existing Spark Connect service; no cluster is created."""</span>
 
@@ -6116,7 +6125,16 @@
         <span class="c1"># Credentials remain in the environment/stdin, never process arguments or a temporary file.</span>
         <span class="k">try</span><span class="p">:</span>
             <span class="n">result</span> <span class="o">=</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">run</span><span class="p">(</span>
-                <span class="p">[</span><span class="n">sys</span><span class="o">.</span><span class="n">executable</span><span class="p">,</span> <span class="s2">"-I"</span><span class="p">,</span> <span class="s2">"-m"</span><span class="p">,</span> <span class="s2">"spark_on_k8s.connect"</span><span class="p">],</span>
+                <span class="c1"># -P keeps the working directory off sys.path. Unlike -I, it keeps PYTHONPATH and the</span>
+                <span class="c1"># user site, so the check imports the installation (and client) the caller imports.</span>
+                <span class="p">[</span>
+                    <span class="n">sys</span><span class="o">.</span><span class="n">executable</span><span class="p">,</span>
+                    <span class="s2">"-P"</span><span class="p">,</span>
+                    <span class="o">*</span><span class="p">([</span><span class="s2">"-E"</span><span class="p">]</span> <span class="k">if</span> <span class="n">sys</span><span class="o">.</span><span class="n">flags</span><span class="o">.</span><span class="n">ignore_environment</span> <span class="k">else</span> <span class="p">[]),</span>
+                    <span class="o">*</span><span class="p">([</span><span class="s2">"-s"</span><span class="p">]</span> <span class="k">if</span> <span class="n">sys</span><span class="o">.</span><span class="n">flags</span><span class="o">.</span><span class="n">no_user_site</span> <span class="k">else</span> <span class="p">[]),</span>
+                    <span class="s2">"-m"</span><span class="p">,</span>
+                    <span class="s2">"spark_on_k8s.connect"</span><span class="p">,</span>
+                <span class="p">],</span>
                 <span class="nb">input</span><span class="o">=</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">request</span><span class="p">),</span>
                 <span class="n">capture_output</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
                 <span class="n">text</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
@@ -6269,7 +6287,16 @@
 <span class="normal">229</span>
 <span class="normal">230</span>
 <span class="normal">231</span>
-<span class="normal">232</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">probe</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">15</span><span class="p">,</span> <span class="n">expected_app_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="normal">232</span>
+<span class="normal">233</span>
+<span class="normal">234</span>
+<span class="normal">235</span>
+<span class="normal">236</span>
+<span class="normal">237</span>
+<span class="normal">238</span>
+<span class="normal">239</span>
+<span class="normal">240</span>
+<span class="normal">241</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">probe</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">15</span><span class="p">,</span> <span class="n">expected_app_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Execute a tiny remote query in a child process with a hard total timeout.</span>
 
 <span class="sd">    The result reports the server's ``spark_version``, the child's PySpark</span>
@@ -6288,7 +6315,16 @@
     <span class="c1"># Credentials remain in the environment/stdin, never process arguments or a temporary file.</span>
     <span class="k">try</span><span class="p">:</span>
         <span class="n">result</span> <span class="o">=</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">run</span><span class="p">(</span>
-            <span class="p">[</span><span class="n">sys</span><span class="o">.</span><span class="n">executable</span><span class="p">,</span> <span class="s2">"-I"</span><span class="p">,</span> <span class="s2">"-m"</span><span class="p">,</span> <span class="s2">"spark_on_k8s.connect"</span><span class="p">],</span>
+            <span class="c1"># -P keeps the working directory off sys.path. Unlike -I, it keeps PYTHONPATH and the</span>
+            <span class="c1"># user site, so the check imports the installation (and client) the caller imports.</span>
+            <span class="p">[</span>
+                <span class="n">sys</span><span class="o">.</span><span class="n">executable</span><span class="p">,</span>
+                <span class="s2">"-P"</span><span class="p">,</span>
+                <span class="o">*</span><span class="p">([</span><span class="s2">"-E"</span><span class="p">]</span> <span class="k">if</span> <span class="n">sys</span><span class="o">.</span><span class="n">flags</span><span class="o">.</span><span class="n">ignore_environment</span> <span class="k">else</span> <span class="p">[]),</span>
+                <span class="o">*</span><span class="p">([</span><span class="s2">"-s"</span><span class="p">]</span> <span class="k">if</span> <span class="n">sys</span><span class="o">.</span><span class="n">flags</span><span class="o">.</span><span class="n">no_user_site</span> <span class="k">else</span> <span class="p">[]),</span>
+                <span class="s2">"-m"</span><span class="p">,</span>
+                <span class="s2">"spark_on_k8s.connect"</span><span class="p">,</span>
+            <span class="p">],</span>
             <span class="nb">input</span><span class="o">=</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">request</span><span class="p">),</span>
             <span class="n">capture_output</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
             <span class="n">text</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
@@ -6517,7 +6553,7 @@ which does not establish compatibility. A warning never fails a successful query
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 10, 2026 14:09:24 UTC">November 10, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 10, 2026 14:10:23 UTC">November 10, 2026</span>
   </span>
 
     

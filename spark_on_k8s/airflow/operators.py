@@ -530,10 +530,19 @@ class SparkOnK8SOperator(BaseOperator):
             self.on_finish_action == OnFinishAction.KEEP_IF_FAILED and app_status != SparkAppStatus.Failed
         ):
             self.log.info("Deleting Spark application...")
-            spark_app_manager.delete_app(
-                namespace=self.namespace,
-                pod_name=self._driver_pod_name,
-            )
+            try:
+                spark_app_manager.delete_app(
+                    namespace=self.namespace,
+                    pod_name=self._driver_pod_name,
+                )
+            except ApiException as delete_error:
+                if delete_error.status != 404:
+                    raise
+                # Deleted since its status was read, for example by pod garbage collection after
+                # its node was removed: the requested end state already holds.
+                self.log.info(
+                    "Spark application %s/%s is already deleted.", self.namespace, self._driver_pod_name
+                )
         else:
             self.log.error(
                 f"Something went wrong: on_finish_action={self.on_finish_action}, app_status={app_status}"
@@ -622,22 +631,32 @@ class SparkOnK8SOperator(BaseOperator):
         except TimeoutError:
             self._log_failure_postmortem(spark_app_manager, "startup_timeout", context)
             self.log.info("Deleting Spark application due to startup timeout...")
-            spark_app_manager.delete_app(
-                namespace=self.namespace,
-                pod_name=self._driver_pod_name,
-            )
-            raise AirflowException("Spark application startup timeout exceeded") from None
+            failure = AirflowException("Spark application startup timeout exceeded")
+            try:
+                spark_app_manager.delete_app(
+                    namespace=self.namespace,
+                    pod_name=self._driver_pod_name,
+                )
+            except Exception as cleanup_error:
+                # As after a deferred wait: a failed deletion must not replace the timeout.
+                raise failure from cleanup_error
+            raise failure from None
         app_status = spark_app_manager.app_status(
             namespace=self.namespace,
             pod_name=self._driver_pod_name,
         )
         self._persist_spark_history_ui_link(context)
-        if app_status != SparkAppStatus.Succeeded:
-            self._log_failure_postmortem(spark_app_manager, app_status, context)
-        self._clean_up(spark_app_manager, app_status)
         if app_status == SparkAppStatus.Succeeded:
+            self._clean_up(spark_app_manager, app_status)
             return app_status
-        raise AirflowException(f"The job finished with status: {app_status}")
+        failure = AirflowException(f"The job finished with status: {app_status}")
+        self._log_failure_postmortem(spark_app_manager, app_status, context)
+        try:
+            self._clean_up(spark_app_manager, app_status)
+        except Exception as cleanup_error:
+            # As after a deferred wait: a failed cleanup must not replace the Spark outcome.
+            raise failure from cleanup_error
+        raise failure
 
     def execute_complete(self, context: Context, event: dict, **kwargs):
         self.namespace = event["namespace"]
@@ -664,10 +683,22 @@ class SparkOnK8SOperator(BaseOperator):
             raise failure
         if self.app_waiter == AppWaiter.LOG and event["status"] != "error":
             self._driver_log_streamed = True
-            spark_app_manager.stream_logs(
-                namespace=event["namespace"],
-                pod_name=event["pod_name"],
-            )
+            try:
+                spark_app_manager.stream_logs(
+                    namespace=event["namespace"],
+                    pod_name=event["pod_name"],
+                )
+            except Exception as replay_error:
+                # The trigger already reported the outcome: a failed replay must not replace it or
+                # skip cleanup. The postmortem may still read the driver's last lines.
+                self._driver_log_streamed = False
+                self.log.warning(
+                    "Could not replay the driver log of %s/%s (%s); continuing with the reported status %s.",
+                    self.namespace,
+                    self._driver_pod_name,
+                    describe_error(replay_error),
+                    event["status"],
+                )
         self._persist_spark_history_ui_link(context)
         if event["status"] == "Succeeded":
             self._clean_up(spark_app_manager, event["status"])

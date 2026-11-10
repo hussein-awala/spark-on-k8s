@@ -68,7 +68,7 @@
   <meta name="documentation-channel" content="develop">
   <meta name="documentation-version" content="develop">
   
-    <meta name="documentation-source" content="1b873e2e131a5a7a8715493186878bc452ee4b84">
+    <meta name="documentation-source" content="604e94905e55abd2fd9211558d4544a9e0783e2c">
   
 
   </head>
@@ -108,7 +108,7 @@
     <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
   
   
-    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/1b873e2e131a5a7a8715493186878bc452ee4b84"><code>1b873e2e131a</code></a>.
+    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/604e94905e55abd2fd9211558d4544a9e0783e2c"><code>604e94905e55</code></a>.
   
 
           </div>
@@ -1360,6 +1360,34 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Native task tab in Airflow 3">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#operator-subclasses" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Operator subclasses
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#refresh-and-shared-snapshots" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Refresh and shared snapshots
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
     </ul>
@@ -2601,6 +2629,8 @@
       
         
       
+        
+      
     
     
     
@@ -2689,6 +2719,34 @@
     
   
     plugin
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/airflow/ui/snapshots/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    snapshots
   
 
     
@@ -5429,6 +5487,34 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Native task tab in Airflow 3">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#operator-subclasses" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Operator subclasses
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#refresh-and-shared-snapshots" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Refresh and shared snapshots
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
     </ul>
@@ -5677,7 +5763,8 @@ not real-cluster evidence. See the <a href="../../development/">development guid
 installed-wheel checks and the complete validation policy.</p>
 <h2 id="native-task-tab-in-airflow-3">Native task tab in Airflow 3<a class="headerlink" href="#native-task-tab-in-airflow-3" title="Permanent link">&para;</a></h2>
 <p>The optional <strong>Spark on Kubernetes</strong> tab is available for <code>SparkOnK8SOperator</code> and
-<code>SparkSqlOnK8SOperator</code> task instances on Airflow 3.4 or newer, below Airflow 4.
+<code>SparkSqlOnK8SOperator</code> task instances, and for
+<a href="#operator-subclasses">listed subclasses</a>, on Airflow 3.4 or newer, below Airflow 4.
 It reuses the standalone console's React components for application details,
 logs, actions and history links. Airflow 2.11.2 continues to support the operators
 and <strong>Spark Job UI</strong> link, but does not load this tab.</p>
@@ -5722,8 +5809,20 @@ metadata. Built JavaScript and CSS are included in the Python package.</p>
 <td>Set to <code>true</code> to permit kill/delete requests after task ownership and Airflow permissions are checked.</td>
 <td><code>false</code></td>
 </tr>
+<tr>
+<td><code>SPARK_ON_K8S_AIRFLOW_OPERATOR_SUBCLASSES</code></td>
+<td>Comma-separated class names of operator subclasses that also show the tab, for example <code>TeamSparkOperator,TeamSqlOperator</code>.</td>
+<td>unset</td>
+</tr>
+<tr>
+<td><code>SPARK_ON_K8S_AIRFLOW_SNAPSHOT_TTL</code></td>
+<td>Seconds, from 0 to 60, for which viewers of one task attempt share an application snapshot. <code>0</code> disables sharing.</td>
+<td><code>5</code></td>
+</tr>
 </tbody>
 </table>
+<p>An invalid URL, subclass list or snapshot TTL disables the tab and logs a warning
+in the Airflow API server.</p>
 <p>Both URLs may include a deployment path prefix and must be HTTP(S) URLs without
 embedded credentials, query parameters or fragments. The service URL is chosen
 by the administrator, not by browser input. The plugin does not forward the
@@ -5763,6 +5862,45 @@ retain live application features but omit optional history links until upgraded.
 long driver log lines. A larger message interrupts the stream rather than being
 silently truncated. The proxy uses a small receive queue to keep buffering bounded;
 the console's separate line-count limit still applies.</p>
+<h3 id="operator-subclasses">Operator subclasses<a class="headerlink" href="#operator-subclasses" title="Permanent link">&para;</a></h3>
+<p>Airflow decides where to show a plugin tab by matching the task instance's exact
+operator class name; it does not see base classes. To show the tab for a platform
+wrapper, list the wrapper's class name and restart the Airflow API server:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">spark_on_k8s.airflow.operators</span><span class="w"> </span><span class="kn">import</span> <span class="n">SparkOnK8SOperator</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">TeamSparkOperator</span><span class="p">(</span><span class="n">SparkOnK8SOperator</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Applies the platform team's defaults."""</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">SPARK_ON_K8S_AIRFLOW_OPERATOR_SUBCLASSES</span><span class="o">=</span><span class="s1">'TeamSparkOperator'</span>
+</code></pre></div>
+<p>The list only decides where the tab appears. Airflow's serialized task definition
+records the operator's class name but not its base classes, so for any other
+operator the tab's backend looks in that definition for the provider's
+<strong>Spark Job UI</strong> operator link (<code>SparkOnK8SOperatorLink</code>) before it reads the
+task's XCom record. Both provider operators declare this link, and subclasses,
+including mapped tasks, inherit it. A subclass that replaces
+<code>operator_extra_links</code> must keep <code>SparkOnK8SOperatorLink()</code> among its links.
+Otherwise, or for a listed operator that does not inherit from a provider
+operator, the tab reports that the task has no Spark application binding and
+does not read a record that the task pushed to XCom.</p>
+<h3 id="refresh-and-shared-snapshots">Refresh and shared snapshots<a class="headerlink" href="#refresh-and-shared-snapshots" title="Permanent link">&para;</a></h3>
+<p>By default, the tab refreshes every 10 seconds while the application is pending,
+running or in an unknown state. Once the application has succeeded or failed,
+live refresh ends and the tab says so; <strong>Refresh</strong> still loads the current state
+on demand. A driver log stream ends when the driver terminates and shows
+<strong>Stream ended</strong>; <strong>Reconnect</strong> requests the available logs again.</p>
+<p>Viewers of the same task attempt share the application snapshot that the Spark API
+reads from Kubernetes for <code>SPARK_ON_K8S_AIRFLOW_SNAPSHOT_TTL</code> seconds, and
+concurrent requests share one lookup. Each request is still authorized by Airflow
+and resolves its own task binding before it can receive a shared snapshot, and
+different task attempts never share one. Kill and delete verify the driver's
+current application directly, then discard the shared snapshot. A failed lookup
+is not reused after it completes. Each Airflow API server process keeps its own
+bounded in-memory snapshots, so a deployment with several API server workers or
+replicas can still perform one lookup per process for each interval. History
+records, the History Server capability check and diagnostics are requested for
+each viewer.</p>
 
 
 
@@ -5783,7 +5921,7 @@ the console's separate line-count limit still applies.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 10, 2026 10:31:13 UTC">November 10, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 10, 2026 11:26:01 UTC">November 10, 2026</span>
   </span>
 
     

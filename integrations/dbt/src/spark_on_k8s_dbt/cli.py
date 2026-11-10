@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import json
+import math
 import signal
 import sys
+import time
 from contextlib import nullcontext, redirect_stdout
-from itertools import groupby
+from itertools import groupby, takewhile
 from pathlib import Path
 
 import click
@@ -120,25 +122,116 @@ def check(project_dir, profiles_dir, profile, target, cli_vars, timeout, output)
     sys.exit(code or (1 if report.status == "fail" else 0))
 
 
-@main.command(context_settings={"ignore_unknown_options": True})
+def _split_commands(dbt_args):
+    """Split the arguments after the first -- into dbt commands at each further --."""
+    commands = [[]]
+    for arg in dbt_args:
+        if arg == "--":
+            commands.append([])
+        else:
+            commands[-1].append(arg)
+    if not all(commands):
+        raise click.UsageError("Each -- must be followed by the arguments of a dbt command")
+    return commands
+
+
+def _finite(ctx, param, value):
+    if value is not None and not math.isfinite(value):
+        raise click.BadParameter("must be a positive finite number of seconds")
+    return value
+
+
+class _Sequence:
+    """Command lines and a summary on stderr when one run has several dbt commands.
+
+    A single command prints none of these, exactly as before sequences existed.
+    """
+
+    def __init__(self, commands, progress):
+        self.commands = commands
+        self.progress = progress
+        self.statuses = []
+        self.reason = None
+
+    def _name(self, index):
+        # Leading words only, such as "docs generate": option values such as
+        # --vars can carry credentials and are never echoed.
+        words = list(takewhile(lambda arg: not arg.startswith("-"), self.commands[index]))[:2]
+        return f"{index + 1}/{len(self.commands)} ({' '.join(['dbt', *words])})"
+
+    def finished(self, code, elapsed, *, interrupted):
+        index = len(self.statuses)
+        status = "interrupted" if interrupted else "failed" if code else "succeeded"
+        self.statuses.append(status)
+        if len(self.commands) == 1:
+            return
+        seconds = f"{math.floor(elapsed)}s"
+        if status == "succeeded":
+            self.progress.command(f"{self._name(index)} succeeded in {seconds}")
+        elif status == "failed":
+            self.progress.command(f"{self._name(index)} failed with exit {code} after {seconds}", always=True)
+        else:
+            self.progress.command(f"{self._name(index)} interrupted after {seconds}", always=True)
+
+    def stop(self, reason):
+        if self.reason is None and len(self.statuses) < len(self.commands):
+            self.reason = reason
+
+    def summary(self, exit_code):
+        if len(self.commands) == 1:
+            return
+        counts = {status: self.statuses.count(status) for status in ("succeeded", "failed", "interrupted")}
+        counts["not run"] = len(self.commands) - len(self.statuses)
+        parts = ", ".join(f"{count} {status}" for status, count in counts.items() if count)
+        reason = f" ({self.reason})" if self.reason and counts["not run"] else ""
+        self.progress.command(
+            f"run finished with exit {exit_code}: {parts}{reason}", always=exit_code != 0 or bool(reason)
+        )
+
+
+@main.command(context_settings={"ignore_unknown_options": True, "allow_interspersed_args": False})
 @click.option(
     "--receipt-dir",
     type=click.Path(path_type=Path),
     help="A new directory for the private recovery receipt (created exclusively).",
 )
+@click.option(
+    "--keep-going",
+    is_flag=True,
+    help="Start the later commands of a sequence after a dbt command fails. The exit code is still "
+    "the first failure's.",
+)
+@click.option(
+    "--deadline",
+    type=click.FloatRange(min=0, min_open=True),
+    callback=_finite,
+    help="Seconds from the start after which no further dbt command starts; exit 5 if one was not "
+    "started. A running command is not interrupted, and owned compute is still deleted at the end.",
+)
 @click.argument("dbt_args", nargs=-1, type=click.UNPROCESSED, required=True)
-def run(receipt_dir, dbt_args):
-    """Provision lazily, run dbt arguments after --, then delete owned compute."""
+def run(receipt_dir, keep_going, deadline, dbt_args):
+    """Provision lazily, run dbt arguments after --, then delete owned compute.
+
+    Separate several dbt commands with further -- to run them in order on one
+    server: run -- seed -- build -- docs generate. The sequence stops at the
+    first failing command unless --keep-going is given. Put wrapper options
+    before the first dbt argument; everything after it belongs to dbt.
+    """
     from dbt.cli.main import dbtRunner
 
+    commands = _split_commands(dbt_args)
+    started = time.monotonic()
+    progress = StartupProgress()
     try:
-        owner = InvocationOwner(receipt_dir, progress=StartupProgress())
+        owner = InvocationOwner(receipt_dir, progress=progress)
     except Exception as error:
         # Exit 1 is reserved for a dbt execution failure; dbt has not started.
         click.echo(f"Managed dbt failed: {error}", err=True)
         sys.exit(2)
     click.echo(f"Experimental managed dbt; recovery receipt: {owner.receipt}", err=True)
+    sequence = _Sequence(commands, progress)
     exit_code = 2
+    outcome = 0  # The first nonzero command or deadline result.
     interrupted = None
     saved_signals = {}
 
@@ -154,17 +247,39 @@ def run(receipt_dir, dbt_args):
         for signum in (signal.SIGINT, signal.SIGTERM):
             saved_signals[signum] = signal.signal(signum, interrupt)
         with invocation_scope(owner):
-            result = dbtRunner().invoke(list(dbt_args))
-            exit_code = 0 if result.success else 2 if result.exception is not None else 1
-            if result.exception is not None:
-                click.echo(f"dbt failed: {result.exception}", err=True)
+            for index, args in enumerate(commands):
+                if outcome and not keep_going:
+                    sequence.stop("stopped after a failed command; --keep-going runs the rest")
+                    break
+                if deadline is not None and time.monotonic() - started >= deadline:
+                    # The deadline only stops new commands; it never cancels one.
+                    outcome = outcome or 5
+                    sequence.stop(f"the {deadline:g}s deadline passed")
+                    break
+                if index:
+                    owner.prepare_next_command()
+                command_started = time.monotonic()
+                result = dbtRunner().invoke(list(args))
+                code = 0 if result.success else 2 if result.exception is not None else 1
+                if result.exception is not None:
+                    click.echo(f"dbt failed: {result.exception}", err=True)
+                elapsed = time.monotonic() - command_started
+                sequence.finished(code, elapsed, interrupted=interrupted is not None)
+                if interrupted is not None:
+                    break
+                outcome = outcome or code
+        exit_code = outcome
     except KeyboardInterrupt:
         exit_code = 128 + (interrupted or signal.SIGINT)
     except Exception as error:
         click.echo(f"Managed dbt failed: {error}", err=True)
+        exit_code = outcome or 2
+        sequence.stop("stopped by the error above")
     finally:
         if interrupted is not None:
             exit_code = 128 + interrupted
+        if exit_code >= 128:
+            sequence.stop("interrupted")
         # Finish bounded resource cleanup even when another termination signal arrives.
         for signum in saved_signals:
             signal.signal(signum, signal.SIG_IGN)
@@ -177,6 +292,7 @@ def run(receipt_dir, dbt_args):
         finally:
             for signum, handler in saved_signals.items():
                 signal.signal(signum, handler)
+        sequence.summary(exit_code)
     sys.exit(exit_code)
 
 

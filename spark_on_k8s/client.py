@@ -138,6 +138,12 @@ class SparkOnK8S(LoggingMixin):
 
         return create_connect_server(self, config)
 
+    def plan_connect_server(self, config: ConnectServerConfig) -> ApplicationPlan:
+        """Preview a Connect server's resources offline; Secrets are shown only as references."""
+        from spark_on_k8s.connect_server import plan_connect_server
+
+        return plan_connect_server(self, config)
+
     def connect_server_status(self, handle: ConnectServerHandle, *, timeout: float = 10) -> dict:
         """Observe exactly the recorded server resources without importing PySpark."""
         from spark_on_k8s.connect_server import connect_server_status

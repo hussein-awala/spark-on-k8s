@@ -478,3 +478,68 @@ def test_invalid_max_runtime_profile_is_a_structured_validation_failure(tmp_path
     assert [item["valid"] for item in report["profiles"]] == [True, False]
     assert report["error"]["code"] == "invalid_job"
     assert "spec.max_runtime" in report["error"]["message"]
+
+
+@pytest.mark.parametrize("command", ["plan", "submit"])
+def test_cli_reports_an_undecodable_template_file_without_a_traceback(tmp_path, command):
+    (tmp_path / "driver.yaml").write_bytes(b"apiVersion: v1\nkind: Pod\n# caf\xe9\n")
+    file = tmp_path / "job.yaml"
+    file.write_text(yaml.safe_dump(definition(driver_pod_template="driver.yaml")))
+    with patch.object(JobSpec, "client") as client:
+        result = CliRunner().invoke(job_cli, [command, str(file), "--output", "json"])
+    assert result.exit_code == 1, result.output
+    assert isinstance(result.exception, SystemExit), repr(result.exception)
+    client.assert_not_called()
+    if command == "submit":
+        receipt = json.loads(result.stdout)
+        assert receipt["error"]["code"] == "operation_error"
+        assert "utf-8" in receipt["error"]["message"]
+        assert receipt["run"] is None
+        assert result.stderr == ""
+    else:
+        assert result.stdout == ""
+        assert result.stderr.startswith("Error: ")
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "2024-02-30",
+        "2024-13-01T00:00:00Z",
+        "0x_",
+        "0b_",
+        "9" * 5000,
+        "!!bool maybe",
+        "!!timestamp soon",
+        "[" * 3000 + "]" * 3000,
+    ],
+    ids=[
+        "date",
+        "timestamp",
+        "hexadecimal",
+        "binary",
+        "huge-integer",
+        "boolean-tag",
+        "timestamp-tag",
+        "nesting",
+    ],
+)
+@pytest.mark.parametrize("command", ["validate", "plan", "submit"])
+def test_cli_reports_values_pyyaml_cannot_construct_as_invalid_job_yaml(tmp_path, command, value):
+    # PyYAML resolves these plain scalars as dates or numbers, then fails with a non-YAML error.
+    file = tmp_path / "job.yaml"
+    file.write_text(yaml.safe_dump(definition()) + f"  app_arguments: [--run-date, {value}]\n")
+    with pytest.raises(JobValidationError, match="Invalid job YAML"):
+        JobSpec.from_file(file)
+    with patch("spark_on_k8s.k8s.sync_client.KubernetesClientManager.create_client") as connect:
+        result = CliRunner().invoke(job_cli, [command, str(file), "--output", "json"])
+        connect.assert_not_called()
+    assert isinstance(result.exception, SystemExit), repr(result.exception)
+    assert result.exit_code == 1
+    if command == "plan":
+        assert result.stdout == ""
+        assert result.stderr.startswith("Error: Invalid job YAML")
+    else:
+        report = json.loads(result.stdout)
+        assert report["error"]["code"] == ("invalid_job" if command == "validate" else "operation_error")
+        assert report["error"]["message"].startswith("Invalid job YAML")

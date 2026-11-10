@@ -42,21 +42,24 @@ def validate_list_option(ctx: Context, param: Parameter, value: str) -> list[str
     return list_values
 
 
+def _default_or_required(value: str | None) -> dict:
+    # Click treats an explicit default=None as a value, so a required option would accept no value.
+    return {"required": True} if value is None else {"default": value}
+
+
 docker_image_option = click.Option(
     ("--image",),
     type=str,
-    default=Configuration.SPARK_ON_K8S_DOCKER_IMAGE,
     show_default=True,
-    required=Configuration.SPARK_ON_K8S_DOCKER_IMAGE is None,
     help="The docker image to use for the app.",
+    **_default_or_required(Configuration.SPARK_ON_K8S_DOCKER_IMAGE),
 )
 app_path_option = click.Option(
     ("--path",),
     type=str,
-    default=Configuration.SPARK_ON_K8S_APP_PATH,
     show_default=True,
-    required=Configuration.SPARK_ON_K8S_APP_PATH is None,
     help="The path to the app to submit.",
+    **_default_or_required(Configuration.SPARK_ON_K8S_APP_PATH),
 )
 service_account_option = click.Option(
     ("--service-account",),

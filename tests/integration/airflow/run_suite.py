@@ -65,6 +65,18 @@ def main():
             )
             if scenario.endswith("timeout"):
                 assert "Spark application startup timeout exceeded" in result.stdout, "Wrong failure reason"
+            # The operator logs a postmortem before cleanup for unsuccessful applications only.
+            postmortem = "Spark failure postmortem for "
+            # Both mapped cases end with succeeded applications.
+            if scenario.endswith("success") or scenario.startswith("mapped"):
+                assert postmortem not in result.stdout, "Postmortem logged for a successful application"
+            else:
+                assert postmortem in result.stdout, "Missing failure postmortem"
+            if scenario.endswith("failure"):
+                assert "driver log line(s) from container driver" in result.stdout, "Missing driver log tail"
+            if scenario.endswith("timeout"):
+                # Only an existing, not yet deleted Pending driver yields this finding.
+                assert "[error] unschedulable" in result.stdout, "Missing pre-cleanup diagnosis"
             if scenario.startswith("deferred") or scenario == "mapped-deferred":
                 # Both supported Airflow versions emit this only after running the inline trigger.
                 assert "Trigger completed" in result.stdout, "Airflow did not resume a real trigger"

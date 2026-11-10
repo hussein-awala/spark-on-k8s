@@ -16,6 +16,7 @@ from fastapi.responses import FileResponse
 from pydantic import ValidationError
 from starlette.concurrency import run_in_threadpool
 
+from spark_on_k8s.airflow.ui.snapshots import SnapshotCache
 from spark_on_k8s.airflow.ui.task_binding import (
     KUBERNETES_NAME,
     TaskBinding,
@@ -165,6 +166,37 @@ async def application_for(request, binding: TaskBinding) -> ConsoleApplication:
     return application
 
 
+def snapshot_key(binding: TaskBinding) -> tuple | None:
+    context = binding.task_context
+    if context is None:
+        return None
+    # The identity comes from the authorized database task, never from editable XCom data.
+    return (
+        context.dag_id,
+        context.run_id,
+        context.task_id,
+        context.map_index,
+        context.region_id,
+        context.region_index,
+        context.try_number,
+        binding.namespace,
+        binding.driver_pod,
+        binding.app_id,
+    )
+
+
+async def snapshot_for(connection, binding: TaskBinding) -> ConsoleApplication:
+    """Return a recent verified application snapshot shared by this task attempt's viewers.
+
+    Callers authorize the request and resolve its binding first. Only reads use this;
+    actions always verify the current application themselves.
+    """
+    key = snapshot_key(binding)
+    if key is None:
+        return await application_for(connection, binding)
+    return await connection.app.state.snapshots.get(key, lambda: application_for(connection, binding))
+
+
 def owns_task(binding: TaskBinding, application: ConsoleApplication) -> bool:
     return bool(
         binding.task_context
@@ -221,6 +253,7 @@ def create_ui_app(settings: UISettings | None = None) -> FastAPI:
     async def lifespan(app: FastAPI):
         app.state.settings = settings
         app.state.dag_bag = create_dag_bag()
+        app.state.snapshots = SnapshotCache(settings.snapshot_ttl)
         async with httpx.AsyncClient(
             base_url=settings.service_url + "/",
             follow_redirects=False,
@@ -228,7 +261,10 @@ def create_ui_app(settings: UISettings | None = None) -> FastAPI:
             trust_env=False,
         ) as client:
             app.state.client = client
-            yield
+            try:
+                yield
+            finally:
+                app.state.snapshots.clear()
 
     app = FastAPI(title="Spark task UI", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
 
@@ -250,7 +286,7 @@ def create_ui_app(settings: UISettings | None = None) -> FastAPI:
     async def application(request: Request, reference: ReferenceDep, user: GetUserDep):
         await authorize(request, user, reference, DagAccessEntity.TASK_INSTANCE)
         binding = await binding_for(request, reference)
-        return await application_for(request, binding)
+        return await snapshot_for(request, binding)
 
     @app.get("/api/diagnostics", response_model=ConsoleDiagnostics)
     async def diagnostics(request: Request, reference: ReferenceDep, user: GetUserDep):
@@ -292,7 +328,7 @@ def create_ui_app(settings: UISettings | None = None) -> FastAPI:
     async def capabilities(request: Request, reference: ReferenceDep, user: GetUserDep):
         await authorize(request, user, reference, DagAccessEntity.TASK_INSTANCE)
         binding = await binding_for(request, reference)
-        application = await application_for(request, binding)
+        application = await snapshot_for(request, binding)
         permissions = {"can_kill": False, "can_delete": False}
         if (
             settings.allow_writes
@@ -320,7 +356,7 @@ def create_ui_app(settings: UISettings | None = None) -> FastAPI:
     async def history(request: Request, reference: ReferenceDep, user: GetUserDep):
         await authorize(request, user, reference, DagAccessEntity.TASK_INSTANCE)
         binding = await binding_for(request, reference)
-        application = await application_for(request, binding)
+        application = await snapshot_for(request, binding)
         if application.source != "kubernetes" or not owns_task(binding, application):
             return ConsoleHistory(items=[])
         return await task_history(request, application.app_id)
@@ -337,9 +373,14 @@ def create_ui_app(settings: UISettings | None = None) -> FastAPI:
                 "writes_disabled", "Spark application changes are disabled by the Airflow administrator.", 403
             )
         binding = await binding_for(request, reference)
+        # Never act on a shared snapshot: verify the driver's current application first.
         application = await application_for(request, binding)
         path = verified_app_path(binding, application)
-        await upstream(request, method, f"app/{path}")
+        try:
+            await upstream(request, method, f"app/{path}")
+        finally:
+            if (key := snapshot_key(binding)) is not None:
+                request.app.state.snapshots.invalidate(key)
         return Response(status_code=204)
 
     @app.post("/api/kill", status_code=204)
@@ -360,7 +401,7 @@ def create_ui_app(settings: UISettings | None = None) -> FastAPI:
             user = await get_user(request, _oauth_token=None, bearer_credentials=await bearer_scheme(request))
             await authorize(request, user, reference, DagAccessEntity.TASK_LOGS)
             binding = await binding_for(websocket, reference)
-            application = await application_for(websocket, binding)
+            application = await snapshot_for(websocket, binding)
             path = verified_app_path(binding, application)
         except HTTPException:
             await websocket.close(code=1008)

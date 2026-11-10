@@ -200,14 +200,16 @@ boundaries, catalog and storage integration, upgrades and support.
 
 ## Moving from another approach
 
-There is no importer or converter. Spark-on-k8s does not read `SparkApplication`
-resources, `spark-submit` scripts or managed-service job definitions. Plan a
-side-by-side trial in a staging namespace instead:
+Only Spark Operator manifests have an offline assessor. Spark-on-k8s does not read
+`spark-submit` scripts or managed-service job definitions, and it never reads or
+changes live `SparkApplication` resources. Plan a side-by-side trial in a staging
+namespace in every case:
 
-- **From a Spark operator:** map each resource field to a [job file](jobs.md)
-  setting, Spark property or [driver pod template](driver_pod_templates.md).
-  List the lifecycle features without an equivalent, such as restart policies,
-  schedules and cleanup handled by the controller, and decide who will own them,
+- **From a Spark operator:** run the
+  [migration assessor](spark-operator-migration.md) on your `SparkApplication`
+  manifests. It drafts [job files](jobs.md) for the settings that translate and
+  reports lifecycle features without an equivalent, such as restart policies,
+  schedules and cleanup handled by the controller. Decide who will own them,
   or keep those workloads on the operator. Read
   [lifecycle ownership](automation.md#contract-coverage-and-lifecycle-ownership)
   first, and record every field you cannot map instead of dropping it; see

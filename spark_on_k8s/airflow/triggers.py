@@ -65,6 +65,7 @@ class SparkOnK8STrigger(BaseTrigger):
 
     async def run(self) -> AsyncIterator[TriggerEvent]:
         from spark_on_k8s.utils.async_app_manager import AsyncSparkAppManager, SparkAppStartupTimeoutError
+        from spark_on_k8s.utils.spark_app_status import SparkAppStatus
 
         try:
             k8s_client_manager = _AirflowKubernetesAsyncClientManager(
@@ -73,20 +74,24 @@ class SparkOnK8STrigger(BaseTrigger):
             async_spark_app_manager = AsyncSparkAppManager(
                 k8s_client_manager=k8s_client_manager,
             )
-            await async_spark_app_manager.wait_for_app(
+            status = await async_spark_app_manager.wait_for_app(
                 namespace=self.namespace,
                 pod_name=self.driver_pod_name,
                 poll_interval=self.poll_interval,
                 startup_deadline=self.startup_deadline,
             )
+            if not isinstance(status, SparkAppStatus):
+                # The driver was deleted while waiting; reading it again reports that as an error.
+                # Otherwise the final status is already known, and another read could only fail.
+                status = await async_spark_app_manager.app_status(
+                    namespace=self.namespace,
+                    pod_name=self.driver_pod_name,
+                )
             yield TriggerEvent(
                 {
                     "namespace": self.namespace,
                     "pod_name": self.driver_pod_name,
-                    "status": await async_spark_app_manager.app_status(
-                        namespace=self.namespace,
-                        pod_name=self.driver_pod_name,
-                    ),
+                    "status": status,
                 }
             )
         except SparkAppStartupTimeoutError as e:

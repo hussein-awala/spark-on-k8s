@@ -181,6 +181,17 @@ jobs:
           echo "VIRTUAL_ENV=$GITHUB_WORKSPACE/.venv" >> "$GITHUB_ENV"
           echo "UV_PROJECT_ENVIRONMENT=$GITHUB_WORKSPACE/.venv" >> "$GITHUB_ENV"
           echo "AIRFLOW_HOME=$RUNNER_TEMP/airflow" >> "$GITHUB_ENV"
+      - name: Resolve the Airflow extras under Airflow's constraints file
+        if: matrix.airflow-version != '2.11.2'
+        run: |
+          # Airflow documents installation with its constraints file, so every pin there must
+          # satisfy this package's requirements. Airflow 2.11.2's file pins older kubernetes
+          # clients than this release supports, which the upgrade guide documents.
+          constraints="https://raw.githubusercontent.com/apache/airflow/constraints-${AIRFLOW_VERSION}/constraints-${PYTHON_VERSION}.txt"
+          for extra in airflow airflow-ui; do
+            uv pip compile pyproject.toml --extra "$extra" --constraint "$constraints" \
+              --python-version "$PYTHON_VERSION" --quiet --output-file /dev/null
+          done
       - name: Install Airflow dependencies
         run: |
           uv lock --check
@@ -390,4 +401,7 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: coverage.xml
           disable_search: true
-          fail_ci_if_error: true
+          # Dependabot runs get no Actions secrets, and Codecov refuses a tokenless
+          # upload from a branch of this repository. The step above still requires
+          # and reports their coverage; only a refused upload is tolerated.
+          fail_ci_if_error: ${{ github.actor != 'dependabot[bot]' }}

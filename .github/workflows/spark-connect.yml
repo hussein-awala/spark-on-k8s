@@ -102,7 +102,7 @@ jobs:
   kubernetes:
     name: Spark Connect ${{ matrix.spark }} on Kubernetes
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -179,6 +179,14 @@ jobs:
             --image "spark-connect-test:$SPARK_VERSION" --spark-version "$SPARK_VERSION" \
             --server-jar "local:///opt/spark/jars/spark-connect_2.13-$SPARK_VERSION.jar" \
             --artifacts "$RUNNER_TEMP/jupyter-kubernetes-results"
+      - name: Execute the private server quickstart notebook with Secret references
+        run: |
+          .venv/bin/python -I tests/integration/jupyter/run_kubernetes.py \
+            --kubeconfig "$RUNNER_TEMP/connect-kubeconfig" --context kind-spark-connect-ci \
+            --image "spark-connect-test:$SPARK_VERSION" --spark-version "$SPARK_VERSION" \
+            --server-jar "local:///opt/spark/jars/spark-connect_2.13-$SPARK_VERSION.jar" \
+            --notebook private_connect_quickstart.ipynb \
+            --artifacts "$RUNNER_TEMP/jupyter-quickstart-results"
       - name: Verify cleanup after an interrupted notebook run
         if: matrix.spark == '4.3.0'
         run: |
@@ -229,6 +237,7 @@ jobs:
           path: |
             ${{ runner.temp }}/connect-kubernetes-results/
             ${{ runner.temp }}/jupyter-kubernetes-results/
+            ${{ runner.temp }}/jupyter-quickstart-results/
             ${{ runner.temp }}/jupyter-interruption-results/
             ${{ runner.temp }}/connect-kind-logs/
           retention-days: 7

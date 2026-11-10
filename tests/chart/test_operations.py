@@ -495,3 +495,19 @@ def test_invalid_operations_values_are_rejected_before_install(tmp_path, values,
 )
 def test_reserved_remote_volume_name_is_rejected_during_render(tmp_path, values, message):
     assert message in rejected(tmp_path, values)
+
+
+@pytest.mark.parametrize(
+    "base,section,key",
+    [
+        ({"remote": {"enabled": True, "existingSecret": "api-remote"}}, None, "volumes"),
+        ({"remote": {"enabled": True, "existingSecret": "api-remote"}}, None, "volumeMounts"),
+        ({"sparkHistory": HISTORY}, "sparkHistory", "podAnnotations"),
+        ({"sparkHistory": HISTORY}, "sparkHistory", "configuration"),
+    ],
+)
+def test_a_key_left_empty_in_a_values_file_renders_like_its_default(tmp_path, base, section, key):
+    # A key whose entries are all commented out is null. These rendered until remote mode or the
+    # History Server was enabled, then failed with a template error instead of using the default.
+    emptied = {**base, section: {**base[section], key: None}} if section else {**base, key: None}
+    assert resources(tmp_path, emptied) == resources(tmp_path, base)

@@ -12,7 +12,7 @@ def generate_downloads() -> None:
 
     source = Path("examples/jupyter")
     destination = Path("downloads/jupyter")
-    names = ("spark_connect.ipynb", "notebook_support.py")
+    names = ("spark_connect.ipynb", "private_connect_quickstart.ipynb", "notebook_support.py")
     # Read every required source before publishing anything; missing examples must
     # fail the docs build rather than produce a partial or stale download bundle.
     files = {name: (source / name).read_bytes() for name in names}

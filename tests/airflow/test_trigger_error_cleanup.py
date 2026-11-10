@@ -161,6 +161,8 @@ def test_terminal_status_still_replays_logs_before_cleanup(status):
         app_waiter="log",
         on_finish_action="delete",
         deferrable=True,
+        # test_failure_postmortem.py covers the postmortem between log replay and cleanup.
+        failure_diagnostics=False,
     )
     event = json.loads(
         json.dumps(
@@ -181,3 +183,119 @@ def test_terminal_status_still_replays_logs_before_cleanup(status):
         mock.call.stream_logs(namespace="spark", pod_name="application-driver"),
         mock.call.delete_app(namespace="spark", pod_name="application-driver"),
     ]
+
+
+def test_trigger_reports_the_status_the_wait_ended_with_without_reading_it_again():
+    from kubernetes_asyncio.client import ApiException
+    from spark_on_k8s.airflow.triggers import SparkOnK8STrigger
+    from spark_on_k8s.utils.spark_app_status import SparkAppStatus
+
+    trigger = SparkOnK8STrigger(driver_pod_name="application-driver", namespace="spark")
+
+    async def collect():
+        return [event.payload async for event in trigger.run()]
+
+    # A second read could only fail transiently and turn a finished application into an error.
+    with (
+        mock.patch(
+            "spark_on_k8s.utils.async_app_manager.AsyncSparkAppManager.wait_for_app",
+            new=mock.AsyncMock(return_value=SparkAppStatus.Succeeded),
+        ),
+        mock.patch(
+            "spark_on_k8s.utils.async_app_manager.AsyncSparkAppManager.app_status",
+            new=mock.AsyncMock(side_effect=ApiException(status=503, reason="Service Unavailable")),
+        ) as app_status,
+    ):
+        events = asyncio.run(collect())
+
+    assert [event["status"] for event in events] == ["Succeeded"]
+    app_status.assert_not_called()
+
+
+@pytest.mark.parametrize("status", ["Succeeded", "Failed", "Unknown"])
+@pytest.mark.parametrize("finish_action", ["delete", "keep_if_failed"])
+def test_log_replay_failure_does_not_replace_terminal_status_or_skip_cleanup(status, finish_action):
+    from airflow.exceptions import AirflowException
+    from kubernetes.client import ApiException
+    from spark_on_k8s.airflow.operators import SparkOnK8SOperator
+
+    operator = SparkOnK8SOperator(
+        task_id="terminal_log_replay_failure",
+        image="spark:test",
+        app_path="local:///job.py",
+        app_waiter="log",
+        on_finish_action=finish_action,
+        deferrable=True,
+        failure_diagnostics=False,
+        failure_log_tail_lines=0,
+    )
+    event = {"namespace": "spark", "pod_name": "application-driver", "status": status}
+    # The driver or its node can disappear between the trigger event and the task resuming.
+    replay_error = ApiException(status=500, reason="kubelet unreachable")
+    replay_error.body = '{"message": "do-not-log"}'
+    with (
+        mock.patch("spark_on_k8s.airflow.operators.SparkAppManager") as factory,
+        mock.patch.object(SparkOnK8SOperator, "log", new_callable=mock.PropertyMock) as log,
+    ):
+        factory.return_value.stream_logs.side_effect = replay_error
+        if status == "Succeeded":
+            assert operator.execute_complete({}, event) == "Succeeded"
+        else:
+            with pytest.raises(
+                AirflowException, match=f"^The job finished with status: {status}$"
+            ) as failure:
+                operator.execute_complete({}, event)
+            assert failure.value.__cause__ is None
+    if finish_action == "keep_if_failed" and status == "Failed":
+        factory.return_value.delete_app.assert_not_called()
+    else:
+        factory.return_value.delete_app.assert_called_once_with(
+            namespace="spark", pod_name="application-driver"
+        )
+    (warning,) = log.return_value.warning.call_args_list
+    assert warning.args[0] % warning.args[1:] == (
+        "Could not replay the driver log of spark/application-driver (ApiException 500); "
+        f"continuing with the reported status {status}."
+    )
+
+
+@pytest.mark.parametrize("finish_action", ["delete", "keep_if_failed"])
+def test_driver_already_deleted_does_not_fail_a_succeeded_application(finish_action):
+    from kubernetes.client import ApiException
+    from spark_on_k8s.airflow.operators import SparkOnK8SOperator
+
+    operator = SparkOnK8SOperator(
+        task_id="succeeded_driver_already_deleted",
+        image="spark:test",
+        app_path="local:///job.py",
+        on_finish_action=finish_action,
+        deferrable=True,
+    )
+    event = {"namespace": "spark", "pod_name": "application-driver", "status": "Succeeded"}
+    # Pod garbage collection or a removed node can delete a finished driver before the task resumes.
+    with mock.patch("spark_on_k8s.airflow.operators.SparkAppManager") as factory:
+        factory.return_value.delete_app.side_effect = ApiException(status=404, reason="Not Found")
+        assert operator.execute_complete({}, event) == "Succeeded"
+    factory.return_value.delete_app.assert_called_once_with(namespace="spark", pod_name="application-driver")
+
+
+def test_driver_already_deleted_is_not_reported_as_a_cleanup_failure():
+    from airflow.exceptions import AirflowException
+    from kubernetes.client import ApiException
+    from spark_on_k8s.airflow.operators import SparkOnK8SOperator
+
+    operator = SparkOnK8SOperator(
+        task_id="failed_driver_already_deleted",
+        image="spark:test",
+        app_path="local:///job.py",
+        on_finish_action="delete",
+        deferrable=True,
+        failure_diagnostics=False,
+        failure_log_tail_lines=0,
+    )
+    event = {"namespace": "spark", "pod_name": "application-driver", "status": "Failed"}
+    with mock.patch("spark_on_k8s.airflow.operators.SparkAppManager") as factory:
+        factory.return_value.delete_app.side_effect = ApiException(status=404, reason="Not Found")
+        with pytest.raises(AirflowException, match="^The job finished with status: Failed$") as failure:
+            operator.execute_complete({}, event)
+    assert failure.value.__cause__ is None

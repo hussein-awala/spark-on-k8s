@@ -184,6 +184,32 @@ test("details show fetch age and paused polling; explicit refresh preserves focu
   ).toBeVisible();
 });
 
+test("the namespace console keeps refreshing when every loaded application has finished", async ({
+  page,
+}) => {
+  await page.clock.install();
+  let requests = 0;
+  await page.route(/\/webserver\/api\/apps\?/, (route) => {
+    requests += 1;
+    return route.fulfill({
+      json: {
+        items: [application({ status: "Succeeded" })],
+        next_cursor: null,
+      },
+    });
+  });
+  await page.goto("/tests/fixture.html?history=false&refresh=1");
+  await expect(
+    page.getByRole("button", { name: "Daily revenue report", exact: true }),
+  ).toBeVisible();
+  const before = requests;
+  await page.clock.fastForward(2500);
+  // New applications can appear in a namespace at any time.
+  await expect.poll(() => requests).toBeGreaterThan(before);
+  await expect(page.getByText("Live refresh ended.")).toHaveCount(0);
+  await expect(page.getByLabel("Auto-refresh")).toHaveValue("1");
+});
+
 test("details of an application that leaves the list close and resume polling", async ({
   page,
 }) => {

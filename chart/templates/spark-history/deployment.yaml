@@ -16,7 +16,7 @@ spec:
     metadata:
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/spark-history/configmap.yaml") . | sha256sum }}
-        {{- with (omit .Values.sparkHistory.podAnnotations "checksum/config") }}
+        {{- with (omit (.Values.sparkHistory.podAnnotations | default dict) "checksum/config") }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
       labels:

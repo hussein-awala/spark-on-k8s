@@ -193,18 +193,29 @@ print(json.dumps({'queries': matches, 'jobs': jobs, 'executors': get('/executors
         evidence["driver_uid"] = driver.metadata.uid
         return evidence
 
-    def command(self, label, *arguments, expected=0, interrupt=False, nodes=None, project=None):
+    def command(
+        self,
+        label,
+        *arguments,
+        then=(),
+        keep_going=False,
+        starts=None,
+        expected=0,
+        interrupt=False,
+        nodes=None,
+        project=None,
+    ):
+        """Run one wrapper invocation: ``arguments``, then each command in ``then`` on the same server.
+
+        ``starts`` is how many of those dbt commands must start (all by default).
+        """
         directory = self.destination / label
         directory.mkdir()
         receipt_dir = directory / "receipt"
         target = directory / "target"
-        command = [
-            str(self.executable),
-            "run",
-            "--receipt-dir",
-            str(receipt_dir),
-            "--",
-            *arguments,
+        commands = [list(arguments), *map(list, then)]
+        starts = len(commands) if starts is None else starts
+        common = [
             "--project-dir",
             str(project or self.project),
             "--profiles-dir",
@@ -216,6 +227,11 @@ print(json.dumps({'queries': matches, 'jobs': jobs, 'executors': get('/executors
             "--log-path",
             str(directory / "logs"),
         ]
+        command = [str(self.executable), "run", "--receipt-dir", str(receipt_dir)]
+        if keep_going:
+            command.append("--keep-going")
+        for dbt_arguments in commands:
+            command += ["--", *dbt_arguments, *common]
         environment = dbt_environment()
         observed = {}
         interrupted = False
@@ -286,14 +302,24 @@ print(json.dumps({'queries': matches, 'jobs': jobs, 'executors': get('/executors
         ]
         if {pod["metadata"]["uid"] for pod in drivers} != {driver_uid}:
             raise AssertionError(
-                "Invocation must provision exactly one observed driver despite concurrent dbt threads"
+                "Invocation must provision exactly one observed driver despite concurrent dbt threads "
+                "and every command of a sequence"
             )
         cleanup = self.fixture.assert_compute_absent()
         cleanup["task_tunnels_remaining"] = assert_tunnels_absent(self.fixture.namespace)
         save(directory / "independent-cleanup.json", cleanup)
+        transport = "Spark Connect" if self.method == "connect" else "Thrift"
+        content = logfile.read_text()
+        if content.count("Running with dbt") != starts:
+            raise AssertionError(f"{label}: expected {starts} of {len(commands)} dbt commands to start")
+        if len(commands) > 1:
+            # One startup and one deletion for the whole sequence, never one per command.
+            for line in (f"{transport} server ready (application {run['app_id']})", "compute deleted"):
+                if content.count(line) != 1:
+                    raise AssertionError(f"{label}: expected exactly one '{line}' progress line")
+            if f"Managed dbt run finished with exit {expected}: " not in content:
+                raise AssertionError(f"{label}: the sequence summary is missing")
         if label == "seed":
-            transport = "Spark Connect" if self.method == "connect" else "Thrift"
-            content = logfile.read_text()
             for line in (
                 f"{transport} server ready (application {run['app_id']})",
                 "managed Spark compute deleted",
@@ -348,6 +374,8 @@ print(json.dumps({'queries': matches, 'jobs': jobs, 'executors': get('/executors
             "stage": receipt["stage"],
             "driver_uid": driver_uid,
             "interrupted": interrupted,
+            "dbt_commands": len(commands),
+            "dbt_commands_started": starts,
             "elapsed_seconds": time.monotonic() - started,
             "compute_absence_observed": True,
             "fixture_pods": cleanup["fixture_pods"],
@@ -404,17 +432,25 @@ print(json.dumps({'queries': matches, 'jobs': jobs, 'executors': get('/executors
         ]
         if not executors:
             raise AssertionError("No remote executor observed during the SQL build")
+        # A fresh server reads what the previous one wrote, then serves docs generation too.
         persisted = self.command(
-            "persisted-after-build",
+            "persisted-after-build-then-docs",
             "run-operation",
             "assert_persisted",
             "--args",
             json.dumps({"expected_hosts": executors}),
+            then=[["docs", "generate"]],
         )
-        if "PERSISTED_TABLE_VERIFIED" not in (persisted / "command.log").read_text():
+        log = (persisted / "command.log").read_text()
+        if "PERSISTED_TABLE_VERIFIED" not in log:
             raise AssertionError("Fresh-server persisted table query did not run")
-        docs = self.command("docs", "docs", "generate")
-        catalog = json.loads((docs / "target/catalog.json").read_text())
+        for line in (
+            "1/2 (dbt run-operation assert_persisted) succeeded",
+            "2/2 (dbt docs generate) succeeded",
+        ):
+            if line not in log:
+                raise AssertionError(f"Sequence progress did not report: {line}")
+        catalog = json.loads((persisted / "target/catalog.json").read_text())
         names = {entry["metadata"]["name"] for entry in catalog["nodes"].values()}
         if not {"orders", "orders_table", "orders_incremental"} <= names or catalog.get("errors"):
             raise AssertionError(f"dbt docs did not retrieve the persistent catalog: {names}")
@@ -434,28 +470,40 @@ print(json.dumps({'queries': matches, 'jobs': jobs, 'executors': get('/executors
         ):
             raise AssertionError("Python model failed for an unrelated reason")
         self.command("table-preserved-after-python-refusal", "run-operation", "assert_persisted")
+        # With --keep-going, the server stays usable after a failed command in the same run.
         sql_failure = self.command(
-            "expected-sql-failure",
+            "expected-sql-failure-keep-going",
             "run",
             "--select",
             "expected_failure",
             "--vars",
             "{exercise_failure: true}",
+            then=[["run-operation", "assert_persisted"]],
+            keep_going=True,
             expected=1,
         )
-        if "definitely_missing_column" not in (sql_failure / "command.log").read_text():
+        log = (sql_failure / "command.log").read_text()
+        if "definitely_missing_column" not in log:
             raise AssertionError("The intentional SQL failure failed for an unrelated reason")
+        if "1/2 (dbt run) failed with exit 1" not in log or "PERSISTED_TABLE_VERIFIED" not in log:
+            raise AssertionError("The command after the failure did not reuse the same server")
         self.command("recovery-build", "build", nodes=13)
-        self.command(
+        # An interrupted command ends the sequence: the later command never starts.
+        interrupted = self.command(
             "interrupted",
             "run",
             "--select",
             "cancellation_probe",
             "--vars",
             "{exercise_cancel: true}",
+            then=[["run-operation", "assert_persisted"]],
+            starts=1,
             expected=130,
             interrupt=True,
         )
+        log = (interrupted / "command.log").read_text()
+        if "PERSISTED_TABLE_VERIFIED" in log or "1 interrupted, 1 not run (interrupted)" not in log:
+            raise AssertionError("A command started after the sequence was interrupted")
         self.command("persisted-after-cancellation", "run-operation", "assert_persisted")
         save(
             self.destination / "result.json",
@@ -464,6 +512,7 @@ print(json.dumps({'queries': matches, 'jobs': jobs, 'executors': get('/executors
                 "method": self.method,
                 "threads": 2,
                 "fresh_driver_per_invocation": True,
+                "one_driver_per_command_sequence": True,
                 "external_catalog_survived_compute_deletion": True,
                 "failed_sql_recovered": True,
                 "interrupted_command_cleaned": True,

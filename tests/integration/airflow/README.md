@@ -21,6 +21,9 @@ application failure after actual executor work, and an unschedulable startup
 timeout, each with synchronous and deferrable execution. The startup-timeout
 cases require a real Pending/Unschedulable pod and operator cleanup even when
 `on_finish_action="keep"`. Deferred cases must execute and resume the real trigger.
+Failure and timeout cases must log the operator's failure postmortem: the failures
+a driver log tail, the timeouts an `unschedulable` finding read before deletion.
+Successful cases must not log one.
 
 The successful and deliberately failing applications also check environment
 variables inside the driver and executor Python workers. `spark.kubernetes.driverEnv.*`

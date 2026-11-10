@@ -48,7 +48,7 @@ def harness(monkeypatch):
     from spark_on_k8s.airflow.ui_config import UISettings
 
     @contextmanager
-    def make(*, writes=False, authenticated=True, root_path="", public_url=None):
+    def make(*, writes=False, authenticated=True, root_path="", public_url=None, snapshot_ttl=5.0):
         requests = []
         responses = {}
         binding = TaskBinding(
@@ -73,6 +73,8 @@ def harness(monkeypatch):
             if configured:
                 if isinstance(configured, Exception):
                     raise configured
+                if callable(configured):
+                    return configured(request)
                 return configured
             if request.url.path.endswith("/capabilities"):
                 return httpx.Response(200, json={"history_configured": True})
@@ -104,7 +106,10 @@ def harness(monkeypatch):
         )
         app = backend.create_ui_app(
             UISettings(
-                service_url="https://spark.example/service", allow_writes=writes, public_url=public_url
+                service_url="https://spark.example/service",
+                allow_writes=writes,
+                public_url=public_url,
+                snapshot_ttl=snapshot_ttl,
             )
         )
         if authenticated:
@@ -593,6 +598,23 @@ def test_registered_bundle_and_mount_preserve_airflow_base_path(monkeypatch):
     assert {"/static/airflow.js", "/static/console.css"} <= routes
 
 
+def test_listed_operator_subclasses_show_the_tab(monkeypatch):
+    import importlib
+
+    from fastapi.testclient import TestClient
+
+    monkeypatch.setenv("SPARK_ON_K8S_AIRFLOW_SERVICE_URL", "https://spark.example")
+    monkeypatch.setenv("SPARK_ON_K8S_AIRFLOW_OPERATOR_SUBCLASSES", "TeamSparkOperator,TeamSqlOperator")
+    monkeypatch.setenv("SPARK_ON_K8S_AIRFLOW_SNAPSHOT_TTL", "2.5")
+    plugin = importlib.reload(importlib.import_module("spark_on_k8s.airflow.ui.plugin")).SparkTaskUIPlugin
+    assert plugin.react_apps[0]["applies_to"] == {
+        "operator": ["SparkOnK8SOperator", "SparkSqlOnK8SOperator", "TeamSparkOperator", "TeamSqlOperator"]
+    }
+    app = plugin.fastapi_apps[0]["app"]
+    with TestClient(app):
+        assert app.state.snapshots.ttl == 2.5
+
+
 @pytest.mark.parametrize("payload", [None, {"source": "invalid"}, {**APPLICATION, "namespace": "other"}])
 def test_invalid_application_response_is_not_exposed(harness, payload):
     import httpx
@@ -875,3 +897,123 @@ def test_native_log_connection_keeps_a_bounded_message_limit():
                 assert rejected.value.sent.code == 1009
 
     asyncio.run(run())
+
+
+def driver_lookups(h) -> int:
+    return sum(request.url.path == f"/service/webserver/api/apps/spark/pods/{POD}" for request in h.requests)
+
+
+def test_one_poll_shares_a_single_driver_lookup_across_endpoints(harness):
+    with harness() as h:
+        for path in ("/api/application", "/api/capabilities", "/api/history"):
+            assert h.client.get(path, params=QUERY).status_code == 200
+        assert driver_lookups(h) == 1
+        # Each request still resolved its own task binding after its own authorization.
+        assert h.authorized.await_count == 3
+        assert h.loaded.call_count == 3
+
+
+def test_concurrent_viewers_share_one_driver_lookup(harness):
+    import time
+    from concurrent.futures import ThreadPoolExecutor
+
+    import httpx
+
+    released = threading.Event()
+
+    async def slow_driver(request):
+        await asyncio.to_thread(released.wait, 5)
+        return httpx.Response(200, json=APPLICATION)
+
+    with harness() as h:
+        h.responses[f"/service/webserver/api/apps/spark/pods/{POD}"] = slow_driver
+        snapshots = h.app.state.snapshots
+        shared, joined = snapshots.get, []
+
+        async def counted(key, load):
+            joined.append(key)
+            return await shared(key, load)
+
+        snapshots.get = counted
+        paths = ["/api/application", "/api/application", "/api/capabilities", "/api/history"]
+        with ThreadPoolExecutor(len(paths)) as pool:
+            pending = [pool.submit(h.client.get, path, params=QUERY) for path in paths]
+            deadline = time.monotonic() + 5
+            while len(joined) < len(paths) and time.monotonic() < deadline:
+                time.sleep(0.01)
+            # Every viewer joined while the first driver lookup was still in flight.
+            assert len(joined) == len(paths)
+            released.set()
+            responses = [future.result(timeout=5) for future in pending]
+        assert [response.status_code for response in responses] == [200] * len(paths)
+        assert len(set(joined)) == 1
+        assert driver_lookups(h) == 1
+
+
+def test_shared_snapshot_never_bypasses_per_request_authorization(harness):
+    from fastapi import HTTPException
+
+    with harness() as h:
+        assert h.client.get("/api/application", params=QUERY).status_code == 200
+        h.authorized.side_effect = HTTPException(403, "Forbidden")
+        h.loaded.reset_mock()
+        for path in ("/api/application", "/api/capabilities", "/api/history"):
+            response = h.client.get(path, params=QUERY)
+            assert response.status_code == 403
+            assert APP_ID not in response.text
+        h.loaded.assert_not_called()
+        assert driver_lookups(h) == 1
+
+
+@pytest.mark.parametrize(
+    "change", [{"try_number": 3}, {"task_id": "other.task"}, {"map_index": 5}, {"run_id": "other-run"}]
+)
+def test_task_attempts_never_share_snapshots(harness, change):
+    import httpx
+
+    with harness() as h:
+        assert h.client.get("/api/application", params=QUERY).status_code == 200
+        owner = {**QUERY, **change}
+        h.loaded.return_value = h.binding.model_copy(
+            update={
+                "try_number": owner["try_number"],
+                "task_context": h.binding.task_context.model_copy(update=change),
+            }
+        )
+        h.responses[f"/service/webserver/api/apps/spark/pods/{POD}"] = httpx.Response(
+            200, json={**APPLICATION, "task_context": owner}
+        )
+        response = h.client.get("/api/application", params={**QUERY, **change})
+        assert response.status_code == 200
+        assert driver_lookups(h) == 2
+
+
+@pytest.mark.parametrize("method,path", [("post", "/api/kill"), ("delete", "/api/application")])
+def test_actions_verify_current_driver_and_refresh_the_shared_snapshot(harness, method, path):
+    with harness(writes=True) as h:
+        assert h.client.get("/api/application", params=QUERY).status_code == 200
+        response = getattr(h.client, method)(
+            path, params=QUERY, headers={"Origin": "https://airflow.example", "X-Spark-On-K8s-Action": "true"}
+        )
+        assert response.status_code == 204
+        assert driver_lookups(h) == 2
+        assert h.client.get("/api/application", params=QUERY).status_code == 200
+        assert driver_lookups(h) == 3
+
+
+def test_zero_snapshot_ttl_reads_the_driver_for_every_request(harness):
+    with harness(snapshot_ttl=0) as h:
+        for path in ("/api/application", "/api/capabilities", "/api/history"):
+            assert h.client.get(path, params=QUERY).status_code == 200
+        assert driver_lookups(h) == 3
+
+
+def test_failed_driver_lookup_is_retried_by_the_next_request(harness):
+    import httpx
+
+    with harness() as h:
+        h.responses[f"/service/webserver/api/apps/spark/pods/{POD}"] = httpx.Response(503)
+        assert h.client.get("/api/application", params=QUERY).status_code == 502
+        del h.responses[f"/service/webserver/api/apps/spark/pods/{POD}"]
+        assert h.client.get("/api/application", params=QUERY).status_code == 200
+        assert driver_lookups(h) == 2

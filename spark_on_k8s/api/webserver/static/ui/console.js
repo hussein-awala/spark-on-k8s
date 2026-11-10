@@ -366,7 +366,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 			n === null ? t.types = [e] : n.indexOf(e) === -1 && n.push(e);
 		} else le(ue.bind(null, e));
 	}
-	var k = {
+	var de = {
 		map: O,
 		forEach: function(e, t, n) {
 			O(e, function() {
@@ -389,7 +389,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 			return e;
 		}
 	};
-	e.Activity = f, e.Children = k, e.Component = y, e.Fragment = r, e.Profiler = a, e.PureComponent = x, e.StrictMode = i, e.Suspense = l, e.ViewTransition = p, e.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE = T, e.__COMPILER_RUNTIME = {
+	e.Activity = f, e.Children = de, e.Component = y, e.Fragment = r, e.Profiler = a, e.PureComponent = x, e.StrictMode = i, e.Suspense = l, e.ViewTransition = p, e.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE = T, e.__COMPILER_RUNTIME = {
 		__proto__: null,
 		c: function(e) {
 			return T.H.useMemoCache(e);
@@ -805,14 +805,14 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 		}
 		return null;
 	}
-	var E = Object.assign, te = Symbol.for("react.element"), ne = Symbol.for("react.transitional.element"), re = Symbol.for("react.portal"), ie = Symbol.for("react.fragment"), ae = Symbol.for("react.strict_mode"), oe = Symbol.for("react.profiler"), D = Symbol.for("react.consumer"), O = Symbol.for("react.context"), se = Symbol.for("react.forward_ref"), ce = Symbol.for("react.suspense"), le = Symbol.for("react.suspense_list"), ue = Symbol.for("react.memo"), k = Symbol.for("react.lazy"), de = Symbol.for("react.activity"), fe = Symbol.for("react.legacy_hidden"), pe = Symbol.for("react.memo_cache_sentinel"), me = Symbol.for("react.view_transition"), he = Symbol.for("react.recoverable"), ge = Symbol.iterator;
-	function _e(e) {
-		return typeof e != "object" || !e ? null : (e = ge && e[ge] || e["@@iterator"], typeof e == "function" ? e : null);
+	var E = Object.assign, te = Symbol.for("react.element"), ne = Symbol.for("react.transitional.element"), re = Symbol.for("react.portal"), ie = Symbol.for("react.fragment"), ae = Symbol.for("react.strict_mode"), oe = Symbol.for("react.profiler"), D = Symbol.for("react.consumer"), O = Symbol.for("react.context"), se = Symbol.for("react.forward_ref"), ce = Symbol.for("react.suspense"), le = Symbol.for("react.suspense_list"), ue = Symbol.for("react.memo"), de = Symbol.for("react.lazy"), fe = Symbol.for("react.activity"), pe = Symbol.for("react.legacy_hidden"), me = Symbol.for("react.memo_cache_sentinel"), he = Symbol.for("react.view_transition"), ge = Symbol.for("react.recoverable"), _e = Symbol.iterator;
+	function ve(e) {
+		return typeof e != "object" || !e ? null : (e = _e && e[_e] || e["@@iterator"], typeof e == "function" ? e : null);
 	}
-	var ve = Symbol.for("react.client.reference");
-	function ye(e) {
+	var ye = Symbol.for("react.client.reference");
+	function be(e) {
 		if (e == null) return null;
-		if (typeof e == "function") return e.$$typeof === ve ? null : e.displayName || e.name || null;
+		if (typeof e == "function") return e.$$typeof === ye ? null : e.displayName || e.name || null;
 		if (typeof e == "string") return e;
 		switch (e) {
 			case ie: return "Fragment";
@@ -820,8 +820,8 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 			case ae: return "StrictMode";
 			case ce: return "Suspense";
 			case le: return "SuspenseList";
-			case de: return "Activity";
-			case me: return "ViewTransition";
+			case fe: return "Activity";
+			case he: return "ViewTransition";
 		}
 		if (typeof e == "object") switch (e.$$typeof) {
 			case re: return "Portal";
@@ -830,31 +830,31 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 			case se:
 				var t = e.render;
 				return e = e.displayName, e ||= (e = t.displayName || t.name || "", e === "" ? "ForwardRef" : "ForwardRef(" + e + ")"), e;
-			case ue: return t = e.displayName || null, t === null ? ye(e.type) || "Memo" : t;
-			case k:
+			case ue: return t = e.displayName || null, t === null ? be(e.type) || "Memo" : t;
+			case de:
 				t = e._payload, e = e._init;
 				try {
-					return ye(e(t));
+					return be(e(t));
 				} catch {}
 		}
 		return null;
 	}
-	var be = Array.isArray, A = r.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE, j = a.__DOM_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE, xe = {
+	var xe = Array.isArray, k = r.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE, A = a.__DOM_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE, Se = {
 		pending: !1,
 		data: null,
 		method: null,
 		action: null
-	}, Se = [], M = -1;
-	function Ce(e) {
+	}, Ce = [], we = -1;
+	function j(e) {
 		return { current: e };
 	}
-	function we(e) {
-		0 > M || (e.current = Se[M], Se[M] = null, M--);
+	function M(e) {
+		0 > we || (e.current = Ce[we], Ce[we] = null, we--);
 	}
 	function N(e, t) {
-		M++, Se[M] = e.current, e.current = t;
+		we++, Ce[we] = e.current, e.current = t;
 	}
-	var Te = Ce(null), Ee = Ce(null), De = Ce(null), Oe = Ce(null);
+	var Te = j(null), Ee = j(null), De = j(null), Oe = j(null);
 	function ke(e, t) {
 		switch (N(De, t), N(Ee, e), N(Te, null), t.nodeType) {
 			case 9:
@@ -872,10 +872,10 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 				default: e = 0;
 			}
 		}
-		we(Te), N(Te, e);
+		M(Te), N(Te, e);
 	}
 	function Ae() {
-		we(Te), we(Ee), we(De);
+		M(Te), M(Ee), M(De);
 	}
 	function je(e) {
 		var t = e.memoizedState;
@@ -884,7 +884,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 		t !== n && (N(Ee, e), N(Te, n));
 	}
 	function Me(e) {
-		Ee.current === e && (we(Te), we(Ee)), Oe.current === e && (we(Oe), sh._currentValue = xe);
+		Ee.current === e && (M(Te), M(Ee)), Oe.current === e && (M(Oe), sh._currentValue = Se);
 	}
 	var Ne, Pe;
 	function Fe(e) {
@@ -897,7 +897,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 		return "\n" + Ne + e + Pe;
 	}
 	var Ie = !1;
-	function P(e, t) {
+	function Le(e, t) {
 		if (!e || Ie) return "";
 		Ie = !0;
 		var n = Error.prepareStackTrace;
@@ -974,7 +974,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 		}
 		return (n = e ? e.displayName || e.name : "") ? Fe(n) : "";
 	}
-	function Le(e, t) {
+	function Re(e, t) {
 		switch (e.tag) {
 			case 26:
 			case 27:
@@ -983,26 +983,26 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 			case 13: return e.child !== t && t !== null ? Fe("Suspense Fallback") : Fe("Suspense");
 			case 19: return Fe("SuspenseList");
 			case 0:
-			case 15: return P(e.type, !1);
-			case 11: return P(e.type.render, !1);
-			case 1: return P(e.type, !0);
+			case 15: return Le(e.type, !1);
+			case 11: return Le(e.type.render, !1);
+			case 1: return Le(e.type, !0);
 			case 31: return Fe("Activity");
 			case 30: return Fe("ViewTransition");
 			default: return "";
 		}
 	}
-	function Re(e) {
+	function ze(e) {
 		try {
 			var t = "", n = null;
 			do
-				t += Le(e, n), n = e, e = e.return;
+				t += Re(e, n), n = e, e = e.return;
 			while (e);
 			return t;
 		} catch (e) {
 			return "\nError generating stack: " + e.message + "\n" + e.stack;
 		}
 	}
-	var ze = Object.prototype.hasOwnProperty, Be = t.unstable_scheduleCallback, Ve = t.unstable_cancelCallback, He = t.unstable_shouldYield, Ue = t.unstable_requestPaint, We = t.unstable_now, Ge = t.unstable_getCurrentPriorityLevel, Ke = t.unstable_ImmediatePriority, qe = t.unstable_UserBlockingPriority, Je = t.unstable_NormalPriority, Ye = t.unstable_LowPriority, Xe = t.unstable_IdlePriority, Ze = t.log, Qe = t.unstable_setDisableYieldValue, $e = null, et = null;
+	var P = Object.prototype.hasOwnProperty, Be = t.unstable_scheduleCallback, Ve = t.unstable_cancelCallback, He = t.unstable_shouldYield, Ue = t.unstable_requestPaint, We = t.unstable_now, Ge = t.unstable_getCurrentPriorityLevel, Ke = t.unstable_ImmediatePriority, qe = t.unstable_UserBlockingPriority, Je = t.unstable_NormalPriority, Ye = t.unstable_LowPriority, Xe = t.unstable_IdlePriority, Ze = t.log, Qe = t.unstable_setDisableYieldValue, $e = null, et = null;
 	function tt(e) {
 		if (typeof Ze == "function" && Qe(e), et && typeof et.setStrictMode == "function") try {
 			et.setStrictMode($e, e);
@@ -1192,15 +1192,15 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 		return e &= -e, 2 < e ? 8 < e ? e & 134217727 ? 32 : 268435456 : 8 : 2;
 	}
 	function Ct() {
-		var e = j.p;
+		var e = A.p;
 		return e === 0 ? (e = window.event, e === void 0 ? 32 : Ch(e.type)) : e;
 	}
 	function wt(e, t) {
-		var n = j.p;
+		var n = A.p;
 		try {
-			return j.p = e, t();
+			return A.p = e, t();
 		} finally {
-			j.p = n;
+			A.p = n;
 		}
 	}
 	var Tt = Math.random().toString(36).slice(2), Et = "__reactFiber$" + Tt, Dt = "__reactProps$" + Tt, Ot = "__reactContainer$" + Tt, kt = "__reactEvents$" + Tt, At = "__reactListeners$" + Tt, jt = "__reactHandles$" + Tt, Mt = "__reactResources$" + Tt, Nt = "__reactMarker$" + Tt, Pt = "__reactLoad$" + Tt;
@@ -1256,7 +1256,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 	}
 	var Kt = RegExp("^[:A-Z_a-z\\u00C0-\\u00D6\\u00D8-\\u00F6\\u00F8-\\u02FF\\u0370-\\u037D\\u037F-\\u1FFF\\u200C-\\u200D\\u2070-\\u218F\\u2C00-\\u2FEF\\u3001-\\uD7FF\\uF900-\\uFDCF\\uFDF0-\\uFFFD][:A-Z_a-z\\u00C0-\\u00D6\\u00D8-\\u00F6\\u00F8-\\u02FF\\u0370-\\u037D\\u037F-\\u1FFF\\u200C-\\u200D\\u2070-\\u218F\\u2C00-\\u2FEF\\u3001-\\uD7FF\\uF900-\\uFDCF\\uFDF0-\\uFFFD\\-.0-9\\u00B7\\u0300-\\u036F\\u203F-\\u2040]*$"), qt = {}, Jt = {};
 	function Yt(e) {
-		return ze.call(Jt, e) ? !0 : ze.call(qt, e) ? !1 : Kt.test(e) ? Jt[e] = !0 : (qt[e] = !0, !1);
+		return P.call(Jt, e) ? !0 : P.call(qt, e) ? !1 : Kt.test(e) ? Jt[e] = !0 : (qt[e] = !0, !1);
 	}
 	var F = !1;
 	function Xt() {
@@ -1410,7 +1410,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 		if (t == null) {
 			if (r != null) {
 				if (n != null) throw Error(s(92));
-				if (be(r)) {
+				if (xe(r)) {
 					if (1 < r.length) throw Error(s(93));
 					r = r[0];
 				}
@@ -1948,7 +1948,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 		if (n.length !== r.length) return !1;
 		for (r = 0; r < n.length; r++) {
 			var i = n[r];
-			if (!ze.call(t, i) || !Gr(e[i], t[i])) return !1;
+			if (!P.call(t, i) || !Gr(e[i], t[i])) return !1;
 		}
 		return !0;
 	}
@@ -2156,7 +2156,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 		if (r = e, typeof r == "function") Li(r) && (o = 1);
 		else if (typeof r == "string") o = qm(e, n, Te.current) ? 26 : e === "html" || e === "head" || e === "body" ? 27 : 5;
 		else a: switch (r) {
-			case de: return e = Ii(31, n, t, i), e.elementType = de, e.lanes = a, e;
+			case fe: return e = Ii(31, n, t, i), e.elementType = fe, e.lanes = a, e;
 			case ie: return Vi(n.children, i, a, t);
 			case ae:
 				o = 8, i |= 24;
@@ -2164,8 +2164,8 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 			case oe: return e = Ii(12, n, t, i | 2), e.elementType = oe, e.lanes = a, e;
 			case ce: return e = Ii(13, n, t, i), e.elementType = ce, e.lanes = a, e;
 			case le: return e = Ii(19, n, t, i), e.elementType = le, e.lanes = a, e;
-			case fe:
-			case me: return e = i | 32, e = Ii(30, n, t, e), e.elementType = me, e.lanes = a, e.stateNode = {
+			case pe:
+			case he: return e = i | 32, e = Ii(30, n, t, e), e.elementType = he, e.lanes = a, e.stateNode = {
 				autoName: null,
 				paired: null,
 				clones: null,
@@ -2185,7 +2185,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 					case ue:
 						o = 14;
 						break a;
-					case k:
+					case de:
 						o = 16, r = null;
 						break a;
 				}
@@ -2217,13 +2217,13 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 			return n === void 0 ? (t = {
 				value: e,
 				source: t,
-				stack: Re(t)
+				stack: ze(t)
 			}, Gi.set(e, t), t) : n;
 		}
 		return {
 			value: e,
 			source: t,
-			stack: Re(t)
+			stack: ze(t)
 		};
 	}
 	var qi = [], Ji = 0, Yi = null, Xi = 0, Zi = [], Qi = 0, $i = null, ea = 1, ta = "";
@@ -2329,12 +2329,12 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 	function _a(e) {
 		ca === null ? ca = [e] : ca.push(e);
 	}
-	var va = Ce(null), ya = null, ba = null;
+	var va = j(null), ya = null, ba = null;
 	function xa(e, t, n) {
 		N(va, t._currentValue), t._currentValue = n;
 	}
 	function Sa(e) {
-		e._currentValue = va.current, we(va);
+		e._currentValue = va.current, M(va);
 	}
 	function Ca(e, t, n) {
 		for (; e !== null;) {
@@ -2515,8 +2515,8 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 			for (r.status = "rejected", r.reason = e, e = 0; e < n.length; e++) (0, n[e])(void 0);
 		}), r;
 	}
-	var qa = A.S;
-	A.S = function(e, t) {
+	var qa = k.S;
+	k.S = function(e, t) {
 		if (gd = We(), typeof t == "object" && t && typeof t.then == "function" && Wa(e, t), Ra !== null) for (var n = bf; n !== null;) La(n, Ra), n = n.next;
 		if (n = e.types, n !== null) {
 			for (var r = bf; r !== null;) La(r, n), r = r.next;
@@ -2530,7 +2530,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 		}
 		qa !== null && qa(e, t);
 	};
-	var Ja = Ce(null);
+	var Ja = j(null);
 	function Ya() {
 		var e = Ja.current;
 		return e === null ? G.pooledCache : e;
@@ -2634,7 +2634,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 		}
 		function l(e, t, n, r) {
 			var a = n.type;
-			return a === ie ? (e = d(e, t, n.props.children, r, n.key), fo(e, n), e) : t !== null && (t.elementType === a || typeof a == "object" && a && a.$$typeof === k && io(a) === t.type) ? (t = i(t, n.props), fo(t, n), t.return = e, t) : (t = Bi(n.type, n.key, n.props, null, e.mode, r), fo(t, n), t.return = e, t);
+			return a === ie ? (e = d(e, t, n.props.children, r, n.key), fo(e, n), e) : t !== null && (t.elementType === a || typeof a == "object" && a && a.$$typeof === de && io(a) === t.type) ? (t = i(t, n.props), fo(t, n), t.return = e, t) : (t = Bi(n.type, n.key, n.props, null, e.mode, r), fo(t, n), t.return = e, t);
 		}
 		function u(e, t, n, r) {
 			return t === null || t.tag !== 4 || t.stateNode.containerInfo !== n.containerInfo || t.stateNode.implementation !== n.implementation ? (t = Wi(n, e.mode, r), t.return = e, t) : (t = i(t, n.children || []), t.return = e, t);
@@ -2648,9 +2648,9 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 				switch (t.$$typeof) {
 					case ne: return n = Bi(t.type, t.key, t.props, null, e.mode, n), fo(n, t), n.return = e, n;
 					case re: return t = Wi(t, e.mode, n), t.return = e, t;
-					case k: return t = io(t), f(e, t, n);
+					case de: return t = io(t), f(e, t, n);
 				}
-				if (be(t) || _e(t)) return t = Vi(t, e.mode, n, null), t.return = e, t;
+				if (xe(t) || ve(t)) return t = Vi(t, e.mode, n, null), t.return = e, t;
 				if (typeof t.then == "function") return f(e, uo(t), n);
 				if (t.$$typeof === O) return f(e, ka(e, t), n);
 				po(e, t);
@@ -2664,9 +2664,9 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 				switch (n.$$typeof) {
 					case ne: return n.key === i ? l(e, t, n, r) : null;
 					case re: return n.key === i ? u(e, t, n, r) : null;
-					case k: return n = io(n), p(e, t, n, r);
+					case de: return n = io(n), p(e, t, n, r);
 				}
-				if (be(n) || _e(n)) return i === null ? d(e, t, n, r, null) : null;
+				if (xe(n) || ve(n)) return i === null ? d(e, t, n, r, null) : null;
 				if (typeof n.then == "function") return p(e, t, uo(n), r);
 				if (n.$$typeof === O) return p(e, t, ka(e, n), r);
 				po(e, n);
@@ -2679,9 +2679,9 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 				switch (r.$$typeof) {
 					case ne: return e = e.get(r.key === null ? n : r.key) || null, l(t, e, r, i);
 					case re: return e = e.get(r.key === null ? n : r.key) || null, u(t, e, r, i);
-					case k: return r = io(r), m(e, t, n, r, i);
+					case de: return r = io(r), m(e, t, n, r, i);
 				}
-				if (be(r) || _e(r)) return e = e.get(n) || null, d(t, e, r, i, null);
+				if (xe(r) || ve(r)) return e = e.get(n) || null, d(t, e, r, i, null);
 				if (typeof r.then == "function") return m(e, t, n, uo(r), i);
 				if (r.$$typeof === O) return m(e, t, n, ka(t, r), i);
 				po(t, r);
@@ -2741,7 +2741,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 											n(e, r.sibling), c = i(r, a.props.children), fo(c, a), c.return = e, e = c;
 											break a;
 										}
-									} else if (r.elementType === l || typeof l == "object" && l && l.$$typeof === k && io(l) === r.type) {
+									} else if (r.elementType === l || typeof l == "object" && l && l.$$typeof === de && io(l) === r.type) {
 										n(e, r.sibling), c = i(r, a.props), fo(c, a), c.return = e, e = c;
 										break a;
 									}
@@ -2769,11 +2769,11 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 							c = Wi(a, e.mode, c), c.return = e, e = c;
 						}
 						return o(e);
-					case k: return a = io(a), _(e, r, a, c);
+					case de: return a = io(a), _(e, r, a, c);
 				}
-				if (be(a)) return h(e, r, a, c);
-				if (_e(a)) {
-					if (l = _e(a), typeof l != "function") throw Error(s(150));
+				if (xe(a)) return h(e, r, a, c);
+				if (ve(a)) {
+					if (l = ve(a), typeof l != "function") throw Error(s(150));
 					return a = l.call(a), g(e, r, a, c);
 				}
 				if (typeof a.then == "function") return _(e, r, uo(a), c);
@@ -2943,7 +2943,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 		var n = e.callbacks;
 		if (n !== null) for (e.callbacks = null, e = 0; e < n.length; e++) Do(n[e], t);
 	}
-	var ko = Ce(null), Ao = Ce(0);
+	var ko = j(null), Ao = j(0);
 	function jo(e, t) {
 		e = od, N(Ao, e), N(ko, t), od = e | t.baseLanes;
 	}
@@ -2951,9 +2951,9 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 		N(Ao, od), N(ko, ko.current);
 	}
 	function No() {
-		od = Ao.current, we(ko), we(Ao);
+		od = Ao.current, M(ko), M(Ao);
 	}
-	var Po = Ce(null), Fo = null;
+	var Po = j(null), Fo = null;
 	function Io(e) {
 		var t = e.alternate;
 		N(Vo, Vo.current & 1), N(Po, e), Fo === null && (t === null || ko.current !== null || t.memoizedState !== null) && (Fo = e);
@@ -2968,14 +2968,14 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 		N(Vo, Vo.current), N(Po, Po.current);
 	}
 	function Bo(e) {
-		we(Po), Fo === e && (Fo = null), we(Vo);
+		M(Po), Fo === e && (Fo = null), M(Vo);
 	}
-	var Vo = Ce(0);
+	var Vo = j(0);
 	function Ho(e, t) {
 		N(Po, Po.current), N(Vo, t);
 	}
 	function Uo(e) {
-		we(Vo), we(Po), Fo === e && (Fo = null);
+		M(Vo), M(Po), Fo === e && (Fo = null);
 	}
 	function Wo(e) {
 		for (var t = e; t !== null;) {
@@ -3007,10 +3007,10 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 		return !0;
 	}
 	function ts(e, t, n, r, i, a) {
-		return Go = a, R = t, t.memoizedState = null, t.updateQueue = null, t.lanes = 0, A.H = e === null || e.memoizedState === null ? vc : yc, Yo = !1, a = n(r, i), Yo = !1, Jo && (a = rs(t, n, r, i)), ns(e), a;
+		return Go = a, R = t, t.memoizedState = null, t.updateQueue = null, t.lanes = 0, k.H = e === null || e.memoizedState === null ? vc : yc, Yo = !1, a = n(r, i), Yo = !1, Jo && (a = rs(t, n, r, i)), ns(e), a;
 	}
 	function ns(e) {
-		A.H = _c;
+		k.H = _c;
 		var t = z !== null && z.next !== null;
 		if (Go = 0, Ko = z = R = null, qo = !1, Zo = 0, Qo = null, t) throw Error(s(300));
 		e === null || Ic || (e = e.dependencies, e !== null && Ea(e) && (Ic = !0));
@@ -3024,12 +3024,12 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 				var a = e.updateQueue;
 				a.lastEffect = null, a.events = null, a.stores = null, a.memoCache != null && (a.memoCache.index = 0);
 			}
-			A.H = bc, a = t(n, r);
+			k.H = bc, a = t(n, r);
 		} while (Jo);
 		return a;
 	}
 	function is() {
-		var e = A.H, t = e.useState()[0];
+		var e = k.H, t = e.useState()[0];
 		return t = typeof t.then == "function" ? ds(t) : t, e = e.useState()[0], (z === null ? null : z.memoizedState) !== e && (R.flags |= 1024), t;
 	}
 	function as() {
@@ -3088,12 +3088,12 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 	}
 	function ds(e) {
 		var t = Zo;
-		return Zo += 1, Qo === null && (Qo = []), e = ro(Qo, e, t), t = R, (Ko === null ? t.memoizedState : Ko.next) === null && (t = t.alternate, A.H = t === null || t.memoizedState === null ? vc : yc), e;
+		return Zo += 1, Qo === null && (Qo = []), e = ro(Qo, e, t), t = R, (Ko === null ? t.memoizedState : Ko.next) === null && (t = t.alternate, k.H = t === null || t.memoizedState === null ? vc : yc), e;
 	}
 	function fs(e) {
 		if (typeof e == "object" && e) {
 			if (typeof e.then == "function") return ds(e);
-			if (e.$$typeof === he) return;
+			if (e.$$typeof === ge) return;
 			if (e.$$typeof === O) return Oa(e);
 		}
 		throw Error(s(438, String(e)));
@@ -3112,7 +3112,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 		if (t ??= {
 			data: [],
 			index: 0
-		}, n === null && (n = us(), R.updateQueue = n), n.memoCache = t, n = t.data[t.index], n === void 0) for (n = t.data[t.index] = Array(e), r = 0; r < e; r++) n[r] = pe;
+		}, n === null && (n = us(), R.updateQueue = n), n.memoCache = t, n = t.data[t.index], n === void 0) for (n = t.data[t.index] = Array(e), r = 0; r < e; r++) n[r] = me;
 		return t.index++, n;
 	}
 	function ms(e, t) {
@@ -3275,21 +3275,21 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 					a.listeners.push(e);
 				}
 			};
-			A.T === null ? a.isTransition = !1 : n(!0), r(a), n = t.pending, n === null ? (a.next = t.pending = a, Ds(t, a)) : (a.next = n.next, t.pending = n.next = a);
+			k.T === null ? a.isTransition = !1 : n(!0), r(a), n = t.pending, n === null ? (a.next = t.pending = a, Ds(t, a)) : (a.next = n.next, t.pending = n.next = a);
 		}
 	}
 	function Ds(e, t) {
 		var n = t.action, r = t.payload, i = e.state;
 		if (t.isTransition) {
-			var a = A.T, o = {};
-			o.types = a === null ? null : a.types, A.T = o;
+			var a = k.T, o = {};
+			o.types = a === null ? null : a.types, k.T = o;
 			try {
-				var s = n(i, r), c = A.S;
+				var s = n(i, r), c = k.S;
 				c !== null && c(o, s), Os(e, t, s);
 			} catch (n) {
 				As(e, t, n);
 			} finally {
-				a !== null && o.types !== null && (a.types = o.types), A.T = a;
+				a !== null && o.types !== null && (a.types = o.types), k.T = a;
 			}
 		} else try {
 			a = n(i, r), Os(e, t, a);
@@ -3497,12 +3497,12 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 		return Gr(n, t) ? n : ko.current === null ? !(Go & 106) || Go & 1073741824 && !(q & 261930) ? (Ic = !0, e.memoizedState = n) : (e = Md(), R.lanes |= e, sd |= e, t) : (e = $s(e, n, r), Gr(e, t) || (Ic = !0), e);
 	}
 	function tc(e, t, n, r, i) {
-		var a = j.p;
-		j.p = a !== 0 && 8 > a ? a : 8;
-		var o = A.T, s = {};
-		s.types = o === null ? null : o.types, A.T = s, pc(e, !1, t, n);
+		var a = A.p;
+		A.p = a !== 0 && 8 > a ? a : 8;
+		var o = k.T, s = {};
+		s.types = o === null ? null : o.types, k.T = s, pc(e, !1, t, n);
 		try {
-			var c = i(), l = A.S;
+			var c = i(), l = k.S;
 			l !== null && l(s, c), typeof c == "object" && c && typeof c.then == "function" ? fc(e, t, Ka(c, r), jd(e)) : fc(e, t, r, jd(e));
 		} catch (n) {
 			fc(e, t, {
@@ -3511,14 +3511,14 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 				reason: n
 			}, jd());
 		} finally {
-			j.p = a, o !== null && s.types !== null && (o.types = s.types), A.T = o;
+			A.p = a, o !== null && s.types !== null && (o.types = s.types), k.T = o;
 		}
 	}
 	function nc() {}
 	function rc(e, t, n, r) {
 		if (e.tag !== 5) throw Error(s(476));
 		var i = ic(e).queue;
-		tc(e, i, t, xe, n === null ? nc : function() {
+		tc(e, i, t, Se, n === null ? nc : function() {
 			return ac(e), n(r);
 		});
 	}
@@ -3526,15 +3526,15 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 		var t = e.memoizedState;
 		if (t !== null) return t;
 		t = {
-			memoizedState: xe,
-			baseState: xe,
+			memoizedState: Se,
+			baseState: Se,
 			baseQueue: null,
 			queue: {
 				pending: null,
 				lanes: 0,
 				dispatch: null,
 				lastRenderedReducer: ms,
-				lastRenderedState: xe
+				lastRenderedState: Se
 			},
 			next: null
 		};
@@ -4396,7 +4396,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 								break a;
 							}
 						}
-						throw t = ye(e) || e, Error(s(306, t, ""));
+						throw t = be(e) || e, Error(s(306, t, ""));
 					}
 				}
 				return t;
@@ -4685,7 +4685,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 				}
 				return V(t), null;
 			case 22:
-			case 23: return Bo(t), No(), r = t.memoizedState !== null, e === null ? r && (t.flags |= 8192) : e.memoizedState !== null !== r && (t.flags |= 8192), r ? n & 536870912 && !(t.flags & 128) && (V(t), t.subtreeFlags & 6 && (t.flags |= 8192)) : V(t), n = t.updateQueue, n !== null && yl(t, n.retryQueue), n = null, e !== null && e.memoizedState !== null && e.memoizedState.cachePool !== null && (n = e.memoizedState.cachePool.pool), r = null, t.memoizedState !== null && t.memoizedState.cachePool !== null && (r = t.memoizedState.cachePool.pool), r !== n && (t.flags |= 2048), e !== null && we(Ja), null;
+			case 23: return Bo(t), No(), r = t.memoizedState !== null, e === null ? r && (t.flags |= 8192) : e.memoizedState !== null !== r && (t.flags |= 8192), r ? n & 536870912 && !(t.flags & 128) && (V(t), t.subtreeFlags & 6 && (t.flags |= 8192)) : V(t), n = t.updateQueue, n !== null && yl(t, n.retryQueue), n = null, e !== null && e.memoizedState !== null && e.memoizedState.cachePool !== null && (n = e.memoizedState.cachePool.pool), r = null, t.memoizedState !== null && t.memoizedState.cachePool !== null && (r = t.memoizedState.cachePool.pool), r !== n && (t.flags |= 2048), e !== null && M(Ja), null;
 			case 24: return n = null, e !== null && (n = e.memoizedState.cache), t.memoizedState.cache !== n && (t.flags |= 2048), Sa(Pa), V(t), null;
 			case 25: return null;
 			case 30: return t.flags |= 33554432, V(t), null;
@@ -4715,7 +4715,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 			case 4: return Ae(), null;
 			case 10: return Sa(t.type), null;
 			case 22:
-			case 23: return Bo(t), No(), e !== null && we(Ja), e = t.flags, e & 65536 ? (t.flags = e & -65537 | 128, t) : null;
+			case 23: return Bo(t), No(), e !== null && M(Ja), e = t.flags, e & 65536 ? (t.flags = e & -65537 | 128, t) : null;
 			case 24: return Sa(Pa), null;
 			case 25: return null;
 			default: return null;
@@ -4748,7 +4748,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 				break;
 			case 22:
 			case 23:
-				Bo(t), No(), e !== null && we(Ja);
+				Bo(t), No(), e !== null && M(Ja);
 				break;
 			case 24: Sa(Pa);
 		}
@@ -6016,7 +6016,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 		}
 	}, td = typeof WeakMap == "function" ? WeakMap : Map, W = 0, G = null, K = null, q = 0, J = 0, nd = null, rd = !1, id = !1, ad = !1, od = 0, Y = 0, sd = 0, cd = 0, ld = 0, ud = 0, dd = 0, fd = null, pd = null, md = !1, hd = 0, gd = 0, _d = Infinity, vd = null, yd = null, X = 0, bd = null, xd = null, Sd = 0, Cd = 0, wd = null, Td = null, Ed = null, Dd = null, Od = null, kd = 0, Ad = null;
 	function jd() {
-		return W & 2 && q !== 0 ? q & -q : A.T === null ? Ct() : Pf();
+		return W & 2 && q !== 0 ? q & -q : k.T === null ? Ct() : Pf();
 	}
 	function Md() {
 		if (ud === 0) {
@@ -6160,19 +6160,19 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 		return n !== -1 && (e.timeoutHandle = -1, _p(n)), n = e.cancelPendingCommit, n !== null && (e.cancelPendingCommit = null, n()), Sd = 0, Bd(), G = e, K = n = Ri(e.current, null), q = t, J = 0, nd = null, rd = !1, id = dt(e, t), ad = !1, dd = ud = ld = cd = sd = Y = 0, pd = fd = null, md = !1, od = ft(e, t), Oi(), n;
 	}
 	function Hd(e, t) {
-		R = null, A.H = _c, t === Qa || t === eo ? (t = oo(), J = 3) : t === $a ? (t = oo(), J = 4) : J = t === Fc ? 8 : typeof t == "object" && t && typeof t.then == "function" ? 6 : 1, nd = t, K === null && (Y = 1, kc(e, Ki(t, e.current)));
+		R = null, k.H = _c, t === Qa || t === eo ? (t = oo(), J = 3) : t === $a ? (t = oo(), J = 4) : J = t === Fc ? 8 : typeof t == "object" && t && typeof t.then == "function" ? 6 : 1, nd = t, K === null && (Y = 1, kc(e, Ki(t, e.current)));
 	}
 	function Ud() {
 		var e = Po.current;
 		return e === null ? !0 : (q & 4194048) === q ? Fo === null : (q & 62914560) === q || q & 536870912 ? e === Fo : !1;
 	}
 	function Wd() {
-		var e = A.H;
-		return A.H = _c, e === null ? _c : e;
+		var e = k.H;
+		return k.H = _c, e === null ? _c : e;
 	}
 	function Gd() {
-		var e = A.A;
-		return A.A = ed, e;
+		var e = k.A;
+		return k.A = ed, e;
 	}
 	function Kd() {
 		Y = 4, rd || (q & 4194048) !== q && Po.current !== null || (id = !0), !(sd & 134217727) && !(cd & 134217727) || G === null || Rd(G, q, ud, !1);
@@ -6211,7 +6211,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 				Hd(e, t);
 			}
 		while (1);
-		return t && e.shellSuspendCounter++, ba = ya = null, W = r, A.H = i, A.A = a, K === null && (G = null, q = 0, Oi()), o;
+		return t && e.shellSuspendCounter++, ba = ya = null, W = r, k.H = i, k.A = a, K === null && (G = null, q = 0, Oi()), o;
 	}
 	function Jd() {
 		for (; K !== null;) Zd(K);
@@ -6284,7 +6284,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 				Hd(e, t);
 			}
 		while (1);
-		return ba = ya = null, A.H = r, A.A = i, W = n, K === null ? (G = null, q = 0, Oi(), Y) : 0;
+		return ba = ya = null, k.H = r, k.A = i, W = n, K === null ? (G = null, q = 0, Oi(), Y) : 0;
 	}
 	function Xd() {
 		for (; K !== null && !He();) Zd(K);
@@ -6378,11 +6378,11 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 		if (Cd = s, s |= Di, _t(e, n, s, r, i, a), Dd = null, (n & 335544064) === n ? (Od = za(e), r = 10262) : (Od = null, r = 10256), (t.subtreeFlags & r) !== 0 || (t.flags & r) !== 0 ? (e.callbackNode = null, e.callbackPriority = 0, yf(Je, function() {
 			return ff(), null;
 		})) : (e.callbackNode = null, e.callbackPriority = 0), Hl = !1, r = !!(t.flags & 13878), t.subtreeFlags & 13878 || r) {
-			r = A.T, A.T = null, i = j.p, j.p = 2, a = W, W |= 4;
+			r = k.T, k.T = null, i = A.p, A.p = 2, a = W, W |= 4;
 			try {
 				gu(e, t, n);
 			} finally {
-				W = a, j.p = i, A.T = r;
+				W = a, A.p = i, k.T = r;
 			}
 		}
 		X = 1, Hl ? Ed = Mp(o, e.containerInfo, Od, sf, cf, of, lf, ff, af, null, null) : (sf(), cf(), lf());
@@ -6401,9 +6401,9 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 			X = 0;
 			var e = bd, t = xd, n = Sd, r = !!(t.flags & 13878);
 			if (t.subtreeFlags & 13878 || r) {
-				r = A.T, A.T = null;
-				var i = j.p;
-				j.p = 2;
+				r = k.T, k.T = null;
+				var i = A.p;
+				A.p = 2;
 				var a = W;
 				W |= 4;
 				try {
@@ -6438,7 +6438,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 					}
 					gh = !!sp, cp = sp = null;
 				} finally {
-					W = a, j.p = i, A.T = r;
+					W = a, A.p = i, k.T = r;
 				}
 			}
 			e.current = t, X = 2;
@@ -6449,15 +6449,15 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 			X = 0;
 			var e = bd, t = xd, n = !!(t.flags & 8772);
 			if (t.subtreeFlags & 8772 || n) {
-				n = A.T, A.T = null;
-				var r = j.p;
-				j.p = 2;
+				n = k.T, k.T = null;
+				var r = A.p;
+				A.p = 2;
 				var i = W;
 				W |= 4;
 				try {
 					vu(e, t.alternate, t);
 				} finally {
-					W = i, j.p = r, A.T = n;
+					W = i, A.p = r, k.T = n;
 				}
 			}
 			X = 3;
@@ -6473,14 +6473,14 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 				et.onCommitFiberRoot($e, n, void 0, (n.current.flags & 128) == 128);
 			} catch {}
 			if (i !== null) {
-				n = A.T, a = j.p, j.p = 2, A.T = null;
+				n = k.T, a = A.p, A.p = 2, k.T = null;
 				try {
 					for (var o = t.onRecoverableError, s = 0; s < i.length; s++) {
 						var c = i[s];
 						o(c.value, { componentStack: c.stack });
 					}
 				} finally {
-					A.T = n, j.p = a;
+					k.T = n, A.p = a;
 				}
 			}
 			if (i = Dd, o = Od, Od = null, i !== null && (Dd = null, o === null && (o = []), e !== null)) for (c = 0; c < i.length; c++) n = (0, i[c])(o), n !== void 0 && e.finished.finally(n);
@@ -6497,9 +6497,9 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 		if (X !== 5) return !1;
 		var e = bd, t = Cd;
 		Cd = 0;
-		var n = St(Sd), r = A.T, i = j.p;
+		var n = St(Sd), r = k.T, i = A.p;
 		try {
-			j.p = 32 > n ? 32 : n, A.T = null, n = wd, wd = null;
+			A.p = 32 > n ? 32 : n, k.T = null, n = wd, wd = null;
 			var a = bd, o = Sd;
 			if (X = 0, xd = bd = null, Sd = 0, W & 6) throw Error(s(331));
 			var c = W;
@@ -6508,7 +6508,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 			} catch {}
 			return !0;
 		} finally {
-			j.p = i, A.T = r, uf(e, t);
+			A.p = i, k.T = r, uf(e, t);
 		}
 	}
 	function pf(e, t, n) {
@@ -8176,8 +8176,8 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 		}
 		return e.nodeType === 9 ? e : e.ownerDocument;
 	}
-	var xm = j.d;
-	j.d = {
+	var xm = A.d;
+	A.d = {
 		f: Sm,
 		r: Cm,
 		D: Em,
@@ -8595,8 +8595,8 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 		$$typeof: O,
 		Provider: null,
 		Consumer: null,
-		_currentValue: xe,
-		_currentValue2: xe,
+		_currentValue: Se,
+		_currentValue2: Se,
 		_threadCount: 0
 	};
 	function ch(e, t, n, r, i, a, o, s, c) {
@@ -8640,23 +8640,23 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 	}
 	var gh = !0;
 	function _h(e, t, n, r) {
-		var i = A.T;
-		A.T = null;
-		var a = j.p;
+		var i = k.T;
+		k.T = null;
+		var a = A.p;
 		try {
-			j.p = 2, yh(e, t, n, r);
+			A.p = 2, yh(e, t, n, r);
 		} finally {
-			j.p = a, A.T = i;
+			A.p = a, k.T = i;
 		}
 	}
 	function vh(e, t, n, r) {
-		var i = A.T;
-		A.T = null;
-		var a = j.p;
+		var i = k.T;
+		k.T = null;
+		var a = A.p;
 		try {
-			j.p = 8, yh(e, t, n, r);
+			A.p = 8, yh(e, t, n, r);
 		} finally {
-			j.p = a, A.T = i;
+			A.p = a, k.T = i;
 		}
 	}
 	function yh(e, t, n, r) {
@@ -9001,7 +9001,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 	};
 	var Kh = r.version;
 	if (Kh !== "19.3.1") throw Error(s(527, Kh, "19.3.1"));
-	j.findDOMNode = function(e) {
+	A.findDOMNode = function(e) {
 		var t = e._reactInternals;
 		if (t === void 0) throw typeof e.render == "function" ? Error(s(188)) : (e = Object.keys(e).join(","), Error(s(268, e)));
 		return e = p(t), e = e === null ? null : m(e), e = e === null ? null : e.stateNode, e;
@@ -9010,7 +9010,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e
 		bundleType: 0,
 		version: "19.3.1",
 		rendererPackageName: "react-dom",
-		currentDispatcherRef: A,
+		currentDispatcherRef: k,
 		reconcilerVersion: "19.3.1"
 	};
 	if (typeof __REACT_DEVTOOLS_GLOBAL_HOOK__ < "u") {
@@ -9353,7 +9353,11 @@ function E({ title: e, onClose: t, children: n, className: r = "" }) {
 		onCancel: (e) => {
 			e.preventDefault(), t();
 		},
-		onClose: t,
+		onClose: () => {
+			t(), window.setTimeout(() => {
+				i.current && !i.current.open && i.current.showModal();
+			});
+		},
 		children: [/* @__PURE__ */ (0, x.jsxs)("div", {
 			className: "dialog-heading",
 			children: [/* @__PURE__ */ (0, x.jsx)("h2", {
@@ -9376,15 +9380,15 @@ var te = 50, ne = [
 	"Succeeded",
 	"Failed",
 	"Unknown"
-];
-function re({ status: e }) {
+], re = ["Succeeded", "Failed"];
+function ie({ status: e }) {
 	let t = ne.includes(e) ? e.toLowerCase() : "unknown";
 	return /* @__PURE__ */ (0, x.jsxs)("span", {
 		className: `status-badge status-${t}`,
 		children: [/* @__PURE__ */ (0, x.jsx)("span", { className: "status-dot" }), e || "Unknown"]
 	});
 }
-function ie(e) {
+function ae(e) {
 	if (!e) return "—";
 	let t = new Date(e);
 	return Number.isNaN(t.getTime()) ? "—" : t.toLocaleString(void 0, {
@@ -9394,7 +9398,7 @@ function ie(e) {
 		minute: "2-digit"
 	});
 }
-function ae({ app: e, config: t, transport: n, onOpenLogs: r }) {
+function oe({ app: e, config: t, transport: n, onOpenLogs: r }) {
 	let i = n.sparkUiUrl ? n.sparkUiUrl(e) : p(t, e), a = n.historyUrl ? n.historyUrl(e) : m(t, e), o = `${e.name || e.app_id} (${e.app_id})`;
 	return /* @__PURE__ */ (0, x.jsxs)("div", {
 		className: "app-links",
@@ -9434,13 +9438,13 @@ function ae({ app: e, config: t, transport: n, onOpenLogs: r }) {
 		]
 	});
 }
-function oe({ restoreLogsFor: e, onFocusRestored: t, config: n, transport: r, namespaceEditable: i, onOpenLogs: a, onNamespaceChange: o }) {
-	let s = (0, l.useRef)(null), c = n.namespace, [u, d] = (0, l.useState)(n.namespace), [f, p] = (0, l.useState)([]), [m, g] = (0, l.useState)([]), [_, b] = (0, l.useState)(null), [w, ee] = (0, l.useState)(!0), [oe, D] = (0, l.useState)(!1), [O, se] = (0, l.useState)(!1), [ce, le] = (0, l.useState)(n.historyEnabled), [ue, k] = (0, l.useState)(null), [de, fe] = (0, l.useState)(null), [pe, me] = (0, l.useState)(""), [he, ge] = (0, l.useState)("all"), [_e, ve] = (0, l.useState)(Math.max(0, n.refreshInterval)), [ye, be] = (0, l.useState)(null), [A, j] = (0, l.useState)(null), [xe, Se] = (0, l.useState)(null), [M, Ce] = (0, l.useState)(null), [we, N] = (0, l.useState)(!1), [Te, Ee] = (0, l.useState)(null), [De, Oe] = (0, l.useState)(null), ke = (0, l.useRef)(null), Ae = (0, l.useRef)(null), je = (0, l.useRef)(0), Me = (0, l.useRef)(!1), Ne = (0, l.useCallback)(async (e = !1, t) => {
-		ke.current?.abort();
+function D({ restoreLogsFor: e, onFocusRestored: t, config: n, transport: r, namespaceEditable: i, onOpenLogs: a, onNamespaceChange: o }) {
+	let s = (0, l.useRef)(null), c = n.namespace, [u, d] = (0, l.useState)(n.namespace), [f, p] = (0, l.useState)([]), [m, g] = (0, l.useState)([]), [_, b] = (0, l.useState)(null), [w, ee] = (0, l.useState)(!0), [D, O] = (0, l.useState)(!1), [se, ce] = (0, l.useState)(!1), [le, ue] = (0, l.useState)(n.historyEnabled), [de, fe] = (0, l.useState)(null), [pe, me] = (0, l.useState)(null), [he, ge] = (0, l.useState)(""), [_e, ve] = (0, l.useState)("all"), [ye, be] = (0, l.useState)(Math.max(0, n.refreshInterval)), [xe, k] = (0, l.useState)(null), [A, Se] = (0, l.useState)(null), [Ce, we] = (0, l.useState)(null), [j, M] = (0, l.useState)(null), [N, Te] = (0, l.useState)(!1), [Ee, De] = (0, l.useState)(null), [Oe, ke] = (0, l.useState)(null), Ae = (0, l.useRef)(null), je = (0, l.useRef)(null), Me = (0, l.useRef)(0), Ne = (0, l.useRef)(!1), Pe = (0, l.useRef)(!1), Fe = (0, l.useCallback)(async (e = !1, t) => {
+		Ae.current?.abort();
 		let n = new AbortController();
-		ke.current = n, Me.current = !0, e ? se(!0) : D(!0), k(null);
+		Ae.current = n, Ne.current = !0, e ? ce(!0) : O(!0), fe(null);
 		try {
-			let i = [], a = t, o = e ? te : Math.max(te, je.current), s = /* @__PURE__ */ new Set(), l = null;
+			let i = [], a = t, o = e ? te : Math.max(te, Me.current), s = /* @__PURE__ */ new Set(), l = null;
 			do {
 				let t = await r.listApps({
 					namespace: c,
@@ -9455,100 +9459,103 @@ function oe({ restoreLogsFor: e, onFocusRestored: t, config: n, transport: r, na
 			if (n.signal.aborted) return;
 			p((t) => {
 				let n = [...new Map((e ? [...t, ...i] : i).map((e) => [e.app_id, e])).values()];
-				return je.current = n.length, n;
-			}), b(l), be(/* @__PURE__ */ new Date());
+				return Me.current = n.length, n;
+			}), b(l), k(/* @__PURE__ */ new Date());
 		} catch (e) {
-			n.signal.aborted || k(h(e));
+			n.signal.aborted || fe(h(e));
 		} finally {
-			ke.current === n && !n.signal.aborted && (Me.current = !1, ee(!1), D(!1), se(!1));
+			Ae.current === n && !n.signal.aborted && (Ne.current = !1, ee(!1), O(!1), ce(!1));
 		}
-	}, [c, r]), Pe = (0, l.useCallback)(async () => {
-		if (Ae.current?.abort(), !n.historyEnabled) {
-			g([]), le(!1);
+	}, [c, r]), Ie = (0, l.useCallback)(async () => {
+		if (je.current?.abort(), !n.historyEnabled) {
+			g([]), ue(!1);
 			return;
 		}
 		let e = new AbortController();
-		Ae.current = e, le(!0), fe(null);
+		je.current = e, Pe.current = !0, ue(!0), me(null);
 		try {
 			let t = await r.listHistory({ signal: e.signal });
-			e.signal.aborted || (g(t), j(/* @__PURE__ */ new Date()));
+			e.signal.aborted || (g(t), Se(/* @__PURE__ */ new Date()));
 		} catch (t) {
-			e.signal.aborted || fe(h(t));
+			e.signal.aborted || me(h(t));
 		} finally {
-			e.signal.aborted || le(!1);
+			je.current === e && (Pe.current = !1), e.signal.aborted || ue(!1);
 		}
 	}, [n.historyEnabled, r]);
 	(0, l.useEffect)(() => {
 		d(n.namespace);
-	}, [n.namespace]), (0, l.useEffect)(() => (je.current = 0, p([]), b(null), Se(null), be(null), ee(!0), Ne(), () => ke.current?.abort()), [Ne]), (0, l.useEffect)(() => (Pe(), () => Ae.current?.abort()), [Pe]), (0, l.useEffect)(() => {
-		if (!_e || xe || M) return;
+	}, [n.namespace]), (0, l.useEffect)(() => (Me.current = 0, p([]), b(null), we(null), k(null), ee(!0), Fe(), () => Ae.current?.abort()), [Fe]), (0, l.useEffect)(() => (Ie(), () => je.current?.abort()), [Ie]);
+	let Le = !!n.stopRefreshWhenFinished && f.length > 0 && f.every((e) => re.includes(e.status));
+	(0, l.useEffect)(() => {
+		if (!ye || Ce || j || Le) return;
 		let e = window.setInterval(() => {
-			!document.hidden && !Me.current && (Ne(), Pe());
-		}, _e * 1e3);
+			!document.hidden && !Ne.current && (Fe(), Pe.current || Ie());
+		}, ye * 1e3);
 		return () => window.clearInterval(e);
 	}, [
-		_e,
-		Ne,
-		Pe,
-		xe,
-		M
+		ye,
+		Fe,
+		Ie,
+		Ce,
+		j,
+		Le
 	]), (0, l.useEffect)(() => {
 		if (!e || w) return;
 		let n = Array.from(s.current?.querySelectorAll("[data-app-logs]") ?? []).find((t) => t.dataset.appLogs === e);
-		n ? n.focus() : (s.current?.querySelector("h1")?.focus(), Oe("The previous application's Logs control is unavailable. Applications are shown.")), t?.();
+		n ? n.focus() : (s.current?.querySelector("h1")?.focus(), ke("The previous application's Logs control is unavailable. Applications are shown.")), t?.();
 	}, [
 		e,
 		w,
 		t
 	]);
-	let Fe = (0, l.useMemo)(() => v(f, m), [f, m]), Ie = (0, l.useMemo)(() => {
-		let e = pe.trim().toLowerCase();
-		return Fe.filter((t) => (he === "all" || t.status === he) && (!e || [
+	let Re = (0, l.useMemo)(() => v(f, m), [f, m]), ze = (0, l.useMemo)(() => {
+		let e = he.trim().toLowerCase();
+		return Re.filter((t) => (_e === "all" || t.status === _e) && (!e || [
 			t.app_id,
 			t.name,
 			t.driver_pod,
 			t.image
 		].some((t) => t?.toLowerCase().includes(e))));
 	}, [
-		Fe,
-		pe,
-		he
-	]), P = Fe.find((e) => e.app_id === xe);
+		Re,
+		he,
+		_e
+	]), P = Re.find((e) => e.app_id === Ce);
 	(0, l.useEffect)(() => {
-		P || !xe || w || oe || ce || (Se(null), s.current?.querySelector("h1")?.focus(), Oe("The selected application is no longer listed. Its details were closed."));
+		P || !Ce || w || D || le || (we(null), s.current?.querySelector("h1")?.focus(), ke("The selected application is no longer listed. Its details were closed."));
 	}, [
-		xe,
+		Ce,
 		P,
 		w,
-		oe,
-		ce
+		D,
+		le
 	]);
-	let Le = Fe.filter((e) => e.status === "Running").length, Re = Fe.filter((e) => e.status === "Pending").length, ze = Fe.filter((e) => e.status === "Failed").length, Be = [.../* @__PURE__ */ new Set([
+	let Be = Re.filter((e) => e.status === "Running").length, Ve = Re.filter((e) => e.status === "Pending").length, He = Re.filter((e) => e.status === "Failed").length, Ue = [.../* @__PURE__ */ new Set([
 		0,
 		5,
 		10,
 		30,
 		60,
-		_e
+		ye
 	])].sort((e, t) => e - t);
-	async function Ve() {
-		if (M?.app.namespace && y(M.app)) {
-			N(!0), Ee(null);
+	async function We() {
+		if (j?.app.namespace && y(j.app)) {
+			Te(!0), De(null);
 			try {
-				let { app: e, action: t } = M;
-				t === "kill" ? await r.killApp(e.namespace, e.app_id) : await r.deleteApp(e.namespace, e.app_id), Oe(t === "kill" ? `Stop requested for ${e.name || e.app_id}.` : `Deletion requested for ${e.name || e.app_id}.`), Ce(null), t === "delete" && Se(null), Ne();
+				let { app: e, action: t } = j;
+				t === "kill" ? await r.killApp(e.namespace, e.app_id) : await r.deleteApp(e.namespace, e.app_id), ke(t === "kill" ? `Stop requested for ${e.name || e.app_id}.` : `Deletion requested for ${e.name || e.app_id}.`), M(null), t === "delete" && we(null), Fe();
 			} catch (e) {
-				Ee(h(e));
+				De(h(e));
 			} finally {
-				N(!1);
+				Te(!1);
 			}
 		}
 	}
-	function He(e, t) {
-		Ee(null), Ce({
+	function Ge(e, t) {
+		De(null), M({
 			app: e,
 			action: t,
-			fetchedAt: e.source === "history" ? A : ye
+			fetchedAt: e.source === "history" ? A : xe
 		});
 	}
 	return /* @__PURE__ */ (0, x.jsxs)("div", {
@@ -9575,14 +9582,14 @@ function oe({ restoreLogsFor: e, onFocusRestored: t, config: n, transport: r, na
 				] }), /* @__PURE__ */ (0, x.jsxs)("button", {
 					type: "button",
 					className: "button button-secondary refresh-button",
-					disabled: oe || O,
+					disabled: D || se,
 					onClick: () => {
-						Ne(), Pe();
+						Fe(), Ie();
 					},
 					children: [/* @__PURE__ */ (0, x.jsx)(T, {
 						name: "refresh",
-						className: oe ? "spinning" : ""
-					}), oe && !w ? "Refreshing…" : "Refresh"]
+						className: D ? "spinning" : ""
+					}), D && !w ? "Refreshing…" : "Refresh"]
 				})]
 			}),
 			/* @__PURE__ */ (0, x.jsxs)("div", {
@@ -9636,20 +9643,20 @@ function oe({ restoreLogsFor: e, onFocusRestored: t, config: n, transport: r, na
 						"Namespace ",
 						/* @__PURE__ */ (0, x.jsx)("strong", { children: c })
 					]
-				}), /* @__PURE__ */ (0, x.jsxs)("div", {
+				}), /* @__PURE__ */ (0, x.jsx)("div", {
 					className: "refresh-settings",
-					children: [/* @__PURE__ */ (0, x.jsx)("label", {
+					children: Le ? /* @__PURE__ */ (0, x.jsx)("span", { children: "Auto-refresh ended" }) : /* @__PURE__ */ (0, x.jsxs)(x.Fragment, { children: [/* @__PURE__ */ (0, x.jsx)("label", {
 						htmlFor: "console-refresh",
 						children: "Auto-refresh"
 					}), /* @__PURE__ */ (0, x.jsx)("select", {
 						id: "console-refresh",
-						value: _e,
-						onChange: (e) => ve(Number(e.target.value)),
-						children: Be.map((e) => /* @__PURE__ */ (0, x.jsx)("option", {
+						value: ye,
+						onChange: (e) => be(Number(e.target.value)),
+						children: Ue.map((e) => /* @__PURE__ */ (0, x.jsx)("option", {
 							value: e,
 							children: e ? `Every ${e}s` : "Off"
 						}, e))
-					})]
+					})] })
 				})]
 			}),
 			/* @__PURE__ */ (0, x.jsxs)("section", {
@@ -9663,7 +9670,7 @@ function oe({ restoreLogsFor: e, onFocusRestored: t, config: n, transport: r, na
 								className: "stat-label",
 								children: ["Loaded applications", /* @__PURE__ */ (0, x.jsx)(T, { name: "layers" })]
 							}),
-							/* @__PURE__ */ (0, x.jsx)("strong", { children: w ? "—" : Fe.length }),
+							/* @__PURE__ */ (0, x.jsx)("strong", { children: w ? "—" : Re.length }),
 							/* @__PURE__ */ (0, x.jsxs)("span", {
 								className: "stat-note",
 								children: ["Across loaded pages", n.historyEnabled ? " and history" : ""]
@@ -9677,7 +9684,7 @@ function oe({ restoreLogsFor: e, onFocusRestored: t, config: n, transport: r, na
 								className: "stat-label",
 								children: ["Running", /* @__PURE__ */ (0, x.jsx)("span", { className: "stat-marker marker-running" })]
 							}),
-							/* @__PURE__ */ (0, x.jsx)("strong", { children: w ? "—" : Le }),
+							/* @__PURE__ */ (0, x.jsx)("strong", { children: w ? "—" : Be }),
 							/* @__PURE__ */ (0, x.jsx)("span", {
 								className: "stat-note",
 								children: "Currently processing"
@@ -9691,7 +9698,7 @@ function oe({ restoreLogsFor: e, onFocusRestored: t, config: n, transport: r, na
 								className: "stat-label",
 								children: ["Pending", /* @__PURE__ */ (0, x.jsx)("span", { className: "stat-marker marker-pending" })]
 							}),
-							/* @__PURE__ */ (0, x.jsx)("strong", { children: w ? "—" : Re }),
+							/* @__PURE__ */ (0, x.jsx)("strong", { children: w ? "—" : Ve }),
 							/* @__PURE__ */ (0, x.jsx)("span", {
 								className: "stat-note",
 								children: "Waiting to start"
@@ -9705,7 +9712,7 @@ function oe({ restoreLogsFor: e, onFocusRestored: t, config: n, transport: r, na
 								className: "stat-label",
 								children: ["Failed", /* @__PURE__ */ (0, x.jsx)("span", { className: "stat-marker marker-failed" })]
 							}),
-							/* @__PURE__ */ (0, x.jsx)("strong", { children: w ? "—" : ze }),
+							/* @__PURE__ */ (0, x.jsx)("strong", { children: w ? "—" : He }),
 							/* @__PURE__ */ (0, x.jsx)("span", {
 								className: "stat-note",
 								children: "May need your attention"
@@ -9714,21 +9721,26 @@ function oe({ restoreLogsFor: e, onFocusRestored: t, config: n, transport: r, na
 					})
 				]
 			}),
-			De && /* @__PURE__ */ (0, x.jsxs)("div", {
+			Le && /* @__PURE__ */ (0, x.jsxs)("div", {
+				className: "notice notice-info",
+				role: "status",
+				children: [/* @__PURE__ */ (0, x.jsx)(T, { name: "clock" }), /* @__PURE__ */ (0, x.jsxs)("span", { children: [/* @__PURE__ */ (0, x.jsx)("strong", { children: "Live refresh ended." }), " The application has finished, so this view no longer updates automatically. Use Refresh to check its latest state."] })]
+			}),
+			Oe && /* @__PURE__ */ (0, x.jsxs)("div", {
 				className: "notice notice-success",
 				role: "status",
 				children: [
 					/* @__PURE__ */ (0, x.jsx)(T, { name: "check" }),
-					/* @__PURE__ */ (0, x.jsx)("span", { children: De }),
+					/* @__PURE__ */ (0, x.jsx)("span", { children: Oe }),
 					/* @__PURE__ */ (0, x.jsx)("button", {
 						className: "icon-button",
 						"aria-label": "Dismiss notification",
-						onClick: () => Oe(null),
+						onClick: () => ke(null),
 						children: /* @__PURE__ */ (0, x.jsx)(T, { name: "close" })
 					})
 				]
 			}),
-			ue && /* @__PURE__ */ (0, x.jsxs)("div", {
+			de && /* @__PURE__ */ (0, x.jsxs)("div", {
 				className: "notice notice-error",
 				role: "alert",
 				children: [
@@ -9736,16 +9748,16 @@ function oe({ restoreLogsFor: e, onFocusRestored: t, config: n, transport: r, na
 					/* @__PURE__ */ (0, x.jsxs)("span", { children: [
 						/* @__PURE__ */ (0, x.jsx)("strong", { children: "Applications could not be refreshed." }),
 						" ",
-						ue
+						de
 					] }),
 					/* @__PURE__ */ (0, x.jsx)("button", {
 						className: "text-link",
-						onClick: () => void Ne(),
+						onClick: () => void Fe(),
 						children: "Try again"
 					})
 				]
 			}),
-			de && /* @__PURE__ */ (0, x.jsxs)("div", {
+			pe && /* @__PURE__ */ (0, x.jsxs)("div", {
 				className: "notice notice-warning",
 				role: "status",
 				children: [
@@ -9753,11 +9765,11 @@ function oe({ restoreLogsFor: e, onFocusRestored: t, config: n, transport: r, na
 					/* @__PURE__ */ (0, x.jsxs)("span", { children: [
 						/* @__PURE__ */ (0, x.jsx)("strong", { children: "History is unavailable." }),
 						" Live applications are still shown. ",
-						de
+						pe
 					] }),
 					/* @__PURE__ */ (0, x.jsx)("button", {
 						className: "text-link",
-						onClick: () => void Pe(),
+						onClick: () => void Ie(),
 						children: "Retry history"
 					})
 				]
@@ -9772,7 +9784,7 @@ function oe({ restoreLogsFor: e, onFocusRestored: t, config: n, transport: r, na
 							className: "section-title",
 							children: [/* @__PURE__ */ (0, x.jsx)("h2", { children: "Workloads" }), /* @__PURE__ */ (0, x.jsxs)("span", {
 								className: "count-pill",
-								children: [Fe.length, " loaded"]
+								children: [Re.length, " loaded"]
 							})]
 						}), /* @__PURE__ */ (0, x.jsxs)("div", {
 							className: "table-filters",
@@ -9787,8 +9799,8 @@ function oe({ restoreLogsFor: e, onFocusRestored: t, config: n, transport: r, na
 									/* @__PURE__ */ (0, x.jsx)("input", {
 										type: "search",
 										placeholder: "Search applications…",
-										value: pe,
-										onChange: (e) => me(e.target.value)
+										value: he,
+										onChange: (e) => ge(e.target.value)
 									})
 								]
 							}), /* @__PURE__ */ (0, x.jsxs)("label", {
@@ -9797,8 +9809,8 @@ function oe({ restoreLogsFor: e, onFocusRestored: t, config: n, transport: r, na
 									className: "sr-only",
 									children: "Filter by status"
 								}), /* @__PURE__ */ (0, x.jsxs)("select", {
-									value: he,
-									onChange: (e) => ge(e.target.value),
+									value: _e,
+									onChange: (e) => ve(e.target.value),
 									children: [/* @__PURE__ */ (0, x.jsx)("option", {
 										value: "all",
 										children: "All statuses"
@@ -9822,19 +9834,19 @@ function oe({ restoreLogsFor: e, onFocusRestored: t, config: n, transport: r, na
 								"."
 							] })
 						]
-					}) : Ie.length === 0 ? /* @__PURE__ */ (0, x.jsxs)("div", {
+					}) : ze.length === 0 ? /* @__PURE__ */ (0, x.jsxs)("div", {
 						className: "empty-state",
 						children: [
 							/* @__PURE__ */ (0, x.jsx)("div", {
 								className: "empty-icon",
-								children: /* @__PURE__ */ (0, x.jsx)(T, { name: pe || he !== "all" ? "search" : "layers" })
+								children: /* @__PURE__ */ (0, x.jsx)(T, { name: he || _e !== "all" ? "search" : "layers" })
 							}),
-							/* @__PURE__ */ (0, x.jsx)("h3", { children: pe || he !== "all" ? "No matching applications" : ue ? "Applications are unavailable" : "A little quiet here" }),
-							/* @__PURE__ */ (0, x.jsx)("p", { children: pe || he !== "all" ? "Try a different search or status. Filters apply to loaded applications." : ue ? "Try refreshing the list when the connection is available." : `No applications have been found in ${c}${n.historyEnabled ? " or the loaded history" : ""}.` }),
-							(pe || he !== "all") && /* @__PURE__ */ (0, x.jsx)("button", {
+							/* @__PURE__ */ (0, x.jsx)("h3", { children: he || _e !== "all" ? "No matching applications" : de ? "Applications are unavailable" : "A little quiet here" }),
+							/* @__PURE__ */ (0, x.jsx)("p", { children: he || _e !== "all" ? "Try a different search or status. Filters apply to loaded applications." : de ? "Try refreshing the list when the connection is available." : `No applications have been found in ${c}${n.historyEnabled ? " or the loaded history" : ""}.` }),
+							(he || _e !== "all") && /* @__PURE__ */ (0, x.jsx)("button", {
 								className: "button button-secondary",
 								onClick: () => {
-									me(""), ge("all");
+									ge(""), ve("all");
 								},
 								children: "Clear filters"
 							})
@@ -9883,10 +9895,10 @@ function oe({ restoreLogsFor: e, onFocusRestored: t, config: n, transport: r, na
 										})
 									})
 								] }) }),
-								/* @__PURE__ */ (0, x.jsx)("tbody", { children: Ie.map((e) => /* @__PURE__ */ (0, x.jsxs)("tr", { children: [
+								/* @__PURE__ */ (0, x.jsx)("tbody", { children: ze.map((e) => /* @__PURE__ */ (0, x.jsxs)("tr", { children: [
 									/* @__PURE__ */ (0, x.jsxs)("td", { children: [/* @__PURE__ */ (0, x.jsx)("button", {
 										className: "application-name",
-										onClick: () => Se(e.app_id),
+										onClick: () => we(e.app_id),
 										children: e.name || e.app_id
 									}), /* @__PURE__ */ (0, x.jsxs)("div", {
 										className: "application-meta",
@@ -9899,13 +9911,13 @@ function oe({ restoreLogsFor: e, onFocusRestored: t, config: n, transport: r, na
 											children: n.embedded ? "Driver removed · task reference" : "Archived · namespace unknown"
 										})]
 									})] }),
-									/* @__PURE__ */ (0, x.jsx)("td", { children: /* @__PURE__ */ (0, x.jsx)(re, { status: e.status }) }),
+									/* @__PURE__ */ (0, x.jsx)("td", { children: /* @__PURE__ */ (0, x.jsx)(ie, { status: e.status }) }),
 									/* @__PURE__ */ (0, x.jsx)("td", {
 										className: "column-created",
 										children: /* @__PURE__ */ (0, x.jsx)("time", {
 											dateTime: e.created_at || void 0,
 											title: e.created_at || void 0,
-											children: ie(e.created_at)
+											children: ae(e.created_at)
 										})
 									}),
 									/* @__PURE__ */ (0, x.jsxs)("td", {
@@ -9919,7 +9931,7 @@ function oe({ restoreLogsFor: e, onFocusRestored: t, config: n, transport: r, na
 											children: e.spark_version ? `Spark ${e.spark_version}` : e.source === "history" ? n.embedded ? "Task reference" : "History server" : "Kubernetes"
 										})]
 									}),
-									/* @__PURE__ */ (0, x.jsx)("td", { children: /* @__PURE__ */ (0, x.jsx)(ae, {
+									/* @__PURE__ */ (0, x.jsx)("td", { children: /* @__PURE__ */ (0, x.jsx)(oe, {
 										app: e,
 										config: n,
 										transport: r,
@@ -9928,7 +9940,7 @@ function oe({ restoreLogsFor: e, onFocusRestored: t, config: n, transport: r, na
 									/* @__PURE__ */ (0, x.jsx)("td", { children: /* @__PURE__ */ (0, x.jsx)("button", {
 										className: "icon-button",
 										"aria-label": `View details for ${e.name || e.app_id}`,
-										onClick: () => Se(e.app_id),
+										onClick: () => we(e.app_id),
 										children: /* @__PURE__ */ (0, x.jsx)(T, { name: "arrow" })
 									}) })
 								] }, e.app_id)) })
@@ -9937,11 +9949,11 @@ function oe({ restoreLogsFor: e, onFocusRestored: t, config: n, transport: r, na
 					}),
 					/* @__PURE__ */ (0, x.jsxs)("div", {
 						className: "table-footer",
-						children: [/* @__PURE__ */ (0, x.jsxs)("span", { children: [w ? "Loading…" : `Showing ${Ie.length} of ${Fe.length} loaded applications`, ce && !w ? " · Loading history…" : ""] }), _ && /* @__PURE__ */ (0, x.jsxs)("button", {
+						children: [/* @__PURE__ */ (0, x.jsxs)("span", { children: [w ? "Loading…" : `Showing ${ze.length} of ${Re.length} loaded applications`, le && !w ? " · Loading history…" : ""] }), _ && /* @__PURE__ */ (0, x.jsxs)("button", {
 							className: "button button-secondary button-small",
-							disabled: O || oe,
-							onClick: () => void Ne(!0, _),
-							children: [O ? "Loading…" : "Load more", /* @__PURE__ */ (0, x.jsx)(T, { name: "arrow" })]
+							disabled: se || D,
+							onClick: () => void Fe(!0, _),
+							children: [se ? "Loading…" : "Load more", /* @__PURE__ */ (0, x.jsx)(T, { name: "arrow" })]
 						})]
 					})
 				]
@@ -9949,17 +9961,17 @@ function oe({ restoreLogsFor: e, onFocusRestored: t, config: n, transport: r, na
 			/* @__PURE__ */ (0, x.jsxs)("div", {
 				className: "page-footnote",
 				children: [/* @__PURE__ */ (0, x.jsxs)("span", { children: [/* @__PURE__ */ (0, x.jsx)(T, { name: "clock" }), /* @__PURE__ */ (0, x.jsx)(S, {
-					fetchedAt: ye,
+					fetchedAt: xe,
 					label: "Application list"
 				})] }), /* @__PURE__ */ (0, x.jsx)("span", { children: "Counts reflect loaded applications, not the entire cluster." })]
 			}),
-			P && !M && /* @__PURE__ */ (0, x.jsxs)(E, {
+			P && !j && /* @__PURE__ */ (0, x.jsxs)(E, {
 				title: P.name || P.app_id,
-				onClose: () => Se(null),
+				onClose: () => we(null),
 				children: [
 					/* @__PURE__ */ (0, x.jsxs)("div", {
 						className: "detail-summary",
-						children: [/* @__PURE__ */ (0, x.jsx)(re, { status: P.status }), /* @__PURE__ */ (0, x.jsx)("span", {
+						children: [/* @__PURE__ */ (0, x.jsx)(ie, { status: P.status }), /* @__PURE__ */ (0, x.jsx)("span", {
 							className: "source-label",
 							children: P.source === "history" ? n.embedded ? "Driver removed · task reference" : "Archived application" : "Kubernetes application"
 						})]
@@ -9968,22 +9980,22 @@ function oe({ restoreLogsFor: e, onFocusRestored: t, config: n, transport: r, na
 						className: "muted",
 						children: [
 							/* @__PURE__ */ (0, x.jsx)(S, {
-								fetchedAt: P.source === "history" ? A : ye,
+								fetchedAt: P.source === "history" ? A : xe,
 								label: "Application snapshot"
 							}),
 							" ",
-							_e > 0 ? "Auto-refresh paused while details are open." : "Auto-refresh is off."
+							Le ? "Auto-refresh ended because the application finished." : ye > 0 ? "Auto-refresh paused while details are open." : "Auto-refresh is off."
 						]
 					}),
 					/* @__PURE__ */ (0, x.jsx)("button", {
 						className: "button button-secondary",
-						"aria-disabled": oe || ce,
+						"aria-disabled": D || le,
 						onClick: () => {
-							oe || ce || (Ne(), Pe());
+							D || le || (Fe(), Ie());
 						},
 						children: "Refresh application snapshot"
 					}),
-					(P.source === "history" ? de : ue) && /* @__PURE__ */ (0, x.jsx)("p", {
+					(P.source === "history" ? pe : de) && /* @__PURE__ */ (0, x.jsx)("p", {
 						role: "alert",
 						children: "Snapshot refresh failed. Previous application data is still shown."
 					}),
@@ -9992,7 +10004,7 @@ function oe({ restoreLogsFor: e, onFocusRestored: t, config: n, transport: r, na
 						children: [
 							["Application ID", P.app_id],
 							["Namespace", P.namespace || "Unknown · archived application"],
-							["Created", ie(P.created_at)],
+							["Created", ae(P.created_at)],
 							["Driver pod", P.driver_pod],
 							["Image", P.image],
 							["Spark version", P.spark_version],
@@ -10001,7 +10013,7 @@ function oe({ restoreLogsFor: e, onFocusRestored: t, config: n, transport: r, na
 					}),
 					/* @__PURE__ */ (0, x.jsx)("div", {
 						className: "detail-links",
-						children: /* @__PURE__ */ (0, x.jsx)(ae, {
+						children: /* @__PURE__ */ (0, x.jsx)(oe, {
 							app: P,
 							config: n,
 							transport: r,
@@ -10016,48 +10028,48 @@ function oe({ restoreLogsFor: e, onFocusRestored: t, config: n, transport: r, na
 						className: "dialog-actions destructive-actions",
 						children: [n.allowKill && P.status === "Running" && /* @__PURE__ */ (0, x.jsxs)("button", {
 							className: "button button-secondary",
-							onClick: () => He(P, "kill"),
+							onClick: () => Ge(P, "kill"),
 							children: [/* @__PURE__ */ (0, x.jsx)(T, { name: "stop" }), "Stop application"]
 						}), n.allowDelete && /* @__PURE__ */ (0, x.jsxs)("button", {
 							className: "button button-danger-outline",
-							onClick: () => He(P, "delete"),
+							onClick: () => Ge(P, "delete"),
 							children: [/* @__PURE__ */ (0, x.jsx)(T, { name: "trash" }), "Delete application"]
 						})]
 					})
 				]
 			}),
-			M && /* @__PURE__ */ (0, x.jsxs)(E, {
-				title: M.action === "kill" ? "Stop this application?" : "Delete this application?",
+			j && /* @__PURE__ */ (0, x.jsxs)(E, {
+				title: j.action === "kill" ? "Stop this application?" : "Delete this application?",
 				onClose: () => {
-					we || Ce(null);
+					N || M(null);
 				},
 				className: "confirmation-dialog",
 				children: [
 					/* @__PURE__ */ (0, x.jsx)("div", {
 						className: "confirmation-icon",
-						children: /* @__PURE__ */ (0, x.jsx)(T, { name: M.action === "kill" ? "stop" : "trash" })
+						children: /* @__PURE__ */ (0, x.jsx)(T, { name: j.action === "kill" ? "stop" : "trash" })
 					}),
 					/* @__PURE__ */ (0, x.jsxs)("p", { children: [
-						/* @__PURE__ */ (0, x.jsx)("strong", { children: M.app.name || M.app.app_id }),
+						/* @__PURE__ */ (0, x.jsx)("strong", { children: j.app.name || j.app.app_id }),
 						" ",
 						"in ",
-						/* @__PURE__ */ (0, x.jsx)("strong", { children: M.app.namespace })
+						/* @__PURE__ */ (0, x.jsx)("strong", { children: j.app.namespace })
 					] }),
 					/* @__PURE__ */ (0, x.jsxs)("p", {
 						className: "mono",
 						children: [
 							"Application ID: ",
-							M.app.app_id,
+							j.app.app_id,
 							" · Driver pod:",
 							" ",
-							M.app.driver_pod || "Unknown"
+							j.app.driver_pod || "Unknown"
 						]
 					}),
 					/* @__PURE__ */ (0, x.jsxs)("p", {
 						className: "muted",
 						children: [
 							/* @__PURE__ */ (0, x.jsx)(S, {
-								fetchedAt: M.fetchedAt,
+								fetchedAt: j.fetchedAt,
 								label: "Application snapshot"
 							}),
 							" ",
@@ -10066,25 +10078,25 @@ function oe({ restoreLogsFor: e, onFocusRestored: t, config: n, transport: r, na
 					}),
 					/* @__PURE__ */ (0, x.jsx)("p", {
 						className: "muted",
-						children: M.action === "kill" ? "This stops the running driver. The application will stop processing, and its existing resources remain available for inspection." : "This removes the driver pod and its dependent resources. This action cannot be undone."
+						children: j.action === "kill" ? "This stops the running driver. The application will stop processing, and its existing resources remain available for inspection." : "This removes the driver pod and its dependent resources. This action cannot be undone."
 					}),
-					Te && /* @__PURE__ */ (0, x.jsx)("div", {
+					Ee && /* @__PURE__ */ (0, x.jsx)("div", {
 						className: "notice notice-error",
 						role: "alert",
-						children: Te
+						children: Ee
 					}),
 					/* @__PURE__ */ (0, x.jsxs)("div", {
 						className: "dialog-actions",
 						children: [/* @__PURE__ */ (0, x.jsx)("button", {
 							className: "button button-secondary",
-							disabled: we,
-							onClick: () => Ce(null),
+							disabled: N,
+							onClick: () => M(null),
 							children: "Cancel"
 						}), /* @__PURE__ */ (0, x.jsx)("button", {
 							className: "button button-danger",
-							disabled: we,
-							onClick: () => void Ve(),
-							children: we ? "Working…" : M.action === "kill" ? "Stop application" : "Delete application"
+							disabled: N,
+							onClick: () => void We(),
+							children: N ? "Working…" : j.action === "kill" ? "Stop application" : "Delete application"
 						})]
 					})
 				]
@@ -10093,15 +10105,15 @@ function oe({ restoreLogsFor: e, onFocusRestored: t, config: n, transport: r, na
 	});
 }
 // src/LogExcerpt.tsx
-var D = 1e3, O = 1e5;
-function se(e, t) {
+var O = 1e3, se = 1e5;
+function ce(e, t) {
 	let n = URL.createObjectURL(new Blob([e], { type: "text/plain;charset=utf-8" })), r = document.createElement("a");
 	r.href = n, r.download = t, r.click(), setTimeout(() => URL.revokeObjectURL(n), 0);
 }
-function ce({ text: e, onClose: t }) {
-	let n = e.split("\n").slice(0, D).join("\n").slice(0, O), [r, i] = (0, l.useState)(n), [a, o] = (0, l.useState)(""), [s, c] = (0, l.useState)("");
+function le({ text: e, onClose: t }) {
+	let n = e.split("\n").slice(0, O).join("\n").slice(0, se), [r, i] = (0, l.useState)(n), [a, o] = (0, l.useState)(""), [s, c] = (0, l.useState)("");
 	function u(e) {
-		i(e.split("\n").slice(0, D).join("\n").slice(0, O)), c("");
+		i(e.split("\n").slice(0, O).join("\n").slice(0, se)), c("");
 	}
 	async function d() {
 		try {
@@ -10128,7 +10140,7 @@ function ce({ text: e, onClose: t }) {
 				children: ["Excerpt preview", /* @__PURE__ */ (0, x.jsx)("textarea", {
 					"aria-label": "Excerpt preview",
 					rows: 12,
-					maxLength: O,
+					maxLength: se,
 					value: r,
 					onChange: (e) => u(e.target.value)
 				})]
@@ -10170,7 +10182,7 @@ function ce({ text: e, onClose: t }) {
 				}), /* @__PURE__ */ (0, x.jsx)("button", {
 					className: "button button-secondary",
 					disabled: !r,
-					onClick: () => se(r, "spark-log-excerpt.txt"),
+					onClick: () => ce(r, "spark-log-excerpt.txt"),
 					children: "Download prepared excerpt"
 				})]
 			})
@@ -10178,14 +10190,14 @@ function ce({ text: e, onClose: t }) {
 	});
 }
 // src/Logs.tsx
-var le = 1e4;
-function ue({ config: e, transport: t, onBack: n }) {
-	let [r, i] = (0, l.useState)([]), [a, o] = (0, l.useState)(e.tail ?? 1e3), [s, c] = (0, l.useState)(""), [u, f] = (0, l.useState)(!0), [p, m] = (0, l.useState)(null), [g, _] = (0, l.useState)(null), [v, y] = (0, l.useState)(!1), [b, S] = (0, l.useState)("connecting"), [C, w] = (0, l.useState)(""), [ee, E] = (0, l.useState)(0), [te, ne] = (0, l.useState)(0), [re, ie] = (0, l.useState)(null), ae = (0, l.useRef)([]), oe = (0, l.useRef)(0), D = (0, l.useRef)(null), O = (0, l.useRef)(1), ue = (0, l.useRef)(null), k = (0, l.useRef)([]), de = e.appId || "";
-	function fe() {
-		D.current !== null && cancelAnimationFrame(D.current), D.current = null, ae.current = [], oe.current = 0, O.current = 1, k.current = [], i([]), ne(0), m(null), _(null);
+var ue = 1e4;
+function de({ config: e, transport: t, onBack: n }) {
+	let [r, i] = (0, l.useState)([]), [a, o] = (0, l.useState)(e.tail ?? 1e3), [s, c] = (0, l.useState)(""), [u, f] = (0, l.useState)(!0), [p, m] = (0, l.useState)(null), [g, _] = (0, l.useState)(null), [v, y] = (0, l.useState)(!1), [b, S] = (0, l.useState)("connecting"), [C, w] = (0, l.useState)(""), [ee, E] = (0, l.useState)(0), [te, ne] = (0, l.useState)(0), [re, ie] = (0, l.useState)(null), ae = (0, l.useRef)([]), oe = (0, l.useRef)(0), D = (0, l.useRef)(null), O = (0, l.useRef)(1), se = (0, l.useRef)(null), de = (0, l.useRef)([]), fe = e.appId || "";
+	function pe() {
+		D.current !== null && cancelAnimationFrame(D.current), D.current = null, ae.current = [], oe.current = 0, O.current = 1, de.current = [], i([]), ne(0), m(null), _(null);
 	}
 	(0, l.useEffect)(() => {
-		if (fe(), S("connecting"), w(""), ie(null), !de || !e.namespace) {
+		if (pe(), S("connecting"), w(""), ie(null), !fe || !e.namespace) {
 			S("error"), w("An application and namespace are required to view driver logs.");
 			return;
 		}
@@ -10198,10 +10210,10 @@ function ue({ config: e, transport: t, onBack: n }) {
 				text: e
 			}));
 			ae.current = [];
-			let t = [...k.current, ...e], r = oe.current + Math.max(0, t.length - le);
+			let t = [...de.current, ...e], r = oe.current + Math.max(0, t.length - ue);
 			oe.current = 0;
 			let a = t.slice(-1e4);
-			k.current = a, r && ne((e) => e + r), i(a);
+			de.current = a, r && ne((e) => e + r), i(a);
 		}
 		function l() {
 			n && (o = !0, S("live"), w(""));
@@ -10211,7 +10223,7 @@ function ue({ config: e, transport: t, onBack: n }) {
 			let t = typeof e.data == "string" ? e.data : String(e.data), r = t.split(/\r?\n/);
 			t.endsWith("\n") && r.pop();
 			let i = [...ae.current, ...r];
-			i.length > 1e4 && (oe.current += i.length - le), ae.current = i.slice(-1e4), D.current === null && (D.current = requestAnimationFrame(c));
+			i.length > 1e4 && (oe.current += i.length - ue), ae.current = i.slice(-1e4), D.current === null && (D.current = requestAnimationFrame(c));
 		}
 		function d() {
 			n && (r = !0, S("error"), w("The log connection failed. Check your connection and try reconnecting."));
@@ -10220,7 +10232,7 @@ function ue({ config: e, transport: t, onBack: n }) {
 			n && (e.code === 1008 ? (S("error"), w("Logs are unavailable for this application, or you do not have access.")) : e.code === 1011 || e.code !== 1e3 && e.code !== 1005 ? (S("error"), w(o ? "The log stream was interrupted. Reconnect to try again." : "The log stream could not be opened. The logs may be unavailable, you may not have access, or the service may be unreachable.")) : r || (S("closed"), w("The log stream has ended. Reconnect to load the latest available logs.")), ae.current.length && (D.current !== null && cancelAnimationFrame(D.current), c()));
 		}
 		try {
-			s = t.openLogs(e.namespace, de, a);
+			s = t.openLogs(e.namespace, fe, a);
 		} catch (e) {
 			S("error"), w(h(e));
 			return;
@@ -10229,41 +10241,41 @@ function ue({ config: e, transport: t, onBack: n }) {
 			n = !1, s.removeEventListener("open", l), s.removeEventListener("message", u), s.removeEventListener("error", d), s.removeEventListener("close", f), D.current !== null && cancelAnimationFrame(D.current), D.current = null, ae.current = [], s.close();
 		};
 	}, [
-		de,
+		fe,
 		e.namespace,
 		a,
 		ee,
 		t
 	]);
-	let pe = p?.lines ?? r, me = (0, l.useMemo)(() => {
+	let me = p?.lines ?? r, he = (0, l.useMemo)(() => {
 		let e = s.toLowerCase();
-		return e ? pe.filter((t) => t.text.toLowerCase().includes(e)) : pe;
-	}, [pe, s]), he = me.map((e) => e.text).join("\n");
-	(0, l.useEffect)(() => {
-		u && !p && ue.current && (ue.current.scrollTop = ue.current.scrollHeight);
+		return e ? me.filter((t) => t.text.toLowerCase().includes(e)) : me;
+	}, [me, s]), ge = he.map((e) => e.text).join("\n");
+	(0, l.useLayoutEffect)(() => {
+		u && !p && se.current && (se.current.scrollTop = se.current.scrollHeight);
 	}, [
-		me,
+		he,
 		u,
 		p
 	]);
-	async function ge() {
+	async function _e() {
 		try {
-			await navigator.clipboard.writeText(he), ie(`${me.length.toLocaleString()} visible log lines copied.`);
+			await navigator.clipboard.writeText(ge), ie(`${he.length.toLocaleString()} visible log lines copied.`);
 		} catch {
 			ie("Copy is unavailable in this browser. You can download the logs instead.");
 		}
 	}
-	function _e() {
-		se(k.current.map((e) => e.text).join("\n"), `${de.replace(/[^a-zA-Z0-9_.-]/g, "_") || "application"}.log`);
+	function ve() {
+		ce(de.current.map((e) => e.text).join("\n"), `${fe.replace(/[^a-zA-Z0-9_.-]/g, "_") || "application"}.log`);
 	}
-	let ve = [.../* @__PURE__ */ new Set([
+	let ye = [.../* @__PURE__ */ new Set([
 		100,
 		1e3,
 		5e3,
-		le,
+		ue,
 		-1,
 		a
-	])], ye = d(e.basePath, `/webserver/apps?namespace=${encodeURIComponent(e.namespace)}`);
+	])], be = d(e.basePath, `/webserver/apps?namespace=${encodeURIComponent(e.namespace)}`);
 	return /* @__PURE__ */ (0, x.jsxs)(x.Fragment, { children: [
 		e.embedded ? /* @__PURE__ */ (0, x.jsxs)("button", {
 			className: "back-link",
@@ -10271,7 +10283,7 @@ function ue({ config: e, transport: t, onBack: n }) {
 			children: [/* @__PURE__ */ (0, x.jsx)(T, { name: "back" }), "Applications"]
 		}) : /* @__PURE__ */ (0, x.jsxs)("a", {
 			className: "back-link",
-			href: ye,
+			href: be,
 			children: [/* @__PURE__ */ (0, x.jsx)(T, { name: "back" }), "Applications"]
 		}),
 		/* @__PURE__ */ (0, x.jsxs)("header", {
@@ -10291,7 +10303,7 @@ function ue({ config: e, transport: t, onBack: n }) {
 				/* @__PURE__ */ (0, x.jsxs)("p", {
 					className: "log-identity",
 					children: [
-						/* @__PURE__ */ (0, x.jsx)("span", { children: de || "No application selected" }),
+						/* @__PURE__ */ (0, x.jsx)("span", { children: fe || "No application selected" }),
 						/* @__PURE__ */ (0, x.jsx)("span", {
 							className: "identity-divider",
 							children: "/"
@@ -10316,7 +10328,7 @@ function ue({ config: e, transport: t, onBack: n }) {
 						id: "console-tail",
 						value: a,
 						onChange: (e) => o(Number(e.target.value)),
-						children: ve.map((e) => /* @__PURE__ */ (0, x.jsx)("option", {
+						children: ye.map((e) => /* @__PURE__ */ (0, x.jsx)("option", {
 							value: e,
 							children: e <= 0 ? "All available" : e.toLocaleString()
 						}, e))
@@ -10348,20 +10360,20 @@ function ue({ config: e, transport: t, onBack: n }) {
 					}),
 					/* @__PURE__ */ (0, x.jsxs)("button", {
 						className: "button button-secondary",
-						onClick: () => void ge(),
-						disabled: !me.length,
+						onClick: () => void _e(),
+						disabled: !he.length,
 						children: [/* @__PURE__ */ (0, x.jsx)(T, { name: "copy" }), "Copy visible"]
 					}),
 					/* @__PURE__ */ (0, x.jsxs)("button", {
 						className: "button button-secondary",
-						onClick: _e,
+						onClick: ve,
 						disabled: !r.length,
 						children: [/* @__PURE__ */ (0, x.jsx)(T, { name: "download" }), "Download live buffer"]
 					}),
 					/* @__PURE__ */ (0, x.jsx)("button", {
 						className: "button button-secondary",
-						disabled: !me.length,
-						onClick: () => _(he),
+						disabled: !he.length,
+						onClick: () => _(ge),
 						children: "Prepare excerpt"
 					})
 				]
@@ -10437,7 +10449,7 @@ function ue({ config: e, transport: t, onBack: n }) {
 							}),
 							/* @__PURE__ */ (0, x.jsx)("button", {
 								className: "log-clear",
-								onClick: fe,
+								onClick: pe,
 								disabled: !r.length,
 								children: "Clear"
 							})
@@ -10445,24 +10457,24 @@ function ue({ config: e, transport: t, onBack: n }) {
 					})]
 				}),
 				/* @__PURE__ */ (0, x.jsx)("div", {
-					ref: ue,
+					ref: se,
 					className: `log-viewport ${v ? "log-wrap" : ""}`,
 					tabIndex: 0,
 					"aria-label": "Log output",
 					onScroll: () => {
-						let e = ue.current;
+						let e = se.current;
 						e && u && e.scrollHeight - e.scrollTop - e.clientHeight > 40 && f(!1);
 					},
-					children: me.length ? /* @__PURE__ */ (0, x.jsxs)("div", {
+					children: he.length ? /* @__PURE__ */ (0, x.jsxs)("div", {
 						className: "log-content",
 						children: [/* @__PURE__ */ (0, x.jsx)("pre", {
 							className: "log-numbers",
 							"aria-hidden": "true",
-							children: me.map((e) => e.number).join("\n")
+							children: he.map((e) => e.number).join("\n")
 						}), /* @__PURE__ */ (0, x.jsx)("pre", {
 							className: "log-text",
 							"data-testid": "log-text",
-							children: he
+							children: ge
 						})]
 					}) : /* @__PURE__ */ (0, x.jsx)("div", {
 						className: "log-empty",
@@ -10480,12 +10492,12 @@ function ue({ config: e, transport: t, onBack: n }) {
 				/* @__PURE__ */ (0, x.jsxs)("div", {
 					className: "log-footer",
 					children: [/* @__PURE__ */ (0, x.jsxs)("span", { children: [
-						me.length.toLocaleString(),
+						he.length.toLocaleString(),
 						" ",
 						s ? "matching" : "visible",
 						" /",
 						" ",
-						pe.length.toLocaleString(),
+						me.length.toLocaleString(),
 						" ",
 						p ? "snapshot" : "buffered",
 						" lines",
@@ -10494,7 +10506,7 @@ function ue({ config: e, transport: t, onBack: n }) {
 						p ? "Reading view frozen" : u ? "Following output" : "Auto-scroll paused",
 						" ",
 						"· Buffer limit ",
-						le.toLocaleString()
+						ue.toLocaleString()
 					] })]
 				})
 			]
@@ -10503,23 +10515,23 @@ function ue({ config: e, transport: t, onBack: n }) {
 			className: "log-help",
 			children: "Copy visible uses the current search and reading snapshot. Download live buffer includes all currently buffered lines, including lines hidden by search, and uses the application ID in its filename. Prepare excerpt lets you review and mask a bounded selection locally. Changing the tail limit, reconnecting or clearing starts a fresh buffer and ends a frozen reading view."
 		}),
-		g !== null && /* @__PURE__ */ (0, x.jsx)(ce, {
+		g !== null && /* @__PURE__ */ (0, x.jsx)(le, {
 			text: g,
 			onClose: () => _(null)
 		})
 	] });
 }
 // src/Runs.tsx
-function k(e) {
+function fe(e) {
 	if (!e) return "—";
 	let t = new Date(e);
 	return Number.isNaN(t.getTime()) ? "—" : t.toLocaleString();
 }
-function de({ config: e, transport: t, namespaceEditable: n, onNamespaceChange: r }) {
-	let [i, a] = (0, l.useState)(e.namespace), [o, s] = (0, l.useState)(""), [c, u] = (0, l.useState)("all"), [d, f] = (0, l.useState)([]), [p, m] = (0, l.useState)(null), [g, _] = (0, l.useState)(!1), [v, y] = (0, l.useState)(null), [b, S] = (0, l.useState)(), [C, w] = (0, l.useState)(null), [ee, te] = (0, l.useState)(null), ne = (0, l.useRef)(null), ie = !!(e.runsEnabled && t.listRuns), ae = (0, l.useCallback)(async (n) => {
+function pe({ config: e, transport: t, namespaceEditable: n, onNamespaceChange: r }) {
+	let [i, a] = (0, l.useState)(e.namespace), [o, s] = (0, l.useState)(""), [c, u] = (0, l.useState)("all"), [d, f] = (0, l.useState)([]), [p, m] = (0, l.useState)(null), [g, _] = (0, l.useState)(!1), [v, y] = (0, l.useState)(null), [b, S] = (0, l.useState)(), [C, w] = (0, l.useState)(null), [ee, te] = (0, l.useState)(null), ne = (0, l.useRef)(null), re = !!(e.runsEnabled && t.listRuns), ae = (0, l.useCallback)(async (n) => {
 		ne.current?.abort();
 		let r = new AbortController();
-		if (ne.current = r, ie && t.listRuns) {
+		if (ne.current = r, re && t.listRuns) {
 			_(!0), y(null), !n && t.runsConfig && t.runsConfig(r.signal).then((t) => {
 				r.signal.aborted || te(t.collection?.find((t) => t.namespace === e.namespace) ?? null);
 			}).catch(() => {
@@ -10551,9 +10563,9 @@ function de({ config: e, transport: t, namespaceEditable: n, onNamespaceChange: 
 		o,
 		c,
 		t,
-		ie
+		re
 	]);
-	return (0, l.useEffect)(() => (f([]), m(null), w(null), a(e.namespace), ae(), () => ne.current?.abort()), [ae, e.namespace]), ie ? /* @__PURE__ */ (0, x.jsxs)(x.Fragment, { children: [
+	return (0, l.useEffect)(() => (f([]), m(null), w(null), a(e.namespace), ae(), () => ne.current?.abort()), [ae, e.namespace]), re ? /* @__PURE__ */ (0, x.jsxs)(x.Fragment, { children: [
 		/* @__PURE__ */ (0, x.jsxs)("header", {
 			className: "page-heading",
 			children: [/* @__PURE__ */ (0, x.jsxs)("div", { children: [
@@ -10628,7 +10640,7 @@ function de({ config: e, transport: t, namespaceEditable: n, onNamespaceChange: 
 				" ",
 				"Records may not reflect current pods. Last successful collection:",
 				" ",
-				ee.last_success ? k(ee.last_success) : "never",
+				ee.last_success ? fe(ee.last_success) : "never",
 				ee.last_error && ` · last error: ${ee.last_error.replace(/_/g, " ")}`,
 				"."
 			] })]
@@ -10736,10 +10748,10 @@ function de({ config: e, transport: t, namespaceEditable: n, onNamespaceChange: 
 									className: "application-meta mono",
 									children: e.app_id || e.driver_pod
 								})] }),
-								/* @__PURE__ */ (0, x.jsx)("td", { children: /* @__PURE__ */ (0, x.jsx)(re, { status: e.status }) }),
+								/* @__PURE__ */ (0, x.jsx)("td", { children: /* @__PURE__ */ (0, x.jsx)(ie, { status: e.status }) }),
 								/* @__PURE__ */ (0, x.jsx)("td", { children: e.disappeared_at ? "No longer observed" : "Seen in latest collection" }),
-								/* @__PURE__ */ (0, x.jsx)("td", { children: k(e.first_seen) }),
-								/* @__PURE__ */ (0, x.jsx)("td", { children: k(e.last_seen) })
+								/* @__PURE__ */ (0, x.jsx)("td", { children: fe(e.first_seen) }),
+								/* @__PURE__ */ (0, x.jsx)("td", { children: fe(e.last_seen) })
 							] }, `${e.namespace}/${e.uid}`)) })
 						]
 					})
@@ -10776,10 +10788,10 @@ function de({ config: e, transport: t, namespaceEditable: n, onNamespaceChange: 
 					["Last status", C.status],
 					["Image", C.image],
 					["Spark version", C.spark_version],
-					["Created", k(C.created_at)],
-					["First seen", k(C.first_seen)],
-					["Last seen", k(C.last_seen)],
-					["No longer observed since", k(C.disappeared_at)]
+					["Created", fe(C.created_at)],
+					["First seen", fe(C.first_seen)],
+					["Last seen", fe(C.last_seen)],
+					["No longer observed since", fe(C.disappeared_at)]
 				].map(([e, t]) => /* @__PURE__ */ (0, x.jsxs)("div", { children: [/* @__PURE__ */ (0, x.jsx)("dt", { children: e }), /* @__PURE__ */ (0, x.jsx)("dd", { children: t || "—" })] }, e))
 			})]
 		})
@@ -10790,7 +10802,7 @@ function de({ config: e, transport: t, namespaceEditable: n, onNamespaceChange: 
 	});
 }
 // src/SparkConsole.tsx
-function fe(e) {
+function me(e) {
 	try {
 		d(e.config.basePath, "/");
 	} catch {
@@ -10805,9 +10817,9 @@ function fe(e) {
 			})
 		});
 	}
-	return /* @__PURE__ */ (0, x.jsx)(pe, { ...e });
+	return /* @__PURE__ */ (0, x.jsx)(he, { ...e });
 }
-function pe({ config: e, transport: t, namespaceEditable: n = e.namespaceEditable ?? !0 }) {
+function he({ config: e, transport: t, namespaceEditable: n = e.namespaceEditable ?? !0 }) {
 	let r = (0, l.useMemo)(() => t ?? _({ basePath: e.basePath }), [t, e.basePath]), [i, a] = (0, l.useState)({
 		view: e.view,
 		namespace: e.namespace,
@@ -10908,16 +10920,16 @@ function pe({ config: e, transport: t, namespaceEditable: n = e.namespaceEditabl
 			children: [/* @__PURE__ */ (0, x.jsx)("div", {
 				className: "console-content",
 				ref: o,
-				children: i.view === "runs" ? /* @__PURE__ */ (0, x.jsx)(de, {
+				children: i.view === "runs" ? /* @__PURE__ */ (0, x.jsx)(pe, {
 					config: p,
 					transport: r,
 					namespaceEditable: n,
 					onNamespaceChange: g
-				}) : i.view === "logs" ? /* @__PURE__ */ (0, x.jsx)(ue, {
+				}) : i.view === "logs" ? /* @__PURE__ */ (0, x.jsx)(de, {
 					config: p,
 					transport: r,
 					onBack: h
-				}) : /* @__PURE__ */ (0, x.jsx)(oe, {
+				}) : /* @__PURE__ */ (0, x.jsx)(D, {
 					restoreLogsFor: u,
 					onFocusRestored: () => f(void 0),
 					config: p,
@@ -10939,8 +10951,8 @@ function pe({ config: e, transport: t, namespaceEditable: n = e.namespaceEditabl
 	});
 }
 // src/standalone.tsx
-var me = document.getElementById("spark-console-root"), he = document.getElementById("spark-console-config");
-if (me && he) {
-	let e = JSON.parse(he.textContent || "{}");
-	(0, c.createRoot)(me).render(/* @__PURE__ */ (0, x.jsx)(fe, { config: e }));
+var ge = document.getElementById("spark-console-root"), _e = document.getElementById("spark-console-config");
+if (ge && _e) {
+	let e = JSON.parse(_e.textContent || "{}");
+	(0, c.createRoot)(ge).render(/* @__PURE__ */ (0, x.jsx)(me, { config: e }));
 }

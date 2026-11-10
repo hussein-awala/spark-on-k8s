@@ -79,6 +79,26 @@ def _deadline(timeout):
     return WaitDeadline(timeout)
 
 
+_UNSUPPORTED_FIELDS = (
+    "executor_node_selector",
+    "driver_tolerations",
+    "executor_tolerations",
+    "image_pull_secrets",
+    "driver_env_from_secrets",
+    "executor_env_from_secrets",
+)
+
+
+def reject_unsupported_fields(config: ConnectServerConfig) -> None:
+    """Refuse server settings that _options below does not map, instead of dropping them."""
+    unsupported = [name for name in _UNSUPPORTED_FIELDS if getattr(config, name, None)]
+    if unsupported:
+        raise ValueError(
+            "The experimental Thrift backend does not support these compute fields; use method connect: "
+            + ", ".join(unsupported)
+        )
+
+
 def _options(config, token):
     """Set every ambient submission option explicitly, as the core Connect provisioner does."""
     return {
@@ -246,6 +266,7 @@ class ThriftServer:
                 raise ValueError("config must be ConnectServerConfig or None")
             config = deepcopy(config)
             config.__post_init__()
+            reject_unsupported_fields(config)
             if config.port != _PORT:
                 raise ValueError("The experimental Thrift backend requires port 10000")
             for key, value in config.spark_conf.items():

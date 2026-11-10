@@ -111,6 +111,13 @@ def test_out_of_range_cursor_is_not_reported_as_history_unavailability(api, firs
         assert response.json()["detail"]["code"] == "invalid_cursor"
 
 
+def test_deeply_nested_cursor_is_not_reported_as_history_unavailability(api):
+    # The longest cursor the route accepts; Python 3.11 cannot decode JSON nested this deeply.
+    response = api[0].get("/runs/v1", params={"cursor": base64.urlsafe_b64encode(b"[" * 1536).decode()})
+    assert response.status_code == 400
+    assert response.json()["detail"]["code"] == "invalid_cursor"
+
+
 def test_liveness_probe_auth_exception_is_extended_only_to_ready_and_not_metrics(api, monkeypatch):
     _, _, _, _, k8s = api
     monkeypatch.setattr(

@@ -6,6 +6,19 @@ Its setup and recovery instructions live in the [Jupyter guide](../../../docs/us
 The companion `notebook_support.py` is copied with it; no separate test notebook or
 substitute cell implementation is maintained.
 
+`--notebook private_connect_quickstart.ipynb` runs the
+[private server quickstart](../../../examples/jupyter/private_connect_quickstart.ipynb)
+instead, through the same kernel, receipt, rerun-refusal, tunnel and cleanup
+handling. Before execution the runner creates a placeholder
+`kubernetes.io/dockerconfigjson` Secret and a credential Secret holding a random
+token, and sets the notebook's Secret-reference and node-selector variables. It
+then requires `quickstart-result.json` to report executor pods with the expected
+node selector, pull Secret name and Secret-key reference, the variable present in
+every executor task, and no remaining owned resources. The run fails if the token
+appears in any file in the artifact directory. The image is preloaded with pull
+policy `Never`, so registry authentication itself is not exercised; the quickstart
+has no kernel restart.
+
 The runner requires an installed, noneditable `spark-on-k8s[connect]` wheel, the
 locked `notebook` dependency group, `kubectl`, and an explicitly selected disposable
 kind cluster containing the chosen Spark image. The existing Spark Connect workflow

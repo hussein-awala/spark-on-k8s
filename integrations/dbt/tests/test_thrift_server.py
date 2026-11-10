@@ -154,6 +154,23 @@ def test_managed_thrift_configuration_cannot_be_overridden(cluster, conf):
     cluster[1].create_namespaced_pod.assert_not_called()
 
 
+@pytest.mark.parametrize(
+    "settings",
+    [
+        {"image_pull_secrets": ["private-registry"]},
+        {"driver_env_from_secrets": {"TOKEN": "credentials:token"}},
+        {"executor_env_from_secrets": {"TOKEN": "credentials:token"}},
+        {"executor_node_selector": {"pool": "batch"}},
+        {"driver_tolerations": [{"key": "pool", "operator": "Exists"}]},
+        {"executor_tolerations": [{"key": "pool", "operator": "Exists"}]},
+    ],
+)
+def test_pod_settings_without_a_thrift_mapping_are_rejected_not_dropped(cluster, settings):
+    with pytest.raises(ValueError, match="does not support"):
+        backend(cluster, configuration(**settings))
+    cluster[1].create_namespaced_pod.assert_not_called()
+
+
 def test_max_runtime_bounds_the_managed_thrift_driver(cluster):
     _, _, objects, _ = cluster
     unbounded, _ = backend(cluster)

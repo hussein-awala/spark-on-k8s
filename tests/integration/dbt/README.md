@@ -1,8 +1,9 @@
 # Managed dbt on disposable Kubernetes
 
 This suite tests the experimental `spark_on_k8s` dbt adapter through its installed
-`spark-on-k8s-dbt` entrypoint. It provisions fresh Spark compute for every dbt
-invocation and tests both `method: thrift` and `method: connect` on Spark 4.3.0.
+`spark-on-k8s-dbt` entrypoint. It provisions fresh Spark compute for every wrapper
+invocation, shared by the dbt commands of that invocation, and tests both
+`method: thrift` and `method: connect` on Spark 4.3.0.
 
 The fixture creates a unique namespace, driver service account/RBAC, HDFS, and an
 external Hive metastore. The metastore runs the Hive 2.3.10 jars bundled with the
@@ -44,17 +45,24 @@ Each transport uses two dbt threads and checks separate invocations of:
 
 1. Seed, followed by a 13-node build (seed, four models, eight data tests). The
    seed log must contain the server-ready and compute-deleted progress lines.
-2. A persisted-table SQL assertion from a newly provisioned driver.
-3. `dbt docs generate`, including catalog collection after compilation.
-4. A separate Python model project targeting an existing table, which must fail
+2. One invocation of two commands: a persisted-table SQL assertion from a newly
+   provisioned driver, then `dbt docs generate` (including catalog collection
+   after compilation) on the same server.
+3. A separate Python model project targeting an existing table, which must fail
    without changing that table or the incremental model's contents.
-5. Intentional invalid SQL, followed by a successful recovery build.
-6. SIGINT after Spark's REST API reports the long SQL plan, its active job, and an
-   active task on an owned executor, followed by another persisted-table assertion.
+4. Intentional invalid SQL with `--keep-going`, followed in the same invocation by
+   a persisted-table assertion that must succeed on the same server (exit 1), then
+   a successful recovery build.
+5. SIGINT after Spark's REST API reports the long SQL plan, its active job, and an
+   active task on an owned executor. The invocation's second command must not
+   start. Another persisted-table assertion follows.
 
 For every invocation, the runner verifies the exit code, completed cleanup receipt,
-one observed driver despite concurrent connections, a fresh driver UID, and actual
-absence of compute resources. The warehouse/metastore Pod UIDs must remain stable.
+one observed driver despite concurrent connections and every command of a
+sequence, the number of dbt commands that started, a fresh driver UID, and actual
+absence of compute resources. A multi-command invocation must report exactly one
+server-ready and one compute-deleted progress line and its sequence summary. The
+warehouse/metastore Pod UIDs must remain stable.
 It also retries the installed recovery CLI after the seed and verifies that it
 preserves the fixture. The runner removes inherited `DBT_*` environment overrides
 and requires two actual worker thread IDs in each successful 13-node build.

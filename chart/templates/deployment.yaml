@@ -59,7 +59,8 @@ spec:
           {{- $envNames = append $envNames .name }}
           {{- end }}
           env:
-            {{- if not (has "SPARK_ON_K8S_IN_CLUSTER" $envNames) }}
+            {{- /* A kubeconfig selected in env names the cluster to use; in-cluster mode would ignore it. */}}
+            {{- if not (or (has "SPARK_ON_K8S_IN_CLUSTER" $envNames) (has "SPARK_ON_K8S_CONFIG_FILE" $envNames)) }}
             - name: SPARK_ON_K8S_IN_CLUSTER
               value: "true"
             {{- end }}

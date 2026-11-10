@@ -11,15 +11,18 @@ from typing import TYPE_CHECKING, Any, Literal
 from kubernetes import client as k8s, watch
 from kubernetes.client import ApiException
 from kubernetes.stream import stream
+from urllib3.exceptions import HTTPError
 
 from spark_on_k8s.k8s.sync_client import KubernetesClientManager
 from spark_on_k8s.utils.logging_mixin import LoggingMixin
 from spark_on_k8s.utils.run import RunHandle, WaitDeadline
 from spark_on_k8s.utils.spark_app_status import (
+    TRANSIENT_STATUS_READ_ATTEMPTS,
     SparkAppStatus,
     driver_container_name,
     driver_pod_selector,
     get_app_status,
+    is_transient_status_code,
     select_driver_pod,
 )
 from spark_on_k8s.utils.warnings import LongAppNameWarning, WarningCache
@@ -158,6 +161,7 @@ class SparkAppManager(LoggingMixin):
         target = f"Pod {pod_name}" if pod_name is not None else f"App {app_id}"
         with self.k8s_client_manager.client() as client:
             api = k8s.CoreV1Api(client)
+            failed_reads = 0
             while True:
                 try:
                     status = self.app_status(
@@ -167,6 +171,7 @@ class SparkAppManager(LoggingMixin):
                         client=api,
                         **({"request_timeout": deadline.remaining()} if timeout is not None else {}),
                     )
+                    failed_reads = 0
                     # A final status read within the budget is the outcome, not a timeout.
                     if status in termination_statuses:
                         break
@@ -175,11 +180,22 @@ class SparkAppManager(LoggingMixin):
                         if startup_timeout and start_time + startup_timeout < time.time():
                             raise TimeoutError("App startup timeout")
 
-                except ApiException as e:
-                    if e.status == 404:
+                except (ApiException, HTTPError) as e:
+                    if isinstance(e, ApiException) and e.status == 404:
                         self.log(msg=f"{target} was deleted", level=logging.INFO, should_print=should_print)
                         return
-                    raise
+                    failed_reads += 1
+                    transient = isinstance(e, HTTPError) or is_transient_status_code(e.status)
+                    if not transient or failed_reads >= TRANSIENT_STATUS_READ_ATTEMPTS:
+                        raise
+                    detail = f"HTTP {e.status}" if isinstance(e, ApiException) else type(e).__name__
+                    self.log(
+                        msg=f"Could not read the status of {target} ({detail}), retry in {poll_interval}s",
+                        level=logging.WARNING,
+                        should_print=should_print,
+                    )
+                    deadline.sleep(poll_interval)
+                    continue
                 self.log(
                     msg=f"{target} status is {status}, sleep {poll_interval}s",
                     level=logging.INFO,
@@ -272,6 +288,16 @@ class SparkAppManager(LoggingMixin):
                         deadline.remaining()
                         break
                     except ApiException as error:
+                        if error.status == 400 and pod.status.phase in ("Succeeded", "Failed"):
+                            # The kubelet rejects log requests for a container that never started.
+                            # The pod's outcome is final, so retrying or raising would only hide it.
+                            self.log(
+                                msg=f"No logs are available for {pod.status.phase} driver pod {pod_name}: "
+                                f"{error.reason}",
+                                level=logging.WARNING,
+                                should_print=should_print,
+                            )
+                            break
                         if received or retries == 0:
                             raise
                         self.log(

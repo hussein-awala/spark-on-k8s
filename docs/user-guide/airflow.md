@@ -35,7 +35,7 @@ The examples use namespace `spark` and service account `spark`.
 
 | Component/action | Credential and authorization boundary |
 | --- | --- |
-| Worker submits, waits or performs configured cleanup | The selected Airflow Kubernetes connection; grant the required pod/service and optional Secret/ConfigMap operations only in approved namespaces |
+| Worker submits, waits or performs configured cleanup | The selected Airflow Kubernetes connection; grant the required pod/service and optional Secret/ConfigMap operations only in approved namespaces. A [failure postmortem](#failure-postmortem) also lists pods and events and reads pod logs |
 | Triggerer observes a deferred application | The same connection ID resolved in the triggerer's own environment; it needs observation access, not permission to submit another job |
 | Spark driver creates executors | The submission's `service_account` in its application namespace, independently of the worker's identity |
 | Native tab reads details/logs | Airflow task/task-log access, verified task ownership, and the Spark API's own permissions |
@@ -130,6 +130,8 @@ edit invokes `on_kill`. A termination request also does not prove that applicati
 output was rolled back. The SDK/CLI retain applications after observation timeout
 or interruption; the Airflow startup-timeout deletion policy is intentionally
 different. See the [automation contract](automation.md).
+Before this cleanup, the task logs a bounded [failure postmortem](#failure-postmortem)
+for an unsuccessful application.
 
 For a daily DAG, choose the startup deadline and retention behavior explicitly.
 Replace the example image with your approved application artifact:
@@ -282,10 +284,88 @@ pods/events/logs and kind logs. A passing unit suite or an unexecuted workflow i
 not real-cluster evidence. See the [development guide](../development.md) for
 installed-wheel checks and the complete validation policy.
 
+## Failure postmortem
+
+When a waiting task's Spark application does not succeed, `SparkOnK8SOperator`
+and `SparkSqlOnK8SOperator` write a bounded postmortem to the Airflow task log
+before any cleanup can delete the driver, its logs and its Kubernetes evidence.
+This applies to synchronous and deferred waiting on Airflow 2.11 and 3. A deferred
+task writes it in the worker when the task resumes, not in the triggerer.
+
+| Event | Postmortem |
+| --- | --- |
+| Spark `Failed` or `Unknown` | Before finish cleanup, also when `on_finish_action` retains the application |
+| Driver startup deadline expires | Before the startup-timeout deletion |
+| Deferred trigger reports an observation error | Before finish cleanup |
+| `on_kill` with `on_kill_action="delete"` | Before the deletion; task log only, no XCom |
+| Spark succeeds, `app_waiter="no_wait"`, a synchronous non-timeout observation error, or `on_kill` with `"keep"` or `"kill"` | None |
+
+The postmortem has two parts:
+
+- A [diagnosis](diagnostics.md) of the driver and its owned executors, from the
+  same collector as `spark-on-k8s app diagnose`: each finding's severity, code,
+  pod, container, summary, redacted evidence and next step, at most 20 findings.
+  No findings means that no specific cause was observed, not that none exists.
+  Set `failure_diagnostics=False` to skip it.
+- The driver container's last `failure_log_tail_lines` lines: 100 by default, at
+  most 1000, and `0` skips them. They are skipped when the attempt already streamed
+  the driver log with `app_waiter="log"` (a trigger observation error replays no
+  log, so it still gets the tail) and when the driver container never started, for
+  example while unschedulable. Kubernetes sends at most 1 MiB, lines longer than
+  2,000 characters are cut, and at most 64 KiB of the most recent lines are logged;
+  the tail's header says when lines were left out.
+
+All reads share one five-second budget, of which the diagnosis may use three, so
+the postmortem delays cleanup by about five seconds at most. It is best effort: if
+the driver cannot be read or the budget runs out, the task log names the failed
+part with an exception type and HTTP status, never a Kubernetes response body. The
+task then keeps its original outcome and error, and cleanup proceeds as configured.
+
+The worker's Kubernetes connection reads the driver, lists pods and events, and
+reads the driver log in the application namespace. Without event or log access,
+the diagnosis is marked incomplete or the tail is reported unavailable. Like the
+streamed driver log, the tail contains what the application printed. URL
+credentials and `password`, `token`, `secret`, `credential` or access-key values
+written as `key=value` or `key: value` are replaced with `<redacted>`, and Airflow's
+secret masker applies as to any task log line. Use `failure_log_tail_lines=0` when
+driver logs must not reach the task log. `failure_diagnostics=False` together with
+`failure_log_tail_lines=0` disables the postmortem and its Kubernetes reads.
+
+When a diagnosis is collected outside `on_kill`, the task also pushes a compact
+summary to the `spark_failure_diagnosis` XCom key
+(`SparkOnK8SOperator.XCOM_FAILURE_DIAGNOSIS`). Evidence and next steps stay in the
+task log:
+
+```json
+{
+  "version": 1,
+  "status": "Failed",
+  "namespace": "analytics",
+  "app_id": "daily-transform-20260101",
+  "driver_pod": "daily-transform-20260101-driver",
+  "incomplete": false,
+  "findings": [
+    {
+      "code": "oom_killed",
+      "severity": "error",
+      "resource": "daily-transform-20260101-driver",
+      "container": "driver"
+    }
+  ],
+  "omitted_findings": 0
+}
+```
+
+`status` is the Spark status, `startup_timeout` or `error` (trigger observation
+error). A failure callback can read it with
+`ti.xcom_pull(task_ids=ti.task_id, map_indexes=ti.map_index, key="spark_failure_diagnosis")`.
+Airflow removes it when the next attempt starts.
+
 ## Native task tab in Airflow 3
 
 The optional **Spark on Kubernetes** tab is available for `SparkOnK8SOperator` and
-`SparkSqlOnK8SOperator` task instances on Airflow 3.4 or newer, below Airflow 4.
+`SparkSqlOnK8SOperator` task instances, and for
+[listed subclasses](#operator-subclasses), on Airflow 3.4 or newer, below Airflow 4.
 It reuses the standalone console's React components for application details,
 logs, actions and history links. Airflow 2.11.2 continues to support the operators
 and **Spark Job UI** link, but does not load this tab.
@@ -319,6 +399,11 @@ export SPARK_ON_K8S_AIRFLOW_ALLOW_WRITES='false'
 | `SPARK_ON_K8S_AIRFLOW_SERVICE_URL` | Administrator-configured Spark API base URL reachable from the Airflow API server. Required to register the tab. | unset; tab disabled |
 | `SPARK_ON_K8S_AIRFLOW_PUBLIC_URL` | Browser-reachable base URL for external Spark UI and history links. | service URL |
 | `SPARK_ON_K8S_AIRFLOW_ALLOW_WRITES` | Set to `true` to permit kill/delete requests after task ownership and Airflow permissions are checked. | `false` |
+| `SPARK_ON_K8S_AIRFLOW_OPERATOR_SUBCLASSES` | Comma-separated class names of operator subclasses that also show the tab, for example `TeamSparkOperator,TeamSqlOperator`. | unset |
+| `SPARK_ON_K8S_AIRFLOW_SNAPSHOT_TTL` | Seconds, from 0 to 60, for which viewers of one task attempt share an application snapshot. `0` disables sharing. | `5` |
+
+An invalid URL, subclass list or snapshot TTL disables the tab and logs a warning
+in the Airflow API server.
 
 Both URLs may include a deployment path prefix and must be HTTP(S) URLs without
 embedded credentials, query parameters or fragments. The service URL is chosen
@@ -365,3 +450,52 @@ The native task log proxy accepts individual text messages up to 16 MiB, includi
 long driver log lines. A larger message interrupts the stream rather than being
 silently truncated. The proxy uses a small receive queue to keep buffering bounded;
 the console's separate line-count limit still applies.
+
+### Operator subclasses
+
+Airflow decides where to show a plugin tab by matching the task instance's exact
+operator class name; it does not see base classes. To show the tab for a platform
+wrapper, list the wrapper's class name and restart the Airflow API server:
+
+```python
+from spark_on_k8s.airflow.operators import SparkOnK8SOperator
+
+
+class TeamSparkOperator(SparkOnK8SOperator):
+    """Applies the platform team's defaults."""
+```
+
+```bash
+export SPARK_ON_K8S_AIRFLOW_OPERATOR_SUBCLASSES='TeamSparkOperator'
+```
+
+The list only decides where the tab appears. Airflow's serialized task definition
+records the operator's class name but not its base classes, so for any other
+operator the tab's backend looks in that definition for the provider's
+**Spark Job UI** operator link (`SparkOnK8SOperatorLink`) before it reads the
+task's XCom record. Both provider operators declare this link, and subclasses,
+including mapped tasks, inherit it. A subclass that replaces
+`operator_extra_links` must keep `SparkOnK8SOperatorLink()` among its links.
+Otherwise, or for a listed operator that does not inherit from a provider
+operator, the tab reports that the task has no Spark application binding and
+does not read a record that the task pushed to XCom.
+
+### Refresh and shared snapshots
+
+By default, the tab refreshes every 10 seconds while the application is pending,
+running or in an unknown state. Once the application has succeeded or failed,
+live refresh ends and the tab says so; **Refresh** still loads the current state
+on demand. A driver log stream ends when the driver terminates and shows
+**Stream ended**; **Reconnect** requests the available logs again.
+
+Viewers of the same task attempt share the application snapshot that the Spark API
+reads from Kubernetes for `SPARK_ON_K8S_AIRFLOW_SNAPSHOT_TTL` seconds, and
+concurrent requests share one lookup. Each request is still authorized by Airflow
+and resolves its own task binding before it can receive a shared snapshot, and
+different task attempts never share one. Kill and delete verify the driver's
+current application directly, then discard the shared snapshot. A failed lookup
+is not reused after it completes. Each Airflow API server process keeps its own
+bounded in-memory snapshots, so a deployment with several API server workers or
+replicas can still perform one lookup per process for each interval. History
+records, the History Server capability check and diagnostics are requested for
+each viewer.

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from itertools import pairwise
 from uuid import uuid4
 
 from fastapi import APIRouter, Request
@@ -81,6 +82,27 @@ def _validate_plan(plan, options):
         ]
     ):
         raise AdmissionError("The generated driver pod contains an unapproved setting.")
+    _validate_metadata(plan, pods[0], options)
+
+
+def _validate_metadata(plan, pod, options):
+    # Admitted policy labels are the only labels a remote job adds; ownership labels stay generated.
+    labels = dict(pod["metadata"].get("labels") or {})
+    labels.pop("spark-app-name", None)
+    prefix = "spark.kubernetes.executor.label."
+    args = pod["spec"]["containers"][0].get("args") or []
+    executor_labels = {}
+    for flag, value in pairwise(args):
+        if flag == "--conf" and value.startswith(prefix):
+            key, _, label = value[len(prefix) :].partition("=")
+            executor_labels[key] = label
+    if (
+        labels.pop("spark-app-id", None) != plan.app_id
+        or labels != {**options["driver_labels"], "spark-role": "driver"}
+        or pod["metadata"].get("annotations")
+        or executor_labels != options["executor_labels"]
+    ):
+        raise AdmissionError("The generated driver pod contains unapproved labels or annotations.")
 
 
 def _execute(document, preview):

@@ -599,3 +599,106 @@ test("native task details use the shared diagnostics view with task coordinates"
     try_number: "1",
   });
 });
+
+test("a finished task application ends live refresh and keeps manual refresh", async ({
+  page,
+}) => {
+  await page.clock.install();
+  let status = "Running";
+  const requests = await api(page, {
+    handle: async (route) => {
+      if (!new URL(route.request().url()).pathname.endsWith("/application"))
+        return false;
+      await route.fulfill({ json: application({ status }) });
+      return true;
+    },
+  });
+  const lookups = () =>
+    requests.filter((request) =>
+      new URL(request.url()).pathname.endsWith("/application"),
+    ).length;
+  await page.goto("/tests/airflow-fixture.html");
+  await expect(
+    page.getByRole("button", { name: "Daily revenue report", exact: true }),
+  ).toBeVisible();
+  // The archived history record for the same application does not end live refresh.
+  await expect(page.getByLabel("Auto-refresh")).toHaveValue("10");
+  const running = lookups();
+  await page.clock.fastForward(10_000);
+  await expect.poll(lookups).toBe(running + 1);
+
+  status = "Succeeded";
+  await page.clock.fastForward(10_000);
+  await expect(page.getByText("Live refresh ended.")).toBeVisible();
+  await expect(
+    page.getByText("Auto-refresh ended", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByLabel("Auto-refresh")).toHaveCount(0);
+  // Each automatic refresh reads the application with capabilities and history.
+  await page.clock.fastForward(60_000);
+  await expect(
+    page.getByText(/^Application list fetched 6\ds ago\.$/),
+  ).toBeVisible();
+  expect(lookups()).toBe(running + 2);
+
+  await page.getByRole("button", { name: "Refresh", exact: true }).click();
+  await expect.poll(lookups).toBe(running + 3);
+  await expect(page.getByText("Live refresh ended.")).toBeVisible();
+  await page
+    .getByRole("button", { name: "Daily revenue report", exact: true })
+    .click();
+  await expect(
+    page
+      .getByRole("dialog")
+      .getByText(/Auto-refresh ended because the application finished/),
+  ).toBeVisible();
+});
+
+test("an uncertain application status keeps live refresh running", async ({
+  page,
+}) => {
+  await page.clock.install();
+  const requests = await api(page, {
+    handle: async (route) => {
+      if (!new URL(route.request().url()).pathname.endsWith("/application"))
+        return false;
+      await route.fulfill({ json: application({ status: "Unknown" }) });
+      return true;
+    },
+  });
+  await page.goto("/tests/airflow-fixture.html");
+  await expect(
+    page.getByRole("button", { name: "Daily revenue report", exact: true }),
+  ).toBeVisible();
+  const before = requests.length;
+  await page.clock.fastForward(10_000);
+  await expect.poll(() => requests.length).toBeGreaterThan(before);
+  await expect(page.getByText("Live refresh ended.")).toHaveCount(0);
+  await expect(page.getByLabel("Auto-refresh")).toHaveValue("10");
+});
+
+test("a finished driver's log stream ends cleanly without reconnecting", async ({
+  page,
+}) => {
+  const sockets: WebSocketRoute[] = [];
+  await api(page, {
+    handle: async (route) => {
+      if (!new URL(route.request().url()).pathname.endsWith("/application"))
+        return false;
+      await route.fulfill({ json: application({ status: "Succeeded" }) });
+      return true;
+    },
+  });
+  await page.routeWebSocket("**/spark-on-k8s/api/logs?*", (route) => {
+    sockets.push(route);
+  });
+  await page.goto("/tests/airflow-fixture.html");
+  await page.getByRole("button", { name: /^Logs for / }).click();
+  await expect.poll(() => sockets.length).toBe(1);
+  sockets[0].send("job completed\n");
+  await sockets[0].close({ code: 1000 });
+  await expect(page.getByText("Stream ended", { exact: true })).toBeVisible();
+  await expect(page.getByText(/The log stream has ended\./)).toBeVisible();
+  await expect(page.getByTestId("log-text")).toHaveText("job completed");
+  expect(sockets).toHaveLength(1);
+});

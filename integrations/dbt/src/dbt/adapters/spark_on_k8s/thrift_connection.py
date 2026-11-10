@@ -179,10 +179,16 @@ class ManagedPyhiveConnectionWrapper(PyhiveConnectionWrapper):
             # Match pinned PyHive Connection.close's RPC, but keep ALL local
             # transport closure in the once-only guard. Calling raw.close would
             # perform an unguarded close after releasing the RPC lock.
-            response = self.handle.client.CloseSession(
-                TCloseSessionReq(sessionHandle=self.handle.sessionHandle)
-            )
-            hive._check_status(response)
+            try:
+                response = self.handle.client.CloseSession(
+                    TCloseSessionReq(sessionHandle=self.handle.sessionHandle)
+                )
+                hive._check_status(response)
+            except Exception as error:
+                # Every statement already reported its outcome and the server is
+                # deleted at exit. A stream that ends while the session closes
+                # ("TSocket read 0 bytes") must not fail the node either.
+                logger.debug(f"Exception while closing session: {error}")
         finally:
             self._guard.close_unless_cancelling()
 

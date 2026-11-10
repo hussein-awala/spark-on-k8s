@@ -255,8 +255,17 @@ class JobSpec:
             raise JobValidationError("Job files must be no larger than 1 MiB.")
         try:
             document = yaml.load(content, Loader=_UniqueLoader)
+        except JobValidationError:
+            raise
         except yaml.YAMLError as error:
             raise JobValidationError("Invalid job YAML.") from error
+        except (ValueError, KeyError, AttributeError) as error:
+            # PyYAML builds resolved scalars such as 2024-02-30 or 0x_ with plain, non-YAML errors.
+            raise JobValidationError(
+                "Invalid job YAML: a value is not a valid number, boolean or timestamp; quote text values."
+            ) from error
+        except RecursionError as error:
+            raise JobValidationError("Invalid job YAML: the document is nested too deeply.") from error
         return path, document
 
     @classmethod

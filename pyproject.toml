@@ -18,7 +18,7 @@ classifiers = [
 dependencies = [
     # Keep the synchronous client compatible with the Airflow Kubernetes provider.
     "kubernetes>=36.0.3,<37",
-    "click>=8.5.1,<9",
+    "click>=8.5.0,<9",
     "pyyaml>=6.0.3,<7",
 ]
 
@@ -36,7 +36,7 @@ connect = [
     "pandas>=2.2,<3; python_version < '3.15'",
 ]
 api = [
-    "fastapi>=0.162.1,<0.163",
+    "fastapi>=0.162.0,<0.163",
     "starlette>=1.10.0,<2",
     "kubernetes-asyncio>=36.1.0,<37",
     "uvicorn>=0.54.0,<0.55",
@@ -58,7 +58,7 @@ airflow-ui = [
     "apache-airflow>=3.4.0,<4; python_version < '3.15'",
     "apache-airflow-providers-cncf-kubernetes>=10.25.0,<11; python_version < '3.15'",
     "sqlparse>=0.6.1,<0.7; python_version < '3.15'",
-    "fastapi>=0.162.1,<0.163; python_version < '3.15'",
+    "fastapi>=0.162.0,<0.163; python_version < '3.15'",
     "httpx>=0.28.1,<0.29; python_version < '3.15'",
     "websockets>=17.4,<18; python_version < '3.15'",
 ]

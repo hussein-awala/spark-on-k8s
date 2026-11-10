@@ -89,7 +89,10 @@ class RecordingSDK(SparkOnK8S):
 
 
 class InvocationOwner:
-    """Own compute for one entire dbt command, independent of connection cleanup.
+    """Own compute for one wrapper run of dbt commands, independent of connection cleanup.
+
+    A run executes one dbt command or a sequence of them in this process; every
+    command reuses the same server and it is deleted once, when the run ends.
 
     Receipts contain resource identities and cluster selection, never the compute
     configuration (which can include catalog credentials). Incomplete creation
@@ -267,6 +270,50 @@ class InvocationOwner:
                     )
                 raise
 
+    def prepare_next_command(self):
+        """Before a later dbt command of the same run, confirm it can reuse the server.
+
+        Nothing is checked before compute is requested; it is still created lazily
+        by the first connection. A failed startup, or a driver that is gone, not
+        running, being deleted or replaced, ends the run: a run never creates a
+        second server. An exited tunnel is reopened to the same verified driver.
+        """
+        with self._lock:
+            if self._closed or self._cancelled.is_set():
+                raise RuntimeError("The managed dbt invocation has already finished")
+            if self._inputs is None:
+                return
+            if self.endpoint is None:
+                raise RuntimeError(
+                    f"Managed Spark startup failed in an earlier command; inspect {self.receipt}"
+                )
+            run = self.state["server"]["run"]
+            self._api_deadline = time.monotonic() + self.config.startup_timeout
+            with self.sdk.k8s_client_manager.client() as raw:
+                try:
+                    observed = k8s.CoreV1Api(raw).read_namespaced_pod(
+                        run["driver_pod"], self.config.server.namespace, _request_timeout=_REQUEST
+                    )
+                except ApiException as error:
+                    if error.status != 404:
+                        # Uncertain, not absent: stop without echoing the response body.
+                        raise RuntimeError(
+                            "Could not confirm that the managed Spark driver is still running "
+                            f"(Kubernetes API status {error.status})"
+                        ) from None
+                    observed = None
+            if observed is None:
+                raise RuntimeError("The managed Spark driver no longer exists")
+            if observed.metadata.uid != run["driver_uid"]:
+                raise RuntimeError("Driver identity changed; the replacement is not adopted")
+            if observed.metadata.deletion_timestamp or observed.status.phase != "Running":
+                raise RuntimeError(
+                    f"The managed Spark driver is no longer running (phase {observed.status.phase}"
+                    f"{', deleting' if observed.metadata.deletion_timestamp else ''})"
+                )
+            if self.forward is not None and self.forward.process.poll() is not None:
+                self._reopen_tunnel()
+
     def cancel(self):
         """Stop an in-progress startup at its next bounded wait; never deletes compute."""
         self._cancelled.set()
@@ -384,7 +431,11 @@ finally:
                 result = subprocess.run(
                     [
                         sys.executable,
-                        "-I",
+                        # As the Connect check: no working directory on sys.path, but the caller's
+                        # PYTHONPATH and user site, so the probe imports the client dbt imports.
+                        "-P",
+                        *(["-E"] if sys.flags.ignore_environment else []),
+                        *(["-s"] if sys.flags.no_user_site else []),
                         "-c",
                         probe,
                         host,

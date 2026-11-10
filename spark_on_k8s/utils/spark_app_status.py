@@ -18,6 +18,16 @@ class SparkAppStatus(StrEnum):
     Unknown = "Unknown"
 
 
+# Consecutive failed status reads a wait accepts when each failure may clear on its own
+# (throttling, a server error or a lost connection) before it reports the last one.
+TRANSIENT_STATUS_READ_ATTEMPTS = 5
+
+
+def is_transient_status_code(status: int | None) -> bool:
+    """Whether a Kubernetes API response status may clear on its own."""
+    return status == 429 or (status is not None and 500 <= status <= 599)
+
+
 def get_app_status(pod: k8s.V1Pod | k8s_async.V1Pod) -> SparkAppStatus:
     """Get app status."""
     if pod.status.phase == "Pending":

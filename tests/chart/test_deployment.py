@@ -85,6 +85,20 @@ def test_api_runtime_defaults_do_not_depend_on_history(history_enabled):
     assert ("SPARK_ON_K8S_API_SPARK_HISTORY_HOST" in env) == (history_enabled == "true")
 
 
+def test_a_kubeconfig_selected_in_env_is_not_overridden_by_in_cluster_mode():
+    # Chart 0.3.0 left in-cluster mode off; enabling it would make the API ignore the file and
+    # act on its own cluster with the pod's service account.
+    container = render_deployment(
+        "--set",
+        "env[0].name=SPARK_ON_K8S_CONFIG_FILE",
+        "--set-string",
+        "env[0].value=/etc/remote/kubeconfig",
+    )
+    env = {entry["name"]: entry.get("value") for entry in container["env"]}
+    assert env["SPARK_ON_K8S_CONFIG_FILE"] == "/etc/remote/kubeconfig"
+    assert "SPARK_ON_K8S_IN_CLUSTER" not in env
+
+
 def test_custom_service_port_reaches_the_listening_api():
     container = render_deployment("--set", "service.port=9000")
     env = {entry["name"]: entry.get("value") for entry in container["env"]}

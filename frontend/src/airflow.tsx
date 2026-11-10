@@ -171,6 +171,8 @@ function TaskConsole({ query, label }: { query: string; label: string }) {
         basePath: "",
         namespace: capabilities.namespace,
         refreshInterval: 10,
+        // A task attempt's application does not restart once it has finished.
+        stopRefreshWhenFinished: true,
         allowKill: capabilities.can_kill,
         allowDelete: capabilities.can_delete,
         historyEnabled: Boolean(capabilities.spark_history_url),

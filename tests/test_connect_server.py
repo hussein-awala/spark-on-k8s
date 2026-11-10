@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import json
 from copy import deepcopy
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
+import yaml
 from kubernetes import client as k8s
 from kubernetes.client.exceptions import ApiException
 from spark_on_k8s.client import ExecutorInstances, PodResources, SparkOnK8S
@@ -26,6 +29,8 @@ def cluster(monkeypatch):
     counter = iter(range(1, 100))
 
     def create(kind, namespace, body, **kwargs):
+        if isinstance(body, dict):  # A merged driver pod template is an API dictionary.
+            body = k8s.ApiClient().deserialize(SimpleNamespace(data=json.dumps(body)), "V1Pod")
         value = deepcopy(body)
         if value.metadata.name in objects[kind]:
             raise ApiException(status=409)
@@ -498,7 +503,39 @@ def test_timeout_validation_happens_before_requests(cluster, value):
         {"executor_instances": ExecutorInstances(executor_allocation_ratio=float("nan"))},
         {"executor_instances": ExecutorInstances(scheduler_backlog_timeout="0s")},
         {"driver_node_selector": {"node": 1}},
+        {"driver_node_selector": {"pool name": "ml"}},
+        {"executor_node_selector": {"pool": "-gpu"}},
+        {"executor_node_selector": {"Example.com/pool": "ml"}},
+        {"executor_node_selector": {"pool": "x" * 64}},
+        {"executor_node_selector": ["pool=ml"]},
+        {"image_pull_secrets": "registry"},
+        {"image_pull_secrets": ["Registry"]},
+        {"image_pull_secrets": ["registry", "registry"]},
+        {"driver_env_from_secrets": {"API_TOKEN": "credentials"}},
+        {"driver_env_from_secrets": {"API_TOKEN": "Credentials:token"}},
+        {"driver_env_from_secrets": {"API_TOKEN": "credentials:to/ken"}},
+        {"driver_env_from_secrets": {"1TOKEN": "credentials:token"}},
+        {"driver_env_from_secrets": {"API-TOKEN": "credentials:token"}},
+        {"executor_env_from_secrets": {"SPARK_USER": "credentials:user"}},
+        {"executor_env_from_secrets": {"TOKEN": ["credentials", "token"]}},
+        {
+            "executor_env_from_secrets": {"TOKEN": "credentials:token"},
+            "spark_conf": {"spark.executorEnv.TOKEN": "literal"},
+        },
+        {"driver_tolerations": {"key": "pool"}},
+        {"driver_tolerations": ["pool:NoSchedule"]},
+        {"driver_tolerations": [{"key": "pool", "operator": "In"}]},
+        {"driver_tolerations": [{"key": "pool", "operator": ["Exists"]}]},
+        {"driver_tolerations": [{"value": "ml"}]},
+        {"driver_tolerations": [{"key": "pool", "operator": "Exists", "value": "ml"}]},
+        {"driver_tolerations": [{"key": "pool", "value": "not valid"}]},
+        {"driver_tolerations": [{"key": "pool", "effect": "Never"}]},
+        {"driver_tolerations": [{"key": "pool", "effect": "NoSchedule", "tolerationSeconds": 60}]},
+        {"executor_tolerations": [{"key": "pool", "effect": "NoExecute", "tolerationSeconds": "60"}]},
+        {"executor_tolerations": [{"key": "pool", "toleration_seconds": 60}]},
         {"spark_conf": {"spark.kubernetes.driver.podTemplateFile": "other.yaml"}},
+        {"spark_conf": {"spark.kubernetes.container.image.pullSecrets": "registry"}},
+        {"spark_conf": {"spark.kubernetes.executor.secretKeyRef.TOKEN": "credentials:token"}},
         {"spark_conf": {"spark.kubernetes.executor.request.cores": "invalid"}},
         {"spark_conf": {"spark.kubernetes.executor.request.cores": "0"}},
         {"spark_conf": {"spark.kubernetes.executor.request.cores": "2"}},
@@ -702,3 +739,176 @@ def test_bounded_helper_clients_disable_retries_without_changing_other_settings_
     assert cfg.retries is None
     with k8s.ApiClient(configuration=cfg) as unrelated:
         assert unrelated.rest_client.pool_manager.connection_from_url(cfg.host).retries.total == 3
+
+
+POD_SETTINGS = {
+    "image_pull_secrets": ["private-registry", "mirror-registry"],
+    "driver_env_from_secrets": {"API_TOKEN": "notebook-credentials:api-token"},
+    "executor_env_from_secrets": {
+        "API_TOKEN": "notebook-credentials:api-token",
+        "AWS_SECRET_ACCESS_KEY": "s3-credentials:secret.key",
+    },
+    "driver_node_selector": {"kubernetes.io/os": "linux"},
+    "executor_node_selector": {"example.com/pool": "gpu", "nvidia.com/gpu.present": "true"},
+    "driver_tolerations": [{"key": "dedicated", "operator": "Equal", "value": "ml", "effect": "NoSchedule"}],
+    "executor_tolerations": [
+        {"key": "nvidia.com/gpu", "operator": "Exists", "effect": "NoSchedule"},
+        {"key": "spot", "operator": "Exists", "effect": "NoExecute", "tolerationSeconds": 300},
+    ],
+}
+
+
+def test_pod_settings_use_existing_submission_mechanisms_without_reading_secrets(cluster):
+    sdk, api, objects = cluster
+    handle = sdk.create_connect_server(config(**deepcopy(POD_SETTINGS)))
+    pod = objects["pod"][handle.run.driver_pod]
+    assert [secret.name for secret in pod.spec.image_pull_secrets] == ["private-registry", "mirror-registry"]
+    assert pod.spec.node_selector == {"kubernetes.io/os": "linux"}
+    assert [(t.key, t.operator, t.value, t.effect) for t in pod.spec.tolerations] == [
+        ("dedicated", "Equal", "ml", "NoSchedule")
+    ]
+    driver = pod.spec.containers[0]
+    assert driver.name == "driver"
+    reference = next(env for env in driver.env if env.name == "API_TOKEN")
+    assert reference.value is None
+    assert (reference.value_from.secret_key_ref.name, reference.value_from.secret_key_ref.key) == (
+        "notebook-credentials",
+        "api-token",
+    )
+    # The managed bind address and labels survive the driver template merge.
+    assert any(env.name == "SPARK_DRIVER_BIND_ADDRESS" for env in driver.env)
+    assert pod.metadata.labels["spark-on-k8s.io/connect-server"] == "true"
+    for setting in (
+        "spark.kubernetes.container.image.pullSecrets=private-registry,mirror-registry",
+        "spark.kubernetes.executor.secretKeyRef.API_TOKEN=notebook-credentials:api-token",
+        "spark.kubernetes.executor.secretKeyRef.AWS_SECRET_ACCESS_KEY=s3-credentials:secret.key",
+        "spark.kubernetes.executor.node.selector.example.com/pool=gpu",
+        "spark.kubernetes.executor.node.selector.nvidia.com/gpu.present=true",
+        "spark.kubernetes.executor.podTemplateFile=/opt/spark/executor-template/executor-template.yaml",
+    ):
+        assert setting in driver.args
+    configmap = api.create_namespaced_config_map.call_args.kwargs["body"]
+    assert yaml.safe_load(configmap.data["executor-template.yaml"]) == {
+        "apiVersion": "v1",
+        "kind": "Pod",
+        "spec": {"tolerations": POD_SETTINGS["executor_tolerations"]},
+    }
+    owner = api.patch_namespaced_config_map.call_args.kwargs["body"].metadata.owner_references[0]
+    assert owner.uid == handle.run.driver_uid
+    api.create_namespaced_secret.assert_not_called()
+    api.read_namespaced_secret.assert_not_called()
+    api.list_namespaced_secret.assert_not_called()
+    assert sdk.connect_server_status(handle)["status"] == "running"
+
+
+def test_default_server_keeps_the_generated_driver_pod_without_templates(cluster):
+    sdk, api, _ = cluster
+    sdk.create_connect_server(config())
+    body = api.create_namespaced_pod.call_args.kwargs["body"]
+    assert not isinstance(body, dict)
+    assert body.spec.image_pull_secrets is None
+    assert body.spec.tolerations == []
+    api.create_namespaced_config_map.assert_not_called()
+    assert not any(
+        "secretKeyRef" in arg or "pullSecrets" in arg or "podTemplateFile" in arg
+        for arg in body.spec.containers[0].args
+    )
+
+
+@pytest.mark.parametrize(
+    "toleration",
+    [
+        {"operator": "Exists"},
+        {"key": "pool", "operator": "Exists"},
+        {"key": "pool"},
+        {"key": "pool", "value": ""},
+        {"key": "example.com/pool", "value": "ml.v2_a", "effect": "PreferNoSchedule"},
+        {"key": "spot", "effect": "NoExecute", "tolerationSeconds": 0},
+    ],
+)
+def test_valid_kubernetes_toleration_shapes_are_accepted(toleration):
+    assert config(driver_tolerations=[toleration], executor_tolerations=[toleration])
+
+
+@pytest.mark.parametrize(
+    "settings, message",
+    [
+        ({"spark_conf": {"spark.sql.shuffle.partitions": 4}}, "spark_conf must be a string-to-string"),
+        ({"spark_conf": [("spark.sql.shuffle.partitions", "4")]}, "spark_conf must be a string-to-string"),
+        ({"driver_tolerations": [{"key": 7, "operator": "Exists"}]}, "driver_tolerations key must be a str"),
+        ({"executor_tolerations": [{"key": None, "operator": "Exists"}]}, "executor_tolerations key must be"),
+        ({"driver_env_from_secrets": ["API_TOKEN=credentials:token"]}, "driver_env_from_secrets must map"),
+        ({"executor_env_from_secrets": None}, "executor_env_from_secrets must map"),
+    ],
+)
+def test_malformed_mapping_and_toleration_types_are_reported_by_field(settings, message):
+    with pytest.raises(ValueError, match=message):
+        config(**settings)
+
+
+def test_plan_requires_a_server_config_before_rendering(cluster):
+    sdk, api, _ = cluster
+    for value in ({}, None, config().__dict__):
+        with pytest.raises(ValueError, match="config must be ConnectServerConfig"):
+            sdk.plan_connect_server(value)
+    sdk.k8s_client_manager.client.assert_not_called()
+    api.create_namespaced_pod.assert_not_called()
+
+
+def test_create_and_plan_revalidate_pod_settings_changed_after_construction(cluster):
+    sdk, api, _ = cluster
+    cfg = config(driver_tolerations=[{"key": "pool", "operator": "Exists"}])
+    cfg.driver_tolerations.append({"key": "pool", "operator": "Never"})
+    with pytest.raises(ValueError, match="operator"):
+        sdk.create_connect_server(cfg)
+    cfg = config(executor_env_from_secrets={"TOKEN": "credentials:token"})
+    cfg.executor_env_from_secrets["SPARK_EXECUTOR_ID"] = "credentials:token"
+    with pytest.raises(ValueError, match="SPARK_"):
+        sdk.plan_connect_server(cfg)
+    api.create_namespaced_pod.assert_not_called()
+    api.create_namespaced_config_map.assert_not_called()
+
+
+def test_plan_is_offline_and_shows_secret_references_but_no_values():
+    manager = MagicMock()
+    sdk = SparkOnK8S(k8s_client_manager=manager)
+    cfg = config(app_name="notebook", port=16000, **deepcopy(POD_SETTINGS))
+    plan = sdk.plan_connect_server(cfg)
+    manager.client.assert_not_called()
+    assert plan.app_id == "notebook-preview"
+    assert [resource["kind"] for resource in plan.resources] == ["ConfigMap", "Pod", "Service", "Service"]
+    grpc = plan.resources[-1]
+    assert grpc["metadata"]["name"] == "notebook-preview-connect"
+    assert grpc["spec"]["type"] == "ClusterIP"
+    assert grpc["spec"]["ports"] == [{"name": "grpc", "port": 16000, "protocol": "TCP", "targetPort": 16000}]
+    assert grpc["spec"]["selector"] == {
+        "spark-app-id": "notebook-preview",
+        "spark-role": "driver",
+        "spark-on-k8s.io/connect-server": "true",
+    }
+    assert "ownerReferences" not in grpc["metadata"]
+    pod = plan.resources[1]
+    assert pod["spec"]["imagePullSecrets"] == [{"name": "private-registry"}, {"name": "mirror-registry"}]
+    assert pod["spec"]["nodeSelector"] == {"kubernetes.io/os": "linux"}
+    # No Secret object is planned or read: only Secret names and keys exist in the plan.
+    assert all(resource["kind"] != "Secret" for resource in plan.resources)
+    shown = plan.to_dict()
+    assert shown["preview"] is True
+    driver = next(item for item in shown["resources"] if item["kind"] == "Pod")["spec"]["containers"][0]
+    assert {
+        "name": "API_TOKEN",
+        "valueFrom": {"secretKeyRef": {"name": "notebook-credentials", "key": "api-token"}},
+    } in driver["env"]
+    assert cfg.driver_env_from_secrets == POD_SETTINGS["driver_env_from_secrets"]
+
+
+def test_plan_matches_the_created_driver_pod_settings(cluster):
+    sdk, _, objects = cluster
+    cfg = config(**deepcopy(POD_SETTINGS))
+    planned = next(item for item in sdk.plan_connect_server(cfg).resources if item["kind"] == "Pod")
+    handle = sdk.create_connect_server(cfg)
+    with k8s.ApiClient() as serializer:
+        created = serializer.sanitize_for_serialization(objects["pod"][handle.run.driver_pod])
+    for field in ("imagePullSecrets", "nodeSelector", "tolerations"):
+        assert planned["spec"][field] == created["spec"][field]
+    assert planned["spec"]["containers"][0]["env"] == created["spec"]["containers"][0]["env"]

@@ -43,7 +43,11 @@ argument was removed or renamed.
 - **How you notice:** The installer refuses the upgrade on Python 3.9 or 3.10, or
   when Airflow, the provider or `kubernetes` is pinned to an older version, for
   example by a constraints file. A worker without `sqlparse` fails SQL tasks with
-  `SQL submission requires the 'sql' extra`.
+  `SQL submission requires the 'sql' extra`. Airflow 3.4.0's constraints files satisfy
+  both extras. Airflow 2.11.2's constraints files pin older `kubernetes`,
+  `kubernetes-asyncio`, provider and `sqlparse` versions than this release requires:
+  on Airflow 2.11.2, override those pins or install without `--constraint`, then
+  run `pip check`.
 - **What to do:** Move Airflow to 3.4 (tested on Python 3.11–3.14) or 2.11.2 (tested
   on Python 3.11–3.12) before upgrading this package. Airflow 2.11 is a
   [legacy compatibility path](support.md); use Airflow 3 for new deployments.
@@ -94,9 +98,11 @@ Spark 4 also changes SQL behavior, including ANSI mode by default.
 
 ## Kubernetes API errors end the wait
 
-- **What changed:** While a task waits, a Kubernetes API error other than 404 (for
-  example 401, 403, 429 or 5xx) is now raised. Once 0.12.x had read a status, it
-  ignored such errors and kept polling.
+- **What changed:** While a task waits, a Kubernetes API error other than 404 now
+  ends the wait. A definitive error, such as 401 or 403, ends it at once. Throttling
+  (429), server errors (5xx) and lost connections end it after five consecutive
+  failed status reads; between them the wait keeps polling at `poll_interval`. Once
+  0.12.x had read a status, it ignored every such error and kept polling.
 - **How you notice:**
     - Synchronous waiting: the task fails with the Kubernetes `ApiException`. No
       finish cleanup runs, so the application keeps running.
@@ -109,7 +115,7 @@ Spark 4 also changes SQL behavior, including ANSI mode by default.
 - **What to do:** Confirm that the worker and the triggerer each resolve the
   connection and can read driver Pods in the application namespace; see
   [permissions](airflow.md#separate-execution-and-task-tab-permissions). Set
-  Airflow `retries` for transient API failures. If a deferred task must never delete
+  Airflow `retries` for API outages longer than about four poll intervals. If a deferred task must never delete
   a possibly running application after an observation error, use
   `on_finish_action="keep"` and clean up separately.
 

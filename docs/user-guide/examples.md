@@ -4,7 +4,10 @@ commands from the repository root, with namespace `spark` and service account
 The example Dockerfiles default to the Apache Spark 3.5.9 image. To build them
 with Spark 4, set the image and matching Java dependency versions as described in
 [Spark compatibility](spark_compatibility.md).
-For scheduled jobs, see the [Airflow guide](airflow.md).
+For scheduled jobs, see the [Airflow guide](airflow.md) or the
+[CronJob recipe](recipes.md#schedule-with-a-kubernetes-cronjob). The
+[ecosystem recipes](recipes.md) also cover batch schedulers, OpenLineage and
+S3/MinIO storage.
 
 ### Python
 

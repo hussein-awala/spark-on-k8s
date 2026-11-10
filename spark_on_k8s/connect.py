@@ -84,14 +84,17 @@ class ConnectProfile:
         except ValueError:
             raise ConnectError("Invalid Spark Connect endpoint.") from None
         if (
-            url.scheme != "sc"
+            # PySpark requires this literal prefix; URL parsing alone also accepts "SC://".
+            not self.endpoint.startswith("sc://")
             or not url.hostname
             or url.username is not None
             or url.password is not None
             or url.path not in {"", "/"}
             or url.query
             or url.fragment
-            or ";" in self.endpoint
+            # Even an empty query or fragment would hide the appended TLS, token and user
+            # parameters from the client, which then connects in plaintext without credentials.
+            or any(separator in self.endpoint for separator in ";?#")
             or port == 0
         ):
             raise ConnectError("Use sc://host:port without credentials, parameters, query, or path.")
@@ -198,7 +201,16 @@ class ConnectProfile:
         # Credentials remain in the environment/stdin, never process arguments or a temporary file.
         try:
             result = subprocess.run(
-                [sys.executable, "-I", "-m", "spark_on_k8s.connect"],
+                # -P keeps the working directory off sys.path. Unlike -I, it keeps PYTHONPATH and the
+                # user site, so the check imports the installation (and client) the caller imports.
+                [
+                    sys.executable,
+                    "-P",
+                    *(["-E"] if sys.flags.ignore_environment else []),
+                    *(["-s"] if sys.flags.no_user_site else []),
+                    "-m",
+                    "spark_on_k8s.connect",
+                ],
                 input=json.dumps(request),
                 capture_output=True,
                 text=True,

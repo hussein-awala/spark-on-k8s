@@ -7,6 +7,8 @@ RUN groupadd --gid 10001 spark-on-k8s \
 COPY requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir --require-hashes -r /tmp/requirements.txt
 COPY dist/ /tmp/dist/
-RUN pip install --no-deps /tmp/dist/*.whl && pip check
+# Like docker/Dockerfile, the image keeps no packaging tools after installing.
+RUN pip install --no-deps /tmp/dist/*.whl && pip check \
+    && python -m pip uninstall --yes setuptools wheel pip
 USER 10001:10001
 ENTRYPOINT ["spark-on-k8s", "api", "start", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]

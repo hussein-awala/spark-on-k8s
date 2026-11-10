@@ -17,6 +17,13 @@ The source chart requires an explicit compatible image tag or digest while its
 version, which becomes the default image tag. Building or rendering the local
 chart does not build an API image.
 
+The API image contains the API, its locked dependencies and Python, but no pip,
+setuptools or wheel. To add packages in an image built `FROM` it, switch to
+`USER root`, run `python -m ensurepip` to restore the base image's pip, install your
+packages, then switch back with `USER 10001:10001`. That pip is the base image's
+older version, so remove or upgrade it in your image. Alternatively, install the
+packages in a separate build stage and copy the result.
+
 The optional History Server has a separate image lifecycle. Enabling
 `sparkHistory.enabled` requires an explicit `sparkHistory.image.tag` or
 `sparkHistory.image.digest`; there is no implicit API-version or `latest`

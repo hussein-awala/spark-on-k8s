@@ -21,7 +21,7 @@
 {{- $managed := splitList "," $scope }}
 {{- range .Values.runHistory.namespaces }}
 {{- if not (has . $managed) }}
-{{- fail (printf "runHistory.namespaces entry %q is not in namespaces, so chart-managed RBAC cannot grant its pod reads; add it to namespaces or manage RBAC externally" .) }}
+{{- fail (printf "runHistory.namespaces entry %q is not in namespaces, so chart-managed RBAC cannot grant its pod reads; add it to namespaces" .) }}
 {{- end }}
 {{- end }}
 {{- end }}

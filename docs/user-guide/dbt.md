@@ -41,6 +41,8 @@ Service directly. The client's identity needs permission to create/read/delete
 its driver and Services, read the namespace/service account and observe executor
 pods, Services and ConfigMaps (including list permission for garbage-collection
 checks); local access also needs pod port-forward permission.
+[`spark-on-k8s-dbt check`](#check-a-profile-before-running) verifies these
+permissions without creating anything.
 
 ## Install from the repository
 
@@ -129,6 +131,77 @@ be overridden through `spark_conf`. Put static Hive/catalog configuration in
 `compute.spark_conf`; `server_side_parameters` accepts runtime `spark.sql.*` settings; catalog, warehouse,
 Hive metastore and extension settings are excluded.
 
+## Check a profile before running
+
+`spark-on-k8s-dbt check` validates the selected output and its cluster access
+without creating a Spark server or any other Kubernetes resource, so configuration
+errors appear in seconds instead of after compute has been requested. It accepts
+dbt's profile-selection options with dbt's defaults and environment variables:
+`--project-dir` (`DBT_PROJECT_DIR`), `--profiles-dir` (`DBT_PROFILES_DIR`),
+`--profile` (`DBT_PROFILE`), `--target`/`-t` (`DBT_TARGET`) and `--vars`. With
+`--profile`, a dbt project is not required.
+
+```bash
+/path/to/spark-on-k8s/.venv-dbt/bin/spark-on-k8s-dbt check \
+  --project-dir /path/to/analytics --profiles-dir /path/to/analytics --target connect
+```
+
+Each check reports `pass`, `fail` or `skip`; a failure includes a next step:
+
+| Check | Verifies |
+| --- | --- |
+| `profile` | dbt renders and selects the output (including `env_var()` and `--vars`) and the adapter accepts its credentials, through the same code dbt uses. |
+| `compute` | The adapter's `compute` validation, including the kubeconfig path and the Thrift server's managed settings. |
+| `client_libraries` | The transport client imports: the Spark Connect client, or PyHive with its Thrift SASL and HiveServer2 modules. |
+| `kubectl` | `kubectl` is on `PATH` for a local client. Skipped with `in_cluster: true`. |
+| `kubernetes_config` | The selected kubeconfig and context, or the in-cluster configuration, loads. |
+| `namespace` | The namespace exists, is not terminating, and the invoking identity can read it. |
+| `service_account` | The driver service account exists. Its own permissions are not verified. |
+| `permission.<verb>.<resource>` | A SelfSubjectAccessReview for each request the wrapper makes as the invoking identity. |
+
+The permission checks cover `get` on the namespace and driver service account;
+`create`, `get`, `list` and `delete` on Pods and Services; `list` on ConfigMaps for
+cleanup observation; and, for a local client, `create` on `pods/portforward`. The
+wrapper itself creates no Secrets or ConfigMaps; executor resources are created by
+the driver's service account. The API server evaluates access reviews without
+storing them. A review that cannot be performed fails rather than being assumed
+allowed. A missing namespace, rejected credentials or an unreachable API server
+skip the dependent checks. Kubernetes requests share a total `--timeout` (default
+30 seconds).
+
+`--output json` prints one versioned document on stdout; dbt's own warnings and
+other messages go to stderr. Every check ID appears once, in a fixed order:
+
+```json
+{
+  "schema_version": 1,
+  "operation": "dbt_check",
+  "status": "fail",
+  "profile": "analytics",
+  "target": "connect",
+  "method": "connect",
+  "namespace": "spark",
+  "checks": [
+    {"id": "profile", "status": "pass", "message": "...", "remediation": null},
+    {"id": "permission.delete.pods", "status": "fail", "message": "Denied: delete pods in namespace spark.",
+     "remediation": "Grant the invoking identity delete on pods in namespace spark."}
+  ],
+  "error": null
+}
+```
+
+`status` is `fail` when any check fails. `error` is `null` unless the check was
+interrupted (`interrupted`) or stopped unexpectedly (`operation_error`). The command
+exits 0 when no check failed, 1 when any check failed, 2 for invalid options and
+130 when interrupted.
+
+!!! note "A passing check is not a successful run"
+    The check does not pull the image, schedule a driver, start Spark or contact
+    the warehouse and metastore. Image pull failures, quotas, admission policies,
+    node capacity, the driver service account's permissions, network policy and
+    Spark configuration errors still surface only when `spark-on-k8s-dbt run`
+    starts compute.
+
 ## Run dbt with automatic compute cleanup
 
 Use the installed executable's absolute path if your current directory is a
@@ -153,6 +226,28 @@ finishes. Tables remain in the external warehouse/catalog for the next invocatio
 Commands that never open a database connection do not provision compute.
 Using plain `dbt` with this managed adapter reports that the wrapper is required;
 there is no unbounded background server hidden behind a connection-close hook.
+
+While the server starts, and while it is deleted at the end, the wrapper writes
+short progress lines with the elapsed time to **stderr**:
+
+```text
+Managed Spark +0s: requesting a Spark Connect server in namespace spark (startup timeout 180s)
+Managed Spark +1s: driver pod dbt-connect-0f3c...-driver created
+Managed Spark +1s: waiting for the driver pod to be scheduled (Unschedulable: 0/3 nodes are available: 3 Insufficient cpu.)
+Managed Spark +12s: driver pod scheduled on worker-2; container spark-kubernetes-driver is ContainerCreating
+Managed Spark +40s: driver container running
+Managed Spark +40s: opening a kubectl port-forward tunnel to the driver
+Managed Spark +41s: waiting for the Spark Connect endpoint to answer a query
+Managed Spark +55s: Spark Connect server ready (application dbt-connect-0f3c...)
+```
+
+A new phase prints immediately; an unchanged phase repeats at most every 30
+seconds. Image pull errors point at `compute.image`, so you can interrupt instead of
+waiting for `startup_timeout`. The lines never go to stdout, so dbt's stdout,
+including `--log-format json` events, is unchanged; they are also not written to
+dbt's log file. They follow dbt's resolved console settings: `--quiet`
+(`DBT_QUIET`) or `--log-level warn`, `error` or `none` (`DBT_LOG_LEVEL`, or the
+project's `flags`) suppresses them. The receipt path is always printed.
 
 Statements are not automatically replayed (`query_retries` must be 0). Spark SQL
 is not transactional: failure and cancellation can leave successfully written
@@ -207,7 +302,9 @@ separate process ownership protects compute, not conflicting SQL writes.
 
 The [integration harness](../development.md#experimental-dbt-integration) runs
 installed wheels on disposable Kubernetes with a shared HDFS warehouse and an
-external metastore fixture. It checks both transports, parallel dbt workers,
-seeds/models/data tests, fresh compute across commands, catalog persistence,
+external metastore fixture. It first runs `spark-on-k8s-dbt check` against each
+generated profile and requires every check to pass without creating compute. It
+checks both transports, parallel dbt workers, seeds/models/data tests, fresh
+compute across commands, startup and cleanup progress, catalog persistence,
 documentation generation, failed SQL and graceful cancellation. Fixture storage
 is temporary and is not a production storage deployment recipe.

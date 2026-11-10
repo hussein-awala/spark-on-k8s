@@ -49,6 +49,14 @@ spec:
           {{- with .Values.sparkHistory.volumeMounts }}
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          {{- with .Values.sparkHistory.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.sparkHistory.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           {{- with .Values.sparkHistory.resources }}
           resources:
             {{- toYaml . | nindent 12 }}

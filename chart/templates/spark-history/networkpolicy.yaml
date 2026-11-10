@@ -1,0 +1,29 @@
+{{- /* --reuse-values from an older release omits newer values; absence means disabled. */}}
+{{- $policy := .Values.sparkHistory.networkPolicy | default dict }}
+{{- if and .Values.sparkHistory.enabled $policy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "spark-on-k8s.sparkHistory.fullname" . }}
+  labels:
+    {{- include "spark-on-k8s.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "spark-on-k8s.sparkHistory.selectorLabels" . | nindent 6 }}
+  # Egress stays unrestricted: event-log storage endpoints are deployment specific.
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        # The API's History Server proxy and console listing.
+        - podSelector:
+            matchLabels:
+              {{- include "spark-on-k8s.selectorLabels" . | nindent 14 }}
+        {{- with dig "ingress" "from" (list) $policy }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      ports:
+        - port: 18080
+          protocol: TCP
+{{- end }}

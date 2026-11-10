@@ -30,6 +30,27 @@ def test_configured_store_limits_and_explicit_namespaces(tmp_path, monkeypatch):
     assert settings.freshness_seconds > settings.lease_seconds
 
 
+def test_readiness_mode_defaults_to_degraded_and_rejects_unknown_values(tmp_path, monkeypatch):
+    monkeypatch.setenv("SPARK_ON_K8S_RUN_HISTORY_ENABLED", "true")
+    monkeypatch.setenv("SPARK_ON_K8S_RUN_HISTORY_PATH", str(tmp_path / "runs.sqlite3"))
+    assert HistorySettings.from_env().readiness == "degraded"
+    monkeypatch.setenv("SPARK_ON_K8S_RUN_HISTORY_READINESS", "Strict")
+    assert HistorySettings.from_env().readiness == "strict"
+    monkeypatch.setenv("SPARK_ON_K8S_RUN_HISTORY_READINESS", "lenient")
+    with pytest.raises(ValueError, match="degraded or strict"):
+        HistorySettings.from_env()
+
+
+def test_freshness_window_matches_readiness():
+    settings = HistorySettings(interval=30, collection_timeout=15)
+    assert settings.freshness_seconds == 85
+    assert settings.is_fresh(1000, 1085)
+    assert not settings.is_fresh(1000, 1086)
+    assert not settings.is_fresh(None, 1000)
+    # A success recorded in the future (clock change) is not treated as fresh.
+    assert not settings.is_fresh(1001, 1000)
+
+
 @pytest.mark.parametrize("path", ["", "relative.sqlite3", ":memory:"])
 def test_history_requires_an_explicit_absolute_file(monkeypatch, path):
     monkeypatch.setenv("SPARK_ON_K8S_RUN_HISTORY_ENABLED", "1")

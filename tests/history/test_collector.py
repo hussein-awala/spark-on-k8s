@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import asyncio
+import logging
+import sqlite3
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, Mock
 
+import aiohttp
 import pytest
 from kubernetes_asyncio import client as k8s
 from spark_on_k8s.history import collector as module
@@ -75,8 +78,19 @@ def test_complete_paginated_collection_stores_only_operational_metadata(setup):
     assert collector.store.health()["analytics"]["successes"] == 1
 
 
-@pytest.mark.parametrize("failure", ["api", "limit", "repeat", "invalid", "duplicate"])
-def test_partial_failed_invalid_or_oversized_snapshot_never_disappears_existing_runs(setup, failure):
+@pytest.mark.parametrize(
+    "failure, category",
+    [
+        ("api", "forbidden"),
+        ("limit", "page_limit"),
+        ("repeat", "pagination"),
+        ("invalid", "invalid_metadata"),
+        ("duplicate", "invalid_metadata"),
+    ],
+)
+def test_partial_failed_invalid_or_oversized_snapshot_never_disappears_existing_runs(
+    setup, failure, category
+):
     collector, api = setup
     api.list_namespaced_pod.side_effect = [page([pod("existing")])]
     asyncio.run(collector.collect_once())
@@ -93,6 +107,91 @@ def test_partial_failed_invalid_or_oversized_snapshot_never_disappears_existing_
     assert len(items) == 1 and items[0]["uid"] == "existing"
     assert items[0]["disappeared_at"] is None
     assert collector.store.health()["analytics"]["failures"] == 1
+    assert collector.store.health()["analytics"]["last_error"] == category
+
+
+@pytest.mark.parametrize(
+    "error, category",
+    [
+        (k8s.ApiException(status=401), "unauthorized"),
+        (k8s.ApiException(status=403, reason="token abc"), "forbidden"),
+        (k8s.ApiException(status=404), "not_found"),
+        (k8s.ApiException(status=410), "pagination"),
+        (k8s.ApiException(status=429), "throttled"),
+        (k8s.ApiException(status=503), "server_error"),
+        (k8s.ApiException(status=400), "api_error"),
+        (k8s.ApiException(), "api_error"),
+        (TimeoutError(), "timeout"),
+        (aiohttp.ServerTimeoutError(), "timeout"),
+        (aiohttp.ServerDisconnectedError(), "connection"),
+        (ConnectionRefusedError(), "connection"),
+        (module.CollectionError("too many pages", "page_limit"), "page_limit"),
+        (ValueError("Incomplete or mismatched driver metadata"), "invalid_metadata"),
+        (sqlite3.IntegrityError("UNIQUE constraint failed"), "invalid_metadata"),
+        (sqlite3.OperationalError("database is locked"), "store"),
+        (RuntimeError("anything"), "unexpected"),
+    ],
+)
+def test_failure_categories_are_bounded_and_ignore_error_text(error, category):
+    assert module.error_category(error) == category
+
+
+def test_staleness_is_logged_once_per_transition_without_error_text(setup, caplog):
+    collector, api = setup
+    object.__setattr__(collector.settings, "namespaces", ("analytics", "batch"))
+    clock = [1700000000.0]
+    collector.store.clock = lambda: clock[0]
+
+    async def listing(**kwargs):
+        if kwargs["namespace"] == "batch" and failing:
+            raise k8s.ApiException(status=403, reason="Bearer secret-token denied")
+        return page([pod(namespace=kwargs["namespace"])])
+
+    failing = True
+    api.list_namespaced_pod.side_effect = listing
+    caplog.set_level(logging.INFO, logger=module.__name__)
+    for _ in range(3):
+        asyncio.run(collector.collect_once())
+        clock[0] += collector.settings.interval
+    stale = [record for record in caplog.records if "stale" in record.getMessage()]
+    assert [(record.levelno, record.getMessage()) for record in stale] == [
+        (
+            logging.WARNING,
+            "Run-history collection for namespace batch is stale: last success never; last error: forbidden",
+        )
+    ]
+    assert "secret-token" not in caplog.text
+    failing = False
+    asyncio.run(collector.collect_once())
+    asyncio.run(collector.collect_once())
+    assert [record.getMessage() for record in caplog.records if "fresh again" in record.getMessage()] == [
+        "Run-history collection for namespace batch is fresh again"
+    ]
+    caplog.clear()
+    # A namespace that was collected before reports its age when it becomes stale again.
+    failing = True
+    clock[0] += collector.settings.freshness_seconds + 1
+    asyncio.run(collector.collect_once())
+    assert caplog.messages == [
+        f"Run-history collection for namespace batch is stale: last success "
+        f"{collector.settings.freshness_seconds + 1:.0f}s ago; last error: forbidden"
+    ]
+
+
+def test_namespace_skipped_by_the_collection_budget_is_reported_as_not_attempted(setup, caplog):
+    collector, api = setup
+    object.__setattr__(collector.settings, "namespaces", ("analytics", "other"))
+    object.__setattr__(collector.settings, "collection_timeout", 0.02)
+
+    async def blocked(**_kwargs):
+        await asyncio.Event().wait()
+
+    api.list_namespaced_pod.side_effect = blocked
+    asyncio.run(collector.collect_once())
+    assert caplog.messages == [
+        "Run-history collection for namespace analytics is stale: last success never; last error: timeout",
+        "Run-history collection for namespace other is stale: last success never; last error: not_attempted",
+    ]
 
 
 def test_active_other_worker_prevents_duplicate_polling(setup):
@@ -225,10 +324,10 @@ def test_lost_lease_during_failure_recording_does_not_modify_new_owner_statistic
     collector, api = setup
     original = collector.store.failure
 
-    def steal(namespace, lease):
+    def steal(namespace, lease, category):
         collector.store.release(lease)
         collector.store.acquire("replacement", 30)
-        original(namespace, lease)
+        original(namespace, lease, category)
 
     collector.store.failure = steal
     api.list_namespaced_pod.side_effect = k8s.ApiException(status=503)

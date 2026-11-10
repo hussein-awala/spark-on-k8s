@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import hashlib
 import os
 import shutil
 import subprocess
 from pathlib import Path
 
+import pytest
 import yaml
 
 CHART = Path(__file__).resolve().parents[2] / "chart"
@@ -79,11 +81,32 @@ def test_shared_rbac_is_unique_and_legacy_opt_in_is_preserved(tmp_path):
             return {
                 (d["kind"], d["metadata"].get("namespace"), d["metadata"]["name"])
                 for d in docs
-                if d["kind"] in ("Role", "RoleBinding", "ClusterRoleBinding")
+                if d["kind"] in ("Role", "RoleBinding", "ClusterRole", "ClusterRoleBinding")
             }
 
         assert identities("control-a").isdisjoint(identities("control-b"))
         assert identities("control-a", True) == identities("control-b", True)
+
+
+@pytest.mark.parametrize("read_only", [True, False])
+@pytest.mark.parametrize("legacy", [True, False])
+def test_cluster_wide_rbac_names_never_reuse_built_in_role_bindings(tmp_path, read_only, legacy):
+    values = {
+        "namespaces": "*",
+        "readOnly": read_only,
+        "rbac": {"legacyNames": legacy, "allowClusterWideWrite": True},
+    }
+    fullname = "console-spark-on-k8s"
+    digest = hashlib.sha256(f"control/{fullname}".encode()).hexdigest()
+    name = fullname if legacy else f"{fullname}-{digest[:8]}"
+    cluster = {d["kind"]: d for d in render(tmp_path, values) if d["kind"].startswith("ClusterRole")}
+    # Earlier charts bound "*" installs to the built-in view/edit roles as <name>-view or <name>-edit.
+    # roleRef is immutable, so reusing those names for the chart-owned role would fail `helm upgrade`.
+    assert {kind: d["metadata"]["name"] for kind, d in cluster.items()} == {
+        "ClusterRole": name,
+        "ClusterRoleBinding": name,
+    }
+    assert cluster["ClusterRoleBinding"]["roleRef"]["name"] == name
 
 
 def test_stop_permission_and_authenticated_health_hook(tmp_path):

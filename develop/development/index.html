@@ -68,7 +68,7 @@
   <meta name="documentation-channel" content="develop">
   <meta name="documentation-version" content="develop">
   
-    <meta name="documentation-source" content="1ded6bb06f8c0f1b167bec07952ffbc81e6e2205">
+    <meta name="documentation-source" content="ad2e58c9618515145c4d2f3abc80b67676a389a2">
   
 
   </head>
@@ -108,7 +108,7 @@
     <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
   
   
-    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/1ded6bb06f8c0f1b167bec07952ffbc81e6e2205"><code>1ded6bb06f8c</code></a>.
+    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/ad2e58c9618515145c4d2f3abc80b67676a389a2"><code>ad2e58c96185</code></a>.
   
 
           </div>
@@ -5284,6 +5284,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#dependency-updates-and-vulnerability-scanning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dependency updates and vulnerability scanning
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -5453,6 +5464,17 @@
     <span class="md-ellipsis">
       
         Experimental dbt integration
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dependency-updates-and-vulnerability-scanning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dependency updates and vulnerability scanning
       
     </span>
   </a>
@@ -5844,6 +5866,86 @@ both wheels and tests Thrift and Connect separately on Spark 4.3.0/Python 3.12,
 with fixtures and cleanup evidence. A mock test or receipt alone does not prove
 SQL execution, table persistence or resource disappearance. Keep the published
 <a href="../user-guide/dbt/">profile and command guide</a> synchronized with this runner.</p>
+<h2 id="dependency-updates-and-vulnerability-scanning">Dependency updates and vulnerability scanning<a class="headerlink" href="#dependency-updates-and-vulnerability-scanning" title="Permanent link">&para;</a></h2>
+<p><code>.github/dependabot.yml</code> opens weekly version-update pull requests, proposing a
+release only after it is seven days old:</p>
+<table>
+<thead>
+<tr>
+<th>Ecosystem</th>
+<th>Files</th>
+<th>Policy</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GitHub Actions</td>
+<td><code>.github/workflows/</code></td>
+<td>Keeps full-SHA pins and their version comments; groups minor/patch updates</td>
+</tr>
+<tr>
+<td>uv</td>
+<td><code>uv.lock</code>, <code>integrations/dbt/uv.lock</code></td>
+<td>Lockfile-only: refreshes locked and transitive versions within the declared ranges and pins; groups minor/patch updates. Excludes the Airflow core distributions and <code>pyspark-client</code>, whose versions workflows pin and assert</td>
+</tr>
+<tr>
+<td>npm</td>
+<td><code>frontend/</code></td>
+<td>Groups the React packages, and minor/patch development tooling updates</td>
+</tr>
+<tr>
+<td>Docker</td>
+<td><code>docker/Dockerfile</code>, <code>tests/integration/chart/Dockerfile</code></td>
+<td>Updates the shared Python base tag and digest in both files together</td>
+</tr>
+</tbody>
+</table>
+<p>Review these pull requests through the dependencies route in
+<a href="#choose-checks-by-change">Choose checks by change</a>. A React or Vite update can
+change the packaged console assets: run <code>npm ci</code> and <code>npm run build</code> in <code>frontend/</code>
+and commit both asset trees to the pull request, as CI rejects stale assets. A base
+image update changes the published API image; the release workflow's nonpublishing
+container check runs on it.</p>
+<p>Dependabot cannot update the following, so change them deliberately with their
+dependents: the uv version in workflow setup steps, <code>uv_build</code> and this guide; Helm,
+Node.js, Java, kind and <code>coverage</code> versions in workflows and scripts; Python,
+Airflow and Spark versions, image digests and <code>pyspark</code> pins in workflow matrices
+and environments; Dockerfiles whose base comes from a build <code>ARG</code>, the Airflow
+harness, dbt Hadoop and lakehouse starter images; declared ranges and exact pins
+in either <code>pyproject.toml</code> (with <code>.pre-commit-config.yaml</code> for Ruff and SQLFluff).</p>
+<p>The <strong>Vulnerability scan</strong> workflow (<code>.github/workflows/security-scan.yml</code>) runs
+daily, on demand, and for pushes to <code>main</code> and pull requests that change a lockfile,
+project manifest, <code>docker/</code> or the image preparation script:</p>
+<ul>
+<li>OSV-Scanner checks <code>uv.lock</code>, <code>integrations/dbt/uv.lock</code> and
+  <code>frontend/package-lock.json</code>. The uv lockfiles contain every extra and dependency
+  group, so a finding may affect only test, documentation or tooling profiles.</li>
+<li>Grype scans the API image built from <code>docker/</code> with the release workflow's frozen
+  inputs (amd64, placeholder version, never published). It reports only
+  vulnerabilities with an available fix.</li>
+</ul>
+<p>The workflow is report-only: findings never fail it or block a merge. A job fails
+only when it cannot complete its scan, for example when the image does not build or
+the scanner writes no results, because an unexecuted scan is not a clean result. Findings appear under <strong>Security &gt; Code scanning</strong>, with a count in the
+job summary, and the SARIF files are kept as <code>osv-scanner</code> and <code>grype-api-image</code>
+workflow artifacts. Pull requests from forks only get the artifacts. On other pull
+requests, GitHub's code scanning check annotates alerts that the change introduces;
+it blocks a merge only if branch protection requires it. The repository's Dependabot
+alerts setting separately reports advisories against the default branch's manifests.</p>
+<p>To triage a finding:</p>
+<ol>
+<li>Identify the exposure. <code>uv tree --frozen --invert --package NAME --all-groups</code>
+   (add <code>--project integrations/dbt</code> for the adapter) shows which extra or group
+   pulls in a Python package; use <code>npm ls NAME</code> in <code>frontend/</code>. Image findings name
+   the package and its location in the image.</li>
+<li>If a fixed version fits the declared ranges, refresh the lock
+   (<code>uv lock --upgrade-package NAME</code>, or <code>npm update NAME</code> for a transitive npm
+   package) or merge the Dependabot update. Changing a declared range, an exact pin
+   or the image's Python version is a compatibility decision; see the
+   <a href="../user-guide/support/">support boundaries</a>.</li>
+<li>Otherwise dismiss the code scanning alert with a reason, such as a profile that
+   is not shipped. A dismissal persists across later scans.</li>
+</ol>
 
 
 
@@ -5864,7 +5966,7 @@ SQL execution, table persistence or resource disappearance. Keep the published
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 10, 2026 11:26:46 UTC">November 10, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 10, 2026 11:29:40 UTC">November 10, 2026</span>
   </span>
 
     

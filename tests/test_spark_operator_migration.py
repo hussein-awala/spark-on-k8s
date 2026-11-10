@@ -411,6 +411,16 @@ def test_cli_json_contract_and_exit_codes(tmp_path):
     assert missing.exit_code == 2
 
 
+def test_cli_creates_a_missing_draft_directory(tmp_path):
+    # The migration guide passes a new directory, as in `--draft-dir drafts/`.
+    drafts = tmp_path / "drafts" / "nested"
+    result = CliRunner().invoke(
+        job_cli, ["assess-operator", str(FIXTURES / "pyspark-pi.yaml"), "--draft-dir", str(drafts)]
+    )
+    assert result.exit_code == 0, result.output
+    assert (drafts / "pyspark-pi.yaml").is_file()
+
+
 def test_cli_text_report_and_draft_files(tmp_path):
     runner = CliRunner()
     file = str(FIXTURES / "pyspark-pi.yaml")

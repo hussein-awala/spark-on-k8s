@@ -392,8 +392,9 @@ class ConnectServerOwnershipError(ConnectServerError):
 class ConnectServerTimeout(TimeoutError):
     """Readiness observation expired; the server was not deleted."""
 
-    def __init__(self, handle):
-        super().__init__("Spark Connect readiness timed out; the server was not stopped or deleted")
+    def __init__(self, handle, last_failure: str | None = None):
+        message = "Spark Connect readiness timed out; the server was not stopped or deleted"
+        super().__init__(message + (f". Last query check: {last_failure}" if last_failure else ""))
         self.handle = handle
         self.run = handle.run
         self.phase = "readiness"
@@ -864,6 +865,7 @@ def wait_connect_server_ready(
     if type(poll_interval) not in {int, float} or not math.isfinite(poll_interval) or poll_interval <= 0:
         raise ValueError("poll_interval must be positive and finite")
     deadline = _deadline(timeout)
+    last_failure = None
     try:
         while True:
             status = connect_server_status(client, handle, timeout=deadline.remaining())
@@ -873,14 +875,16 @@ def wait_connect_server_ready(
                 )
             if status["status"] == "running":
                 try:
+                    # The same per-check budget as `connect check`: a slower client start is not unreadiness.
                     result = profile.probe(
-                        timeout=min(5, deadline.remaining()), expected_app_id=handle.run.app_id
+                        timeout=min(15, deadline.remaining()), expected_app_id=handle.run.app_id
                     )
                 except ConnectClientUnavailable:
                     # A missing local client is not a server state; polling cannot make it ready.
                     raise
-                except (ConnectError, TimeoutError):
-                    pass
+                except (ConnectError, TimeoutError) as failure:
+                    # Reported if the wait times out, for example when another application answers.
+                    last_failure = str(failure)
                 else:
                     after = connect_server_status(client, handle, timeout=deadline.remaining())
                     if after["status"] == "running":
@@ -897,7 +901,7 @@ def wait_connect_server_ready(
                         }
             deadline.sleep(poll_interval)
     except TimeoutError:
-        raise ConnectServerTimeout(handle) from None
+        raise ConnectServerTimeout(handle, last_failure) from None
     except (TransportTimeoutError, MaxRetryError) as error:
         # urllib3 can wrap a request timeout once the remaining wait budget is tiny.
         # Only the enclosing deadline expiring changes that transport error into a wait timeout.
@@ -906,7 +910,7 @@ def wait_connect_server_ready(
             try:
                 deadline.remaining()
             except TimeoutError:
-                raise ConnectServerTimeout(handle) from None
+                raise ConnectServerTimeout(handle, last_failure) from None
         raise
 
 

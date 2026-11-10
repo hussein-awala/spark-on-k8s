@@ -139,8 +139,9 @@ def submit(file, profile, output, timeout, receipt_file):
 @click.option("--output", type=click.Choice(["text", "json"]), default="text", show_default=True)
 @click.option(
     "--draft-dir",
-    type=click.Path(exists=True, file_okay=False, writable=True),
-    help="Write each valid SparkJob draft to this directory as NAME.yaml; existing files are kept.",
+    type=click.Path(file_okay=False),
+    help="Write each valid SparkJob draft to this directory, created if missing, as NAME.yaml; "
+    "existing files are kept.",
 )
 def assess_operator(file, output, draft_dir):
     """Assess Kubeflow Spark Operator manifests offline and draft SparkJob files.
@@ -162,6 +163,7 @@ def assess_operator(file, output, draft_dir):
     try:
         result.update(assess_file(file))
         if draft_dir is not None:
+            Path(draft_dir).mkdir(parents=True, exist_ok=True)
             _write_drafts(result["applications"], Path(draft_dir), Path(file).name)
     except (ManifestError, OSError) as error:
         result["error"] = {"code": "operation_error", "message": str(error)}

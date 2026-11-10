@@ -184,7 +184,10 @@ at an arbitrary current kubeconfig context.
   steps, then pass `--kubeconfig`, `--context`, `--image`, `--spark-version` and
   `--artifacts` as specified by the runner. It covers real Python, SQL, failure and
   Java submissions (the Java run uses a hashed long driver name), executor ownership,
-  resource cleanup and rollback after an admission-rejected driver. Changes to lifecycle
+  resource cleanup and rollback after an admission-rejected driver. A `max_runtime`
+  run must end `Failed`/`DeadlineExceeded` with released executors and a
+  `deadline_exceeded` diagnosis, then the installed `apps prune` CLI previews and
+  deletes it until its owned objects are garbage-collected. Changes to lifecycle
   behavior extend this harness instead of adding a second client harness.
 - `.github/workflows/airflow-kubernetes.yml` runs
   `tests/integration/airflow/run_kubernetes.py` against Airflow 2.11.2 and 3.4.0

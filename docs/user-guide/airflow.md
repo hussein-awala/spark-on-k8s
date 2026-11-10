@@ -105,6 +105,15 @@ The table applies to `app_waiter="wait"` or `"log"` unless stated otherwise.
 `startup_timeout` bounds the driver's Pending phase; `0` disables that deadline.
 It is separate from Airflow's task execution timeout.
 
+`max_runtime` (seconds, unset by default) sets the driver pod's Kubernetes
+`activeDeadlineSeconds`: Kubernetes stops the driver that long after its pod starts
+and marks it `Failed` with reason `DeadlineExceeded`, even when the worker, triggerer
+or `on_kill` never runs. A waiting task then follows the "Spark fails" row. Airflow's
+`execution_timeout` still needs a live worker to call `on_kill`. The deadline covers
+the driver's whole life, including time a retry spends adopting it; a retry that finds
+the driver stopped submits a new application with a new deadline. See
+[driver lifetime limits](automation.md#limit-how-long-a-driver-can-run).
+
 | Outcome or event | Task outcome and application action |
 | --- | --- |
 | Spark succeeds | Task succeeds; `keep` retains the application, `delete` and `keep_if_failed` delete it |

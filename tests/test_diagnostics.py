@@ -105,6 +105,24 @@ def test_exit_137_alone_is_not_claimed_as_oom_and_no_events_does_not_invent_a_ca
     assert [f.code for f in classify_pod(pod().to_dict(), [])] == ["cause_unknown"]
 
 
+def test_elapsed_driver_deadline_is_reported_as_the_cause():
+    value = pod().to_dict()
+    value["status"].update(
+        phase="Failed",
+        reason="DeadlineExceeded",
+        message="Pod was active on the node longer than the specified deadline",
+    )
+    value["status"]["container_statuses"] = [
+        {"name": "driver", "state": {"terminated": {"reason": "Error", "exit_code": 143}}}
+    ]
+    findings = classify_pod(value, [])
+    assert [finding.code for finding in findings] == ["deadline_exceeded", "container_failed"]
+    assert findings[0].severity == "error"
+    assert findings[0].container is None
+    assert "longer than the specified deadline" in findings[0].evidence
+    assert "max_runtime" in findings[0].remediation
+
+
 def test_evidence_redacts_credentials_and_deduplicates_repeated_events():
     events = [
         event("Failed", "Failed to pull image https://user:private@registry/image?token=private").to_dict()

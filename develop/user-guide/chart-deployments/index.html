@@ -68,7 +68,7 @@
   <meta name="documentation-channel" content="develop">
   <meta name="documentation-version" content="develop">
   
-    <meta name="documentation-source" content="604e94905e55abd2fd9211558d4544a9e0783e2c">
+    <meta name="documentation-source" content="8833360c51549a441010b345303a3ac18a14aef3">
   
 
   </head>
@@ -108,7 +108,7 @@
     <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
   
   
-    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/604e94905e55abd2fd9211558d4544a9e0783e2c"><code>604e94905e55</code></a>.
+    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/8833360c51549a441010b345303a3ac18a14aef3"><code>8833360c5154</code></a>.
   
 
           </div>
@@ -5927,7 +5927,9 @@ another user needs matching IDs. The History Server keeps its own security setti
 remote-submission token or policy, or a kubeconfig selected with
 <code>SPARK_ON_K8S_CONFIG_FILE</code>. Its home directory is <code>/home/spark-on-k8s</code>; <code>/root</code>
 is not readable. Keep <code>service.port</code> at 1024 or above, because some container
-runtimes do not let a non-root process bind lower ports.</p>
+runtimes do not let a non-root process bind lower ports. Mount a remote-submission
+Secret as a directory rather than with <code>subPath</code>, so a
+<a href="../remote-submission/#rotate-the-token">token rotation</a> reaches running pods.</p>
 <p>A run-history claim written by an earlier root API process holds root-owned
 files. On volume types that support <code>fsGroup</code>, such as most block-storage CSI
 drivers and <code>local</code> volumes, the kubelet makes them group-writable at the first
@@ -6187,9 +6189,10 @@ including the console; kubelet probes and the chart's <code>helm test</code> use
 public routes. Submissions create driver pods and Services, so with chart-managed
 RBAC set <code>readOnly: false</code>. Keep the policy's namespaces within <code>namespaces</code>: the
 API refuses to start with a policy namespace outside its scope. A missing Secret
-key also prevents the pod from starting. Each worker reads the files when it
-starts, so restart the Deployment with <code>kubectl rollout restart</code> after rotating
-the token or changing the policy. <code>env</code> entries for the same variables take
+key also prevents the pod from starting. The Secret is mounted as a directory, so
+a <a href="../remote-submission/#rotate-the-token">token rotation</a> or policy change reaches
+running pods after the kubelet's sync period; each worker then applies valid files
+without a restart. <code>env</code> entries for the same variables take
 precedence, and <code>remote-submission</code> is a reserved volume name. The token is one
 shared operator credential, not tenant isolation.</p>
 <h2 id="preparing-the-next-chart-release">Preparing the next chart release<a class="headerlink" href="#preparing-the-next-chart-release" title="Permanent link">&para;</a></h2>
@@ -6263,7 +6266,7 @@ need a reviewed recreation because Deployment selectors are immutable.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 10, 2026 11:25:24 UTC">November 10, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 10, 2026 11:26:32 UTC">November 10, 2026</span>
   </span>
 
     

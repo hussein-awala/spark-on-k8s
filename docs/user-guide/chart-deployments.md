@@ -240,6 +240,8 @@ To serve the API below an ingress path such as `/platform/spark`, have the ingre
 controller remove that prefix before forwarding and set
 `SPARK_ON_K8S_API_ROOT_PATH` to the same path in `env`; see
 [mounted paths](../security-boundaries.md#mounted-spark-ui-paths).
+To require single sign-on, keep the chart Ingress disabled and publish the
+console through the [oauth2-proxy gateway recipe](sso-gateway.md) instead.
 Use the [development guide](../development.md) for the Helm regression suite and
 [release guidance](../releases.md) for the artifact publication boundary.
 

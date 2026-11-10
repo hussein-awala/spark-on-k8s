@@ -226,6 +226,11 @@ at an arbitrary current kubeconfig context.
 - `tests/integration/starters/check.py` verifies ETL/Iceberg output and replay in
   the selected Spark image. Its container-local results do not validate shared
   storage provisioning on a target cluster.
+- `tests/integration/sso_gateway/check.sh` is an opt-in check that no workflow runs.
+  It deploys `examples/sso-gateway` with a mock OIDC provider in a kind cluster named
+  `sso-gateway-ci`; see the [single sign-on gateway guide](user-guide/sso-gateway.md#validation)
+  for its scope. Run it when changing that example, the console's routes, origin
+  checks or Spark UI proxy headers, and record the result in the PR.
 - `.github/workflows/chart-kubernetes.yml` builds a `chart-ci` API image from the
   checkout and runs two jobs, each on its own kind cluster. `tests/integration/chart/check.sh`
   installs and upgrades the source chart. `tests/integration/chart/upgrade.sh`

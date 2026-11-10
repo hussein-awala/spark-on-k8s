@@ -1,6 +1,6 @@
 # Browser and gateway security boundaries
 
-The API is an operator tool. The optional remote submission mode uses a shared operator bearer; it does not provide tenant isolation or per-user authorization. A gateway is responsible for authenticating browser users and deciding which users may reach the console. Keep operator credentials out of browser storage, page bootstrap data and WebSocket URLs.
+The API is an operator tool. The optional remote submission mode uses a shared operator bearer; it does not provide tenant isolation or per-user authorization. A gateway is responsible for authenticating browser users and deciding which users may reach the console; the [single sign-on gateway recipe](user-guide/sso-gateway.md) deploys oauth2-proxy for this. Keep operator credentials out of browser storage, page bootstrap data and WebSocket URLs.
 
 ## Namespace scope
 

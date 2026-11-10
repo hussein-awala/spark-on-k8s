@@ -120,6 +120,7 @@ nav:
           - Jupyter notebooks: user-guide/jupyter.md
           - Experimental managed dbt: user-guide/dbt.md
           - Airflow: user-guide/airflow.md
+          - Upgrade Airflow DAGs from 0.12: user-guide/airflow-upgrade.md
           - Remote submission: user-guide/remote-submission.md
   - Operate:
       - Diagnose failures: user-guide/diagnostics.md

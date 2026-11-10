@@ -34,6 +34,21 @@ helm uninstall console --namespace control-a
 test "$(kubectl auth can-i get pods/exec --namespace analytics \
   --as=system:serviceaccount:control-b:console-spark-on-k8s)" = yes
 helm test console --namespace control-b --timeout 120s
+# Without a NetworkPolicy, another namespace reaches the API through its Service.
+api_health=http://console-spark-on-k8s.control-b:8000/health
+kubectl run policy-before --namespace analytics --image busybox --restart=Never --rm --attach \
+  --command -- wget -T 5 -q -O /dev/null "$api_health"
+# The optional policy still admits kubelet probes and the release's own helm test pod.
+helm upgrade console chart --namespace control-b --reuse-values \
+  --set networkPolicy.enabled=true --set podDisruptionBudget.enabled=true --wait --timeout 180s
+test "$(kubectl get poddisruptionbudget console-spark-on-k8s --namespace control-b \
+  -o jsonpath='{.spec.maxUnavailable}')" = 1
+kubectl rollout restart deployment/console-spark-on-k8s --namespace control-b
+kubectl rollout status deployment/console-spark-on-k8s --namespace control-b --timeout 120s
+helm test console --namespace control-b --timeout 120s
+# kindnet enforces NetworkPolicy: unlisted namespaces can no longer connect.
+kubectl run policy-after --namespace analytics --image busybox --restart=Never --rm --attach \
+  --command -- sh -c "! wget -T 5 -q -O /dev/null $api_health"
 # Fixed public fixture token, confined to this disposable cluster.
 kubectl create secret generic remote-test --namespace control-b \
   --from-literal=token=chart-ci-public-test-token-at-least-32-characters \
@@ -41,6 +56,18 @@ kubectl create secret generic remote-test --namespace control-b \
 helm upgrade console chart --namespace control-b --reuse-values \
   -f tests/integration/chart/remote-values.yaml --wait --timeout 180s
 helm test console --namespace control-b --timeout 120s
+# The remote block mounts the Secret's token where the API reads it.
+kubectl exec --namespace control-b deployment/console-spark-on-k8s -- python -c '
+import urllib.request
+with open("/etc/spark-on-k8s/remote/token") as source:
+    token = source.read().strip()
+request = urllib.request.Request(
+    "http://127.0.0.1:8000/webserver/api/apps?namespace=analytics",
+    headers={"Authorization": "Bearer " + token},
+)
+with urllib.request.urlopen(request) as response:
+    assert response.status == 200
+'
 kubectl exec --namespace control-b deployment/console-spark-on-k8s -- python -c '
 import urllib.request, urllib.error
 try:

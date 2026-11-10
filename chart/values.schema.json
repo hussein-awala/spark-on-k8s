@@ -137,12 +137,80 @@
           "maximum": 65535
         }
       }
+    },
+    "disruptionLimit": {
+      "type": [
+        "integer",
+        "string",
+        "null"
+      ],
+      "minimum": 0,
+      "pattern": "^([0-9]|[1-9][0-9]|100)%$",
+      "description": "A pod count, a percentage such as \"50%\", or null."
+    },
+    "podDisruptionBudget": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "minAvailable": {
+          "$ref": "#/definitions/disruptionLimit"
+        },
+        "maxUnavailable": {
+          "$ref": "#/definitions/disruptionLimit"
+        }
+      },
+      "if": {
+        "properties": {
+          "minAvailable": {
+            "type": [
+              "integer",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "minAvailable"
+        ]
+      },
+      "then": {
+        "properties": {
+          "maxUnavailable": {
+            "type": "null",
+            "description": "Set either minAvailable or maxUnavailable, not both."
+          }
+        }
+      }
+    },
+    "networkPeers": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      },
+      "description": "Kubernetes NetworkPolicyPeer objects."
+    },
+    "probe": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "A Kubernetes Probe, or null to remove it."
     }
   },
   "properties": {
     "replicaCount": {
       "type": "integer",
       "minimum": 0
+    },
+    "workers": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 1,
+      "maximum": 64,
+      "description": "API worker processes per pod; null keeps the image default."
     },
     "image": {
       "$ref": "#/definitions/image"
@@ -187,7 +255,57 @@
       "properties": {
         "enabled": {
           "type": "boolean"
+        },
+        "serviceMonitor": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "interval": {
+              "type": "string",
+              "pattern": "^$|^(0|(([0-9]+)y)?(([0-9]+)w)?(([0-9]+)d)?(([0-9]+)h)?(([0-9]+)m)?(([0-9]+)s)?(([0-9]+)ms)?)$"
+            },
+            "scrapeTimeout": {
+              "type": "string",
+              "pattern": "^$|^(0|(([0-9]+)y)?(([0-9]+)w)?(([0-9]+)d)?(([0-9]+)h)?(([0-9]+)m)?(([0-9]+)s)?(([0-9]+)ms)?)$"
+            },
+            "labels": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          }
         }
+      },
+      "if": {
+        "properties": {
+          "serviceMonitor": {
+            "properties": {
+              "enabled": {
+                "const": true
+              }
+            },
+            "required": [
+              "enabled"
+            ]
+          }
+        },
+        "required": [
+          "serviceMonitor"
+        ]
+      },
+      "then": {
+        "properties": {
+          "enabled": {
+            "const": true,
+            "description": "metrics.serviceMonitor requires metrics.enabled."
+          }
+        },
+        "required": [
+          "enabled"
+        ]
       }
     },
     "runHistory": {
@@ -249,6 +367,31 @@
         },
         "configuration": {
           "type": "string"
+        },
+        "readinessProbe": {
+          "$ref": "#/definitions/probe"
+        },
+        "livenessProbe": {
+          "$ref": "#/definitions/probe"
+        },
+        "podDisruptionBudget": {
+          "$ref": "#/definitions/podDisruptionBudget"
+        },
+        "networkPolicy": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "ingress": {
+              "type": "object",
+              "properties": {
+                "from": {
+                  "$ref": "#/definitions/networkPeers"
+                }
+              }
+            }
+          }
         },
         "resources": {
           "type": "object"
@@ -385,6 +528,109 @@
       "type": "array",
       "items": {
         "type": "object"
+      }
+    },
+    "podDisruptionBudget": {
+      "$ref": "#/definitions/podDisruptionBudget"
+    },
+    "networkPolicy": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "ingress": {
+          "type": "object",
+          "properties": {
+            "from": {
+              "$ref": "#/definitions/networkPeers"
+            }
+          }
+        },
+        "egress": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "kubernetesApi": {
+              "type": "object",
+              "properties": {
+                "to": {
+                  "$ref": "#/definitions/networkPeers"
+                },
+                "ports": {
+                  "type": "array",
+                  "minItems": 1,
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 65535
+                  }
+                }
+              }
+            },
+            "dns": {
+              "type": "object",
+              "properties": {
+                "to": {
+                  "$ref": "#/definitions/networkPeers"
+                }
+              }
+            },
+            "extraRules": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "remote": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "existingSecret": {
+          "type": "string",
+          "pattern": "^$|^[a-z0-9]([-a-z0-9.]{0,251}[a-z0-9])?$"
+        },
+        "tokenKey": {
+          "type": "string",
+          "pattern": "^[-._a-zA-Z0-9]{1,253}$"
+        },
+        "policyKey": {
+          "type": "string",
+          "pattern": "^[-._a-zA-Z0-9]{1,253}$"
+        },
+        "mountPath": {
+          "type": "string",
+          "pattern": "^(/[^/\\s]+)+$"
+        }
+      },
+      "if": {
+        "properties": {
+          "enabled": {
+            "const": true
+          }
+        },
+        "required": [
+          "enabled"
+        ]
+      },
+      "then": {
+        "properties": {
+          "existingSecret": {
+            "minLength": 1
+          }
+        },
+        "required": [
+          "existingSecret"
+        ]
       }
     }
   },

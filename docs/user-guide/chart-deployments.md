@@ -207,7 +207,9 @@ another user needs matching IDs. The History Server keeps its own security setti
 
 The API must be able to read files mounted from volumes, such as a
 remote-submission token or policy, or a kubeconfig selected with
-`SPARK_ON_K8S_CONFIG_FILE`. Its home directory is `/home/spark-on-k8s`; `/root`
+`SPARK_ON_K8S_CONFIG_FILE`. The chart sets `SPARK_ON_K8S_IN_CLUSTER=true` unless
+`env` sets `SPARK_ON_K8S_IN_CLUSTER` or `SPARK_ON_K8S_CONFIG_FILE`, so a selected
+kubeconfig is used instead of the pod's service account. Its home directory is `/home/spark-on-k8s`; `/root`
 is not readable. Keep `service.port` at 1024 or above, because some container
 runtimes do not let a non-root process bind lower ports. Mount a remote-submission
 Secret as a directory rather than with `subPath`, so a

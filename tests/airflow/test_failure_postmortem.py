@@ -647,6 +647,27 @@ def test_trigger_error_includes_the_tail_because_logs_were_not_replayed(cluster,
     assert diagnosis_pushes(task_context)[0]["status"] == "error"
 
 
+def test_failed_log_replay_keeps_the_outcome_and_falls_back_to_the_tail(cluster, task_context):
+    cluster.manager.stream_logs.side_effect = kubernetes_failure()
+    operator = make_operator(app_waiter="log", on_finish_action="delete", deferrable=True)
+    failure = run_failure_path("deferred_Failed", operator, task_context)
+    assert failure.__cause__ is None
+    assert cluster.timeline == [
+        "read_namespaced_pod",
+        "list_namespaced_pod",
+        "list_namespaced_event",
+        "read_namespaced_pod_log",
+        "delete_app",
+    ]
+    log = cluster.log.text()
+    assert (
+        f"Could not replay the driver log of spark/{DRIVER} (ApiException 403); "
+        "continuing with the reported status Failed."
+    ) in log
+    assert "do-not-log" not in log
+    assert "pods is forbidden" not in log
+
+
 @pytest.mark.parametrize("deferrable", [False, True])
 def test_startup_timeout_explains_scheduling_without_reading_logs(cluster, task_context, deferrable):
     from kubernetes import client as k8s

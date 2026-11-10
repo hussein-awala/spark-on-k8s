@@ -81,6 +81,17 @@ def test_api_namespace_scope_matches_chart_managed_rbac(tmp_path, namespaces, sc
     } == bindings
 
 
+@pytest.mark.parametrize("namespace", ["123", "0x10", "true", "null"])
+def test_namespaces_that_read_as_yaml_scalars_stay_strings_in_chart_managed_rbac(tmp_path, namespace):
+    # Valid Kubernetes namespace names. Unquoted, they render as an integer, a boolean or null,
+    # and clients then reject the Role or default it into the release namespace.
+    docs = resources(tmp_path, {"namespaces": f"{namespace},analytics"})
+    for kind in ("Role", "RoleBinding"):
+        placed = [item["metadata"].get("namespace") for item in docs if item["kind"] == kind]
+        assert placed == [namespace, "analytics"], kind
+    assert environment(docs)["SPARK_ON_K8S_API_NAMESPACES"] == f"{namespace},analytics"
+
+
 # (resource, verb) pairs for the Kubernetes calls the API makes: listing and reading drivers,
 # readiness and run history, driver log streams and diagnostic events; with readOnly false,
 # also kill (exec), delete and remote submission's driver pod and headless service.

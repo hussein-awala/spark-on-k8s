@@ -7,5 +7,5 @@ data:
   spark-defaults.conf: |-
     spark.ui.proxyRedirectUri=/
     spark.ui.proxyBase=/webserver/ui-history
-    {{- .Values.sparkHistory.configuration | nindent 4 }}
+    {{- .Values.sparkHistory.configuration | default "" | nindent 4 }}
 {{- end }}

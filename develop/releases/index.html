@@ -68,7 +68,7 @@
   <meta name="documentation-channel" content="develop">
   <meta name="documentation-version" content="develop">
   
-    <meta name="documentation-source" content="05b416a2a22b70997137bfe981d12063a8a07b21">
+    <meta name="documentation-source" content="4128037e8998b663a5c0336a84bed047b9103c5f">
   
 
   </head>
@@ -108,7 +108,7 @@
     <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
   
   
-    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/05b416a2a22b70997137bfe981d12063a8a07b21"><code>05b416a2a22b</code></a>.
+    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/4128037e8998b663a5c0336a84bed047b9103c5f"><code>4128037e8998</code></a>.
   
 
           </div>
@@ -5045,6 +5045,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Packages and release order">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#chart-upgrade-rehearsal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Chart upgrade rehearsal
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -5252,6 +5269,23 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Packages and release order">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#chart-upgrade-rehearsal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Chart upgrade rehearsal
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -5506,6 +5540,21 @@ cannot pull its image. The dbt adapter's metadata must name a released SDK
 version, which only exists after the package upload. Record a chart or adapter that
 is intentionally not released with the package as such, rather than leaving it
 implied.</p>
+<h3 id="chart-upgrade-rehearsal">Chart upgrade rehearsal<a class="headerlink" href="#chart-upgrade-rehearsal" title="Permanent link">&para;</a></h3>
+<p>The <code>upgrade</code> job of <code>.github/workflows/chart-kubernetes.yml</code> installs the newest
+published chart, upgrades it to the source chart through both documented upgrade
+paths and rolls it back (see <a href="../development/#real-runtime-checks">real runtime checks</a>).
+Before dispatching <code>helm-release</code>, confirm that both jobs of that workflow passed
+on the commit to be published; dispatch it manually when no push ran it. When a
+chart change needs a new upgrade step, such as a changed default or a renamed
+resource, update the upgrade guidance in the chart deployment guide and the
+rehearsal in the same PR. Do not remove an assertion to make the job pass.</p>
+<p>After publishing a chart, move the baseline in <code>tests/integration/chart/upgrade.sh</code>
+to it in a signed PR. Take the chart version and archive <code>sha256</code> digest from the
+chart repository index, and pin the API image of its <code>appVersion</code> by digest. Update
+<code>tests/integration/chart/published-values.yaml</code> to the values that a working
+installation of that chart needs. The job rehearses upgrades from the newest
+published chart only, not upgrades that skip several chart versions.</p>
 <h2 id="release-notes">Release notes<a class="headerlink" href="#release-notes" title="Permanent link">&para;</a></h2>
 <p>Canonical release notes live in <code>release-notes/X.Y.Z.md</code>, one file per GitHub
 release. Each file contains YAML metadata followed by the exact GitHub release body:</p>
@@ -5693,6 +5742,8 @@ is a reviewable draft; merging it does not publish a release.</p>
 <li>Real Spark Kubernetes and Airflow Kubernetes scenarios for the selected candidate;
   the real Connect workflow when that integration is included in the release.
   Preserve the workflow URLs, commit SHA and scenario artifacts.</li>
+<li>When a chart is published with the release, both jobs of the chart workflow,
+  including the <a href="#chart-upgrade-rehearsal">chart upgrade rehearsal</a>.</li>
 <li>Verification that distribution metadata equals the selected release version,
   and that container inputs use the release wheel and intended dependency/base inputs.</li>
 </ul>
@@ -5798,7 +5849,7 @@ the release complete.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 9, 2026 08:42:42 UTC">November 9, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 10, 2026 09:21:58 UTC">November 10, 2026</span>
   </span>
 
     

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { consolePath, errorMessage } from "./client";
 import { LogExcerpt, downloadText } from "./LogExcerpt";
 import { Icon } from "./icons";
@@ -182,7 +182,10 @@ export function Logs({
       : readingLines;
   }, [readingLines, query]);
   const text = visible.map((line) => line.text).join("\n");
-  useEffect(() => {
+  // A layout effect, so the viewport is at the end before any scroll event is
+  // handled. A later effect lets the event of an earlier automatic scroll see
+  // newer lines below it and mistake them for the reader scrolling up.
+  useLayoutEffect(() => {
     if (follow && !frozen && viewport.current)
       viewport.current.scrollTop = viewport.current.scrollHeight;
   }, [visible, follow, frozen]);

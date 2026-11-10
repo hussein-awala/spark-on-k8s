@@ -172,6 +172,7 @@ export function Applications({
   const historyRequest = useRef<AbortController | null>(null);
   const loadedCount = useRef(0);
   const busy = useRef(false);
+  const historyBusy = useRef(false);
 
   const loadApps = useCallback(
     async (append = false, pageCursor?: string) => {
@@ -245,6 +246,7 @@ export function Applications({
     }
     const controller = new AbortController();
     historyRequest.current = controller;
+    historyBusy.current = true;
     setHistoryLoading(true);
     setHistoryError(null);
     try {
@@ -256,6 +258,7 @@ export function Applications({
     } catch (failure) {
       if (!controller.signal.aborted) setHistoryError(errorMessage(failure));
     } finally {
+      if (historyRequest.current === controller) historyBusy.current = false;
       if (!controller.signal.aborted) setHistoryLoading(false);
     }
   }, [config.historyEnabled, transport]);
@@ -290,7 +293,9 @@ export function Applications({
     const timer = window.setInterval(() => {
       if (!document.hidden && !busy.current) {
         void loadApps();
-        void loadHistory();
+        // Restarting a listing that is slower than the interval would cancel it
+        // on every tick, so it could never complete or report its failure.
+        if (!historyBusy.current) void loadHistory();
       }
     }, refreshInterval * 1000);
     return () => window.clearInterval(timer);

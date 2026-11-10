@@ -32,6 +32,13 @@ def _parse_vars(ctx, param, value):
     return parsed
 
 
+def _finite(ctx, param, value):
+    # NaN compares false against both bounds of a click.FloatRange.
+    if value is not None and not math.isfinite(value):
+        raise click.BadParameter("must be a positive finite number of seconds")
+    return value
+
+
 def _display(report):
     from spark_on_k8s_dbt.check import CAVEAT
 
@@ -79,6 +86,7 @@ def _display(report):
 @click.option(
     "--timeout",
     type=click.FloatRange(min=0, min_open=True, max=300),
+    callback=_finite,
     default=30,
     show_default=True,
     help="Total seconds allowed for Kubernetes requests.",
@@ -133,12 +141,6 @@ def _split_commands(dbt_args):
     if not all(commands):
         raise click.UsageError("Each -- must be followed by the arguments of a dbt command")
     return commands
-
-
-def _finite(ctx, param, value):
-    if value is not None and not math.isfinite(value):
-        raise click.BadParameter("must be a positive finite number of seconds")
-    return value
 
 
 class _Sequence:

@@ -41,11 +41,23 @@
          <lastmod>2026-11-10</lastmod>
     </url>
     <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/helm-chart/config/networkPolicy/</loc>
+         <lastmod>2026-11-10</lastmod>
+    </url>
+    <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/helm-chart/config/podDisruptionBudget/</loc>
+         <lastmod>2026-11-10</lastmod>
+    </url>
+    <url>
          <loc>https://hussein.awala.fr/spark-on-k8s/develop/helm-chart/config/podSecurityContext/</loc>
          <lastmod>2026-11-10</lastmod>
     </url>
     <url>
          <loc>https://hussein.awala.fr/spark-on-k8s/develop/helm-chart/config/rbac/</loc>
+         <lastmod>2026-11-10</lastmod>
+    </url>
+    <url>
+         <loc>https://hussein.awala.fr/spark-on-k8s/develop/helm-chart/config/remote/</loc>
          <lastmod>2026-11-10</lastmod>
     </url>
     <url>

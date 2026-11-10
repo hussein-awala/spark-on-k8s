@@ -68,7 +68,7 @@
   <meta name="documentation-channel" content="develop">
   <meta name="documentation-version" content="develop">
   
-    <meta name="documentation-source" content="491ad0936c436c5cbde9003ee5aeaadbc514ccf6">
+    <meta name="documentation-source" content="795a41ff0c457f3a1b9b5098bb7207fcd1fa3aa0">
   
 
   </head>
@@ -108,7 +108,7 @@
     <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
   
   
-    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/491ad0936c436c5cbde9003ee5aeaadbc514ccf6"><code>491ad0936c43</code></a>.
+    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/795a41ff0c457f3a1b9b5098bb7207fcd1fa3aa0"><code>795a41ff0c45</code></a>.
   
 
           </div>
@@ -4480,6 +4480,12 @@
       
         
       
+        
+      
+        
+      
+        
+      
     
     
     
@@ -4644,6 +4650,62 @@
   
   
     <li class="md-nav__item">
+      <a href="config/networkPolicy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    networkPolicy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="config/podDisruptionBudget/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    podDisruptionBudget
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="config/podSecurityContext/" class="md-nav__link">
         
   
@@ -4680,6 +4742,34 @@
     
   
     rbac
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="config/remote/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    remote
   
 
     
@@ -5138,6 +5228,16 @@ helm<span class="w"> </span>install<span class="w"> </span>&lt;release-name&gt;<
 <p>Optional operational metadata recorder; separate from Spark History Server event logs.</p>
 <h2 id="metrics"><a href="config/metrics/">metrics</a><a class="headerlink" href="#metrics" title="Permanent link">&para;</a></h2>
 <p>Prometheus text endpoint; remote mode requires the same operator bearer token.</p>
+<h2 id="remote"><a href="config/remote/">remote</a><a class="headerlink" href="#remote" title="Permanent link">&para;</a></h2>
+<p>Remote job submission. Enabling it also requires the operator bearer token on every API
+    route except /health and /ready. The token is one shared operator credential, not tenant
+    isolation; submissions also need write RBAC (readOnly: false or external grants).</p>
+<h2 id="poddisruptionbudget"><a href="config/podDisruptionBudget/">podDisruptionBudget</a><a class="headerlink" href="#poddisruptionbudget" title="Permanent link">&para;</a></h2>
+<p>PodDisruptionBudget for the API pods. A budget that permits no voluntary disruption, such as
+    minAvailable 1 with one replica, fails rendering because it blocks node drains.</p>
+<h2 id="networkpolicy"><a href="config/networkPolicy/">networkPolicy</a><a class="headerlink" href="#networkpolicy" title="Permanent link">&para;</a></h2>
+<p>NetworkPolicy for the API pods. It takes effect only with a network plugin that enforces
+    NetworkPolicy; other plugins accept the object and ignore it.</p>
 <hr />
 <p>application chart version (0.4.0) running application version (unreleased)</p>
 
@@ -5160,7 +5260,7 @@ helm<span class="w"> </span>install<span class="w"> </span>&lt;release-name&gt;<
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 10, 2026 09:24:25 UTC">November 10, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 10, 2026 09:25:41 UTC">November 10, 2026</span>
   </span>
 
     

@@ -84,14 +84,17 @@ class ConnectProfile:
         except ValueError:
             raise ConnectError("Invalid Spark Connect endpoint.") from None
         if (
-            url.scheme != "sc"
+            # PySpark requires this literal prefix; URL parsing alone also accepts "SC://".
+            not self.endpoint.startswith("sc://")
             or not url.hostname
             or url.username is not None
             or url.password is not None
             or url.path not in {"", "/"}
             or url.query
             or url.fragment
-            or ";" in self.endpoint
+            # Even an empty query or fragment would hide the appended TLS, token and user
+            # parameters from the client, which then connects in plaintext without credentials.
+            or any(separator in self.endpoint for separator in ";?#")
             or port == 0
         ):
             raise ConnectError("Use sc://host:port without credentials, parameters, query, or path.")

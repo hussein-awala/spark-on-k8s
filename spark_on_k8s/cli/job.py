@@ -7,7 +7,7 @@ import click
 import yaml
 
 from spark_on_k8s.cli.receipts import receipt_option
-from spark_on_k8s.jobs import JobSpec, JobValidationError, validation_error
+from spark_on_k8s.jobs import JobSpec, validation_error
 
 
 @click.group(
@@ -21,7 +21,8 @@ def job_cli():
 def _load(file, profile):
     try:
         return JobSpec.from_file(file, profile=profile)
-    except (JobValidationError, OSError) as error:
+    except (ValueError, OSError) as error:
+        # ValueError also covers a referenced template file that is not UTF-8.
         raise click.ClickException(str(error)) from error
 
 
@@ -123,7 +124,7 @@ def submit(file, profile, output, timeout, receipt_file):
 
     try:
         job = JobSpec.from_file(file, profile=profile)
-    except (JobValidationError, OSError):
+    except (ValueError, OSError):
         # Keep one submit document on stdout; the namespace is unknown until the job loads.
         with execution("submit", "", output) as result:
             result.update(run=None, status=None)

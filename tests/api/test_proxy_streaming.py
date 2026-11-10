@@ -163,6 +163,74 @@ def test_proxy_rejects_invalid_kubernetes_targets_before_opening_http_client(pat
         asyncio.run(http_client.aclose())
 
 
+@pytest.mark.parametrize(
+    "path, query",
+    [
+        # The server percent-decodes the path, so these reach the proxy as "?", "#" and controls.
+        ("/webserver/ui/analytics/app-1/jobs/a?b", b""),
+        ("/webserver/ui/analytics/app-1/jobs/a#b", b""),
+        ("/webserver/ui/analytics/app-1/jobs/a\x00b", b""),
+        ("/webserver/ui/analytics/app-1/jobs/a\rb", b""),
+        ("/webserver/ui/analytics/app-1/" + "a" * 65537, b""),
+        ("/webserver/ui-history/history/a?b", b""),
+        ("/webserver/ui-history/history/a#b", b""),
+        ("/webserver/ui-history/history/a\x00b", b""),
+        ("/webserver/ui-history/" + "a" * 65537, b""),
+        # Raw query bytes that a client such as curl sends without percent-encoding them.
+        ("/webserver/ui/analytics/app-1/jobs/", "q=café".encode()),
+        ("/webserver/ui/analytics/app-1/jobs/", b"q=\xff"),
+        ("/webserver/ui-history/history/", "q=café".encode()),
+        ("/webserver/ui-history/history/", b"q=\xff"),
+    ],
+)
+def test_proxy_rejects_a_request_target_it_cannot_forward(monkeypatch, path, query):
+    monkeypatch.setattr(APIConfiguration, "SPARK_ON_K8S_API_SPARK_HISTORY_HOST", "history:18080")
+    requests = []
+    sent = []
+
+    async def upstream(request):
+        requests.append(request)
+        return httpx.Response(200, stream=UpstreamBody())
+
+    async def receive():
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    async def send(message):
+        sent.append(message)
+
+    async def call(app):
+        # An HTTP client library would re-encode the target; this is the scope the server builds.
+        scope = {
+            "type": "http",
+            "asgi": {"version": "3.0", "spec_version": "2.3"},
+            "http_version": "1.1",
+            "method": "GET",
+            "scheme": "http",
+            "path": path,
+            "raw_path": b"/",
+            "query_string": query,
+            "root_path": "",
+            "headers": [(b"host", b"api.example")],
+            "client": ("127.0.0.1", 50000),
+            "server": ("127.0.0.1", 8000),
+        }
+        http_client = httpx.AsyncClient(transport=httpx.MockTransport(upstream))
+        try:
+            with mock.patch(
+                "spark_on_k8s.api.webserver.AsyncHttpClientSingleton.client", return_value=http_client
+            ) as acquire:
+                await app(scope, receive, send)
+            acquire.assert_not_called()
+        finally:
+            await http_client.aclose()
+
+    app = FastAPI()
+    app.include_router(router)
+    asyncio.run(call(app))
+    assert [message["status"] for message in sent if message["type"] == "http.response.start"] == [400]
+    assert requests == []
+
+
 @pytest.mark.parametrize("suffix", ["/history/app-1/", "?show=all"])
 def test_history_redirect_with_deployment_prefix_is_idempotent(monkeypatch, suffix):
     monkeypatch.setattr(APIConfiguration, "SPARK_ON_K8S_API_SPARK_HISTORY_HOST", "history:18080")
@@ -626,6 +694,68 @@ def test_proxy_does_not_forward_upstream_hop_by_hop_framing_headers(root_path):
         assert response.content == expected
         if root_path:
             assert response.headers["content-length"] == str(len(expected))
+        assert body.closed
+    finally:
+        asyncio.run(transport.aclose())
+
+
+@pytest.mark.parametrize("root_path", ["/platform/spark", ""])
+@pytest.mark.parametrize("content_type", ["text/html", "application/json"])
+def test_proxy_closes_the_upstream_when_a_response_header_cannot_be_relayed(root_path, content_type):
+    # Spark's own server never sends such a value, but any Service on port 4040 in scope can.
+    body = UpstreamBody()
+    transport = httpx.AsyncClient(
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(
+                200,
+                headers=[(b"content-type", content_type.encode()), (b"x-title", "日本".encode())],
+                stream=body,
+            )
+        )
+    )
+    app = FastAPI(root_path=root_path)
+    app.include_router(router)
+    try:
+        with mock.patch("spark_on_k8s.api.webserver.AsyncHttpClientSingleton.client", return_value=transport):
+            response = TestClient(app, raise_server_exceptions=False).get(
+                root_path + "/webserver/ui/analytics/app-1/jobs/"
+            )
+        # An open upstream response keeps its pooled connection checked out for good.
+        assert body.closed
+        assert response.status_code == 502
+    finally:
+        asyncio.run(transport.aclose())
+
+
+@pytest.mark.parametrize("root_path", ["/platform/spark", ""])
+def test_proxy_keeps_repeated_upstream_cookies_as_separate_headers(root_path):
+    # A browser reads a folded Set-Cookie as one cookie: the comma in Expires hides the next one.
+    cookies = ["first=1; Path=/; Expires=Wed, 21 Oct 2026 07:28:00 GMT", "second=2; Path=/"]
+    body = UpstreamBody()
+    transport = httpx.AsyncClient(
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(
+                200,
+                headers=[
+                    ("content-type", "text/html"),
+                    *(("set-cookie", cookie) for cookie in cookies),
+                    ("vary", "Accept"),
+                    ("vary", "Accept-Encoding"),
+                ],
+                stream=body,
+            )
+        )
+    )
+    app = FastAPI(root_path=root_path)
+    app.include_router(router)
+    try:
+        with mock.patch("spark_on_k8s.api.webserver.AsyncHttpClientSingleton.client", return_value=transport):
+            response = TestClient(app).get(root_path + "/webserver/ui/analytics/app-1/jobs/")
+        assert response.status_code == 200
+        assert response.headers.get_list("set-cookie") == cookies
+        assert response.headers["vary"] == "Accept, Accept-Encoding"
+        assert response.headers.get_list("content-type") == ["text/html"]
+        assert response.content == b"".join(body.chunks)
         assert body.closed
     finally:
         asyncio.run(transport.aclose())

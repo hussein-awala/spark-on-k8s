@@ -81,6 +81,9 @@ def execution(operation: str, namespace: str, output: str):
             "message": f"Kubernetes API {error.status}: {error.reason or 'request failed'}",
         }
     except Exception as error:
+        if isinstance(error, BrokenPipeError) and output != "json":
+            # The reader of text output left (`| head -1`); Click then ends the command quietly.
+            raise
         code = 1
         result["error"] = {"code": "operation_error", "message": str(error)}
     else:

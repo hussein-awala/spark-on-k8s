@@ -76,7 +76,8 @@ def _execute(operation, file, api_url, token_file, timeout, output):
     except RemoteError as failure:
         code = 5 if failure.code == "timeout" else 4 if failure.status == 404 else 1
         error = {"code": failure.code, "message": str(failure)}
-    except (ValueError, OSError, UnicodeError) as failure:
+    except (ValueError, TypeError, OSError, UnicodeError) as failure:
+        # TypeError: a YAML-only value, such as an unquoted date, that the JSON request cannot carry.
         code, error = 2, {"code": "invalid_request", "message": str(failure)}
     if code:
         result = {"schema_version": 1, "operation": operation, "error": error}

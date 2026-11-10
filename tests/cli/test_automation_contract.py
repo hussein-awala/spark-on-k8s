@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+import sys
 from dataclasses import FrozenInstanceError
 from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock
@@ -352,3 +355,37 @@ def test_text_waiting_submission_reports_identity_and_success(cluster):
     assert f"Submitted {app_id} in spark (driver {actual.metadata.name})" in result.stdout
     assert f"App {app_id} has terminated with status Succeeded" in result.stdout
     assert result.stderr == ""
+
+
+_LIST_MANY_APPLICATIONS = """
+import sys
+from unittest import mock
+from spark_on_k8s.utils.app_manager import SparkAppManager
+
+applications = [f"app-{index:06d}" for index in range(50000)]
+with mock.patch.object(SparkAppManager, "list_apps", return_value=applications):
+    from spark_on_k8s.cli import main
+
+    sys.argv = ["spark-on-k8s", "apps", "list", "--namespace", "spark"]
+    main()
+"""
+
+
+def test_text_output_ends_quietly_when_the_reader_closes_the_pipe():
+    # `spark-on-k8s apps list | head -1`: the reader leaves after the first line.
+    environment = {key: value for key, value in os.environ.items() if not key.startswith("SPARK_ON_K8S_")}
+    process = subprocess.Popen(
+        [sys.executable, "-c", _LIST_MANY_APPLICATIONS],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env=environment,
+    )
+    try:
+        assert process.stdout.readline() == b"app-000000\n"
+        process.stdout.close()
+        _, stderr = process.communicate(timeout=60)
+    finally:
+        process.kill()
+        process.wait()
+    # Click's convention for a closed pipe, as `apps list --output json` and `app logs` already follow.
+    assert (process.returncode, stderr) == (1, b"")

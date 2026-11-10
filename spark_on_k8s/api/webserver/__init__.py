@@ -104,7 +104,18 @@ def _proxy_response_headers(
 _MAX_PROXY_HTML_BYTES = 8 * 1024 * 1024
 
 
-async def _proxy_response(
+def _with_upstream_cookies(response: Response, headers: httpx.Headers) -> Response:
+    """Send each upstream cookie in its own header; a browser reads a folded value as one cookie."""
+    cookies = headers.get_list("set-cookie")
+    if len(cookies) > 1:
+        response.raw_headers = [
+            *(header for header in response.raw_headers if header[0] != b"set-cookie"),
+            *((b"set-cookie", cookie.encode("latin-1")) for cookie in cookies),
+        ]
+    return response
+
+
+async def _relayed_response(
     response: httpx.Response, upstream: httpx.URL, request: Request, proxy_path: str
 ) -> Response:
     headers = _proxy_response_headers(response, upstream, request, proxy_path)
@@ -147,13 +158,33 @@ async def _proxy_response(
         content = pattern.sub(lambda match: match[1] + mounted_base, bytes(body))
         for header in ("content-length", "content-encoding", "etag", "content-md5", "digest"):
             headers.pop(header, None)
-        return Response(content, status_code=response.status_code, headers=headers)
-    return StreamingResponse(
-        response.aiter_raw(),
-        status_code=response.status_code,
-        headers=headers,
-        background=BackgroundTask(response.aclose),
+        return _with_upstream_cookies(
+            Response(content, status_code=response.status_code, headers=headers), headers
+        )
+    return _with_upstream_cookies(
+        StreamingResponse(
+            response.aiter_raw(),
+            status_code=response.status_code,
+            headers=headers,
+            background=BackgroundTask(response.aclose),
+        ),
+        headers,
     )
+
+
+async def _proxy_response(
+    response: httpx.Response, upstream: httpx.URL, request: Request, proxy_path: str
+) -> Response:
+    try:
+        return await _relayed_response(response, upstream, request, proxy_path)
+    except BaseException as error:
+        # Only a started response closes the upstream; left open, it keeps its pooled connection
+        # for good, and the proxy stops answering once the pool is used up.
+        await response.aclose()
+        if isinstance(error, UnicodeEncodeError):
+            # httpx reads a UTF-8 header value as text that this server can only send as Latin-1.
+            raise HTTPException(502, detail="The Spark UI sent a header the proxy cannot relay.") from error
+        raise
 
 
 def _origin(value: str) -> tuple[str, str, int] | None:
@@ -201,6 +232,17 @@ def _logs_origin_allowed(websocket: WebSocket) -> bool:
     return scheme is not None and origin == _origin(f"{scheme}://{hosts[0]}")
 
 
+def _upstream_url(base: str, path: str, request: Request) -> httpx.URL:
+    """Build the upstream URL, refusing a request target that cannot be forwarded."""
+    upstream = httpx.URL(base)
+    try:
+        return upstream.copy_with(path=path, query=request.url.query.encode("utf-8"))
+    except (httpx.InvalidURL, ValueError) as error:
+        # The server percent-decodes the path, so an encoded "?", "#" or control character
+        # arrives literally; a raw non-ASCII query is not a valid target either.
+        raise HTTPException(status_code=400, detail="Invalid Spark UI path or query.") from error
+
+
 def handle_k8s_errors(func):
     @wraps(func)
     async def wrapper(*args, request: Request, **kwargs):
@@ -242,12 +284,8 @@ async def ui_reverse_proxy(request: Request, path: str):
     # The proxy connects to Services directly, so Kubernetes RBAC cannot bound it; the scope does.
     namespace_scope().require(namespace)
     path = "/" + parts[2] if len(parts) == 3 else "/"
+    url = _upstream_url(f"http://{service_name}.{namespace}.svc.cluster.local:4040", path, request)
     async_http_client = AsyncHttpClientSingleton.client()
-    url = httpx.URL(
-        url=f"http://{service_name}.{namespace}.svc.cluster.local:4040",
-        path=path,
-        query=request.url.query.encode("utf-8"),
-    )
     reverse_proxy_req = async_http_client.build_request(
         request.method, url=url, headers=_proxy_headers(request), content=request.stream()
     )
@@ -263,14 +301,10 @@ async def spark_history_reverse_proxy(request: Request, path: str):
     spark_history_url = APIConfiguration.SPARK_ON_K8S_API_SPARK_HISTORY_HOST
     if not spark_history_url:
         raise HTTPException(status_code=412, detail="SPARK_ON_K8S_API_SPARK_HISTORY_HOST is not set.")
-    async_http_client = AsyncHttpClientSingleton.client()
     # Match the console listing: a scheme is explicit, not inferred from a host name starting "http".
     spark_history_url = spark_history_url if "://" in spark_history_url else f"http://{spark_history_url}"
-    url = httpx.URL(
-        url=spark_history_url,
-        path=f"/{path}",
-        query=request.url.query.encode("utf-8"),
-    )
+    url = _upstream_url(spark_history_url, f"/{path}", request)
+    async_http_client = AsyncHttpClientSingleton.client()
     reverse_proxy_req = async_http_client.build_request(
         request.method, url=url, headers=_proxy_headers(request), content=request.stream()
     )

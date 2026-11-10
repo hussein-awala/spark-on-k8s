@@ -55,7 +55,12 @@ def sql_cli():
 @output_option
 @timeout_option
 @receipt_option
-@click.option("--file", "sql_file", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option(
+    "--file",
+    "sql_file",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="File containing the SQL to run.",
+)
 @click.option("--sql", type=str, help="Inline SQL; quote this value to protect it from shell expansion.")
 def submit(
     sql: str | None, sql_file: Path | None, output: str, timeout: float | None, receipt_file, **options

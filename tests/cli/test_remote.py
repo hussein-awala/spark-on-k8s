@@ -427,3 +427,27 @@ def test_successful_remote_submit_text_prints_only_driver_identity(http_server, 
     assert result.exit_code == 0
     assert result.stdout == RECEIPT["run"]["driver_pod"] + "\n"
     assert result.stderr == ""
+
+
+@pytest.mark.parametrize("operation", ["plan", "submit"])
+def test_yaml_only_values_are_reported_as_invalid_input_before_sending(
+    http_server, tmp_path, monkeypatch, operation
+):
+    url, _, requests = http_server
+    file = tmp_path / "job.yaml"
+    # YAML reads an unquoted date as a date object, which the JSON request cannot carry.
+    file.write_text(
+        "apiVersion: spark-on-k8s/v1\nkind: SparkJob\nmetadata:\n  name: report\nspec:\n"
+        "  image: approved:image\n  app_path: local:///jobs/report.py\n"
+        "  driver_pod_template:\n    apiVersion: v1\n    kind: Pod\n    spec:\n      containers:\n"
+        "        - name: driver\n          env:\n            - name: RUN_DATE\n"
+        "              value: 2024-01-01\n"
+    )
+    monkeypatch.setenv("SPARK_ON_K8S_API_TOKEN", TOKEN)
+    result = CliRunner().invoke(remote_cli, [operation, str(file), "--api-url", url])
+    assert result.exit_code == 2, result.output
+    document = json.loads(result.stdout)
+    assert document["schema_version"] == 1
+    assert document["operation"] == operation
+    assert document["error"]["code"] == "invalid_request"
+    assert requests == []

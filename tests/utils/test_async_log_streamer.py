@@ -117,3 +117,72 @@ def test_log_stream_closes_watch_resources(monkeypatch, termination):
             await watcher.close()
 
     asyncio.run(check_lifecycle())
+
+
+def collect_logs_from_response(monkeypatch, response):
+    """Run the stream through the real asynchronous client, replacing only its HTTP transport."""
+    import aiohttp
+    from spark_on_k8s.k8s import async_client
+
+    k8s_async = async_app_manager.k8s_async
+    requests = []
+
+    async def request(self, **kwargs):
+        requests.append(kwargs["url"])
+        return response
+
+    monkeypatch.setattr(aiohttp.ClientSession, "request", request)
+    monkeypatch.setattr(async_client.config, "load_kube_config", AsyncMock())
+    monkeypatch.setattr(
+        k8s_async.CoreV1Api,
+        "read_namespaced_pod",
+        AsyncMock(
+            return_value=SimpleNamespace(
+                status=SimpleNamespace(phase="Failed"),
+                spec=SimpleNamespace(containers=[SimpleNamespace(name="driver")]),
+            )
+        ),
+    )
+    manager = async_app_manager.AsyncSparkAppManager(
+        k8s_client_manager=async_client.KubernetesAsyncClientManager(
+            client_configuration=k8s_async.Configuration(host="https://cluster.example"), in_cluster=False
+        )
+    )
+
+    async def collect_logs():
+        return [line async for line in manager.logs_streamer(namespace="spark", pod_name="driver")]
+
+    try:
+        return asyncio.run(collect_logs())
+    finally:
+        assert requests == [
+            "https://cluster.example/api/v1/namespaces/spark/pods/driver/log?container=driver&follow=True"
+        ]
+        response.release.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "status,reason",
+    [(400, "Bad Request"), (403, "Forbidden"), (404, "Not Found"), (500, "Internal Server Error")],
+)
+def test_log_stream_raises_a_rejected_log_request_instead_of_yielding_its_body(monkeypatch, status, reason):
+    """The asynchronous client does not check a streamed response: an error document is not log text."""
+    body = (
+        b'{"kind":"Status","apiVersion":"v1","metadata":{},"status":"Failure",'
+        b'"message":"the log request was rejected","code":%d}\n' % status
+    )
+    response = Mock(status=status, reason=reason)
+    response.content.readline = AsyncMock(side_effect=[body, b""])
+
+    with pytest.raises(async_app_manager.ApiException) as raised:
+        collect_logs_from_response(monkeypatch, response)
+
+    assert (raised.value.status, raised.value.reason) == (status, reason)
+    assert raised.value.body == body.decode()
+
+
+def test_log_stream_yields_the_lines_of_an_accepted_log_request(monkeypatch):
+    response = Mock(status=200, reason="OK")
+    response.content.readline = AsyncMock(side_effect=[b"first line\n", b'{"code": 500}\n', b""])
+
+    assert collect_logs_from_response(monkeypatch, response) == ["first line\n", '{"code": 500}\n']

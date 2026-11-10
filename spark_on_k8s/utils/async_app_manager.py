@@ -197,6 +197,13 @@ class AsyncSparkAppManager(LoggingMixin):
                     follow=True,
                 )
                 async for line in log_streamer:
+                    # Unlike the synchronous client, the asynchronous one returns a streamed response
+                    # without checking its status: a rejected request must not be yielded as log text.
+                    status = getattr(watcher.resp, "status", None)
+                    if isinstance(status, int) and not 200 <= status <= 299:
+                        error = ApiException(status=status, reason=watcher.resp.reason)
+                        error.body = line
+                        raise error
                     yield line
 
     async def kill_app(
@@ -232,7 +239,7 @@ class AsyncSparkAppManager(LoggingMixin):
             container_name = driver_container_name(pod)
             if pod.status.phase != "Running":
                 raise ValueError(f"Pod {pod.metadata.name} is not running")
-            async with WsApiClient() as websocket_client:
+            async with WsApiClient(configuration=client.configuration) as websocket_client:
                 v1_ws = k8s_async.CoreV1Api(api_client=websocket_client)
                 await stream(
                     v1_ws.connect_get_namespaced_pod_exec,

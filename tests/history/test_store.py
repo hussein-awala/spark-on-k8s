@@ -248,6 +248,8 @@ def test_keyset_pagination_remains_stable_when_older_runs_are_updated(database):
         base64.urlsafe_b64encode(
             b'{"first":1' + b"0" * 400 + b',"uid":"x","filters":[null,null,"all",null]}'
         ).decode(),
+        # The longest cursor the API accepts; Python 3.11 cannot decode JSON nested this deeply.
+        base64.urlsafe_b64encode(b"[" * 1536).decode(),
     ],
 )
 def test_invalid_cursors_are_rejected(database, cursor):

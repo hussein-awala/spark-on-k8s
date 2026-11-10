@@ -36,6 +36,52 @@ def test_bad_profiles_are_rejected(settings):
         ConnectProfile(**settings)
 
 
+@pytest.mark.parametrize(
+    "endpoint",
+    [
+        "sc://spark.example:443?",
+        "sc://spark.example:443#",
+        "sc://spark.example:443/?",
+        "sc://spark.example:443/#",
+        "SC://spark.example:443",
+        "\x00sc://spark.example:443",
+    ],
+)
+def test_endpoints_the_client_would_read_differently_are_rejected(endpoint):
+    # After an empty query or fragment the client ignores the appended ";use_ssl=...;token=...;user_id=..."
+    # and connects in plaintext without credentials. It also requires the literal "sc://" prefix.
+    with pytest.raises(ConnectError, match="Use sc://host:port"):
+        ConnectProfile(endpoint=endpoint, token_env="TEST_TOKEN", user_id="alice")
+
+
+@pytest.mark.parametrize(
+    "endpoint",
+    [
+        "sc://spark.example:443?",
+        "sc://spark.example:443#",
+        "sc://spark.example:443/?",
+        "sc://spark.example",
+        "sc://spark.example:443/",
+        "sc://SPARK.example:",
+        "sc://[2001:db8::1]:443",
+    ],
+)
+def test_the_client_reads_tls_token_and_user_from_every_accepted_endpoint(monkeypatch, endpoint):
+    core = pytest.importorskip("pyspark.sql.connect.client.core")
+    monkeypatch.delenv("SPARK_CONNECT_AUTHENTICATE_TOKEN", raising=False)
+    monkeypatch.setenv("TEST_TOKEN", "private;token=with/&?#encoding")
+    try:
+        profile = ConnectProfile(endpoint=endpoint, token_env="TEST_TOKEN", user_id="alice;role=admin")
+    except ConnectError:
+        return  # A rejected endpoint never reaches the client.
+    channel = core.DefaultChannelBuilder(profile.connection_string())
+    assert (channel.use_ssl, channel.token, channel.userId) == (
+        True,
+        "private;token=with/&?#encoding",
+        "alice;role=admin",
+    )
+
+
 def test_profile_resolves_credentials_without_storing_them(monkeypatch, tmp_path):
     file = tmp_path / "connect.toml"
     file.write_text('[profiles.production]\nendpoint = "sc://spark.example:443"\ntoken_env = "TEST_TOKEN"\n')

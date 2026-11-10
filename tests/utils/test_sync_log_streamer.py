@@ -155,3 +155,34 @@ def test_logs_refuse_an_ambiguous_driver_selection(log_case):
         log_case.manager.stream_logs(namespace="spark", app_id="report-123")
 
     log_case.watcher.stream.assert_not_called()
+
+
+@pytest.mark.parametrize("phase", ["Failed", "Succeeded"])
+def test_logs_end_without_error_for_a_finished_driver_that_has_no_logs(log_case, phase):
+    """The kubelet answers 400 for a container that never started; the pod's outcome is already final."""
+    log_case.api.read_namespaced_pod.return_value = SimpleNamespace(
+        status=SimpleNamespace(phase=phase, reason="DeadlineExceeded"),
+        spec=SimpleNamespace(containers=[SimpleNamespace(name="spark-driver")]),
+    )
+    log_case.watcher.stream.side_effect = app_manager.ApiException(status=400, reason="Bad Request")
+
+    log_case.manager.stream_logs(namespace="spark", pod_name="driver", should_print=True)
+
+    log_case.watcher.stream.assert_called_once()
+    log_case.sleep.assert_not_called()
+    log_case.api.read_namespaced_pod.assert_called_once_with(namespace="spark", name="driver")
+    [warning] = log_case.manager.log.call_args_list
+    assert warning.kwargs["level"] == 30
+    assert "driver" in warning.kwargs["msg"] and "Bad Request" in warning.kwargs["msg"]
+    log_case.watcher.stop.assert_called_once()
+
+
+def test_a_rejected_log_request_for_a_running_driver_still_retries_then_raises(log_case):
+    error = app_manager.ApiException(status=400, reason="Bad Request")
+    log_case.watcher.stream.side_effect = error
+
+    with pytest.raises(app_manager.ApiException) as raised:
+        log_case.manager.stream_logs(namespace="spark", pod_name="driver")
+
+    assert raised.value is error
+    assert log_case.watcher.stream.call_count == 4

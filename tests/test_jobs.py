@@ -478,3 +478,24 @@ def test_invalid_max_runtime_profile_is_a_structured_validation_failure(tmp_path
     assert [item["valid"] for item in report["profiles"]] == [True, False]
     assert report["error"]["code"] == "invalid_job"
     assert "spec.max_runtime" in report["error"]["message"]
+
+
+@pytest.mark.parametrize("command", ["plan", "submit"])
+def test_cli_reports_an_undecodable_template_file_without_a_traceback(tmp_path, command):
+    (tmp_path / "driver.yaml").write_bytes(b"apiVersion: v1\nkind: Pod\n# caf\xe9\n")
+    file = tmp_path / "job.yaml"
+    file.write_text(yaml.safe_dump(definition(driver_pod_template="driver.yaml")))
+    with patch.object(JobSpec, "client") as client:
+        result = CliRunner().invoke(job_cli, [command, str(file), "--output", "json"])
+    assert result.exit_code == 1, result.output
+    assert isinstance(result.exception, SystemExit), repr(result.exception)
+    client.assert_not_called()
+    if command == "submit":
+        receipt = json.loads(result.stdout)
+        assert receipt["error"]["code"] == "operation_error"
+        assert "utf-8" in receipt["error"]["message"]
+        assert receipt["run"] is None
+        assert result.stderr == ""
+    else:
+        assert result.stdout == ""
+        assert result.stderr.startswith("Error: ")

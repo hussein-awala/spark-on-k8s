@@ -19,3 +19,11 @@ def test_console_script_entry_point_loads_by_its_specification():
     # import the module part and then read attributes; the package does not import its CLI.
     result = subprocess.run([sys.executable, "-I", "-c", _LOAD], capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
+
+
+def test_cli_runs_as_a_module():
+    result = subprocess.run(
+        [sys.executable, "-m", "spark_on_k8s.cli", "--help"], capture_output=True, text=True
+    )
+    assert result.returncode == 0, result.stderr
+    assert "app" in result.stdout

@@ -37,6 +37,13 @@ def is_transport_timeout(error: BaseException) -> bool:
     return isinstance(reason, HTTPTimeoutError) and not isinstance(reason, NewConnectionError)
 
 
+def report_warnings(warnings: list[dict[str, str]], output: str) -> None:
+    """Advisory warnings never change exit codes; JSON results carry them in ``warnings``."""
+    if output == "text":
+        for warning in warnings:
+            click.echo(f"Warning: {warning['message']}", err=True)
+
+
 def outcome_code(status: SparkAppStatus) -> int:
     if status == SparkAppStatus.Succeeded:
         return 0

@@ -102,6 +102,7 @@ nav:
   - Home: index.md
   - Get started:
       - Choose your path: user-guide/start-here.md
+      - When to use it: user-guide/when-to-use.md
       - Install: user-guide/installation.md
       - Your first Kubernetes job: user-guide/getting_started.md
       - Supported Spark runtimes: user-guide/spark_compatibility.md
@@ -119,6 +120,7 @@ nav:
           - Jupyter notebooks: user-guide/jupyter.md
           - Experimental managed dbt: user-guide/dbt.md
           - Airflow: user-guide/airflow.md
+          - Upgrade Airflow DAGs from 0.12: user-guide/airflow-upgrade.md
           - Remote submission: user-guide/remote-submission.md
   - Operate:
       - Diagnose failures: user-guide/diagnostics.md
@@ -127,6 +129,7 @@ nav:
       - Browser and gateway boundaries: security-boundaries.md
       - Operational boundaries: user-guide/operations.md
       - Support and compatibility: user-guide/support.md
+      - Interface stability and 1.0: user-guide/stability.md
   - Reference:
       - Python API: reference/
       - Helm values: helm-chart/

@@ -4,6 +4,7 @@ import type {
   ConsoleConfig,
   ConsoleTransport,
   Diagnosis,
+  RunHistoryConfig,
   RunPage,
 } from "./types";
 
@@ -109,6 +110,15 @@ export function createConsoleTransport(
 ): ConsoleTransport {
   const url = (path: string) => consolePath(config.basePath, path);
   return {
+    async runsConfig(signal): Promise<RunHistoryConfig> {
+      const response = await checkResponse(
+        await fetch(url("/runs/v1/config"), {
+          signal,
+          credentials: "same-origin",
+        }),
+      );
+      return response.json() as Promise<RunHistoryConfig>;
+    },
     async listRuns({
       namespace,
       status,

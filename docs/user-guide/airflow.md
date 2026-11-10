@@ -5,6 +5,9 @@ Python 3.11–3.12. Follow the [installation instructions](installation.md) for 
 `airflow` extra; published releases can differ from the current source. Install it
 in the Airflow components that load and execute your DAGs, including the triggerer
 when using deferrable tasks. The package registers its provider automatically.
+If your DAGs run with a 0.12.x release, review the
+[Airflow upgrade checklist](airflow-upgrade.md) first: some tasks that succeeded
+before now fail.
 
 ## Connect to Kubernetes
 

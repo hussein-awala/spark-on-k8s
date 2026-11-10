@@ -343,6 +343,11 @@ and commit both asset trees to the pull request, as CI rejects stale assets. A b
 image update changes the published API image; the release workflow's nonpublishing
 container check runs on it.
 
+Dependabot's workflow runs do not receive the repository's Actions secrets. The
+**Combined coverage** job still requires and reports every coverage profile on these
+pull requests, but it does not fail when Codecov refuses the upload. Add
+`CODECOV_TOKEN` as a Dependabot secret to upload their coverage as well.
+
 Dependabot cannot update the following, so change them deliberately with their
 dependents: the uv version in workflow setup steps, `uv_build` and this guide; Helm,
 Node.js, Java, kind and `coverage` versions in workflows and scripts; Python,

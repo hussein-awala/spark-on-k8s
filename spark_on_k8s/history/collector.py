@@ -2,15 +2,44 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import sqlite3
 import time
 from datetime import UTC
 from uuid import uuid4
 
-from kubernetes_asyncio.client import CoreV1Api
+from aiohttp import ClientError
+from kubernetes_asyncio.client import ApiException, CoreV1Api
 
 from spark_on_k8s.history.store import STATUSES, LostLease
 
 logger = logging.getLogger(__name__)
+_API_ERRORS = {401: "unauthorized", 403: "forbidden", 404: "not_found", 410: "pagination", 429: "throttled"}
+
+
+class CollectionError(ValueError):
+    """A refused namespace snapshot with a bounded, non-sensitive failure category."""
+
+    def __init__(self, message, category):
+        super().__init__(message)
+        self.category = category
+
+
+def error_category(error: BaseException) -> str:
+    """Classify a failure by type and status only: Kubernetes and SQLite messages can contain secrets."""
+    if isinstance(error, ApiException):
+        status = error.status or 0
+        return _API_ERRORS.get(status, "server_error" if status >= 500 else "api_error")
+    if isinstance(error, TimeoutError):
+        return "timeout"
+    if isinstance(error, CollectionError):
+        return error.category
+    if isinstance(error, (ValueError, sqlite3.IntegrityError)):
+        return "invalid_metadata"
+    if isinstance(error, sqlite3.Error):
+        return "store"
+    if isinstance(error, (ClientError, OSError)):
+        return "connection"
+    return "unexpected"
 
 
 def metadata_from_pod(pod, namespace):
@@ -53,6 +82,7 @@ class RunCollector:
         self.task = None
         self.stop_event = asyncio.Event()
         self.next_namespace = 0
+        self.stale = set()
 
     async def start(self):
         await asyncio.to_thread(self.store.initialize)
@@ -109,9 +139,9 @@ class RunCollector:
             if not cursor:
                 return records
             if cursor in cursors:
-                raise ValueError("Repeated Kubernetes pagination cursor")
+                raise CollectionError("Repeated Kubernetes pagination cursor", "pagination")
             cursors.add(cursor)
-        raise ValueError("Driver snapshot exceeds the configured page limit")
+        raise CollectionError("Driver snapshot exceeds the configured page limit", "page_limit")
 
     async def collect_once(self):
         lease = await asyncio.to_thread(self.store.acquire, self.owner, self.settings.lease_seconds)
@@ -133,9 +163,31 @@ class RunCollector:
                 raise
             except LostLease:
                 return False
-            except Exception:
+            except Exception as error:
                 try:
-                    await asyncio.to_thread(self.store.failure, namespace, lease)
+                    await asyncio.to_thread(self.store.failure, namespace, lease, error_category(error))
                 except LostLease:
                     return False
+        await self._report_freshness()
         return True
+
+    async def _report_freshness(self):
+        """Log when a namespace becomes stale or fresh again, once per transition for this collector."""
+        health = await asyncio.to_thread(self.store.health)
+        now = self.store.clock()
+        for namespace in self.settings.namespaces:
+            state = health.get(namespace, {})
+            last_success = state.get("last_success")
+            if self.settings.is_fresh(last_success, now):
+                if namespace in self.stale:
+                    self.stale.discard(namespace)
+                    logger.info("Run-history collection for namespace %s is fresh again", namespace)
+            elif namespace not in self.stale:
+                self.stale.add(namespace)
+                logger.warning(
+                    "Run-history collection for namespace %s is stale: last success %s; last error: %s",
+                    namespace,
+                    "never" if last_success is None else f"{max(0, now - last_success):.0f}s ago",
+                    # No failure since the last success: the collection budget expired before this namespace.
+                    state.get("last_error") or "not_attempted",
+                )

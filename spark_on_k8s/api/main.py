@@ -9,6 +9,7 @@ from spark_on_k8s import __version__
 from spark_on_k8s.api import AsyncHttpClientSingleton, KubernetesClientSingleton
 from spark_on_k8s.api.app import router as app_router
 from spark_on_k8s.api.apps import router as apps_router
+from spark_on_k8s.api.audit import AuditMiddleware, configure_audit_log
 from spark_on_k8s.api.console import router as console_router
 from spark_on_k8s.api.namespace_scope import namespace_scope
 from spark_on_k8s.api.remote_auth import RemoteAccessMiddleware
@@ -31,6 +32,7 @@ async def on_start_up() -> None:
         scope.require_configured(policy.namespaces, "The submission policy")
     if (history := get_history_settings()).enabled:
         scope.require_configured(history.namespaces, "SPARK_ON_K8S_RUN_HISTORY_NAMESPACES")
+    configure_audit_log()
     await KubernetesClientSingleton.client()
     AsyncHttpClientSingleton.client()
     await start_history()
@@ -51,6 +53,8 @@ app = FastAPI(
 )
 install_error_handlers(app)
 app.add_middleware(RemoteAccessMiddleware)
+# Outermost, so authentication refusals also carry a request ID and an audit event.
+app.add_middleware(AuditMiddleware)
 app.include_router(submission_router)
 app.include_router(run_history_router)
 app.include_router(app_router)

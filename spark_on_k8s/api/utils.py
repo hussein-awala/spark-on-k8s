@@ -8,6 +8,8 @@ from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException
 from starlette.responses import JSONResponse, Response
 
+from spark_on_k8s.api.audit import REQUEST_ID_SCOPE_KEY, note
+
 if TYPE_CHECKING:
     from fastapi import FastAPI
     from starlette.requests import Request
@@ -42,6 +44,7 @@ def handle_exception(e: Exception, status_code: int = 500) -> Response:
 
     exception_uuid = uuid.uuid4()
     logger.exception("Exception %s: %s", exception_uuid, e)
+    note(code="internal_error")
     return JSONResponse(
         error_body(
             "internal_error",
@@ -59,6 +62,7 @@ async def _http_error(request: Request, error: HTTPException) -> Response:
     else:
         code = _STATUS_CODES.get(error.status_code, "error")
         message = detail if isinstance(detail, str) and detail else HTTPStatus(error.status_code).phrase
+    note(code=code)
     if error.status_code in {204, 304}:
         return Response(status_code=error.status_code, headers=error.headers)
     return JSONResponse(error_body(code, message), status_code=error.status_code, headers=error.headers)
@@ -70,11 +74,16 @@ async def _validation_error(request: Request, error: RequestValidationError) -> 
         for item in error.errors()
     ]
     message = "; ".join(problems) or "Invalid request."
+    note(code="invalid_request")
     return JSONResponse(error_body("invalid_request", message), status_code=422)
 
 
 async def _unexpected_error(request: Request, error: Exception) -> Response:
-    return handle_exception(error, 500)
+    response = handle_exception(error, 500)
+    # This handler answers outside the middleware stack, so it adds the request ID itself.
+    if request_id := request.scope.get(REQUEST_ID_SCOPE_KEY):
+        response.headers["X-Request-ID"] = request_id
+    return response
 
 
 def install_error_handlers(app: FastAPI) -> None:

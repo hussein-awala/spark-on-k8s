@@ -9077,6 +9077,12 @@ async function g(e) {
 function _(e) {
 	let t = (t) => d(e.basePath, t);
 	return {
+		async runsConfig(e) {
+			return (await g(await fetch(t("/runs/v1/config"), {
+				signal: e,
+				credentials: "same-origin"
+			}))).json();
+		},
 		async listRuns({ namespace: e, status: n, presence: r, limit: i, cursor: a, signal: o }) {
 			let s = new URLSearchParams({
 				namespace: e,
@@ -10518,11 +10524,15 @@ function fe(e) {
 	return Number.isNaN(t.getTime()) ? "—" : t.toLocaleString();
 }
 function pe({ config: e, transport: t, namespaceEditable: n, onNamespaceChange: r }) {
-	let [i, a] = (0, l.useState)(e.namespace), [o, s] = (0, l.useState)(""), [c, u] = (0, l.useState)("all"), [d, f] = (0, l.useState)([]), [p, m] = (0, l.useState)(null), [g, _] = (0, l.useState)(!1), [v, y] = (0, l.useState)(null), [b, S] = (0, l.useState)(), [C, w] = (0, l.useState)(null), ee = (0, l.useRef)(null), te = !!(e.runsEnabled && t.listRuns), ne = (0, l.useCallback)(async (n) => {
-		ee.current?.abort();
+	let [i, a] = (0, l.useState)(e.namespace), [o, s] = (0, l.useState)(""), [c, u] = (0, l.useState)("all"), [d, f] = (0, l.useState)([]), [p, m] = (0, l.useState)(null), [g, _] = (0, l.useState)(!1), [v, y] = (0, l.useState)(null), [b, S] = (0, l.useState)(), [C, w] = (0, l.useState)(null), [ee, te] = (0, l.useState)(null), ne = (0, l.useRef)(null), re = !!(e.runsEnabled && t.listRuns), ae = (0, l.useCallback)(async (n) => {
+		ne.current?.abort();
 		let r = new AbortController();
-		if (ee.current = r, te && t.listRuns) {
-			_(!0), y(null);
+		if (ne.current = r, re && t.listRuns) {
+			_(!0), y(null), !n && t.runsConfig && t.runsConfig(r.signal).then((t) => {
+				r.signal.aborted || te(t.collection?.find((t) => t.namespace === e.namespace) ?? null);
+			}).catch(() => {
+				r.signal.aborted || te(null);
+			});
 			try {
 				let i = await t.listRuns({
 					namespace: e.namespace,
@@ -10549,9 +10559,9 @@ function pe({ config: e, transport: t, namespaceEditable: n, onNamespaceChange: 
 		o,
 		c,
 		t,
-		te
+		re
 	]);
-	return (0, l.useEffect)(() => (f([]), m(null), w(null), a(e.namespace), ne(), () => ee.current?.abort()), [ne, e.namespace]), te ? /* @__PURE__ */ (0, x.jsxs)(x.Fragment, { children: [
+	return (0, l.useEffect)(() => (f([]), m(null), w(null), a(e.namespace), ae(), () => ne.current?.abort()), [ae, e.namespace]), re ? /* @__PURE__ */ (0, x.jsxs)(x.Fragment, { children: [
 		/* @__PURE__ */ (0, x.jsxs)("header", {
 			className: "page-heading",
 			children: [/* @__PURE__ */ (0, x.jsxs)("div", { children: [
@@ -10570,7 +10580,7 @@ function pe({ config: e, transport: t, namespaceEditable: n, onNamespaceChange: 
 			] }), /* @__PURE__ */ (0, x.jsxs)("button", {
 				className: "button button-secondary refresh-button",
 				disabled: g,
-				onClick: () => void ne(),
+				onClick: () => void ae(),
 				children: [/* @__PURE__ */ (0, x.jsx)(T, {
 					name: "refresh",
 					className: g ? "spinning" : ""
@@ -10613,6 +10623,23 @@ function pe({ config: e, transport: t, namespaceEditable: n, onNamespaceChange: 
 				className: "muted",
 				children: "Read-only metadata · refreshed on request"
 			})]
+		}),
+		ee?.namespace === e.namespace && !ee.fresh && /* @__PURE__ */ (0, x.jsxs)("div", {
+			className: "notice notice-warning",
+			role: "status",
+			children: [/* @__PURE__ */ (0, x.jsx)(T, { name: "alert" }), /* @__PURE__ */ (0, x.jsxs)("span", { children: [
+				/* @__PURE__ */ (0, x.jsxs)("strong", { children: [
+					"Collection for ",
+					ee.namespace,
+					" is stale."
+				] }),
+				" ",
+				"Records may not reflect current pods. Last successful collection:",
+				" ",
+				ee.last_success ? fe(ee.last_success) : "never",
+				ee.last_error && ` · last error: ${ee.last_error.replace(/_/g, " ")}`,
+				"."
+			] })]
 		}),
 		/* @__PURE__ */ (0, x.jsxs)("section", {
 			className: "applications-card",
@@ -10674,7 +10701,7 @@ function pe({ config: e, transport: t, namespaceEditable: n, onNamespaceChange: 
 					children: [/* @__PURE__ */ (0, x.jsx)("p", { children: v }), /* @__PURE__ */ (0, x.jsx)("button", {
 						className: "button button-secondary",
 						disabled: g,
-						onClick: () => void ne(b),
+						onClick: () => void ae(b),
 						children: "Retry"
 					})]
 				}),
@@ -10735,7 +10762,7 @@ function pe({ config: e, transport: t, namespaceEditable: n, onNamespaceChange: 
 					] }), p && /* @__PURE__ */ (0, x.jsx)("button", {
 						className: "button button-secondary",
 						disabled: g,
-						onClick: () => void ne(p),
+						onClick: () => void ae(p),
 						children: g ? "Loading…" : "Load more"
 					})]
 				})

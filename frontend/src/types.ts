@@ -84,7 +84,22 @@ export interface RunPage {
   next_cursor: string | null;
 }
 
+export interface RunCollection {
+  namespace: string;
+  fresh: boolean;
+  last_success: string | null;
+  last_attempt: string | null;
+  last_error: string | null;
+}
+
+export interface RunHistoryConfig {
+  schema_version: 1;
+  namespaces: string[];
+  collection?: RunCollection[];
+}
+
 export interface ConsoleTransport {
+  runsConfig?(signal?: AbortSignal): Promise<RunHistoryConfig>;
   listRuns?(options: {
     namespace: string;
     status?: string;

@@ -158,8 +158,10 @@ def test_api_image_entrypoint_replaces_the_shell_with_the_server(tmp_path):
     )
 
 
-def test_api_image_runs_as_a_fixed_numeric_non_root_user():
-    recipe = (Path(__file__).resolve().parents[2] / "docker" / "Dockerfile").read_text()
+@pytest.mark.parametrize("dockerfile", ["docker/Dockerfile", "tests/integration/chart/Dockerfile"])
+def test_api_image_runs_as_a_fixed_numeric_non_root_user(dockerfile):
+    # The chart CI image must match the release image so chart checks exercise the same identity.
+    recipe = (Path(__file__).resolve().parents[2] / dockerfile).read_text()
     instructions = [line.split(None, 1) for line in recipe.splitlines() if line[:1].isalpha()]
     # Kubernetes runAsNonRoot can verify only a numeric USER; installed packages stay root-owned.
     assert [keyword for keyword, _ in instructions][-2:] == ["USER", "ENTRYPOINT"]

@@ -22,6 +22,7 @@ from spark_on_k8s.connect_server import ConnectServerHandle, ConnectServerTimeou
 from spark_on_k8s_dbt.api import BoundedKubernetesClientManager
 from spark_on_k8s_dbt.config import ComputeConfig
 from spark_on_k8s_dbt.forward import PortForward
+from spark_on_k8s_dbt.progress import TRANSPORTS, StartupProgress, driver_state
 
 _active_owner = None
 _scope_lock = threading.Lock()
@@ -93,9 +94,11 @@ class InvocationOwner:
     Receipts contain resource identities and cluster selection, never the compute
     configuration (which can include catalog credentials). Incomplete creation
     remains recoverable evidence and is never treated as permission to delete.
+    ``progress`` reports startup and cleanup phases; it is silent by default.
     """
 
-    def __init__(self, receipt_dir: str | Path | None = None):
+    def __init__(self, receipt_dir: str | Path | None = None, *, progress: StartupProgress | None = None):
+        self.progress = progress or StartupProgress.silent()
         self.directory = Path(receipt_dir or Path.cwd() / ".spark-on-k8s" / "dbt" / uuid4().hex)
         self.directory = self.directory.expanduser().resolve()
         self.directory.mkdir(mode=0o700, parents=True, exist_ok=False)
@@ -189,6 +192,12 @@ class InvocationOwner:
                 poll_interval=config.poll_interval,
                 stage="creating",
             )
+            self.progress.start()
+            self.progress.update(
+                "requesting",
+                f"requesting a {TRANSPORTS[method]} server in namespace {config.server.namespace} "
+                f"(startup timeout {config.startup_timeout:g}s)",
+            )
             self._api_deadline = time.monotonic() + config.startup_timeout
             self.sdk = RecordingSDK(self._manager(), self._record_run)
             with self.sdk.k8s_client_manager.client() as raw:
@@ -217,15 +226,19 @@ class InvocationOwner:
                     service = self.handle["service"]["name"]
                     port = self.handle["port"]
                 pod = run.driver_pod if method == "connect" else run["driver_pod"]
+                app_id = run.app_id if method == "connect" else run["app_id"]
+                self.progress.update("created", f"driver pod {pod} created")
                 self._wait_running(pod, deadline)
                 host = f"{service}.{config.server.namespace}.svc"
                 if not config.in_cluster:
+                    self.progress.update("tunnel", "opening a kubectl port-forward tunnel to the driver")
                     self.forward = PortForward(config, config.server.namespace, pod, port)
                     port = self.forward.start(self._remaining(deadline))
                     host = "127.0.0.1"
                 self.endpoint = self._verified_endpoint(host, port, deadline)
                 self.state["stage"] = "ready"
                 self._save()
+                self.progress.update("ready", f"{TRANSPORTS[method]} server ready (application {app_id})")
                 return self.endpoint
             except BaseException as error:
                 if method == "connect":
@@ -283,6 +296,7 @@ class InvocationOwner:
                 raise RuntimeError("Driver identity changed during startup")
             if observed.status.phase in {"Failed", "Succeeded"} or observed.metadata.deletion_timestamp:
                 raise RuntimeError("Managed Spark driver terminated before becoming ready")
+            self.progress.update(*driver_state(observed))
             if observed.status.phase == "Running":
                 return
             self._cancelled.wait(min(self.config.poll_interval, self._remaining(deadline)))
@@ -292,6 +306,7 @@ class InvocationOwner:
         profile = None
         if self.state["method"] == "connect":
             while True:
+                self._waiting_for_endpoint()
                 port = self._refresh_tunnel(port, deadline)
                 profile = ConnectProfile(
                     endpoint=f"sc://{host}:{port}", tls=False, allow_insecure=self.config.in_cluster
@@ -313,11 +328,20 @@ class InvocationOwner:
                 raise RuntimeError("Thrift resources changed during readiness verification")
         return Endpoint(host, port, profile)
 
+    def _waiting_for_endpoint(self):
+        self.progress.update(
+            "endpoint", f"waiting for the {TRANSPORTS[self.state['method']]} endpoint to answer a query"
+        )
+
     def _reopen_tunnel(self):
         # kubectl can exit mid-run, for example when its API stream is lost.
         # Statements on the old tunnel have failed and are never replayed. Later
         # connections get a new tunnel only to the same verified driver UID.
         deadline = self._api_deadline = time.monotonic() + self.config.startup_timeout
+        self.progress.start()
+        self.progress.update(
+            "reopening", "kubectl port-forward exited; reopening the tunnel to the same driver"
+        )
         self._wait_running(self.forward.pod, deadline)
         self.forward.close()
         port = self.forward.start(self._remaining(deadline))
@@ -328,11 +352,13 @@ class InvocationOwner:
             # closing it makes the next open retry.
             self.forward.close()
             raise
+        self.progress.update("ready", "tunnel reopened; the same driver answered a query")
 
     def _refresh_tunnel(self, port, deadline):
         # kubectl can exit after publishing its local listener if Spark has not
         # bound the remote socket yet. Recreate that invocation-owned tunnel.
         if self.forward is not None and self.forward.process.poll() is not None:
+            self.progress.update("tunnel_reopening", "kubectl port-forward exited; reopening the tunnel")
             self.forward.close()
             return self.forward.start(self._remaining(deadline))
         return port
@@ -352,6 +378,7 @@ finally:
     connection.close()
 """
         while True:
+            self._waiting_for_endpoint()
             port = self._refresh_tunnel(port, deadline)
             try:
                 result = subprocess.run(
@@ -462,6 +489,10 @@ finally:
             try:
                 if self.state.get("server"):
                     self._validate_identity()
+                    self.progress.start()
+                    self.progress.update(
+                        "deleting", "deleting managed Spark compute and observing its removal"
+                    )
                     if self._namespace():
                         if self.state["method"] == "connect":
                             handle = ConnectServerHandle.from_dict(self.state["server"])
@@ -479,6 +510,7 @@ finally:
                                 poll_interval=self.state["poll_interval"],
                             )
                     self.state.update(stage="cleaned", cleanup={"status": "deleted"})
+                    self.progress.update("deleted", "managed Spark compute deleted")
                 elif self.state.get("run"):
                     raise RuntimeError(
                         "Creation is incomplete; inspect the recorded identities before manual cleanup"
@@ -537,6 +569,7 @@ finally:
         if path.name != "receipt.json":
             raise ValueError("Recovery expects the original receipt.json filename")
         owner.config = owner.endpoint = owner.forward = owner.backend = owner.handle = None
+        owner.progress = StartupProgress.silent()
         owner._inputs = None
         owner._lock = threading.RLock()
         owner._cancelled = threading.Event()

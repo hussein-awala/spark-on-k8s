@@ -47,6 +47,7 @@ class HistorySettings:
     retention_days: int = 30
     max_rows: int = 10000
     metrics_enabled: bool = False
+    readiness: str = "degraded"
 
     @property
     def lease_seconds(self):
@@ -55,6 +56,10 @@ class HistorySettings:
     @property
     def freshness_seconds(self):
         return self.interval * 2 + self.collection_timeout + 10
+
+    def is_fresh(self, last_success, now) -> bool:
+        """Whether a namespace's last successful collection is within the readiness window."""
+        return last_success is not None and 0 <= now - last_success <= self.freshness_seconds
 
     @classmethod
     def from_env(cls):
@@ -66,6 +71,9 @@ class HistorySettings:
         path = Path(raw_path).expanduser()
         if not raw_path or not path.is_absolute() or path.name in {"", ":memory:"}:
             raise ValueError("SPARK_ON_K8S_RUN_HISTORY_PATH must be an absolute SQLite file path")
+        readiness = os.getenv("SPARK_ON_K8S_RUN_HISTORY_READINESS", "degraded").lower()
+        if readiness not in {"degraded", "strict"}:
+            raise ValueError("SPARK_ON_K8S_RUN_HISTORY_READINESS must be degraded or strict")
         return cls(
             enabled=True,
             path=path,
@@ -78,4 +86,5 @@ class HistorySettings:
             retention_days=integer("SPARK_ON_K8S_RUN_HISTORY_RETENTION_DAYS", 30, 1, 3650),
             max_rows=integer("SPARK_ON_K8S_RUN_HISTORY_MAX_ROWS", 10000, 1, 1000000),
             metrics_enabled=metrics,
+            readiness=readiness,
         )

@@ -1,0 +1,50 @@
+{{- /* --reuse-values from an older release omits newer values; absence means disabled. */}}
+{{- $monitor := .Values.metrics.serviceMonitor | default dict }}
+{{- if $monitor.enabled }}
+{{- if not .Values.metrics.enabled }}
+{{- fail "metrics.serviceMonitor.enabled requires metrics.enabled; the API serves /metrics only then" }}
+{{- end }}
+{{- /* Fail rather than skip, so a missing Prometheus Operator does not silently drop monitoring. */}}
+{{- if not (.Capabilities.APIVersions.Has "monitoring.coreos.com/v1/ServiceMonitor") }}
+{{- fail "metrics.serviceMonitor.enabled requires the monitoring.coreos.com/v1 ServiceMonitor API: install the Prometheus Operator CRDs first; helm template needs --api-versions monitoring.coreos.com/v1/ServiceMonitor" }}
+{{- end }}
+{{- $remote := .Values.remote | default dict }}
+{{- $fullname := include "spark-on-k8s.fullname" . }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ $fullname }}
+  labels:
+    {{- merge (dict) ($monitor.labels | default dict) (include "spark-on-k8s.labels" . | fromYaml) | toYaml | nindent 4 }}
+spec:
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+  selector:
+    matchLabels:
+      {{- include "spark-on-k8s.selectorLabels" . | nindent 6 }}
+  endpoints:
+    - port: http
+      path: /metrics
+      scheme: http
+      {{- with $monitor.interval }}
+      interval: {{ . | quote }}
+      {{- end }}
+      {{- with $monitor.scrapeTimeout }}
+      scrapeTimeout: {{ . | quote }}
+      {{- end }}
+      {{- if $remote.enabled }}
+      # Remote mode protects /metrics with the operator bearer token.
+      authorization:
+        type: Bearer
+        credentials:
+          name: {{ $remote.existingSecret }}
+          key: {{ $remote.tokenKey }}
+      {{- end }}
+      relabelings:
+        # The History Server Service shares these selector labels; scrape only the API Service.
+        - sourceLabels:
+            - __meta_kubernetes_service_name
+          regex: {{ $fullname }}
+          action: keep
+{{- end }}

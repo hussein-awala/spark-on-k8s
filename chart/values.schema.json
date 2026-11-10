@@ -161,6 +161,10 @@
         },
         "legacyNames": {
           "type": "boolean"
+        },
+        "allowClusterWideWrite": {
+          "type": "boolean",
+          "description": "Acknowledges that namespaces \"*\" with readOnly false grants pod create, delete and exec in every namespace."
         }
       }
     },

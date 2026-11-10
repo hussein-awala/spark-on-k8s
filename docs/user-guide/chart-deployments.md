@@ -56,7 +56,8 @@ not establish availability, throughput or cloud-identity compatibility.
 The default `readOnly: true` remains unchanged. With chart-managed RBAC, the default
 empty `namespaces` creates a Role and RoleBinding in the release namespace, and an
 explicit namespace string creates them in each listed namespace.
-`namespaces: "*"` intentionally selects a cluster-wide binding instead. The chart
+`namespaces: "*"` instead creates a ClusterRole with the same rules and binds it
+cluster-wide; the chart does not bind the built-in `view` or `edit` roles. The chart
 passes the same scope to the API as `SPARK_ON_K8S_API_NAMESPACES`, so the API refuses
 other namespaces even where Service DNS would reach them. Neither the namespace scope
 nor hiding UI buttons provides user or tenant authorization; use the
@@ -79,10 +80,30 @@ setting; API RBAC settings do not grant History Server storage permissions.
 
 The chart requires an explicit account name when creating RBAC for an external
 account. `readOnly` only changes chart-managed permissions; it cannot reduce
-permissions already granted externally. The namespace edit Role supports existing
-management actions, but it is not a complete grant for every optional submission
-resource. Review the actual templates and grant any required Secret/ConfigMap
-operations deliberately for a remote-submission deployment.
+permissions already granted externally.
+
+## Review the chart-managed permissions
+
+Chart-managed Roles and the cluster-wide ClusterRole render the same rules, all on
+core API resources in the served namespaces:
+
+| `readOnly` | Rules | Used for |
+| --- | --- | --- |
+| `true` | `get`, `list` and `watch` on `pods`, `pods/log` and `services`; `list` on `events` | Application lists and details, driver logs, diagnostics, readiness and run history |
+| `false` | Adds `create` and `delete` on `pods` and `services`, and `get` and `create` on `pods/exec` | Stopping and deleting drivers, and remote submission |
+
+Neither mode grants Secrets, ConfigMaps or any other resource. Remote submission
+creates only a driver Pod and its headless Service, so `readOnly: false` covers it;
+the API rejects jobs that would create Secrets or ConfigMaps. Spark drivers create
+executors with the job's own service account, not the API's; see
+[cluster prerequisites](diagnostics.md#check-cluster-prerequisites) for a baseline
+for that account.
+
+With `namespaces: "*"`, `readOnly: false` lets the API create, delete and exec into
+pods in every namespace, including system namespaces. Rendering fails unless
+`rbac.allowClusterWideWrite: true` acknowledges that grant; listing the namespaces
+the API manages keeps write access scoped instead. Read-only cluster-wide access and
+externally managed RBAC need no acknowledgement.
 
 When changing ownership on an installed release, inspect the Helm diff first.
 Setting a create flag to `false` removes previously managed resources from the
@@ -200,8 +221,9 @@ rehearse backups and allow for rollout downtime.
 
 `values.schema.json` checks chart-owned types, image references, service ports,
 namespace forms, HPA bounds and recorder settings. Template guards cover
-cross-field comparisons and reserved volume names. Run both `helm lint` and
-`helm template`: lint can suppress template-level `fail` messages, while rendering
+cross-field comparisons, such as the cluster-wide write acknowledgement, and reserved
+volume names. Run both `helm lint` and `helm template`: lint can suppress
+template-level `fail` messages, while rendering
 rejects those cross-field conflicts. `namespaces` remains a
 comma-separated string; `runHistory.namespaces` is a YAML list. Kubernetes
 passthrough objects, such as affinity, resources and security contexts, remain
@@ -250,6 +272,20 @@ bindings, and verify access under the service account. Switching the value in a
 normal Helm upgrade replaces the old resources; schedule that transition if a
 brief permissions interruption is unacceptable. Never reuse legacy names for two
 releases managing the same shared scope.
+
+Releases with `namespaces: "*"` were bound to the built-in `view` or `edit`
+ClusterRole by a ClusterRoleBinding named after the release with a `-view` or
+`-edit` suffix. The chart now creates its own ClusterRole and a ClusterRoleBinding
+with the role's name and no suffix, whether or not `rbac.legacyNames` is set.
+Because a binding's `roleRef` cannot change, the binding takes a new name instead of
+being updated in place: the same `helm upgrade` creates the new role and binding and
+removes the old binding, so no manual deletion is needed. As with the name change
+above, schedule it if a brief permissions interruption is unacceptable. The API's
+account loses everything else those roles granted, such as reading ConfigMaps and,
+with `edit`, reading and writing Secrets in every namespace. If another workload
+shares that account and relies on such access, grant it separately before upgrading. A `"*"` release with `readOnly: false` must also set
+`rbac.allowClusterWideWrite: true`; without it, the upgrade fails before changing
+anything.
 
 The default `namespaces` value changed from `"*"` to empty, which selects only the
 release namespace. A release that relied on the old default loses its cluster-wide

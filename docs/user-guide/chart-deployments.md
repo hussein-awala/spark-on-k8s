@@ -56,7 +56,8 @@ not establish availability, throughput or cloud-identity compatibility.
 The default `readOnly: true` remains unchanged. With chart-managed RBAC, the default
 empty `namespaces` creates a Role and RoleBinding in the release namespace, and an
 explicit namespace string creates them in each listed namespace.
-`namespaces: "*"` intentionally selects a cluster-wide binding instead. The chart
+`namespaces: "*"` instead creates a ClusterRole with the same rules and binds it
+cluster-wide; the chart does not bind the built-in `view` or `edit` roles. The chart
 passes the same scope to the API as `SPARK_ON_K8S_API_NAMESPACES`, so the API refuses
 other namespaces even where Service DNS would reach them. Neither the namespace scope
 nor hiding UI buttons provides user or tenant authorization; use the
@@ -79,10 +80,30 @@ setting; API RBAC settings do not grant History Server storage permissions.
 
 The chart requires an explicit account name when creating RBAC for an external
 account. `readOnly` only changes chart-managed permissions; it cannot reduce
-permissions already granted externally. The namespace edit Role supports existing
-management actions, but it is not a complete grant for every optional submission
-resource. Review the actual templates and grant any required Secret/ConfigMap
-operations deliberately for a remote-submission deployment.
+permissions already granted externally.
+
+## Review the chart-managed permissions
+
+Chart-managed Roles and the cluster-wide ClusterRole render the same rules, all on
+core API resources in the served namespaces:
+
+| `readOnly` | Rules | Used for |
+| --- | --- | --- |
+| `true` | `get`, `list` and `watch` on `pods`, `pods/log` and `services`; `list` on `events` | Application lists and details, driver logs, diagnostics, readiness and run history |
+| `false` | Adds `create` and `delete` on `pods` and `services`, and `get` and `create` on `pods/exec` | Stopping and deleting drivers, and remote submission |
+
+Neither mode grants Secrets, ConfigMaps or any other resource. Remote submission
+creates only a driver Pod and its headless Service, so `readOnly: false` covers it;
+the API rejects jobs that would create Secrets or ConfigMaps. Spark drivers create
+executors with the job's own service account, not the API's; see
+[cluster prerequisites](diagnostics.md#check-cluster-prerequisites) for a baseline
+for that account.
+
+With `namespaces: "*"`, `readOnly: false` lets the API create, delete and exec into
+pods in every namespace, including system namespaces. Rendering fails unless
+`rbac.allowClusterWideWrite: true` acknowledges that grant; listing the namespaces
+the API manages keeps write access scoped instead. Read-only cluster-wide access and
+externally managed RBAC need no acknowledgement.
 
 When changing ownership on an installed release, inspect the Helm diff first.
 Setting a create flag to `false` removes previously managed resources from the
@@ -200,8 +221,9 @@ rehearse backups and allow for rollout downtime.
 
 `values.schema.json` checks chart-owned types, image references, service ports,
 namespace forms, HPA bounds and recorder settings. Template guards cover
-cross-field comparisons and reserved volume names. Run both `helm lint` and
-`helm template`: lint can suppress template-level `fail` messages, while rendering
+cross-field comparisons, such as the cluster-wide write acknowledgement, and reserved
+volume names. Run both `helm lint` and `helm template`: lint can suppress
+template-level `fail` messages, while rendering
 rejects those cross-field conflicts. `namespaces` remains a
 comma-separated string; `runHistory.namespaces` is a YAML list. Kubernetes
 passthrough objects, such as affinity, resources and security contexts, remain
@@ -220,6 +242,204 @@ controller remove that prefix before forwarding and set
 [mounted paths](../security-boundaries.md#mounted-spark-ui-paths).
 Use the [development guide](../development.md) for the Helm regression suite and
 [release guidance](../releases.md) for the artifact publication boundary.
+
+## Add operational objects
+
+The settings in this section are disabled by default, apart from the History
+Server probes, which apply only when `sparkHistory.enabled` is set. A release
+upgraded with `--reuse-values` from a chart without these settings renders as
+before. Some invalid combinations fail only during rendering, so run
+`helm template` as well as `helm lint`.
+
+### Restrict API traffic
+
+`networkPolicy.enabled` adds a NetworkPolicy for the API pods. It admits traffic
+to the API port only from `networkPolicy.ingress.from` and from pods with this
+release's API labels: the API pods and the chart's `helm test` pod. With an empty
+list nothing else can connect, including an ingress controller, a gateway,
+Prometheus and clients of a `LoadBalancer` or `NodePort` Service. List every peer
+that needs the API:
+
+```yaml
+networkPolicy:
+  enabled: true
+  ingress:
+    from:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: ingress-nginx
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: monitoring
+        podSelector:
+          matchLabels:
+            app.kubernetes.io/name: prometheus
+```
+
+The policy needs a network plugin that enforces NetworkPolicy; other plugins
+accept the object and enforce nothing. NetworkPolicy does not block traffic from
+a pod's own node, so kubelet probes keep working. Traffic through a
+`LoadBalancer` or `NodePort` Service can arrive with a node address rather than
+the client's, depending on `externalTrafficPolicy` and the plugin. A NetworkPolicy
+limits which peers can connect; it does not authenticate callers or replace
+[remote mode](remote-submission.md) or an authenticating gateway.
+
+`networkPolicy.egress.enabled` also restricts the API's outbound connections to:
+
+- DNS on port 53 to `networkPolicy.egress.dns.to`: kube-dns pods in
+  `kube-system` by default. An empty list allows port 53 to any destination, for
+  example a node-local DNS cache;
+- the Kubernetes API server peers in `networkPolicy.egress.kubernetesApi.to`, on
+  `kubernetesApi.ports` (443 and 6443 by default);
+- port 4040 on pods labeled `spark-role=driver` in the namespaces selected by
+  `namespaces`, for the Spark UI proxy;
+- this release's API pods, so its `helm test` pod can connect, and the History
+  Server pods on port 18080 when `sparkHistory.enabled` is set;
+- `networkPolicy.egress.extraRules`, for example a cluster selected by
+  `SPARK_ON_K8S_CONFIG_FILE`.
+
+The chart cannot discover API server addresses. Most plugins evaluate egress after
+a Service address is translated to its endpoints, so list the endpoint addresses
+of the `default/kubernetes` Service:
+
+```bash
+kubectl get endpointslices --namespace default \
+  --selector kubernetes.io/service-name=kubernetes \
+  -o jsonpath='{range .items[*].endpoints[*]}{.addresses[0]}{"\n"}{end}'
+```
+
+```yaml
+networkPolicy:
+  egress:
+    enabled: true
+    kubernetesApi:
+      to:
+        - ipBlock:
+            cidr: 172.18.0.2/32
+```
+
+With an empty `kubernetesApi.to`, the chart's policy grants no API server access:
+the API stays unready unless another policy allows it, and the install notes warn
+about it. Plugins differ: some match the Service address before translation, and
+some do not match node or control-plane addresses with `ipBlock` at all and need
+their own policy resources for the API server. After enabling egress, check
+readiness, the Spark UI proxy and log streams. The driver namespace selector
+follows `namespaces`; an `env` override of `SPARK_ON_K8S_API_NAMESPACES` does not
+change it.
+
+`sparkHistory.networkPolicy.enabled` adds an ingress-only NetworkPolicy for the
+History Server: the API pods and `sparkHistory.networkPolicy.ingress.from` can
+reach port 18080. History Server egress, such as to event-log storage, stays
+unrestricted.
+
+### Keep replicas available during node drains
+
+`podDisruptionBudget.enabled` adds a PodDisruptionBudget for the API pods, and
+`sparkHistory.podDisruptionBudget.enabled` one for the History Server pods. Set
+`minAvailable` or `maxUnavailable` to a pod count or a percentage such as `"50%"`.
+Setting both is rejected; setting neither uses `maxUnavailable: 1`.
+
+Rendering fails when a budget permits no voluntary disruption at the smallest
+replica count, which is `replicaCount`, or `autoscaling.minReplicas` with
+autoscaling enabled. Such a budget blocks `kubectl drain`, node pool upgrades and
+cluster autoscaler scale-down indefinitely. For example, `minAvailable: 1` with one
+replica is rejected; Kubernetes rounds percentages up, so `minAvailable: "60%"`
+with two replicas is rejected too. Run at least two API replicas to keep the API
+available while a node drains. A single-replica API, as [run history](run-history.md)
+requires, can only use a budget that allows its pod to be evicted, so a budget
+adds no protection there.
+
+### Scrape metrics with the Prometheus Operator
+
+`metrics.serviceMonitor.enabled` adds a `monitoring.coreos.com/v1` ServiceMonitor
+for the API's `/metrics` and requires `metrics.enabled`. Rendering fails if the
+cluster does not serve the ServiceMonitor API, rather than silently omitting the
+object and leaving monitoring unconfigured. `helm template` and client-side dry
+runs do not query a cluster, so pass the API explicitly:
+
+```bash
+helm template spark-console ./chart --namespace spark-system \
+  --set metrics.enabled=true --set metrics.serviceMonitor.enabled=true \
+  --set-string image.tag="$API_IMAGE_TAG" \
+  --api-versions monitoring.coreos.com/v1/ServiceMonitor
+```
+
+Set `metrics.serviceMonitor.labels` to match your Prometheus
+`serviceMonitorSelector`, and `interval` or `scrapeTimeout` to override the
+Prometheus defaults. The API and History Server Services share the chart's
+selector labels, so the ServiceMonitor keeps only the API Service's targets by
+name. With `networkPolicy.enabled`, also list Prometheus in
+`networkPolicy.ingress.from`. Metric values come from the run-history database, so
+every API worker reports the same values.
+
+With `remote.enabled`, `/metrics` requires the operator bearer token, and the
+ServiceMonitor authenticates with the `remote.tokenKey` entry of
+`remote.existingSecret`. The Prometheus Operator then copies that token into the
+configuration of every Prometheus instance that selects the ServiceMonitor. The
+token grants full operator access to the API, including submissions, logs, kill
+and delete: restrict access to that Prometheus configuration accordingly, or do
+not enable the ServiceMonitor in remote mode.
+
+### Set the API worker count
+
+`workers` sets `SPARK_ON_K8S_API_WORKERS`, the number of API processes in each
+pod, from 1 to 64. The default `null` keeps the image default, which is 4 in the
+published image. An `env` entry with the same name takes precedence. Each worker
+is a separate process with its own memory, Kubernetes client and
+`SPARK_ON_K8S_API_LIMIT_CONCURRENCY` connection limit, so raise `resources` with
+the worker count. Run history keeps its single replica but supports several
+workers in that pod: a database lease elects one collector. In remote mode, each
+worker reads the token and policy files when it starts.
+
+### Probe the History Server
+
+With `sparkHistory.enabled`, the History Server container has readiness and
+liveness probes on its UI port, 18080, at `/api/v1/version`. Readiness keeps a
+starting server out of its Service. Liveness restarts a server that has stopped
+answering for about two minutes, after a one-minute initial delay. Adding the
+probes changes the pod template, so upgrading a release with the History Server
+enabled restarts its pods once.
+
+Override individual probe fields under `sparkHistory.readinessProbe` and
+`sparkHistory.livenessProbe`, or set a probe to `null` to remove it. Helm merges
+your probe with the default, so set `httpGet: null` beside another handler such as
+`tcpSocket`. An authentication filter on the History Server UI must allow the
+probe path, or the probe must use `tcpSocket`.
+
+### Enable remote submission
+
+`remote.enabled` configures [remote submission](remote-submission.md). The chart
+sets `SPARK_ON_K8S_SUBMISSION_ENABLED`, `SPARK_ON_K8S_SUBMISSION_TOKEN_FILE` and
+`SPARK_ON_K8S_SUBMISSION_POLICY_FILE`, and mounts only the `remote.tokenKey` and
+`remote.policyKey` entries of `remote.existingSecret` read-only under
+`remote.mountPath` (`/etc/spark-on-k8s/remote` by default). The chart never
+creates this Secret and has no value for an inline token, so the token stays out
+of Helm values and release history. Create the Secret in the release namespace
+with your secret tooling, for example from a random token file and the policy:
+
+```bash
+kubectl create secret generic spark-api-remote --namespace spark-system \
+  --from-file=token=./submission-token --from-file=policy.json=./submission-policy.json
+```
+
+```yaml
+remote:
+  enabled: true
+  existingSecret: spark-api-remote
+namespaces: analytics
+readOnly: false
+```
+
+Every route except `/health` and `/ready` then requires the bearer token,
+including the console; kubelet probes and the chart's `helm test` use those two
+public routes. Submissions create driver pods and Services, so with chart-managed
+RBAC set `readOnly: false`. Keep the policy's namespaces within `namespaces`: the
+API refuses to start with a policy namespace outside its scope. A missing Secret
+key also prevents the pod from starting. Each worker reads the files when it
+starts, so restart the Deployment with `kubectl rollout restart` after rotating
+the token or changing the policy. `env` entries for the same variables take
+precedence, and `remote-submission` is a reserved volume name. The token is one
+shared operator credential, not tenant isolation.
 
 ## Preparing the next chart release
 
@@ -251,11 +471,28 @@ normal Helm upgrade replaces the old resources; schedule that transition if a
 brief permissions interruption is unacceptable. Never reuse legacy names for two
 releases managing the same shared scope.
 
+Releases with `namespaces: "*"` were bound to the built-in `view` or `edit`
+ClusterRole by a ClusterRoleBinding named after the release with a `-view` or
+`-edit` suffix. The chart now creates its own ClusterRole and a ClusterRoleBinding
+with the role's name and no suffix, whether or not `rbac.legacyNames` is set.
+Because a binding's `roleRef` cannot change, the binding takes a new name instead of
+being updated in place: the same `helm upgrade` creates the new role and binding and
+removes the old binding, so no manual deletion is needed. As with the name change
+above, schedule it if a brief permissions interruption is unacceptable. The API's
+account loses everything else those roles granted, such as reading ConfigMaps and,
+with `edit`, reading and writing Secrets in every namespace. If another workload
+shares that account and relies on such access, grant it separately before upgrading. A `"*"` release with `readOnly: false` must also set
+`rbac.allowClusterWideWrite: true`; without it, the upgrade fails before changing
+anything.
+
 The default `namespaces` value changed from `"*"` to empty, which selects only the
 release namespace. A release that relied on the old default loses its cluster-wide
 binding on upgrade, and the API then refuses other namespaces. Set `namespaces: "*"`
 or list the namespaces before upgrading. With `"*"`, the console opens the API's own
-namespace unless `SPARK_ON_K8S_API_DEFAULT_NAMESPACE` is set in `env`.
+namespace unless `SPARK_ON_K8S_API_DEFAULT_NAMESPACE` is set in `env`. If `env` sets
+`SPARK_ON_K8S_API_DEFAULT_NAMESPACE` to a namespace outside the new scope, the API
+refuses to start and `helm upgrade --wait` times out: include that namespace in
+`namespaces`, or change or remove the variable, in the same upgrade.
 
 History configuration updates now roll its Deployment automatically. History
 `affinity` and `tolerations` are passed to the Pod. The rare long-name suffix

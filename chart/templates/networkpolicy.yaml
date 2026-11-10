@@ -1,0 +1,82 @@
+{{- /* --reuse-values from an older release omits newer values; absence means disabled. */}}
+{{- $policy := .Values.networkPolicy | default dict }}
+{{- if $policy.enabled }}
+{{- $egress := $policy.egress | default dict }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "spark-on-k8s.fullname" . }}
+  labels:
+    {{- include "spark-on-k8s.labels" . | nindent 4 }}
+spec:
+  # The chart's helm test pod carries the same labels, so this policy also selects it.
+  podSelector:
+    matchLabels:
+      {{- include "spark-on-k8s.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    {{- if $egress.enabled }}
+    - Egress
+    {{- end }}
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "spark-on-k8s.selectorLabels" . | nindent 14 }}
+        {{- with dig "ingress" "from" (list) $policy }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      ports:
+        - port: {{ .Values.service.port }}
+          protocol: TCP
+  {{- if $egress.enabled }}
+  egress:
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+      {{- with dig "dns" "to" (list) $egress }}
+      to:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    {{- with dig "kubernetesApi" "to" (list) $egress }}
+    - to:
+        {{- toYaml . | nindent 8 }}
+      ports:
+        {{- range dig "kubernetesApi" "ports" (list 443 6443) $egress }}
+        - port: {{ . }}
+          protocol: TCP
+        {{- end }}
+    {{- end }}
+    # Spark UI proxy: driver UIs in the namespaces this API serves.
+    - to:
+        - podSelector:
+            matchLabels:
+              spark-role: driver
+          {{- include "spark-on-k8s.namespaceSelector" . | nindent 10 }}
+      ports:
+        - port: 4040
+          protocol: TCP
+    # This release's pods, so the helm test pod can reach the API.
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "spark-on-k8s.selectorLabels" . | nindent 14 }}
+      ports:
+        - port: {{ .Values.service.port }}
+          protocol: TCP
+    {{- if .Values.sparkHistory.enabled }}
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "spark-on-k8s.sparkHistory.selectorLabels" . | nindent 14 }}
+      ports:
+        - port: 18080
+          protocol: TCP
+    {{- end }}
+    {{- with $egress.extraRules }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+{{- end }}

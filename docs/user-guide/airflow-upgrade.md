@@ -228,7 +228,11 @@ SparkSqlOnK8SOperator(
   failed later, while creating the Kubernetes resources. Long application names
   produce different driver Pod names, and reruns no longer collide.
 - **What to do:** Lowercase the suffix, for example
-  `app_id_suffix="-{{ ts_nodash | lower }}"`. Find drivers from the
+  `app_id_suffix="-{{ ts_nodash | lower }}"`. That suffix is the same for every try
+  and every mapped instance of a task run; for mapped tasks, or retries that may
+  submit again while an earlier driver is kept, add `-{{ ti.map_index }}` and
+  `-{{ ti.try_number }}` (or give each mapped instance its own `app_name`), because
+  two drivers cannot share an application ID. Find drivers from the
   `driver_pod_name` XCom value or the `spark-app-id=<app-id>,spark-role=driver`
   labels instead of deriving Pod names from the application ID.
 
@@ -248,7 +252,11 @@ fails if both an executor template and a template path resolve.
 
 The XCom keys `driver_pod_namespace`, `driver_pod_name` and `spark_ui_link` and the
 task's return value are unchanged. Each task also pushes `spark_on_k8s.console.v1`,
-a small record that the task tab reads. The **Spark Job UI** link now uses the
+a small record that the task tab reads. A task whose application fails, times out
+at startup or is killed also logs a bounded postmortem (the diagnosis and the
+driver's last 100 log lines) in the task log and pushes `spark_failure_diagnosis`.
+Set `failure_log_tail_lines=0` where driver logs must not reach Airflow logs, or
+`failure_diagnostics=False` to turn the postmortem off. The **Spark Job UI** link now uses the
 recorded application ID instead of deriving it from the driver Pod name, which
 differs for long application IDs.
 
@@ -267,14 +275,16 @@ deadline passed. Airflow's `execution_timeout` reaches the application only thro
 | Airflow `execution_timeout` interrupts a synchronous wait | Airflow calls `on_kill`; `on_kill_action` applies | Unchanged |
 | Airflow fails a deferred task without resuming it, such as a trigger failure | No operator cleanup; the application keeps running | Unchanged |
 | Cleanup fails after a deferred completion | The cleanup error could replace the Spark outcome | The task reports the trigger error, startup timeout or Spark status, with the cleanup error as its cause |
+| Cleanup fails after a synchronous failure or startup timeout | The cleanup error replaced the Spark outcome | As for a deferred completion |
+| The driver is already deleted when cleanup runs | The 404 failed the task, even after success | Treated as cleaned up |
 
 The operator does not handle `execution_timeout` itself. Airflow 2.11.2 and 3.4.0
 call `on_kill` when it interrupts synchronous waiting on a worker; the default
 `on_kill_action="delete"` then requests deletion. While a task is deferred, no
 worker holds its driver, so a failure that does not resume `execute_complete`
-performs no cleanup. If a deferred task needs a hard runtime limit, enforce it in
-the application or with a separate cleanup step rather than relying on
-`execution_timeout`. The SDK and CLI never cancel on timeout; see the
+performs no cleanup. If a deferred task needs a hard runtime limit, set
+`max_runtime`: Kubernetes stops the driver at that deadline even when no worker or
+triggerer watches it. Do not rely on `execution_timeout` for that. The SDK and CLI never cancel on timeout; see the
 [automation contract](automation.md).
 
 ## Optional: native task tab

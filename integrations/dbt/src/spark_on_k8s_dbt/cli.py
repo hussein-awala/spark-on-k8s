@@ -15,7 +15,8 @@ from spark_on_k8s_dbt.lifecycle import InvocationOwner, invocation_scope
 from spark_on_k8s_dbt.progress import StartupProgress
 
 
-@click.group()
+@click.group(context_settings={"help_option_names": ["-h", "--help"]})
+@click.version_option(package_name="dbt-spark-on-k8s")
 def main():
     """Experimental dbt Core commands with invocation-scoped Spark compute."""
 

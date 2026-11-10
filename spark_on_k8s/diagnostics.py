@@ -47,12 +47,18 @@ def validate_target(namespace: str, value: str, *, label: bool = False) -> None:
         raise ValueError("Invalid Kubernetes application or pod identifier")
 
 
+# A key containing a secret-like word anywhere (spark.hadoop.fs.s3a.secret.key, secretKey,
+# "aws_secret_access_key"), optionally quoted, then its value up to a delimiter.
+_SECRET_PAIR = re.compile(
+    r"""(?i)(["']?[\w.-]*(?:password|passwd|token|secret|credential|access[._-]?key|private[._-]?key|api[._-]?key)"""
+    r"""[\w.-]*["']?\s*[=:]\s*["']?)[^\s&;,"']+"""
+)
+
+
 def _redact_credentials(text: str) -> str:
     """Replace URL user information and secret-like key/value pairs."""
     text = re.sub(r"(://)[^/\s@]+@", r"\1<redacted>@", text)
-    return re.sub(
-        r"(?i)((?:password|token|secret|credential|access.key)\s*[=:]\s*)[^\s&;]+", r"\1<redacted>", text
-    )
+    return _SECRET_PAIR.sub(r"\1<redacted>", text)
 
 
 def _evidence(value: Any) -> str:
@@ -89,11 +95,17 @@ def classify_pod(pod: dict, events: list[dict]) -> list[DiagnosticFinding]:
             "The pod's activeDeadlineSeconds (max_runtime) elapsed. Check driver logs for stalled or "
             "slow work before raising max_runtime; outputs written before the stop may be partial.",
         )
+    waiting_containers = []
     for container in (status.get("init_container_statuses") or []) + (status.get("container_statuses") or []):
         container_name = container.get("name")
         current = container.get("state") or {}
         waiting = current.get("waiting") or {}
         reason = waiting.get("reason")
+        if reason and reason != "ContainerCreating":
+            waiting_containers.append(
+                f"container {container_name} waiting: {reason}"
+                + (f" ({waiting['message']})" if waiting.get("message") else "")
+            )
         if reason in {"ImagePullBackOff", "ErrImagePull", "InvalidImageName"}:
             add(
                 "image_pull_failed",
@@ -191,7 +203,12 @@ def classify_pod(pod: dict, events: list[dict]) -> list[DiagnosticFinding]:
         add(
             "cause_unknown",
             f"Pod is {status['phase']} without a specific observed cause",
-            status.get("message") or status.get("reason") or f"Pod phase: {status['phase']}",
+            # A waiting reason without a dedicated rule (CreateContainerConfigError for a missing
+            # Secret, ErrImageNeverPull) is still the most useful evidence available.
+            "; ".join(waiting_containers)
+            or status.get("message")
+            or status.get("reason")
+            or f"Pod phase: {status['phase']}",
             "Inspect container logs and newer Kubernetes events. Absence of diagnostic evidence "
             "does not establish a cause.",
             severity="warning",

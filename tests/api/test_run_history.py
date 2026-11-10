@@ -462,7 +462,10 @@ def test_runs_page_uses_packaged_console_and_is_separate_from_spark_history_serv
     response = client.get("/webserver/runs")
     assert response.status_code == 200
     assert '"view": "runs"' in response.text and '"runsEnabled": true' in response.text
-    assert client.get("/webserver/runs", params={"namespace": "outside"}).status_code == 400
+    # The sidebar links here from namespaces that may not be recorded: open a recorded one instead.
+    outside = client.get("/webserver/runs", params={"namespace": "outside"})
+    assert outside.status_code == 200 and '"view": "runs"' in outside.text
+    assert '"namespace": "outside"' not in outside.text
     monkeypatch.setattr(webserver, "get_history_settings", HistorySettings)
     assert client.get("/webserver/runs").status_code == 404
 

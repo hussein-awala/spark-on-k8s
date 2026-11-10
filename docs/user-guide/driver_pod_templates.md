@@ -1,9 +1,8 @@
 # Driver pod templates
 
-The source version supports a Kubernetes Pod template for the driver through the
+Since 0.13.0, a Kubernetes Pod template for the driver is supported through the
 Python client, CLI and both Airflow operators. This feature does not require a Spark
-operator or a custom resource. Install from source until a release includes it; see
-[installation](installation.md).
+operator or a custom resource.
 
 Use a template for settings such as pod/container security contexts, affinity,
 image pull secrets, sidecars, init containers and additional volumes. The client

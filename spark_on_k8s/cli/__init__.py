@@ -29,9 +29,10 @@ except ImportError:
         raise click.ClickException(API_EXTRA_MESSAGE)
 
 
-@click.group()
+@click.group(context_settings={"help_option_names": ["-h", "--help"]})
+@click.version_option(package_name="spark-on-k8s")
 def cli():
-    pass
+    """Submit, watch and manage Spark applications on Kubernetes without an operator."""
 
 
 def main():

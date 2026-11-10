@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import click
 
+from spark_on_k8s.cli.automation import text_command_errors
 from spark_on_k8s.cli.options import namespace_option
 
 
@@ -14,5 +15,6 @@ def namespace_cli():
 def setup(namespace: str):
     from spark_on_k8s.utils.setup_namespace import SparkOnK8SNamespaceSetup
 
-    spark_on_k8s_setuper = SparkOnK8SNamespaceSetup()
-    spark_on_k8s_setuper.setup_namespace(namespace=namespace, should_print=True)
+    with text_command_errors():
+        spark_on_k8s_setuper = SparkOnK8SNamespaceSetup()
+        spark_on_k8s_setuper.setup_namespace(namespace=namespace, should_print=True)

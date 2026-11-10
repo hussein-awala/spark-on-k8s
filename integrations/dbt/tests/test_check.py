@@ -382,3 +382,12 @@ def test_interrupt_reports_partial_results_in_one_document(tmp_path, cluster):
     assert [item["id"] for item in document["checks"]] == list(CHECK_IDS)
     assert statuses(document)["kubernetes_config"] == "pass"
     assert statuses(document)["namespace"] == "skip"
+
+
+def test_wrapper_reports_its_version_and_accepts_short_help():
+    from importlib.metadata import version
+
+    from spark_on_k8s_dbt.cli import main
+
+    assert CliRunner().invoke(main, ["--version"]).output.strip().endswith(version("dbt-spark-on-k8s"))
+    assert CliRunner().invoke(main, ["-h"]).exit_code == 0

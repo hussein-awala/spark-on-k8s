@@ -479,3 +479,38 @@ def test_read_failure_guidance_distinguishes_recovery_actions(status, expected):
     from spark_on_k8s.diagnostics import _read_remediation
 
     assert expected in _read_remediation(ApiException(status=status))
+
+
+@pytest.mark.parametrize(
+    "reason,message",
+    [
+        # What the kubelet reports for an env secretKeyRef that cannot be resolved.
+        ("CreateContainerConfigError", 'secret "warehouse-credentials" not found'),
+        ("CreateContainerConfigError", "couldn't find key password in Secret spark/warehouse-credentials"),
+        ("ErrImageNeverPull", 'Container image "spark:dev" is not present with pull policy of Never'),
+    ],
+)
+def test_unexplained_waiting_container_is_named_in_the_evidence(reason, message):
+    pod = k8s.V1Pod(
+        metadata=k8s.V1ObjectMeta(name="driver", namespace="spark", uid="driver-uid"),
+        status=k8s.V1PodStatus(
+            phase="Pending",
+            container_statuses=[
+                k8s.V1ContainerStatus(
+                    name="driver",
+                    image="spark:test",
+                    image_id="",
+                    ready=False,
+                    restart_count=0,
+                    state=k8s.V1ContainerState(
+                        waiting=k8s.V1ContainerStateWaiting(reason=reason, message=message)
+                    ),
+                )
+            ],
+        ),
+    ).to_dict()
+
+    (finding,) = classify_pod(pod, [])
+
+    assert finding.code == "cause_unknown"
+    assert finding.evidence == f"container driver waiting: {reason} ({message})"

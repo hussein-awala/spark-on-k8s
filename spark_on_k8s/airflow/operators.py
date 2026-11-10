@@ -710,6 +710,11 @@ class SparkOnK8SOperator(BaseOperator):
     def execute(self, context: Context):
         from spark_on_k8s.utils.app_manager import SparkAppManager
 
+        # Templated and compared by value: an unknown value would silently skip or change waiting.
+        if self.app_waiter not in set(AppWaiter):
+            raise AirflowException(
+                f"app_waiter must be one of {', '.join(AppWaiter)}; got {self.app_waiter!r}"
+            )
         k8s_client_manager = _AirflowKubernetesClientManager(
             kubernetes_conn_id=self.kubernetes_conn_id,
         )

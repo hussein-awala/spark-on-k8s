@@ -123,6 +123,8 @@ the driver stopped submits a new application with a new deadline. See
 | Synchronous observation raises a non-timeout API/transport error | Error propagates before finish cleanup; no new submission or automatic cleanup is performed by that wait path |
 | `app_waiter="no_wait"` | Returns after submission/adoption; no finish cleanup or completion assertion |
 | A retried or cleared attempt finds an earlier driver of the same task instance | One Pending or Running driver is adopted instead of submitting; a Succeeded one only with `reattach_succeeded=True`; ambiguous or uncertain findings fail the attempt. See [retries and reattachment](#retries-and-reattachment) |
+| Finish cleanup finds the driver already deleted | Treated as cleaned up; the task keeps its Spark outcome |
+| Finish cleanup fails for another reason | Task fails; after a Spark failure or timeout, that failure is reported with the cleanup error as its cause |
 | Airflow invokes `on_kill` with a known driver | `on_kill_action="keep"` retains, `"delete"` requests deletion, and `"kill"` requests process termination; default is `delete` |
 
 Do not assume every scheduler state change, worker loss or manual task-state
@@ -429,8 +431,11 @@ operator links but cannot use the task tab's live features.
 Read requests require Airflow access to the task; log streaming additionally
 requires task-log access. Kill and delete also require the corresponding Airflow
 write permission and `SPARK_ON_K8S_AIRFLOW_ALLOW_WRITES=true`. Log connections and
-write requests must come from the Airflow page's origin. The Spark API's own
-permissions still apply.
+write requests must come from the Airflow page's origin. Behind a proxy that
+terminates TLS, Airflow must see the public scheme and host (for example
+`--proxy-headers` with a matching `FORWARDED_ALLOW_IPS`); otherwise the browser's
+`https` origin does not match and the tab's log stream and actions are refused. The
+Spark API's own permissions still apply.
 
 After the driver pod is deleted, the tab shows only the saved task-local
 application ID with unknown status. It offers an external history link only when

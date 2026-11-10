@@ -228,3 +228,17 @@ def test_documented_quickstart_values_start_an_api_in_the_default_release_namesp
         text=True,
     )
     assert started.returncode == 0, started.stderr
+
+
+def test_helm_test_pod_meets_pod_security_restricted(tmp_path):
+    (hook,) = [item for item in render(tmp_path, {}) if item["metadata"]["name"].endswith("-test-connection")]
+    spec = hook["spec"]
+    (container,) = spec["containers"]
+    # The four controls Pod Security "restricted" checks, and a pinned image.
+    assert spec["securityContext"]["runAsNonRoot"] is True
+    assert spec["securityContext"]["seccompProfile"] == {"type": "RuntimeDefault"}
+    assert container["securityContext"] == {
+        "allowPrivilegeEscalation": False,
+        "capabilities": {"drop": ["ALL"]},
+    }
+    assert ":" in container["image"] and not container["image"].endswith(":latest")

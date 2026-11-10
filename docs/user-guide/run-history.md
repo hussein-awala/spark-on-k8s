@@ -186,7 +186,8 @@ latest failure: `unauthorized`,
 `timeout`, `connection`, `pagination` (an expired or repeated continuation token), `page_limit` (more
 driver pods than `PAGE_SIZE` × `MAX_PAGES`), `invalid_metadata`, `store` or `unexpected`. Kubernetes
 and database error messages are never stored, returned or logged. The console's **Recorded runs** page
-shows a notice when the selected namespace is stale.
+shows a notice when the selected namespace is stale. Opened for a namespace that is not recorded, it
+shows the first recorded namespace instead.
 
 The worker that holds the collection lease logs a warning when a namespace becomes stale, with the age
 of its last success and its last error category, and an info line when it is fresh again. The category

@@ -155,6 +155,16 @@ def test_an_unsupported_lifecycle_setting_is_never_migration_ready(restart_polic
     )
 
 
+def test_always_restarting_applications_are_told_that_no_controller_restarts_them():
+    document = load("pyspark-pi.yaml")
+    document["spec"]["restartPolicy"] = {"type": "Always"}
+    (finding,) = [
+        item for item in assess_document(document)["findings"] if item["path"] == "spec.restartPolicy"
+    ]
+    # Batch retry advice alone would suggest a Job backoffLimit fits a streaming application.
+    assert "loses its node" in finding["note"] and "supervisor" in finding["alternative"]
+
+
 def test_scheduled_application_reports_the_schedule_and_drafts_its_template():
     result = application("scheduled.yaml")
     assert result["kind"] == "ScheduledSparkApplication"
@@ -409,6 +419,16 @@ def test_cli_json_contract_and_exit_codes(tmp_path):
             assert failed.stderr.startswith("Error: No sparkoperator.k8s.io/v1beta2")
     missing = runner.invoke(job_cli, ["assess-operator", str(tmp_path / "missing.yaml")])
     assert missing.exit_code == 2
+
+
+def test_cli_creates_a_missing_draft_directory(tmp_path):
+    # The migration guide passes a new directory, as in `--draft-dir drafts/`.
+    drafts = tmp_path / "drafts" / "nested"
+    result = CliRunner().invoke(
+        job_cli, ["assess-operator", str(FIXTURES / "pyspark-pi.yaml"), "--draft-dir", str(drafts)]
+    )
+    assert result.exit_code == 0, result.output
+    assert (drafts / "pyspark-pi.yaml").is_file()
 
 
 def test_cli_text_report_and_draft_files(tmp_path):

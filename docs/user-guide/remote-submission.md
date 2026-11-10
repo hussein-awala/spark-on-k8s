@@ -331,7 +331,8 @@ kubectl get secret "$secret" --namespace "$namespace" --output jsonpath='{.data.
   | base64 --decode > current-token
 kubectl get secret "$secret" --namespace "$namespace" --output jsonpath='{.data.policy\.json}' \
   | base64 --decode > policy.json
-python3 -c 'import secrets; print(secrets.token_urlsafe(32))' > next-token
+# No trailing newline: the chart's ServiceMonitor sends the token file byte for byte.
+python3 -c 'import secrets; print(secrets.token_urlsafe(32), end="")' > next-token
 
 # Step 1: accept both tokens. Blank lines are ignored; the newline must separate the tokens.
 { cat current-token; echo; cat next-token; } > overlap-token
@@ -356,7 +357,9 @@ kubectl create secret generic "$secret" --namespace "$namespace" \
   --dry-run=client --output yaml | kubectl apply --filename -
 ```
 
-Store the new token in your secret manager and delete the local files afterwards. Policy
+With the chart's [ServiceMonitor](chart-deployments.md#add-operational-objects), metric
+scrapes fail from step 1 until step 3 reaches the pods, because Prometheus cannot send a
+two-line token. Store the new token in your secret manager and delete the local files afterwards. Policy
 changes reach the API the same way. To revoke a compromised token without waiting for the
 kubelet, update the Secret and restart the API pods; restarted workers read the current files
 at startup and refuse to start if they are invalid.

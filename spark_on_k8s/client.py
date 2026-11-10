@@ -4,7 +4,7 @@ import logging
 import math
 import re
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
@@ -33,9 +33,10 @@ def default_app_id_suffix() -> str:
     """Default function to generate a suffix for the application ID
 
     Returns:
-        the current timestamp in the format %Y%m%d%H%M%S prefixed with a dash (e.g. -20240101123456)
+        the current UTC timestamp in the format %Y%m%d%H%M%S prefixed with a dash (e.g. -20240101123456)
     """
-    return f"-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+    # UTC: a local clock repeats an hour when daylight saving time ends.
+    return f"-{datetime.now(UTC).strftime('%Y%m%d%H%M%S')}"
 
 
 # Keep Enum.__str__ behavior for existing callers.

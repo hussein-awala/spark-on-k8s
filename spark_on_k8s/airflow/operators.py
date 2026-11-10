@@ -120,6 +120,9 @@ class SparkOnK8SOperator(BaseOperator):
             Defaults to "delete".
         startup_timeout (int, optional): Timeout for the Spark application to start.
             Defaults to 0 (no timeout).
+        max_runtime (int, optional): Maximum driver lifetime in seconds, counted from the driver
+            pod's start (Kubernetes activeDeadlineSeconds). Kubernetes then stops the driver, even if
+            the task's worker was lost. Defaults to None (no limit).
         reattach_by_label (bool, optional): When task XCom does not identify a driver to adopt,
             find this task instance's earlier drivers by their task-key label and adopt a Pending
             or Running one instead of submitting another application. Defaults to True.
@@ -210,6 +213,7 @@ class SparkOnK8SOperator(BaseOperator):
         on_finish_action: OnFinishAction = OnFinishAction.KEEP,
         on_kill_action: OnKillAction = OnKillAction.DELETE,
         startup_timeout: int = 0,
+        max_runtime: int | None = None,
         reattach_by_label: bool = True,
         reattach_succeeded: bool = False,
         **kwargs,
@@ -257,6 +261,7 @@ class SparkOnK8SOperator(BaseOperator):
         self.on_finish_action = on_finish_action
         self.on_kill_action = on_kill_action
         self.startup_timeout = startup_timeout
+        self.max_runtime = max_runtime
         self.reattach_by_label = reattach_by_label
         self.reattach_succeeded = reattach_succeeded
 
@@ -587,6 +592,8 @@ class SparkOnK8SOperator(BaseOperator):
             submit_app_kwargs["driver_pod_template"] = self.driver_pod_template
         if self.driver_container_name is not None:
             submit_app_kwargs["driver_container_name"] = self.driver_container_name
+        if self.max_runtime is not None:
+            submit_app_kwargs["max_runtime"] = self.max_runtime
         self._driver_pod_name = spark_client.submit_app(
             image=self.image,
             app_path=self.app_path,

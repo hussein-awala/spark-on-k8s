@@ -130,6 +130,12 @@ APP_ID="my-app-20261107120000" # Replace with the ID from the application list
 spark-on-k8s app kill -n spark --app-id "$APP_ID"
 ```
 
+To have Kubernetes stop a run that outlives its expected duration, even after your
+terminal or CI job has gone, add `--max-runtime SECONDS` to `app submit`. Finished
+drivers and their Services, ConfigMaps and Secrets remain until deleted;
+`spark-on-k8s apps prune -n spark --older-than 86400` lists them and deletes them only
+with `--delete`. See [driver lifetime limits and pruning](automation.md#limit-how-long-a-driver-can-run).
+
 Check the help for further commands and options:
 
 ```bash

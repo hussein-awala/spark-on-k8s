@@ -8,16 +8,17 @@
 {{- if and (eq (include "spark-on-k8s.rbacCreate" .) "true") (not .Values.serviceAccount.create) (not .Values.serviceAccount.name) }}
 {{- fail "chart-managed RBAC with an external service account requires serviceAccount.name" }}
 {{- end }}
+{{- if and (eq (include "spark-on-k8s.rbacCreate" .) "true") (eq (include "spark-on-k8s.namespaces" .) "*") (not .Values.readOnly) (not .Values.rbac.allowClusterWideWrite) }}
+{{- fail "namespaces \"*\" with readOnly false lets the API create, delete and exec into pods in every namespace, including system namespaces; set rbac.allowClusterWideWrite to true to accept that, or list the namespaces it needs" }}
+{{- end }}
 {{- if .Values.runHistory.enabled }}
 {{- range .Values.volumeMounts }}
 {{- if eq .name "run-history" }}{{- fail "run-history is a reserved volume mount name" }}{{- end }}
 {{- end }}
 {{- /* Chart-managed Roles exist only for listed namespaces; the recorder would stay unready elsewhere. */}}
-{{- if and (eq (include "spark-on-k8s.rbacCreate" .) "true") (ne .Values.namespaces "*") }}
-{{- $managed := list }}
-{{- range (splitList "," .Values.namespaces) }}
-{{- $managed = append $managed (trim .) }}
-{{- end }}
+{{- $scope := include "spark-on-k8s.namespaces" . }}
+{{- if and (eq (include "spark-on-k8s.rbacCreate" .) "true") (ne $scope "*") }}
+{{- $managed := splitList "," $scope }}
 {{- range .Values.runHistory.namespaces }}
 {{- if not (has . $managed) }}
 {{- fail (printf "runHistory.namespaces entry %q is not in namespaces, so chart-managed RBAC cannot grant its pod reads; add it to namespaces or manage RBAC externally" .) }}
@@ -30,4 +31,14 @@
 {{- end }}
 {{- if and .Values.sparkHistory.enabled .Values.sparkHistory.autoscaling.enabled (not .Values.sparkHistory.autoscaling.targetCPUUtilizationPercentage) (not .Values.sparkHistory.autoscaling.targetMemoryUtilizationPercentage) }}
 {{- fail "sparkHistory.autoscaling requires a positive CPU or memory utilization target" }}
+{{- end }}
+{{- $remote := .Values.remote | default dict }}
+{{- if $remote.enabled }}
+{{- $_ := required "remote.enabled requires remote.existingSecret, an existing Secret with the token and policy; the chart never creates it" (trim ($remote.existingSecret | default "")) }}
+{{- range $key := list "tokenKey" "policyKey" "mountPath" }}
+{{- $_ := required (printf "remote.enabled requires remote.%s" $key) (get $remote $key) }}
+{{- end }}
+{{- range concat .Values.volumes .Values.volumeMounts }}
+{{- if eq .name "remote-submission" }}{{- fail "remote-submission is a reserved volume name" }}{{- end }}
+{{- end }}
 {{- end }}

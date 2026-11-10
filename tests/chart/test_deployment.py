@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -9,17 +10,67 @@ import yaml
 
 HELM = shutil.which("helm")
 CHART = Path(__file__).resolve().parents[2] / "chart"
+DOCKERFILE = Path(__file__).resolve().parents[2] / "docker" / "Dockerfile"
 pytestmark = pytest.mark.skipif(HELM is None, reason="Helm is required to render the chart")
 
 
-def render_deployment(*settings):
+def render_pod(*settings):
     result = subprocess.run(
         [HELM, "template", "test", str(CHART), "--show-only", "templates/deployment.yaml", *settings],
         check=True,
         capture_output=True,
         text=True,
     )
-    return yaml.safe_load(result.stdout)["spec"]["template"]["spec"]["containers"][0]
+    return yaml.safe_load(result.stdout)["spec"]["template"]["spec"]
+
+
+def render_deployment(*settings):
+    return render_pod(*settings)["containers"][0]
+
+
+def image_identity():
+    users = re.findall(r"^USER (\S+)$", DOCKERFILE.read_text(), re.MULTILINE)
+    uid, gid = users[-1].split(":")
+    return int(uid), int(gid)
+
+
+def test_api_pod_defaults_run_the_image_user_under_restricted_pod_security():
+    uid, gid = image_identity()
+    pod = render_pod()
+    # A mismatched UID/GID would leave the image's run-history directory or fsGroup grant unusable.
+    assert pod["securityContext"] == {
+        "runAsNonRoot": True,
+        "runAsUser": uid,
+        "runAsGroup": gid,
+        "fsGroup": gid,
+        "fsGroupChangePolicy": "OnRootMismatch",
+        "seccompProfile": {"type": "RuntimeDefault"},
+    }
+    assert pod["containers"][0]["securityContext"] == {
+        "allowPrivilegeEscalation": False,
+        "capabilities": {"drop": ["ALL"]},
+    }
+
+
+def test_api_security_context_defaults_can_be_overridden_or_removed():
+    pod = render_pod(
+        "--set",
+        "podSecurityContext.runAsUser=20000",
+        "--set",
+        "podSecurityContext.fsGroup=null",
+        "--set",
+        "securityContext.readOnlyRootFilesystem=true",
+        "--set",
+        "securityContext.capabilities.add[0]=NET_BIND_SERVICE",
+    )
+    assert pod["securityContext"]["runAsUser"] == 20000
+    assert pod["securityContext"]["runAsNonRoot"] is True
+    assert "fsGroup" not in pod["securityContext"]
+    assert pod["containers"][0]["securityContext"] == {
+        "allowPrivilegeEscalation": False,
+        "capabilities": {"drop": ["ALL"], "add": ["NET_BIND_SERVICE"]},
+        "readOnlyRootFilesystem": True,
+    }
 
 
 @pytest.mark.parametrize("history_enabled", ["false", "true"])

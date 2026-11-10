@@ -55,7 +55,8 @@ spark-on-k8s connect check connect.toml --profile production --timeout 15 --outp
 ```
 
 The check runs a small remote DataFrame action and reports the server's Spark
-version. It runs in a separate process with a total timeout, so an unavailable server
+version and the PySpark client version that ran the query. It runs in a separate
+process with a total timeout, so an unavailable server
 cannot leave a stuck CLI. Exit codes are 0 for success, 1 for configuration/connection
 failure, 2 for CLI usage errors, 5 for timeout and 130 for interruption. Error output
 omits gRPC details that could contain credentials. A timed-out session may remain until
@@ -63,8 +64,9 @@ the server's session expiry policy cleans it up; the check never stops the share
 
 With `--output json`, the command writes one document using the
 [automation contract](automation.md). `namespace` is empty because the check does not
-use Kubernetes. A failure has `status: "error"`, `spark_version: null` and
-`error: {code, message}` with `operation_error`, `timeout` or `interrupted`:
+use Kubernetes. A failure has `status: "error"`, `spark_version: null`,
+`client_version: null`, `warnings: []` and `error: {code, message}` with
+`operation_error`, `timeout` or `interrupted`:
 
 ```json
 {
@@ -73,8 +75,44 @@ use Kubernetes. A failure has `status: "error"`, `spark_version: null` and
   "namespace": "",
   "error": null,
   "status": "ok",
-  "spark_version": "4.3.0"
+  "spark_version": "4.3.0",
+  "client_version": "4.3.0",
+  "warnings": []
 }
+```
+
+### Client and server versions
+
+A Spark Connect client of a different release can pass a tiny query and then fail
+later with errors unrelated to your code. For example, the
+[Jupyter guide](jupyter.md#start-an-isolated-jupyter-kernel) records a 4.3.0 client
+that passed readiness against a 4.0.5 server and then failed to create a DataFrame
+from local rows. When the check knows both versions and their major or minor
+numbers differ (for example a 4.3 client with a 4.0 or 3.5 server), it adds a
+`version_skew` warning. Patch releases such as 4.0.5 and 4.0.6 are not compared.
+
+The warning does not change the result: the check still succeeds with exit code 0.
+Text output prints it on stderr; JSON output lists it in `warnings` as
+`{"code": "version_skew", "message": "..."}`. An unknown client version
+(`client_version: null`) or an unparseable version produces no warning, which does
+not establish compatibility. Install a client matching the server's major.minor
+version. To make a script fail on any warning, check the field explicitly:
+
+```bash
+spark-on-k8s connect check connect.toml --profile production --output json > check.json
+jq -e '.error == null and (.warnings | length) == 0' check.json
+```
+
+`ConnectProfile.probe()` returns the same `client_version` and `warnings`. In your
+own sessions, compare the versions with `version_warnings()`:
+
+```python
+from pyspark.version import __version__ as client_version
+from spark_on_k8s.connect import ConnectProfile, version_warnings
+
+with ConnectProfile.from_file("connect.toml", profile="production").session() as spark:
+    for warning in version_warnings(client_version, spark.version):
+        print(warning["message"])
 ```
 
 ## Notebook and application sessions

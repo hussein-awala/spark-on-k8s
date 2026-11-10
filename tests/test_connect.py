@@ -120,7 +120,8 @@ def test_probe_bounds_process_and_does_not_put_credentials_in_arguments(monkeypa
         "spark_on_k8s.connect.subprocess.run",
         return_value=SimpleNamespace(returncode=0, stdout=json.dumps(result)),
     ) as run:
-        assert profile.probe(timeout=2) == result
+        # A worker without a client version yields additive, empty version fields.
+        assert profile.probe(timeout=2) == {**result, "client_version": None, "warnings": []}
     assert run.call_args.kwargs["timeout"] == 2
     assert "never-in-argv" not in repr(run.call_args)
     assert json.loads(run.call_args.kwargs["input"])["token_env"] == "TEST_TOKEN"
@@ -166,7 +167,13 @@ def test_cli_reports_timeout_as_json(tmp_path):
 def test_cli_check_json_uses_the_shared_automation_contract(tmp_path, failure, exit_code, error_code):
     file = tmp_path / "connect.toml"
     file.write_text('[profiles.default]\nendpoint="sc://localhost"\ntls=false\n')
-    payload = {"schema_version": 1, "status": "ok", "spark_version": "4.3.0"}
+    payload = {
+        "schema_version": 1,
+        "status": "ok",
+        "spark_version": "4.3.0",
+        "client_version": "4.3.0",
+        "warnings": [],
+    }
     with patch.object(ConnectProfile, "probe", side_effect=failure, return_value=payload):
         result = CliRunner().invoke(connect_cli, ["check", str(file), "--output", "json"])
     assert result.exit_code == exit_code, result.output
@@ -179,6 +186,8 @@ def test_cli_check_json_uses_the_shared_automation_contract(tmp_path, failure, e
         "namespace": "",
         "status": "error" if failure else "ok",
         "spark_version": None if failure else "4.3.0",
+        "client_version": None if failure else "4.3.0",
+        "warnings": [],
     }
     if failure is None:
         assert error is None
@@ -400,3 +409,103 @@ def test_probe_worker_checks_application_identity_before_query(monkeypatch, caps
     else:
         session.range.assert_not_called()
         assert "wrong-server" not in json.dumps(output)
+
+
+@pytest.mark.parametrize(
+    "client, server, skew",
+    [
+        ("4.3.0", "4.3.0", False),
+        ("4.3.1", "4.3.0", False),
+        ("4.1.0.dev0", "4.1.0-SNAPSHOT", False),
+        ("4.0.5", "4.3.0", True),
+        ("4.3.0", "3.5.6", True),
+        ("10.0.0", "1.0.0", True),
+        (None, "4.3.0", False),
+        ("4.3.0", None, False),
+        ("unknown", "4.3.0", False),
+        (4.3, "4.3.0", False),
+        ("4.3.0", "9" * 5000 + ".1", False),
+    ],
+)
+def test_version_warnings_compare_only_known_major_minor_versions(client, server, skew):
+    from spark_on_k8s.connect import version_warnings
+
+    warnings = version_warnings(client, server)
+    if not skew:
+        assert warnings == []
+        return
+    assert [warning["code"] for warning in warnings] == ["version_skew"]
+    message = warnings[0]["message"]
+    assert f"client {'.'.join(client.split('.')[:2])} " in message
+    assert f"server {'.'.join(server.split('.')[:2])} " in message
+
+
+def test_probe_reports_a_version_skew_without_failing_the_check():
+    payload = {"schema_version": 1, "status": "ok", "spark_version": "3.5.6", "client_version": "4.3.0"}
+    with patch(
+        "spark_on_k8s.connect.subprocess.run",
+        return_value=SimpleNamespace(returncode=0, stdout=json.dumps(payload)),
+    ):
+        result = ConnectProfile(endpoint="sc://localhost", tls=False).probe()
+    assert result["status"] == "ok"
+    assert result["client_version"] == "4.3.0"
+    assert [warning["code"] for warning in result["warnings"]] == ["version_skew"]
+
+
+@pytest.mark.parametrize("installed", ["4.0.5", None])
+def test_probe_worker_reports_the_client_version_it_used(monkeypatch, capsys, installed):
+    import io
+    from contextlib import contextmanager
+
+    from spark_on_k8s.connect import _probe_worker
+
+    session = MagicMock()
+    session.range.return_value.count.return_value = 1
+    session.version = "4.3.0"
+
+    @contextmanager
+    def fake_session(self):
+        yield session
+
+    monkeypatch.setattr(ConnectProfile, "session", fake_session)
+    monkeypatch.setitem(
+        sys.modules, "pyspark.version", None if installed is None else SimpleNamespace(__version__=installed)
+    )
+    monkeypatch.setattr(sys, "stdin", io.StringIO('{"endpoint":"sc://localhost","tls":false}'))
+    assert _probe_worker() == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result == {
+        "schema_version": 1,
+        "status": "ok",
+        "spark_version": "4.3.0",
+        "client_version": installed,
+    }
+
+
+@pytest.mark.parametrize("output", ["text", "json"])
+def test_cli_check_warns_about_version_skew_but_succeeds(tmp_path, output):
+    from spark_on_k8s.connect import version_warnings
+
+    file = tmp_path / "connect.toml"
+    file.write_text('[profiles.default]\nendpoint="sc://localhost"\ntls=false\n')
+    payload = {
+        "schema_version": 1,
+        "status": "ok",
+        "spark_version": "3.5.6",
+        "client_version": "4.3.0",
+        "warnings": version_warnings("4.3.0", "3.5.6"),
+    }
+    with patch.object(ConnectProfile, "probe", return_value=payload):
+        result = CliRunner().invoke(connect_cli, ["check", str(file), "--output", output])
+    assert result.exit_code == 0, result.output
+    if output == "json":
+        document = json.loads(result.stdout)
+        assert document["status"] == "ok"
+        assert document["error"] is None
+        assert document["client_version"] == "4.3.0"
+        assert document["warnings"] == payload["warnings"]
+        assert result.stderr == ""
+    else:
+        assert "Connected to Spark 3.5.6 with client 4.3.0" in result.stdout
+        assert "Warning:" not in result.stdout
+        assert "Warning: Spark Connect client 4.3 and server 3.5 differ" in result.stderr

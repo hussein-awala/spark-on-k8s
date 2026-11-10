@@ -40,12 +40,106 @@ def container(documents, name="spark-on-k8s"):
     )
 
 
-def test_release_default_uses_app_version_and_read_only_access(tmp_path):
+def environment(documents):
+    return {item["name"]: item.get("value") for item in container(documents)["env"]}
+
+
+def test_release_default_uses_app_version_and_read_only_access_to_its_namespace(tmp_path):
     docs = resources(tmp_path, {})
     assert container(docs)["image"] == "ghcr.io/hussein-awala/spark-on-k8s:0.0.0-test"
-    binding = next(item for item in docs if item["kind"] == "ClusterRoleBinding")
-    assert binding["roleRef"]["name"] == "view"
+    assert not any(item["kind"].startswith("ClusterRole") for item in docs)
+    role = next(item for item in docs if item["kind"] == "Role")
+    binding = next(item for item in docs if item["kind"] == "RoleBinding")
+    assert role["metadata"]["namespace"] == binding["metadata"]["namespace"] == "control"
+    assert all(set(rule["verbs"]) <= {"get", "list", "watch"} for rule in role["rules"])
+    env = environment(docs)
+    assert env["SPARK_ON_K8S_API_NAMESPACES"] == "control"
+    assert env["SPARK_ON_K8S_API_DEFAULT_NAMESPACE"] == "control"
     assert invoke(tmp_path, {}, command="lint").returncode == 0
+
+
+@pytest.mark.parametrize(
+    "namespaces, scope, default, bindings",
+    [
+        ("*", "*", None, {("ClusterRoleBinding", None)}),
+        (
+            " analytics, batch ,analytics",
+            "analytics,batch",
+            "analytics",
+            {("RoleBinding", "analytics"), ("RoleBinding", "batch")},
+        ),
+    ],
+)
+def test_api_namespace_scope_matches_chart_managed_rbac(tmp_path, namespaces, scope, default, bindings):
+    docs = resources(tmp_path, {"namespaces": namespaces})
+    env = environment(docs)
+    assert env["SPARK_ON_K8S_API_NAMESPACES"] == scope
+    # With every namespace in scope, the API opens its own namespace unless told otherwise.
+    assert env.get("SPARK_ON_K8S_API_DEFAULT_NAMESPACE") == default
+    assert {
+        (item["kind"], item["metadata"].get("namespace")) for item in docs if item["kind"].endswith("Binding")
+    } == bindings
+
+
+# (resource, verb) pairs for the Kubernetes calls the API makes: listing and reading drivers,
+# readiness and run history, driver log streams and diagnostic events; with readOnly false,
+# also kill (exec), delete and remote submission's driver pod and headless service.
+READ_ACCESS = {("pods", "list"), ("pods", "get"), ("pods/log", "get"), ("events", "list")}
+WRITE_ACCESS = READ_ACCESS | {
+    ("pods/exec", "create"),
+    ("pods", "delete"),
+    ("pods", "create"),
+    ("services", "create"),
+}
+
+
+@pytest.mark.parametrize("read_only", [True, False])
+def test_cluster_wide_scope_binds_a_chart_owned_role_with_the_namespace_rules(tmp_path, read_only):
+    rbac = {"allowClusterWideWrite": True}
+    cluster = resources(tmp_path, {"namespaces": "*", "readOnly": read_only, "rbac": rbac})
+    namespaced = resources(tmp_path, {"namespaces": "analytics", "readOnly": read_only})
+    role = next(item for item in namespaced if item["kind"] == "Role")
+    cluster_role = next(item for item in cluster if item["kind"] == "ClusterRole")
+    binding = next(item for item in cluster if item["kind"] == "ClusterRoleBinding")
+    assert cluster_role["rules"] == role["rules"]
+    assert binding["roleRef"] == {
+        "apiGroup": "rbac.authorization.k8s.io",
+        "kind": "ClusterRole",
+        "name": cluster_role["metadata"]["name"],
+    }
+    assert binding["subjects"] == [
+        {"kind": "ServiceAccount", "name": "test-spark-on-k8s", "namespace": "control"}
+    ]
+    rules = cluster_role["rules"]
+    granted = {(resource, verb) for rule in rules for resource in rule["resources"] for verb in rule["verbs"]}
+    assert (READ_ACCESS if read_only else WRITE_ACCESS) <= granted
+    # Unlike the built-in view/edit roles: core API pod access only, never Secrets or ConfigMaps.
+    assert all(rule["apiGroups"] == [""] for rule in rules)
+    assert {resource for resource, _ in granted} <= {"pods", "pods/log", "pods/exec", "services", "events"}
+    assert all(set(rule["verbs"]) <= {"get", "list", "watch"} for rule in rules) is read_only
+
+
+def test_cluster_wide_write_requires_explicit_acknowledgement(tmp_path):
+    result = invoke(tmp_path, {"namespaces": "*", "readOnly": False})
+    assert result.returncode != 0
+    assert "rbac.allowClusterWideWrite" in result.stderr
+    # Read-only cluster-wide access, listed namespaces and external RBAC need no acknowledgement.
+    for values in (
+        {"namespaces": "*"},
+        {"namespaces": "analytics", "readOnly": False},
+        {"namespaces": "*", "readOnly": False, "rbac": {"create": False}},
+        {"namespaces": "*", "readOnly": False, "rbac": {"allowClusterWideWrite": True}},
+    ):
+        result = invoke(tmp_path, values)
+        assert result.returncode == 0, (values, result.stderr)
+
+
+def test_explicit_namespace_scope_environment_is_preserved_without_duplicates(tmp_path):
+    override = {"name": "SPARK_ON_K8S_API_NAMESPACES", "value": "analytics"}
+    docs = resources(tmp_path, {"namespaces": "analytics,batch", "env": [override]})
+    names = [item["name"] for item in container(docs)["env"]]
+    assert names.count("SPARK_ON_K8S_API_NAMESPACES") == 1
+    assert environment(docs)["SPARK_ON_K8S_API_NAMESPACES"] == "analytics"
 
 
 def test_empty_tag_explicitly_opts_into_chart_app_version(tmp_path):
@@ -108,6 +202,7 @@ def test_explicit_tags_and_digests_select_both_images(tmp_path):
         ),
         ({"autoscaling": {"enabled": True, "targetCPUUtilizationPercentage": 0}}, "autoscaling"),
         ({"rbac": {"create": "yes"}}, "create"),
+        ({"rbac": {"allowClusterWideWrite": "yes"}}, "allowClusterWideWrite"),
         ({"rbac": {"create": True}, "serviceAccount": {"create": False}}, "serviceAccount"),
     ],
 )

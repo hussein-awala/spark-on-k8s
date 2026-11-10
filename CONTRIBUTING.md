@@ -8,7 +8,9 @@ authorization to implement a change does not require another discussion first.
 
 [Development guidance](docs/development.md) is the canonical repository map,
 environment setup and test-routing guide. [Support boundaries](docs/user-guide/support.md)
-explain compatibility and deprecation expectations. Maintainers preparing a release
+explain compatibility and deprecation expectations, and
+[interface stability](docs/user-guide/stability.md) lists which surfaces are Stable,
+Experimental or Internal. Maintainers preparing a release
 use the [release runbook](docs/releases.md). Agents also read [AGENTS.md](AGENTS.md)
 and the relevant repository-local skill under `.agents/skills/`.
 

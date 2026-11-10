@@ -1,0 +1,16 @@
+{{- /* --reuse-values from an older release omits newer values; absence means disabled. */}}
+{{- $budget := .Values.podDisruptionBudget | default dict }}
+{{- if $budget.enabled }}
+{{- $replicas := ternary .Values.autoscaling.minReplicas .Values.replicaCount .Values.autoscaling.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "spark-on-k8s.fullname" . }}
+  labels:
+    {{- include "spark-on-k8s.labels" . | nindent 4 }}
+spec:
+  {{- include "spark-on-k8s.disruptionBudget" (dict "budget" $budget "replicas" $replicas "path" "podDisruptionBudget") | nindent 2 }}
+  selector:
+    matchLabels:
+      {{- include "spark-on-k8s.selectorLabels" . | nindent 6 }}
+{{- end }}

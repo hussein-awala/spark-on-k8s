@@ -311,6 +311,9 @@ def run_execution(api, client, args, namespace):
     with forwarded(api, args, handle, "sdk") as profile:
         ready = client.wait_connect_server_ready(handle, profile=profile, timeout=args.timeout)
         save(args.artifacts / "sdk-ready.json", ready)
+        # Each matrix row pairs the thin client with the same server release.
+        assert ready["client_version"] == ready["spark_version"] == args.spark_version
+        assert ready["warnings"] == []
         save(args.artifacts / "sdk-resources.json", identities(api, handle))
         with profile.session() as first:
             assert first.version == args.spark_version
@@ -346,7 +349,13 @@ def run_execution(api, client, args, namespace):
         save(args.artifacts / "post-session-resources.json", identities(api, handle))
         # Exercise installed CLI receipt/status/wait/delete against a second real server.
         other, other_receipt = cli_server(args, namespace)
-        cli(args, "status", "status", str(other_receipt))
+        observed = cli(args, "status", "status", str(other_receipt))["observation"]
+        assert observed["created_at"] and observed["age_seconds"] >= 0
+        # The read-only list finds both real drivers by label without a receipt.
+        listed = cli(args, "list", "list", "--namespace", namespace)
+        assert {(item["app_id"], item["driver_uid"]) for item in listed["items"]} >= {
+            (server.run.app_id, server.run.driver_uid) for server in (handle, other)
+        }
         with forwarded(api, args, other, "cli") as other_profile:
             profile_file = args.artifacts / "cli-profile.toml"
             profile_file.write_text(
@@ -363,6 +372,7 @@ def run_execution(api, client, args, namespace):
                 str(args.timeout),
             )
             assert waited["query_ready"] is True
+            assert waited["warnings"] == []
             save(args.artifacts / "cli-resources.json", identities(api, other))
             assert client.connect_server_status(handle)["status"] == "running"
             assert client.connect_server_status(other)["status"] == "running"

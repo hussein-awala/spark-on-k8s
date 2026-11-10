@@ -63,6 +63,24 @@ version, which only exists after the package upload. Record a chart or adapter t
 is intentionally not released with the package as such, rather than leaving it
 implied.
 
+### Chart upgrade rehearsal
+
+The `upgrade` job of `.github/workflows/chart-kubernetes.yml` installs the newest
+published chart, upgrades it to the source chart through both documented upgrade
+paths and rolls it back (see [real runtime checks](development.md#real-runtime-checks)).
+Before dispatching `helm-release`, confirm that both jobs of that workflow passed
+on the commit to be published; dispatch it manually when no push ran it. When a
+chart change needs a new upgrade step, such as a changed default or a renamed
+resource, update the upgrade guidance in the chart deployment guide and the
+rehearsal in the same PR. Do not remove an assertion to make the job pass.
+
+After publishing a chart, move the baseline in `tests/integration/chart/upgrade.sh`
+to it in a signed PR. Take the chart version and archive `sha256` digest from the
+chart repository index, and pin the API image of its `appVersion` by digest. Update
+`tests/integration/chart/published-values.yaml` to the values that a working
+installation of that chart needs. The job rehearses upgrades from the newest
+published chart only, not upgrades that skip several chart versions.
+
 ## Release notes
 
 Canonical release notes live in `release-notes/X.Y.Z.md`, one file per GitHub
@@ -210,7 +228,9 @@ under `docker/release/` and must not be committed. Their manifest records source
 SHA, wheel/sdist hashes, lock/requirements hashes, pinned base reference and the
 actual bundled frontend components from the wheel's license notices. Airflow's
 host-supplied React is not counted as a bundled dependency. Each architecture
-records installed Python packages at `/opt/spark-on-k8s/release/installed.json`.
+records installed Python packages at `/opt/spark-on-k8s/release/installed.json`
+and checks that the image runs as UID/GID 10001, which the chart's security
+context defaults assume, with a writable `/var/lib/spark-on-k8s`.
 
 The `release-eligibility`, `release-container-inputs`, `release-installed-*` and
 `published-release-manifest` workflow artifacts contain these records. Registry
@@ -283,6 +303,8 @@ Use [development validation](development.md). For a release candidate, require:
 - Real Spark Kubernetes and Airflow Kubernetes scenarios for the selected candidate;
   the real Connect workflow when that integration is included in the release.
   Preserve the workflow URLs, commit SHA and scenario artifacts.
+- When a chart is published with the release, both jobs of the chart workflow,
+  including the [chart upgrade rehearsal](#chart-upgrade-rehearsal).
 - Verification that distribution metadata equals the selected release version,
   and that container inputs use the release wheel and intended dependency/base inputs.
 

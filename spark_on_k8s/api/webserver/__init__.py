@@ -18,7 +18,9 @@ from starlette.templating import Jinja2Templates
 
 from spark_on_k8s import __version__
 from spark_on_k8s.api import AsyncHttpClientSingleton, KubernetesClientSingleton, logger
+from spark_on_k8s.api.audit import count_kubernetes_error, note
 from spark_on_k8s.api.configuration import APIConfiguration
+from spark_on_k8s.api.namespace_scope import namespace_scope
 from spark_on_k8s.api.run_history import get_history_settings
 from spark_on_k8s.utils.async_app_manager import AsyncSparkAppManager
 
@@ -205,6 +207,7 @@ def handle_k8s_errors(func):
         try:
             return await func(*args, request=request, **kwargs)
         except ApiException as e:
+            count_kubernetes_error(e)
             title = f"{e.status} {e.reason}"
             message = e.body
             return templates.TemplateResponse(
@@ -236,6 +239,8 @@ async def ui_reverse_proxy(request: Request, path: str):
     namespace, service_name = parts[:2]
     if not all(_DNS_LABEL.fullmatch(value) for value in (namespace, service_name)):
         raise HTTPException(status_code=400, detail="Invalid Kubernetes namespace or service name.")
+    # The proxy connects to Services directly, so Kubernetes RBAC cannot bound it; the scope does.
+    namespace_scope().require(namespace)
     path = "/" + parts[2] if len(parts) == 3 else "/"
     async_http_client = AsyncHttpClientSingleton.client()
     url = httpx.URL(
@@ -279,9 +284,13 @@ templates = Jinja2Templates(directory=str(current_dir / "templates"))
 
 def console_page(request: Request, *, view: str, namespace: str, app_id: str | None = None, tail: int = 1000):
     """Serve the packaged UI; fetch application data without reloading the page."""
+    scope = namespace_scope()
     config = {
         "basePath": request.scope.get("root_path", "").rstrip("/"),
         "namespace": namespace,
+        # A listed scope becomes a picker; a single namespace is not editable at all.
+        "namespaces": list(scope.namespaces) if scope.namespaces is not None else None,
+        "namespaceEditable": scope.namespaces is None or len(scope.namespaces) > 1,
         "refreshInterval": APIConfiguration.SPARK_ON_K8S_API_WEBSERVER_APPS_REFRESH_INTERVAL,
         "allowKill": APIConfiguration.SPARK_ON_K8S_API_WEBSERVER_APPS_KILL_BUTTON,
         "allowDelete": APIConfiguration.SPARK_ON_K8S_API_WEBSERVER_APPS_DELETE_BUTTON,
@@ -303,7 +312,8 @@ def console_page(request: Request, *, view: str, namespace: str, app_id: str | N
 @router.get("/apps", response_class=HTMLResponse)
 async def apps(request: Request):
     """Display the application console, with namespace preserved in the URL."""
-    namespace = request.query_params.get("namespace", APIConfiguration.SPARK_ON_K8S_API_DEFAULT_NAMESPACE)
+    scope = namespace_scope()
+    namespace = scope.require(request.query_params.get("namespace") or scope.default)
     return console_page(request, view="apps", namespace=namespace)
 
 
@@ -314,6 +324,10 @@ async def app_logs_websocket(
     """Stream literal log text and signal failures through the WebSocket close state."""
     if not _logs_origin_allowed(websocket):
         await websocket.close(code=1008, reason="Browser origin is not permitted.")
+        return
+    if not namespace_scope().allows(namespace):
+        note(code="namespace_forbidden")
+        await websocket.close(code=1008, reason="The namespace is outside this API's namespace scope.")
         return
     await websocket.accept()
     manager = AsyncSparkAppManager(k8s_client_manager=KubernetesClientSingleton.client_manager)
@@ -343,6 +357,7 @@ async def app_logs_websocket(
     except WebSocketDisconnect:
         return
     except ApiException as error:
+        count_kubernetes_error(error)
         code = 1008 if error.status in (403, 404) else 1011
         reason = "Driver logs are unavailable."
     except ValueError:
@@ -364,6 +379,7 @@ async def app_logs(
     request: Request, namespace: str, app_id: str, tail: int = Query(default=1000, ge=-1, le=10000)
 ):
     """Display a bounded, searchable driver-log stream."""
+    namespace_scope().require(namespace)
     return console_page(request, view="logs", namespace=namespace, app_id=app_id, tail=tail)
 
 

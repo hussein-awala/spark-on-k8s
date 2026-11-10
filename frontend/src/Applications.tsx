@@ -403,7 +403,25 @@ export function Applications({
       </header>
 
       <div className="scope-bar">
-        {namespaceEditable ? (
+        {namespaceEditable && config.namespaces?.length ? (
+          <div className="namespace-form">
+            <label htmlFor="console-namespace">
+              <Icon name="layers" />
+              Namespace
+            </label>
+            <select
+              id="console-namespace"
+              value={namespace}
+              onChange={(event) => onNamespaceChange(event.target.value)}
+            >
+              {config.namespaces.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : namespaceEditable ? (
           <form
             className="namespace-form"
             onSubmit={(event) => {

@@ -1,6 +1,11 @@
 # Number of replicas for the Spark-on-K8S deployment if autoscaling is disabled
 replicaCount: 1
 
+# API worker processes in each pod (1-64), set as SPARK_ON_K8S_API_WORKERS. null keeps the
+# image default (4 in the published image). Each worker is a separate process with its own
+# memory and connection limit; size resources accordingly. An env entry takes precedence.
+workers: null
+
 # Docker image configuration for the Spark-on-K8S deployment
 image:
   # The Docker image repository
@@ -40,6 +45,9 @@ rbac:
   create: null
   # Preserve old shared RBAC names only for an existing installation.
   legacyNames: false
+  # Required to render namespaces "*" with readOnly false, which grants pod create,
+  # delete and exec in every namespace.
+  allowClusterWideWrite: false
 
 # Annotations to be added to the Spark-on-K8S deployment pods
 podAnnotations: {}
@@ -47,11 +55,31 @@ podAnnotations: {}
 # Labels to be added to the Spark-on-K8S deployment pods
 podLabels: {}
 
-# The pod security context for the Spark-on-K8S deployment
-podSecurityContext: {}
+# The pod security context for the Spark-on-K8S deployment. The defaults meet Pod Security
+# "restricted" for the API image's non-root user; set a key to null to remove it.
+podSecurityContext:
+  # Refuse to start the API as root
+  runAsNonRoot: true
+  # The API image's numeric user
+  runAsUser: 10001
+  # The API image's numeric group
+  runAsGroup: 10001
+  # Group given access to mounted volumes, including an existing run-history claim
+  fsGroup: 10001
+  # Change volume ownership only when the volume root does not already match fsGroup
+  fsGroupChangePolicy: OnRootMismatch
+  # The container runtime's default seccomp profile
+  seccompProfile:
+    type: RuntimeDefault
 
-# The security context for the Spark-on-K8S deployment
-securityContext: {}
+# The security context for the Spark-on-K8S deployment container
+securityContext:
+  # Block setuid and other privilege gains
+  allowPrivilegeEscalation: false
+  # The API needs no Linux capabilities
+  capabilities:
+    drop:
+      - ALL
 
 # The configuration for the Spark-on-K8S service
 service:
@@ -111,15 +139,18 @@ affinity: {}
 # (0.0.0.0), API port (service.port), and the optional history server address.
 env: []
 
-# List of namespaces to be managed by the Spark-on-K8S service
-# If equal to "*", all namespaces will be managed, then a cluster role binding will
-# be created. Otherwise, you can provide a list of namespaces as a string separated
-# by commas in the form "namespace1,namespace2,namespace3", in this case, a role
-# binding will be created for each namespace
-namespaces: "*"
+# Namespaces the Spark-on-K8S API serves and, with chart-managed RBAC, can access.
+# Empty (the default) selects only the release namespace, with a Role and RoleBinding
+# there. "*" selects every namespace, with a ClusterRole and ClusterRoleBinding that
+# grant the same rules cluster-wide. A comma-separated string such as
+# "namespace1,namespace2" selects those namespaces, with a Role and RoleBinding in
+# each. The API refuses other namespaces, including in its Spark UI proxy and log
+# streams.
+namespaces: ""
 
 # If true, the Spark-on-K8S service will be able to read pods, services, pods logs,
 # and if false, it will be able to exec into pods and create/delete pods and services.
+# With namespaces "*", false also requires rbac.allowClusterWideWrite.
 readOnly: true
 
 # Configuration for the Spark History Server
@@ -188,6 +219,42 @@ sparkHistory:
     tolerations: []
     # The Spark configuration for the Spark History Server
     configuration: ""
+    # Readiness probe on the History Server UI port; null removes it. To use another handler,
+    # also set httpGet to null.
+    readinessProbe:
+      httpGet:
+        path: /api/v1/version
+        port: 18080
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+    # Liveness probe on the History Server UI port; null removes it. It allows two minutes of
+    # failures so slow event-log scans and garbage-collection pauses do not restart the server.
+    livenessProbe:
+      httpGet:
+        path: /api/v1/version
+        port: 18080
+      initialDelaySeconds: 60
+      periodSeconds: 20
+      timeoutSeconds: 5
+      failureThreshold: 6
+    # PodDisruptionBudget for the History Server pods; same rules as podDisruptionBudget
+    podDisruptionBudget:
+      # Specifies whether the budget should be created
+      enabled: false
+      # Pods that must stay available, as a number or percentage; set this or maxUnavailable
+      minAvailable: null
+      # Pods that may be unavailable, as a number or percentage; 1 when both are null
+      maxUnavailable: null
+    # NetworkPolicy for the History Server pods; their egress, such as to event-log storage,
+    # stays unrestricted
+    networkPolicy:
+      # Admit only the API pods and ingress.from to the History Server port
+      enabled: false
+      ingress:
+        # Additional NetworkPolicy peers allowed to reach the History Server port
+        from: []
 
 # Optional operational metadata recorder; separate from Spark History Server event logs.
 runHistory:
@@ -208,3 +275,75 @@ runHistory:
 metrics:
   # Serve /metrics from the API
   enabled: false
+  # Prometheus Operator ServiceMonitor that scrapes the API's /metrics
+  serviceMonitor:
+    # Requires metrics.enabled and the monitoring.coreos.com/v1 ServiceMonitor API; rendering
+    # fails when that API is missing. For helm template, pass the API with --api-versions
+    # monitoring.coreos.com/v1/ServiceMonitor. With remote.enabled, Prometheus authenticates
+    # with the remote token Secret, so Prometheus holds the full operator credential.
+    enabled: false
+    # Scrape interval, such as 30s; empty uses the Prometheus default
+    interval: ""
+    # Scrape timeout, such as 10s; empty uses the Prometheus default
+    scrapeTimeout: ""
+    # Labels that your Prometheus serviceMonitorSelector requires, such as release: prometheus
+    labels: {}
+
+# Remote job submission. Enabling it also requires the operator bearer token on every API
+# route except /health and /ready. The token is one shared operator credential, not tenant
+# isolation; submissions also need write RBAC (readOnly: false or external grants).
+remote:
+  # Set SPARK_ON_K8S_SUBMISSION_* and mount the token and policy files read-only
+  enabled: false
+  # Existing Secret in the release namespace with both keys; the chart never creates it
+  existingSecret: ""
+  # Secret key holding the bearer token (32-4096 printable ASCII characters, no spaces)
+  tokenKey: token
+  # Secret key holding the submission policy JSON document
+  policyKey: policy.json
+  # Directory where the token and policy files are mounted
+  mountPath: /etc/spark-on-k8s/remote
+
+# PodDisruptionBudget for the API pods. A budget that permits no voluntary disruption, such as
+# minAvailable 1 with one replica, fails rendering because it blocks node drains.
+podDisruptionBudget:
+  # Specifies whether the budget should be created
+  enabled: false
+  # Pods that must stay available, as a number or percentage; set this or maxUnavailable
+  minAvailable: null
+  # Pods that may be unavailable, as a number or percentage; 1 when both are null
+  maxUnavailable: null
+
+# NetworkPolicy for the API pods. It takes effect only with a network plugin that enforces
+# NetworkPolicy; other plugins accept the object and ignore it.
+networkPolicy:
+  # Admit only ingress.from and this release's own pods to the API port
+  enabled: false
+  ingress:
+    # NetworkPolicy peers allowed to reach the API port, such as the ingress controller,
+    # gateway, clients and Prometheus. Empty admits only this release's pods, including its
+    # helm test pod.
+    from: []
+  egress:
+    # Also restrict API egress to DNS, the Kubernetes API, Spark driver UIs (port 4040) in the
+    # API's namespaces, the History Server, this release's pods and extraRules
+    enabled: false
+    kubernetesApi:
+      # Peers for the Kubernetes API server, normally ipBlock CIDRs of the endpoints of the
+      # default/kubernetes Service. Empty allows no API server access through this policy.
+      to: []
+      # API server ports; most plugins match the endpoint port after Service translation
+      ports:
+        - 443
+        - 6443
+    dns:
+      # Peers for DNS on port 53; empty allows port 53 to any destination
+      to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+    # Additional NetworkPolicy egress rules, such as a cluster selected by SPARK_ON_K8S_CONFIG_FILE
+    extraRules: []

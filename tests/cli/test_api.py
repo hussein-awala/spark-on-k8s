@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.util
 import subprocess
 import sys
 from unittest import mock
@@ -63,8 +64,102 @@ def test_list(mock_uvicorn_run, host, port, workers, log_level, limit_concurrenc
         port=expected_port,
         workers=expected_workers,
         log_level=expected_log_level,
+        log_config=mock.ANY,
         limit_concurrency=expected_limit_concurrency,
+        root_path=APIConfiguration.SPARK_ON_K8S_API_ROOT_PATH,
     )
+    # Package records use the server's handler and log level instead of Python's WARNING fallback.
+    loggers = mock_uvicorn_run.call_args.kwargs["log_config"]["loggers"]
+    assert loggers["spark_on_k8s"] == {
+        "handlers": ["default"],
+        "level": expected_log_level.upper(),
+        "propagate": False,
+    }
+    assert "uvicorn.access" in loggers
+
+
+@mock.patch("uvicorn.run")
+def test_start_does_not_change_the_shared_uvicorn_logging_defaults(mock_uvicorn_run):
+    from spark_on_k8s.cli.api import start
+    from uvicorn.config import LOGGING_CONFIG
+
+    assert CliRunner().invoke(start, ["--log-level", "warning"]).exit_code == 0
+    assert "spark_on_k8s" not in LOGGING_CONFIG["loggers"]
+    log_config = mock_uvicorn_run.call_args.kwargs["log_config"]
+    assert log_config["loggers"]["spark_on_k8s"]["level"] == "WARNING"
+    assert set(log_config["loggers"]["spark_on_k8s"]["handlers"]) <= set(log_config["handlers"])
+
+
+def start_command(monkeypatch, root_path_environment=None):
+    """Load a private CLI copy so the environment is read as at process startup."""
+    if root_path_environment is None:
+        monkeypatch.delenv("SPARK_ON_K8S_API_ROOT_PATH", raising=False)
+    else:
+        monkeypatch.setenv("SPARK_ON_K8S_API_ROOT_PATH", root_path_environment)
+    # Reloading the shared modules would leak this environment into later tests and leave
+    # other importers holding a different APIConfiguration class.
+    modules = {}
+    for name in ("spark_on_k8s.api.configuration", "spark_on_k8s.cli.api"):
+        spec = importlib.util.find_spec(name)
+        modules[name] = importlib.util.module_from_spec(spec)
+        monkeypatch.setitem(sys.modules, name, modules[name])
+        spec.loader.exec_module(modules[name])
+    return modules["spark_on_k8s.cli.api"].start
+
+
+@pytest.mark.parametrize(
+    "environment, args, expected",
+    [
+        pytest.param(None, [], "", id="default serves the API at the root"),
+        pytest.param("/platform/spark", [], "/platform/spark", id="environment"),
+        pytest.param(None, ["--root-path", "/team/spark-api"], "/team/spark-api", id="flag"),
+        pytest.param("/platform/spark", ["--root-path", "/team"], "/team", id="flag overrides environment"),
+        pytest.param("/platform/spark", ["--root-path", ""], "", id="flag clears environment"),
+    ],
+)
+@mock.patch("uvicorn.run")
+def test_start_root_path(mock_uvicorn_run, monkeypatch, environment, args, expected):
+    result = CliRunner().invoke(start_command(monkeypatch, environment), args)
+
+    assert result.exit_code == 0, result.output
+    assert mock_uvicorn_run.call_args.kwargs["root_path"] == expected
+
+
+@pytest.mark.parametrize(
+    "root_path",
+    [
+        "platform/spark",
+        "/platform/spark/",
+        "/",
+        "//gateway.example/spark",
+        "/platform//spark",
+        "/platform/spark?team=a",
+        "/platform/spark#console",
+        "/platform spark",
+        "/platform/\tspark",
+        "/plateforme/étincelle",
+    ],
+)
+@mock.patch("uvicorn.run")
+def test_start_rejects_invalid_root_path_flag(mock_uvicorn_run, monkeypatch, root_path):
+    result = CliRunner().invoke(start_command(monkeypatch), ["--root-path", root_path])
+
+    assert result.exit_code == 2
+    assert "Invalid value for '--root-path'" in result.output
+    assert "/platform/spark" in result.output
+    assert "SPARK_ON_K8S_API_ROOT_PATH" not in result.output
+    mock_uvicorn_run.assert_not_called()
+
+
+@mock.patch("uvicorn.run")
+def test_start_rejects_invalid_root_path_environment(mock_uvicorn_run, monkeypatch):
+    result = CliRunner().invoke(start_command(monkeypatch, "platform/spark/"), [])
+
+    assert result.exit_code == 2
+    assert "Invalid value for '--root-path': 'platform/spark/' (from SPARK_ON_K8S_API_ROOT_PATH)" in (
+        result.output
+    )
+    mock_uvicorn_run.assert_not_called()
 
 
 _BLOCK_API_EXTRA = """

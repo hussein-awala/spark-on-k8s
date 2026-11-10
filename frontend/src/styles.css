@@ -300,7 +300,8 @@
   padding: 6px 28px 6px 10px;
   font-size: 12px;
 }
-.spark-console .namespace-form input {
+.spark-console .namespace-form input,
+.spark-console .namespace-form select {
   width: 150px;
   font-family: "SFMono-Regular", Consolas, monospace;
   font-size: 12px;
@@ -1217,7 +1218,8 @@
   .spark-console .namespace-form {
     gap: 8px;
   }
-  .spark-console .namespace-form input {
+  .spark-console .namespace-form input,
+  .spark-console .namespace-form select {
     flex: 1;
     width: 60px;
   }

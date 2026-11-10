@@ -1,3 +1,6 @@
+# The API may only act in the namespaces it is scoped to; chart 0.4.0 defaults to the
+# release namespace. The guide prepares `spark` with `spark-on-k8s namespace setup -n spark`.
+namespaces: spark
 env:
   - name: SPARK_ON_K8S_API_HOST
     value: 0.0.0.0

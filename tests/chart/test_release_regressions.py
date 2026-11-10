@@ -4,6 +4,7 @@ import hashlib
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -109,6 +110,43 @@ def test_cluster_wide_rbac_names_never_reuse_built_in_role_bindings(tmp_path, re
     assert cluster["ClusterRoleBinding"]["roleRef"]["name"] == name
 
 
+@pytest.mark.parametrize("namespaces", ["", "*"])
+def test_digit_only_release_name_namespace_and_secret_render_as_strings(tmp_path, namespaces):
+    # Kubernetes accepts digit-only namespace, release and Secret names; unquoted they render as
+    # YAML integers, which the API server refuses in labels, selectors, subjects and references.
+    values = {
+        "namespaces": namespaces,
+        "nameOverride": "321",
+        "metrics": {"enabled": True, "serviceMonitor": {"enabled": True}},
+        "remote": {"enabled": True, "existingSecret": "789", "tokenKey": "1"},
+    }
+    path = tmp_path / "values.yaml"
+    path.write_text(yaml.safe_dump(values))
+    monitor_api = ["--api-versions", "monitoring.coreos.com/v1/ServiceMonitor"]
+    result = subprocess.run(
+        ["helm", "template", "456", str(CHART), "--namespace", "123", "-f", str(path), *monitor_api],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    docs = [item for item in yaml.safe_load_all(result.stdout) if item]
+    bindings = [d for d in docs if d["kind"] in ("RoleBinding", "ClusterRoleBinding")]
+    assert [subject["namespace"] for d in bindings for subject in d["subjects"]] == ["123"]
+    if not namespaces:
+        scoped = [d["metadata"]["namespace"] for d in docs if d["kind"] in ("Role", "RoleBinding")]
+        assert scoped == ["123", "123"]
+    for d in docs:
+        labels = d["metadata"].get("labels", {})
+        assert all(isinstance(value, str) for value in labels.values()), (d["kind"], labels)
+    selectors = [d["spec"]["selector"] for d in docs if d["kind"] in ("Service", "Deployment")]
+    assert selectors[0]["app.kubernetes.io/instance"] == "456"
+    assert selectors[1]["matchLabels"]["app.kubernetes.io/instance"] == "456"
+    monitor = next(d for d in docs if d["kind"] == "ServiceMonitor")["spec"]
+    assert monitor["namespaceSelector"]["matchNames"] == ["123"]
+    assert monitor["selector"]["matchLabels"]["app.kubernetes.io/instance"] == "456"
+    assert monitor["endpoints"][0]["authorization"]["credentials"] == {"name": "789", "key": "1"}
+
+
 def test_stop_permission_and_authenticated_health_hook(tmp_path):
     docs = render(tmp_path, {"namespaces": "analytics", "readOnly": False})
     role = next(d for d in docs if d["kind"] == "Role")
@@ -162,3 +200,31 @@ def test_source_requires_explicit_qualified_image():
     result = subprocess.run(["helm", "template", "source", str(source)], capture_output=True, text=True)
     assert result.returncode != 0
     assert "explicit qualified image" in result.stderr
+
+
+def test_documented_quickstart_values_start_an_api_in_the_default_release_namespace():
+    # README and getting started install with these values and no --namespace.
+    example = Path(__file__).resolve().parents[2] / "examples" / "helm" / "values.yaml"
+    result = subprocess.run(
+        ["helm", "template", "spark-on-k8s-release", str(CHART), "--values", str(example)],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    deployment = next(
+        item for item in yaml.safe_load_all(result.stdout) if item and item["kind"] == "Deployment"
+    )
+    container = deployment["spec"]["template"]["spec"]["containers"][0]
+    environment = {entry["name"]: entry["value"] for entry in container["env"] if "value" in entry}
+    # The API checks its scope before serving (spark_on_k8s/api/main.py).
+    started = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "from spark_on_k8s.api.namespace_scope import namespace_scope; print(namespace_scope())",
+        ],
+        env={**os.environ, **environment},
+        capture_output=True,
+        text=True,
+    )
+    assert started.returncode == 0, started.stderr

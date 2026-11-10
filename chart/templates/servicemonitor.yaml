@@ -19,7 +19,7 @@ metadata:
 spec:
   namespaceSelector:
     matchNames:
-      - {{ .Release.Namespace }}
+      - {{ .Release.Namespace | quote }}
   selector:
     matchLabels:
       {{- include "spark-on-k8s.selectorLabels" . | nindent 6 }}
@@ -38,8 +38,8 @@ spec:
       authorization:
         type: Bearer
         credentials:
-          name: {{ $remote.existingSecret }}
-          key: {{ $remote.tokenKey }}
+          name: {{ $remote.existingSecret | quote }}
+          key: {{ $remote.tokenKey | quote }}
       {{- end }}
       relabelings:
         # The History Server Service shares these selector labels; scrape only the API Service.

@@ -209,7 +209,9 @@ The API must be able to read files mounted from volumes, such as a
 remote-submission token or policy, or a kubeconfig selected with
 `SPARK_ON_K8S_CONFIG_FILE`. Its home directory is `/home/spark-on-k8s`; `/root`
 is not readable. Keep `service.port` at 1024 or above, because some container
-runtimes do not let a non-root process bind lower ports.
+runtimes do not let a non-root process bind lower ports. Mount a remote-submission
+Secret as a directory rather than with `subPath`, so a
+[token rotation](remote-submission.md#rotate-the-token) reaches running pods.
 
 A run-history claim written by an earlier root API process holds root-owned
 files. On volume types that support `fsGroup`, such as most block-storage CSI
@@ -499,9 +501,10 @@ including the console; kubelet probes and the chart's `helm test` use those two
 public routes. Submissions create driver pods and Services, so with chart-managed
 RBAC set `readOnly: false`. Keep the policy's namespaces within `namespaces`: the
 API refuses to start with a policy namespace outside its scope. A missing Secret
-key also prevents the pod from starting. Each worker reads the files when it
-starts, so restart the Deployment with `kubectl rollout restart` after rotating
-the token or changing the policy. `env` entries for the same variables take
+key also prevents the pod from starting. The Secret is mounted as a directory, so
+a [token rotation](remote-submission.md#rotate-the-token) or policy change reaches
+running pods after the kubelet's sync period; each worker then applies valid files
+without a restart. `env` entries for the same variables take
 precedence, and `remote-submission` is a reserved volume name. The token is one
 shared operator credential, not tenant isolation.
 

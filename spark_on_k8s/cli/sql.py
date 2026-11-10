@@ -17,6 +17,7 @@ from spark_on_k8s.cli.options import (
     executor_memory_overhead_option,
     image_pull_policy_option,
     logs_option,
+    max_runtime_option,
     namespace_option,
     service_account_option,
     spark_conf_option,
@@ -47,6 +48,7 @@ def sql_cli():
         executor_memory_option,
         executor_memory_overhead_option,
         executor_initial_instances_option,
+        max_runtime_option,
     ],
     help="Submit exactly one SQL file or inline SQL string. Statements execute in order.",
 )

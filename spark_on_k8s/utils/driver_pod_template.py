@@ -210,6 +210,9 @@ def merge_driver_pod_template(
     spec.pop("serviceAccount", None)
     for field in ("serviceAccountName", "restartPolicy"):
         spec[field] = managed["spec"][field]
+    # An explicit max_runtime wins; otherwise a template deadline is kept like other pod fields.
+    if "activeDeadlineSeconds" in managed["spec"]:
+        spec["activeDeadlineSeconds"] = managed["spec"]["activeDeadlineSeconds"]
     spec["nodeSelector"] = {**spec.get("nodeSelector", {}), **managed["spec"].get("nodeSelector", {})}
     for field, key in (("volumes", "name"), ("initContainers", "name"), ("hostAliases", "ip")):
         spec[field] = _merge_items(

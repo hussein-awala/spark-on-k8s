@@ -38,7 +38,7 @@
 {{- range $key := list "tokenKey" "policyKey" "mountPath" }}
 {{- $_ := required (printf "remote.enabled requires remote.%s" $key) (get $remote $key) }}
 {{- end }}
-{{- range concat .Values.volumes .Values.volumeMounts }}
+{{- range concat (.Values.volumes | default list) (.Values.volumeMounts | default list) }}
 {{- if eq .name "remote-submission" }}{{- fail "remote-submission is a reserved volume name" }}{{- end }}
 {{- end }}
 {{- end }}

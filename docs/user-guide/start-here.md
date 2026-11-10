@@ -3,6 +3,8 @@
 Choose the outcome you need. The API and Airflow are optional: neither is required
 to submit a job from Python or the CLI. These routes describe the current source;
 first choose [a published release or a source checkout](installation.md).
+To compare spark-on-k8s with a Spark operator, a managed Spark service or plain
+`spark-submit`, read [when to use it](when-to-use.md) first.
 
 If you already have a Spark application image and Kubernetes access, follow
 [Installation](installation.md), then [Getting started](getting_started.md).
@@ -41,4 +43,4 @@ grant is intentionally broader. Driver and executor data access must both work.
 
 Keep the generated run identity. Share only sanitized evidence with the relevant
 application or cluster owner. For project fit, compatibility and operating limits,
-read [support boundaries](support.md).
+read [when to use it](when-to-use.md) and [support boundaries](support.md).

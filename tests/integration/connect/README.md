@@ -32,12 +32,14 @@ The harness checks:
 
 - Driver and both Services have recorded UIDs, private exposure, and exact driver selection.
 - Readiness executes a remote query and matches `spark.app.id` to the recorded server.
+  It reports matching client and server versions without a `version_skew` warning.
 - DataFrame and SQL sums run successfully. A SQL expression reads executor hostnames;
   those names must match separately owned executor pods and exclude the driver.
 - Two client sessions have separate temporary views and SQL settings. Closing a
   session and failing a SQL query leave the server available.
 - The installed CLI creates a second server, writes its versioned receipt, observes
-  status, waits for real readiness, and requests deletion. A reachable endpoint
+  status and driver age, lists both real servers by label without a receipt, waits
+  for real readiness, and requests deletion. A reachable endpoint
   belonging to that other server cannot satisfy the first server's readiness.
 - Stale driver/Service UIDs and a foreign Service recreated under the same name
   cause deletion to fail before other resources are changed.

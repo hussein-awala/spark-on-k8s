@@ -126,6 +126,8 @@ Installing the PyPI package does not include the repository's example files.
 Chart and package releases are independent. Read [support boundaries](user-guide/support.md) before planning
 production operation: this project does not provide a multi-tenant scheduler,
 a highly available metadata service or an embedded identity provider.
+[When to use it](user-guide/when-to-use.md) compares it with Spark operators,
+Airflow pod tasks and managed Spark services.
 
 Contributors can use the [repository map and check routes](development.md).
 Maintainers use the [release runbook](releases.md) to qualify and publish artifacts.

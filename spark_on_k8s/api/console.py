@@ -9,7 +9,9 @@ from kubernetes_asyncio import client as k8s
 from pydantic import BaseModel, Field, TypeAdapter, ValidationError
 
 from spark_on_k8s.api import AsyncHttpClientSingleton, KubernetesClientSingleton, logger
+from spark_on_k8s.api.audit import count_kubernetes_error
 from spark_on_k8s.api.configuration import APIConfiguration
+from spark_on_k8s.api.namespace_scope import namespace_scope
 from spark_on_k8s.utils.console_models import (
     AIRFLOW_TASK_ANNOTATION,
     AirflowTaskContext,
@@ -75,6 +77,7 @@ def _application_from_pod(pod: k8s.V1Pod, namespace: str) -> ConsoleApplication:
 
 
 def _kubernetes_error(error: k8s.ApiException) -> HTTPException:
+    count_kubernetes_error(error)
     messages = {
         403: "Access to the requested Kubernetes resources is forbidden.",
         404: "The requested Kubernetes resource was not found.",
@@ -99,7 +102,8 @@ async def list_applications(
     """List one Kubernetes page without requiring cluster-wide namespace access."""
     if continue_from == "no-more-items":
         return ConsoleApplicationsPage(items=[])
-    namespace = namespace or APIConfiguration.SPARK_ON_K8S_API_DEFAULT_NAMESPACE
+    scope = namespace_scope()
+    namespace = scope.require(namespace or scope.default)
     try:
         client = k8s.CoreV1Api(await KubernetesClientSingleton.client())
         options = {"namespace": namespace, "label_selector": "spark-role=driver", "limit": limit}
@@ -176,6 +180,7 @@ async def list_history() -> ConsoleHistory:
 @router.get("/apps/{namespace}/pods/{driver_pod}", response_model=ConsoleApplication)
 async def get_application_by_pod(namespace: str, driver_pod: str) -> ConsoleApplication:
     """Resolve an existing driver reference without deriving a potentially truncated app ID."""
+    namespace_scope().require(namespace)
     try:
         client = k8s.CoreV1Api(await KubernetesClientSingleton.client())
         pod = await client.read_namespaced_pod(namespace=namespace, name=driver_pod)
@@ -205,6 +210,7 @@ async def diagnose_application(
 ) -> ConsoleDiagnostics:
     from spark_on_k8s.diagnostics import collect_diagnosis_async, validate_target
 
+    namespace_scope().require(namespace)
     try:
         validate_target(namespace, driver_pod)
     except ValueError as error:

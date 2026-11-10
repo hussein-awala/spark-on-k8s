@@ -3,7 +3,12 @@ import { StatusBadge } from "./Applications";
 import { errorMessage } from "./client";
 import { Dialog } from "./Dialog";
 import { Icon } from "./icons";
-import type { ConsoleConfig, ConsoleTransport, RecordedRun } from "./types";
+import type {
+  ConsoleConfig,
+  ConsoleTransport,
+  RecordedRun,
+  RunCollection,
+} from "./types";
 
 function date(value: string | null) {
   if (!value) return "—";
@@ -33,6 +38,7 @@ export function Runs({
   const [error, setError] = useState<string | null>(null);
   const [errorCursor, setErrorCursor] = useState<string | undefined>();
   const [selected, setSelected] = useState<RecordedRun | null>(null);
+  const [collection, setCollection] = useState<RunCollection | null>(null);
   const request = useRef<AbortController | null>(null);
   const enabled = Boolean(config.runsEnabled && transport.listRuns);
 
@@ -44,6 +50,21 @@ export function Runs({
       if (!enabled || !transport.listRuns) return;
       setLoading(true);
       setError(null);
+      // Collection freshness is advisory: a failed lookup never hides records.
+      if (!next && transport.runsConfig)
+        transport
+          .runsConfig(controller.signal)
+          .then((settings) => {
+            if (controller.signal.aborted) return;
+            setCollection(
+              settings.collection?.find(
+                (item) => item.namespace === config.namespace,
+              ) ?? null,
+            );
+          })
+          .catch(() => {
+            if (!controller.signal.aborted) setCollection(null);
+          });
       try {
         const page = await transport.listRuns({
           namespace: config.namespace,
@@ -159,6 +180,19 @@ export function Runs({
         )}
         <span className="muted">Read-only metadata · refreshed on request</span>
       </div>
+      {collection?.namespace === config.namespace && !collection.fresh && (
+        <div className="notice notice-warning" role="status">
+          <Icon name="alert" />
+          <span>
+            <strong>Collection for {collection.namespace} is stale.</strong>{" "}
+            Records may not reflect current pods. Last successful collection:{" "}
+            {collection.last_success ? date(collection.last_success) : "never"}
+            {collection.last_error &&
+              ` · last error: ${collection.last_error.replace(/_/g, " ")}`}
+            .
+          </span>
+        </div>
+      )}
       <section className="applications-card" aria-label="Recorded runs">
         <div className="table-toolbar">
           <h2>Run history</h2>

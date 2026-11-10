@@ -268,3 +268,87 @@ test("retrying a failed next page retains the prior records and cursor", async (
     page.getByRole("button", { name: "Next record", exact: true }),
   ).toBeVisible();
 });
+
+const collection = (overrides = {}) => ({
+  namespace: "analytics",
+  fresh: true,
+  last_success: "2026-11-07T09:00:00Z",
+  last_attempt: "2026-11-07T09:00:00Z",
+  last_error: null,
+  ...overrides,
+});
+
+test("warns when the selected namespace's collection is stale", async ({
+  page,
+}) => {
+  let stale = true;
+  const configRequests: string[] = [];
+  await page.route(/\/runs\/v1\?/, (route) =>
+    route.fulfill({
+      json: { schema_version: 1, items: [run()], next_cursor: null },
+    }),
+  );
+  await page.route(/\/runs\/v1\/config$/, (route) => {
+    configRequests.push(new URL(route.request().url()).pathname);
+    return route.fulfill({
+      json: {
+        schema_version: 1,
+        namespaces: ["analytics", "batch"],
+        collection: [
+          collection(
+            stale
+              ? {
+                  fresh: false,
+                  last_success: "2026-11-07T08:00:00Z",
+                  last_error: "page_limit",
+                }
+              : {},
+          ),
+          collection({ namespace: "batch", fresh: false, last_success: null }),
+        ],
+      },
+    });
+  });
+  await page.goto(fixture);
+  const notice = page
+    .getByRole("status")
+    .filter({ hasText: "Collection for analytics is stale." });
+  await expect(notice).toContainText("last error: page limit");
+  await expect(notice).not.toContainText("batch");
+  await expect(
+    page.getByRole("button", { name: "Daily aggregation", exact: true }),
+  ).toBeVisible();
+  expect(configRequests[0]).toBe("/nested/spark/runs/v1/config");
+  stale = false;
+  await page.getByRole("button", { name: "Refresh", exact: true }).click();
+  await expect(notice).toHaveCount(0);
+  await page.getByRole("textbox", { name: "Namespace" }).fill("batch");
+  await page.getByRole("button", { name: "Apply", exact: true }).click();
+  await expect(
+    page
+      .getByRole("status")
+      .filter({ hasText: "Collection for batch is stale." }),
+  ).toContainText("Last successful collection: never.");
+});
+
+test("an unavailable collection status never hides recorded runs", async ({
+  page,
+}) => {
+  await page.route(/\/runs\/v1\?/, (route) =>
+    route.fulfill({
+      json: { schema_version: 1, items: [run()], next_cursor: null },
+    }),
+  );
+  await page.route(/\/runs\/v1\/config$/, (route) =>
+    route.fulfill({
+      status: 503,
+      json: { detail: { message: "Run history is unavailable." } },
+    }),
+  );
+  await page.goto(fixture);
+  await expect(
+    page.getByRole("button", { name: "Daily aggregation", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText(/is stale/)).toHaveCount(0);
+  await expect(page.getByRole("alert")).toHaveCount(0);
+});

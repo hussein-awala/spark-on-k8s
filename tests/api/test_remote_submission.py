@@ -172,6 +172,23 @@ def test_denied_submission_never_builds_or_touches_kubernetes(server, field, val
     api.create_namespaced_pod.assert_not_called()
 
 
+def test_admitted_namespace_outside_the_api_scope_is_still_denied(server, monkeypatch):
+    from spark_on_k8s.api.configuration import APIConfiguration
+
+    # Startup rejects such a policy; each operation still enforces the scope on its own.
+    monkeypatch.setattr(APIConfiguration, "SPARK_ON_K8S_API_NAMESPACES", "batch")
+    client, api, manager, factory = server
+    for operation in ("plan", "submit"):
+        result = client.post(f"/jobs/v1/{operation}", json=job_document())
+        assert result.status_code == 403, result.text
+        assert result.json()["error"] == {
+            "code": "policy_denied",
+            "message": "The namespace is outside this API's namespace scope.",
+        }
+    factory.assert_not_called()
+    api.create_namespaced_pod.assert_not_called()
+
+
 @pytest.mark.parametrize(
     "field,value",
     [("kubernetes", {"config_file": "/etc/private/kubeconfig"}), ("profiles", {"production": {"spec": {}}})],

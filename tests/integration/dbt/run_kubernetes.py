@@ -52,6 +52,18 @@ def installed_package():
     return evidence, executable
 
 
+def dbt_environment():
+    environment = {
+        **{key: value for key, value in os.environ.items() if not key.startswith("DBT_")},
+        "DBT_SEND_ANONYMOUS_USAGE_STATS": "false",
+        "DBT_USE_COLORS": "false",
+        "PYTHONNOUSERSITE": "1",
+    }
+    for key in ("SPARK_REMOTE", "PYTHONPATH", "DBT_PROFILES_DIR", "DBT_TARGET_PATH", "DBT_LOG_PATH"):
+        environment.pop(key, None)
+    return environment
+
+
 def assert_tunnels_absent(namespace):
     processes = subprocess.check_output(["ps", "-axo", "pid=,command="], text=True, timeout=10)
     remaining = [
@@ -204,14 +216,7 @@ print(json.dumps({'queries': matches, 'jobs': jobs, 'executors': get('/executors
             "--log-path",
             str(directory / "logs"),
         ]
-        environment = {
-            **{key: value for key, value in os.environ.items() if not key.startswith("DBT_")},
-            "DBT_SEND_ANONYMOUS_USAGE_STATS": "false",
-            "DBT_USE_COLORS": "false",
-            "PYTHONNOUSERSITE": "1",
-        }
-        for key in ("SPARK_REMOTE", "PYTHONPATH", "DBT_PROFILES_DIR", "DBT_TARGET_PATH", "DBT_LOG_PATH"):
-            environment.pop(key, None)
+        environment = dbt_environment()
         observed = {}
         interrupted = False
         started = time.monotonic()
@@ -287,6 +292,14 @@ print(json.dumps({'queries': matches, 'jobs': jobs, 'executors': get('/executors
         cleanup["task_tunnels_remaining"] = assert_tunnels_absent(self.fixture.namespace)
         save(directory / "independent-cleanup.json", cleanup)
         if label == "seed":
+            transport = "Spark Connect" if self.method == "connect" else "Thrift"
+            content = logfile.read_text()
+            for line in (
+                f"{transport} server ready (application {run['app_id']})",
+                "managed Spark compute deleted",
+            ):
+                if line not in content:
+                    raise AssertionError(f"Managed compute progress did not report: {line}")
             before = self.fixture.api.read_namespace(self.fixture.namespace, _request_timeout=REQUEST)
             repeated = subprocess.run(
                 [str(self.executable), "cleanup", "--receipt", str(receipt_dir / "receipt.json")],
@@ -345,7 +358,43 @@ print(json.dumps({'queries': matches, 'jobs': jobs, 'executors': get('/executors
         print(json.dumps({"method": self.method, **record}), flush=True)
         return directory
 
+    def preflight(self):
+        """The read-only profile check must pass every check without creating compute."""
+        directory = self.destination / "check"
+        directory.mkdir()
+        before = self.fixture.assert_compute_absent()
+        result = subprocess.run(
+            [
+                str(self.executable),
+                "check",
+                "--project-dir",
+                str(self.project),
+                "--profiles-dir",
+                str(self.profiles),
+                "--target",
+                self.method,
+                "--output",
+                "json",
+            ],
+            capture_output=True,
+            text=True,
+            env=dbt_environment(),
+            timeout=180,
+        )
+        (directory / "check.json").write_text(result.stdout)
+        (directory / "check.log").write_text(result.stderr)
+        report = json.loads(result.stdout)
+        unexpected = [item for item in report["checks"] if item["status"] != "pass"]
+        if result.returncode != 0 or report["status"] != "pass" or unexpected or report["error"]:
+            problem = unexpected or report["error"]
+            raise AssertionError(f"Profile check exited {result.returncode}: {problem}; inspect {directory}")
+        after = self.fixture.assert_compute_absent()
+        if after["fixture_pods"] != before["fixture_pods"]:
+            raise AssertionError("The read-only profile check changed fixture identity")
+        save(directory / "independent-cleanup.json", after)
+
     def run(self):
+        self.preflight()
         self.command("seed", "seed", "--full-refresh", nodes=1)
         build = self.command("build", "build", nodes=13)
         executors = [

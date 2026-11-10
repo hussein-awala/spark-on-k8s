@@ -96,6 +96,44 @@ def test_failed_collection_never_marks_existing_records_missing(database):
     assert store.health()["other"]["last_success"] is None
 
 
+def test_failure_category_is_kept_until_the_next_successful_snapshot(database):
+    store, clock, lease = database
+    store.failure("analytics", lease, "forbidden")
+    assert store.health()["analytics"]["last_error"] == "forbidden"
+    clock[0] += 1
+    store.failure("analytics", lease, "timeout")
+    assert store.health()["analytics"]["last_error"] == "timeout"
+    store.snapshot("analytics", [record()], lease)
+    health = store.health()["analytics"]
+    assert health["last_error"] is None and health["failures"] == 2 and health["successes"] == 1
+
+
+def test_earlier_version_one_database_gains_the_failure_category_column(tmp_path):
+    path = tmp_path / "earlier.sqlite3"
+    with sqlite3.connect(path) as db:
+        db.execute("""CREATE TABLE collection (
+            namespace TEXT PRIMARY KEY, last_attempt REAL, last_success REAL,
+            successes INTEGER NOT NULL DEFAULT 0, failures INTEGER NOT NULL DEFAULT 0
+        )""")
+        db.execute("INSERT INTO collection VALUES('analytics', 1, 1, 3, 0)")
+        db.execute("PRAGMA user_version=1")
+    store = RunStore(path)
+    store.initialize()
+    store.initialize()
+    assert store.health()["analytics"] == {
+        "namespace": "analytics",
+        "last_attempt": 1,
+        "last_success": 1,
+        "successes": 3,
+        "failures": 0,
+        "last_error": None,
+    }
+    store.failure("analytics", store.acquire("worker", 30), "throttled")
+    assert store.health()["analytics"]["last_error"] == "throttled"
+    with sqlite3.connect(path) as db:
+        assert db.execute("PRAGMA user_version").fetchone()[0] == 1
+
+
 def test_namespace_snapshots_do_not_delete_other_namespaces(database):
     store, _, lease = database
     store.snapshot("analytics", [record()], lease)

@@ -8,7 +8,7 @@ from kubernetes_asyncio.client import CoreV1Api
 from pydantic import BaseModel
 
 from spark_on_k8s.api import KubernetesClientSingleton
-from spark_on_k8s.api.configuration import APIConfiguration
+from spark_on_k8s.api.namespace_scope import namespace_scope
 from spark_on_k8s.utils.app_manager import SparkAppStatus, get_app_status
 
 router = APIRouter(
@@ -61,7 +61,7 @@ async def list_apps_default_namespace(
 ) -> list[SparkApp]:
     """List spark apps in the default namespace."""
     continue_from, apps = await _list_apps(
-        namespace=APIConfiguration.SPARK_ON_K8S_API_DEFAULT_NAMESPACE,
+        namespace=namespace_scope().default,
         max_per_page=max_per_page,
         continue_from=continue_from,
     )
@@ -75,7 +75,7 @@ async def list_apps(
 ) -> list[SparkApp]:
     """List spark apps in a namespace."""
     continue_from, apps = await _list_apps(
-        namespace=namespace,
+        namespace=namespace_scope().require(namespace),
         max_per_page=max_per_page,
         continue_from=continue_from,
     )

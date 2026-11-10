@@ -226,6 +226,39 @@ def test_admitted_tuning_and_bounded_dynamic_allocation(server):
     assert "spark.sql.shuffle.partitions=8" in args
 
 
+def test_remote_jobs_may_request_a_driver_deadline(server):
+    client, api, _, _ = server
+    document = job_document()
+    document["spec"]["max_runtime"] = 1800
+    preview = client.post("/jobs/v1/plan", json=document)
+    assert preview.status_code == 200, preview.text
+    pod = next(item for item in preview.json()["plan"]["resources"] if item["kind"] == "Pod")
+    assert pod["spec"]["activeDeadlineSeconds"] == 1800
+    assert client.post("/jobs/v1/submit", json=document).status_code == 201
+    assert api.create_namespaced_pod.call_args.kwargs["body"].spec.active_deadline_seconds == 1800
+
+
+@pytest.mark.parametrize("requested, admitted", [(None, False), (7201, False), (7200, True), (60, True)])
+def test_policy_runtime_limit_requires_a_bounded_deadline(server, monkeypatch, requested, admitted):
+    client, api, _, factory = server
+    document = policy_document()
+    document["limits"]["max_runtime"] = 7200
+    settings = SubmissionSettings(True, TOKEN.encode(), SubmissionPolicy.from_mapping(document))
+    monkeypatch.setattr(submission, "get_submission_settings", lambda: settings)
+    job = job_document()
+    if requested is not None:
+        job["spec"]["max_runtime"] = requested
+    result = client.post("/jobs/v1/submit", json=job)
+    if admitted:
+        assert result.status_code == 201, result.text
+        assert api.create_namespaced_pod.call_args.kwargs["body"].spec.active_deadline_seconds == requested
+    else:
+        assert result.status_code == 403, result.text
+        assert "max_runtime" in result.json()["error"]["message"]
+        factory.assert_not_called()
+        api.create_namespaced_pod.assert_not_called()
+
+
 def test_invalid_schema_and_request_formats_fail_without_effects(server):
     client, _, _, factory = server
     wrong_schema = job_document()
@@ -372,7 +405,7 @@ def test_policy_cannot_admit_executable_or_credential_configuration(key):
         SubmissionPolicy.from_mapping(document)
 
 
-@pytest.mark.parametrize("change", ["host_volume", "extra_env", "command"])
+@pytest.mark.parametrize("change", ["host_volume", "extra_env", "command", "deadline"])
 def test_generated_plan_cannot_introduce_unapproved_runtime_settings(server, change):
     from spark_on_k8s.planning import ApplicationPlan
 
@@ -388,6 +421,8 @@ def test_generated_plan_cannot_introduce_unapproved_runtime_settings(server, cha
             pod["volumes"] = [{"name": "host", "hostPath": {"path": "/"}}]
         elif change == "extra_env":
             pod["containers"][0]["env"].append({"name": "JAVA_TOOL_OPTIONS", "value": "unapproved"})
+        elif change == "deadline":
+            pod["activeDeadlineSeconds"] = 1
         else:
             pod["containers"][0]["command"] = ["sh", "-c", "unapproved"]
         return ApplicationPlan(plan.namespace, plan.app_id, plan.driver_pod, resources)
@@ -434,6 +469,10 @@ def test_auth_rejects_wrong_ambiguous_and_untrusted_gateway_headers(server, head
         lambda p: p["applications"][0].update(class_name=""),
         lambda p: p["applications"][0].update(arguments=[["allowed"], [42]]),
         lambda p: p["limits"].update(executors=True),
+        lambda p: p["limits"].pop("executors"),
+        lambda p: p["limits"].update(max_runtime=0),
+        lambda p: p["limits"].update(max_runtime=31 * 24 * 3600),
+        lambda p: p["limits"].update(max_runtime="1h"),
         lambda p: p["spark_conf"].update({"spark.sql.shuffle.partitions": [1.5]}),
     ],
 )

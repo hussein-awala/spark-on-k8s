@@ -101,6 +101,7 @@ setting override the client's configured default. Input mappings are not modifie
 | `spark-app-id`, `spark-app-name`, `spark-role`, `spark-ui-proxy` labels | Managed application identity and proxy settings; template values are discarded. |
 | Other labels and annotations | Template entries are retained; explicit driver entries override matching keys. |
 | Service account and restart policy | Submission service account and `Never`; the deprecated `serviceAccount` alias is removed. |
+| `activeDeadlineSeconds` | The submission's `max_runtime` when set; otherwise the template value, if any, is retained. |
 | Selected container image, image pull policy and arguments | Generated from submission options and Spark configuration. |
 | Selected container command | Removed, so the application image's Spark entrypoint runs the generated driver arguments. |
 | Selected container CPU and memory requests/limits | Generated from `driver_resources` or configured defaults. Other resources, such as ephemeral storage or GPU limits, are retained. |

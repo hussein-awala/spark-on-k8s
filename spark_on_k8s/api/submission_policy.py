@@ -11,6 +11,8 @@ from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+from spark_on_k8s.utils.run import validate_max_runtime
+
 # These settings tune execution, but cannot select code, credentials, volumes or resource limits.
 SAFE_SPARK_CONF = {
     "spark.sql.shuffle.partitions",
@@ -33,8 +35,12 @@ ALLOWED_SPEC = {
     "executor_resources",
     "executor_instances",
     "image_pull_policy",
+    # A driver deadline can only shorten a run, so callers may always request one.
+    "max_runtime",
 }
 LIMIT_FIELDS = {"driver_cpu", "driver_memory_mb", "executor_cpu", "executor_memory_mb", "executors"}
+# Optional so existing policies stay valid; when present, every remote job must set a lower deadline.
+OPTIONAL_LIMIT_FIELDS = {"max_runtime"}
 DNS_LABEL = re.compile(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?")
 MAX_DOCUMENT_BYTES = 1024 * 1024
 # Kubernetes label names and nonempty values share this syntax; a key may add a DNS-subdomain prefix.
@@ -199,9 +205,10 @@ class SubmissionPolicy:
                 )
             ):
                 raise ValueError("Approved arguments must be a nonempty list of exact argument lists.")
-        limits = _object(doc.get("limits"), LIMIT_FIELDS, "resource limits")
-        if set(limits) != LIMIT_FIELDS or any(type(v) is not int or v < 1 for v in limits.values()):
+        limits = _object(doc.get("limits"), LIMIT_FIELDS | OPTIONAL_LIMIT_FIELDS, "resource limits")
+        if not LIMIT_FIELDS <= set(limits) or any(type(v) is not int or v < 1 for v in limits.values()):
             raise ValueError("Every policy resource limit must be a positive integer.")
+        validate_max_runtime(limits.get("max_runtime"), "Policy max_runtime limit")
         conf = _object(doc.get("spark_conf", {}), SAFE_SPARK_CONF, "Spark configuration allowlist")
         for values in conf.values():
             if (
@@ -267,6 +274,11 @@ class SubmissionPolicy:
             raise AdmissionError("Dynamic allocation requires an explicit maximum executor count.")
         if max(instances.initial or 0, instances.min or 0, instances.max or 0) > self.limits["executors"]:
             raise AdmissionError("Requested executor count exceeds the submission policy.")
+        runtime_limit = self.limits.get("max_runtime")
+        if runtime_limit is not None and (
+            options.get("max_runtime") is None or options["max_runtime"] > runtime_limit
+        ):
+            raise AdmissionError("The submission policy requires max_runtime within its runtime limit.")
         # No operation in the API waits for a job. All defaults are supplied by JobSpec, not ambient CLI env.
         options.update(app_waiter="no_wait", should_print=False)
         return options

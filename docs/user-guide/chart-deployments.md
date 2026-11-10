@@ -29,6 +29,61 @@ Validate your selected History image, event-log storage and Spark runtime togeth
 before deployment. An explicitly selected `latest` tag remains accepted for
 intentional development use; it does not make the deployment reproducible.
 
+## Verify a published API image
+
+The release workflow signs each API image it publishes with
+[Sigstore cosign](https://docs.sigstore.dev/cosign/) keyless signing, by digest.
+The signed digest is the multi-architecture image whose amd64 and arm64 images
+passed the workflow's checks; both registries receive those bytes without a
+rebuild, so `ghcr.io/hussein-awala/spark-on-k8s` and
+`docker.io/husseinawala/spark-on-k8s` have the same digest. API images released
+before signing was added, including 0.12.1 and earlier, have no signature, and
+`cosign verify` reports that none was found.
+
+Resolve the release tag once, then verify and deploy the digest it printed, not
+the tag. Use cosign 3; cosign 2.6 needs `--new-bundle-format`:
+
+```bash
+RELEASE_VERSION=X.Y.Z  # replace with the selected API release
+docker buildx imagetools inspect "ghcr.io/hussein-awala/spark-on-k8s:$RELEASE_VERSION"
+# Set API_IMAGE_DIGEST to the sha256:... value of the Digest line printed above.
+: "${API_IMAGE_DIGEST:?Set the digest printed for the release tag}"
+cosign verify "ghcr.io/hussein-awala/spark-on-k8s@$API_IMAGE_DIGEST" \
+  --certificate-identity "https://github.com/hussein-awala/spark-on-k8s/.github/workflows/release.yml@refs/tags/$RELEASE_VERSION" \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+Verification succeeds only for a signature made by this repository's
+`release.yml` running for that tag; a fork, another workflow, a branch run or a
+different release tag fails it. Each signature is recorded in Sigstore's public
+transparency log. Verify the Docker Hub copy with the same command and
+`docker.io/husseinawala/spark-on-k8s@$API_IMAGE_DIGEST`. Then pin the verified
+digest with `--set-string image.digest="$API_IMAGE_DIGEST"`, as in the example
+below. A per-platform digest is not signed separately; deploy the multi-architecture
+digest.
+
+The same index carries BuildKit SBOM and provenance attestations for each platform.
+They are listed by digest in the signed index, so retrieving them through the
+verified digest also authenticates them:
+
+```bash
+docker buildx imagetools inspect "ghcr.io/hussein-awala/spark-on-k8s@$API_IMAGE_DIGEST" \
+  --format '{{ json .Provenance }}'
+docker buildx imagetools inspect "ghcr.io/hussein-awala/spark-on-k8s@$API_IMAGE_DIGEST" \
+  --format '{{ json .SBOM }}'
+```
+
+They describe the image contents and build inputs; they do not certify that the
+dependencies are free of vulnerabilities.
+
+To enforce signatures at admission, configure a Sigstore-capable policy engine to
+require, for images from these repositories, the issuer
+`https://token.actions.githubusercontent.com` and a certificate subject matching
+`^https://github\.com/hussein-awala/spark-on-k8s/\.github/workflows/release\.yml@refs/tags/[0-9]+\.[0-9]+\.[0-9]+((a|b|rc)[0-9]+)?$`.
+Drop the optional group to refuse pre-releases. The signatures are Sigstore
+bundles attached as OCI referrers, the format cosign 3 writes; confirm that your
+engine version verifies that format, and exempt images released before signing.
+
 ## Start with scoped, externally managed access
 
 The source includes `chart/examples/production-values.yaml`. It uses explicit
@@ -242,6 +297,8 @@ To serve the API below an ingress path such as `/platform/spark`, have the ingre
 controller remove that prefix before forwarding and set
 `SPARK_ON_K8S_API_ROOT_PATH` to the same path in `env`; see
 [mounted paths](../security-boundaries.md#mounted-spark-ui-paths).
+To require single sign-on, keep the chart Ingress disabled and publish the
+console through the [oauth2-proxy gateway recipe](sso-gateway.md) instead.
 Use the [development guide](../development.md) for the Helm regression suite and
 [release guidance](../releases.md) for the artifact publication boundary.
 

@@ -55,6 +55,7 @@ def _validate_plan(plan, options):
     containers = spec.get("containers", [])
     if (
         spec.get("serviceAccountName") != options["service_account"]
+        or spec.get("activeDeadlineSeconds") != options.get("max_runtime")
         or len(containers) != 1
         or containers[0]["image"] != options["image"]
         or spec.get("volumes")

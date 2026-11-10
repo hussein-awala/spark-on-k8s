@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
+import subprocess
+import sys
 import time
 from dataclasses import replace
 from pathlib import Path
@@ -335,6 +338,105 @@ def run_rejected_case(api, submitter, args, namespace):
     return {"scenario": "rejected-driver", "status": status, "unowned_resources_removed": True}
 
 
+DEADLINE_JOB = """\
+import time
+from pyspark.sql import SparkSession
+
+spark = SparkSession.builder.getOrCreate()
+# Keep the driver and one executor busy well past the driver's max_runtime.
+spark.sparkContext.parallelize([1], 1).map(lambda _: time.sleep(3600)).collect()
+"""
+
+
+def run_deadline_case(api, submitter, args, namespace):
+    """A driver past max_runtime must fail with DeadlineExceeded, release executors and be prunable."""
+    max_runtime = 75
+    submitter.submit_app(
+        image=args.image,
+        namespace=namespace,
+        service_account="spark",
+        app_name="deadline",
+        app_id_suffix=lambda: "-" + uuid4().hex[:8],
+        image_pull_policy="Never",
+        app_waiter="no_wait",
+        app_path="local:///opt/spark-deadline/job.py",
+        driver_ephemeral_configmaps_volumes=[
+            {"mount_path": "/opt/spark-deadline", "sources": [{"name": "job.py", "text": DEADLINE_JOB}]}
+        ],
+        secret_values={"SPARK_COMPAT_SENTINEL": "present"},
+        spark_conf={"spark.ui.enabled": "false", "spark.kubernetes.executor.request.cores": "0.5"},
+        driver_resources=PodResources(cpu=1, memory=1024, memory_overhead=384),
+        executor_resources=PodResources(cpu=1, memory=1024, memory_overhead=384),
+        executor_instances=ExecutorInstances(initial=1),
+        max_runtime=max_runtime,
+    )
+    run = submitter.last_submitted_run
+    executors = set()
+    limit = time.monotonic() + max_runtime + 120
+    while True:
+        pod = api.read_namespaced_pod(run.driver_pod, namespace, _request_timeout=REQUEST_TIMEOUT)
+        executors.update(item.metadata.uid for item in owned_executors(api, namespace, run.driver_uid))
+        if pod.status.phase in {"Succeeded", "Failed"}:
+            break
+        assert time.monotonic() < limit, f"Driver {run.driver_pod} outlived its deadline: {pod.status.phase}"
+        time.sleep(2)
+    dump_diagnostics(api, namespace, args.artifacts / "deadline-exceeded")
+    assert pod.metadata.uid == run.driver_uid
+    assert pod.spec.active_deadline_seconds == max_runtime
+    assert (pod.status.phase, pod.status.reason) == ("Failed", "DeadlineExceeded"), pod.status
+    assert executors, "The driver did not start an executor before its deadline"
+    finished = [
+        status.state.terminated.finished_at
+        for status in pod.status.container_statuses or []
+        if status.state and status.state.terminated and status.state.terminated.finished_at
+    ]
+    lifetime = (max(finished) - pod.status.start_time).total_seconds() if finished else None
+    # Timestamps have one-second resolution; Kubernetes never stops the pod before the deadline.
+    assert lifetime is None or lifetime >= max_runtime - 1, f"Stopped after {lifetime}s"
+    report = submitter.diagnose_app(namespace=namespace, pod_name=run.driver_pod)
+    assert any(finding.code == "deadline_exceeded" for finding in report.findings), report.to_dict()
+    # The stopped driver no longer runs executors, although its own objects remain until deletion.
+    release = time.monotonic() + 90
+    active = {"Pending", "Running"}
+    while any(item.status.phase in active for item in owned_executors(api, namespace, run.driver_uid)):
+        assert time.monotonic() < release, "Executors kept running after the driver deadline"
+        time.sleep(2)
+    remaining_executors = len(owned_executors(api, namespace, run.driver_uid))
+    # The installed CLI selects the terminal driver, deletes nothing without --delete, then deletes it.
+    env = {
+        **os.environ,
+        "SPARK_ON_K8S_CONFIG_FILE": args.kubeconfig,
+        "SPARK_ON_K8S_CONTEXT": args.context,
+        "SPARK_ON_K8S_IN_CLUSTER": "false",
+    }
+    command = [str(Path(sys.executable).with_name("spark-on-k8s")), "apps", "prune", "-n", namespace]
+    outcomes = {}
+    for mode, extra in (("preview", []), ("delete", ["--delete"])):
+        completed = subprocess.run(
+            [*command, *extra, "--output", "json"], env=env, capture_output=True, text=True, timeout=120
+        )
+        (args.artifacts / f"deadline-prune-{mode}.json").write_text(completed.stdout)
+        assert completed.returncode == 0, completed.stderr[-4000:]
+        document = json.loads(completed.stdout)
+        entry = next(item for item in document["items"] if item["driver_uid"] == run.driver_uid)
+        assert entry["reason"] == "DeadlineExceeded", entry
+        outcomes[mode] = entry["action"]
+        if mode == "preview":
+            current = api.read_namespaced_pod(run.driver_pod, namespace, _request_timeout=REQUEST_TIMEOUT)
+            assert current.metadata.uid == run.driver_uid, "A prune preview must not delete the driver"
+    assert outcomes == {"preview": "would_delete", "delete": "deletion_requested"}, outcomes
+    await_cleanup(api, namespace, run.driver_pod, run.app_id, {run.driver_uid, *executors})
+    return {
+        "scenario": "deadline-exceeded",
+        "max_runtime": max_runtime,
+        "driver_lifetime_seconds": lifetime,
+        "executors_started": len(executors),
+        "executor_pods_retained_after_deadline": remaining_executors,
+        "prune": outcomes,
+        "garbage_collected": True,
+    }
+
+
 def main():
     parser = argparse.ArgumentParser(description="Run real Spark submissions on a disposable kind cluster")
     parser.add_argument("--kubeconfig", required=True)
@@ -377,8 +479,20 @@ def main():
             )
             submitter = SparkOnK8S(k8s_client_manager=manager)
             results = []
-            special_cases = {"pending-timeout": run_pending_case, "rejected-driver": run_rejected_case}
-            for scenario in ("python", "sql", "sql-failure", "java", "pending-timeout", "rejected-driver"):
+            special_cases = {
+                "pending-timeout": run_pending_case,
+                "rejected-driver": run_rejected_case,
+                "deadline-exceeded": run_deadline_case,
+            }
+            for scenario in (
+                "python",
+                "sql",
+                "sql-failure",
+                "java",
+                "pending-timeout",
+                "rejected-driver",
+                "deadline-exceeded",
+            ):
                 try:
                     result = (
                         special_cases[scenario](api, submitter, args, namespace)

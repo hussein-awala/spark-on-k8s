@@ -116,7 +116,9 @@ helm upgrade console chart --namespace upgrade-default --reset-then-reuse-values
 expect_release upgrade-default 2 "$source_chart"
 expect_api upgrade-default "$repository:chart-ci" /ready "$source_user"
 suffix=$(printf '%s' "upgrade-default/$account" | sha256sum | cut -c1-8)
-kubectl get clusterrolebinding "$account-$suffix-view"
+# "*" now binds a chart-owned ClusterRole of that name instead of the built-in view role.
+kubectl get clusterrole "$account-$suffix"
+kubectl get clusterrolebinding "$account-$suffix"
 absent clusterrolebinding/"$account"-view
 can list pods analytics upgrade-default
 
@@ -130,7 +132,8 @@ same_uid role/"$account" analytics "$role_uid"
 same_uid rolebinding/"$account"-edit analytics "$binding_uid"
 can create pods/exec analytics upgrade-legacy
 kubectl get clusterrolebinding "$account"-view
-absent clusterrolebinding/"$account-$suffix-view"
+absent clusterrolebinding/"$account-$suffix"
+absent clusterrole/"$account-$suffix"
 can list pods analytics upgrade-default
 
 for namespace in upgrade-legacy upgrade-default; do

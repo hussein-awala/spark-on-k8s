@@ -780,6 +780,14 @@ def test_plan_is_offline_and_lists_pod_settings_as_references(server, monkeypatc
     } in driver["env"]
 
 
+def test_plan_previews_the_max_runtime_that_create_would_apply(server):
+    result = CliRunner().invoke(connect_cli, plan_args("json") + ["--max-runtime", "3600"])
+    assert result.exit_code == 0, result.output
+    resources = json.loads(result.stdout)["plan"]["resources"]
+    pod = next(item for item in resources if item["kind"] == "Pod")
+    assert pod["spec"]["activeDeadlineSeconds"] == 3600
+
+
 def test_plan_reports_invalid_settings_with_the_automation_contract(server):
     _, _, factory, _, _ = server
     result = CliRunner().invoke(connect_cli, plan_args("json") + ["--driver-env-from-secret", "TOKEN=bad"])

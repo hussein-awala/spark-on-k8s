@@ -128,8 +128,7 @@ spark_client.submit_app(
 The source version supports `spark.kubernetes.driverEnv.NAME` in `spark_conf`.
 The client copies these properties into the driver container's environment before
 creating the Pod. This also applies to the CLI and both Airflow operators, which
-use the same submission code. Install from source until a release includes this
-feature; see [installation](installation.md).
+use the same submission code. This requires 0.13.0 or newer.
 
 For example, a launcher that loads a YAML property mapping into `spark_conf` can use:
 

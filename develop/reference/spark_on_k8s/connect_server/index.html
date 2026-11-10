@@ -68,7 +68,7 @@
   <meta name="documentation-channel" content="develop">
   <meta name="documentation-version" content="develop">
   
-    <meta name="documentation-source" content="5da4bf5889bff3e1f9e883c4cd89e769292f29df">
+    <meta name="documentation-source" content="9ae92b9f8b02137d33079fe812c296a6cfc220a1">
   
 
   </head>
@@ -108,7 +108,7 @@
     <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
   
   
-    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/5da4bf5889bff3e1f9e883c4cd89e769292f29df"><code>5da4bf5889bf</code></a>.
+    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/9ae92b9f8b02137d33079fe812c296a6cfc220a1"><code>9ae92b9f8b02</code></a>.
   
 
           </div>
@@ -6564,11 +6564,13 @@ tolerations are Kubernetes toleration mappings (<code>key</code>, <code>operator
 <span class="normal">397</span>
 <span class="normal">398</span>
 <span class="normal">399</span>
-<span class="normal">400</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">ConnectServerTimeout</span><span class="p">(</span><span class="ne">TimeoutError</span><span class="p">):</span>
+<span class="normal">400</span>
+<span class="normal">401</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">ConnectServerTimeout</span><span class="p">(</span><span class="ne">TimeoutError</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">"""Readiness observation expired; the server was not deleted."""</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">handle</span><span class="p">):</span>
-        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="s2">"Spark Connect readiness timed out; the server was not stopped or deleted"</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">handle</span><span class="p">,</span> <span class="n">last_failure</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+        <span class="n">message</span> <span class="o">=</span> <span class="s2">"Spark Connect readiness timed out; the server was not stopped or deleted"</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">message</span> <span class="o">+</span> <span class="p">(</span><span class="sa">f</span><span class="s2">". Last query check: </span><span class="si">{</span><span class="n">last_failure</span><span class="si">}</span><span class="s2">"</span> <span class="k">if</span> <span class="n">last_failure</span> <span class="k">else</span> <span class="s2">""</span><span class="p">))</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">handle</span> <span class="o">=</span> <span class="n">handle</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">run</span> <span class="o">=</span> <span class="n">handle</span><span class="o">.</span><span class="n">run</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">phase</span> <span class="o">=</span> <span class="s2">"readiness"</span>
@@ -6614,8 +6616,7 @@ tolerations are Kubernetes toleration mappings (<code>key</code>, <code>operator
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>spark_on_k8s/connect_server.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">772</span>
-<span class="normal">773</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">773</span>
 <span class="normal">774</span>
 <span class="normal">775</span>
 <span class="normal">776</span>
@@ -6645,7 +6646,8 @@ tolerations are Kubernetes toleration mappings (<code>key</code>, <code>operator
 <span class="normal">800</span>
 <span class="normal">801</span>
 <span class="normal">802</span>
-<span class="normal">803</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">connect_server_status</span><span class="p">(</span><span class="n">client</span><span class="p">:</span> <span class="n">SparkOnK8S</span><span class="p">,</span> <span class="n">handle</span><span class="p">:</span> <span class="n">ConnectServerHandle</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">10</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="normal">803</span>
+<span class="normal">804</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">connect_server_status</span><span class="p">(</span><span class="n">client</span><span class="p">:</span> <span class="n">SparkOnK8S</span><span class="p">,</span> <span class="n">handle</span><span class="p">:</span> <span class="n">ConnectServerHandle</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">10</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Read matching resource state. Only confirmed 404 means missing; errors propagate."""</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">handle</span><span class="p">,</span> <span class="n">ConnectServerHandle</span><span class="p">):</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"handle must be ConnectServerHandle"</span><span class="p">)</span>
@@ -6702,8 +6704,7 @@ The raised error retains the planned/confirmed run and rollback outcome.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>spark_on_k8s/connect_server.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">641</span>
-<span class="normal">642</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">642</span>
 <span class="normal">643</span>
 <span class="normal">644</span>
 <span class="normal">645</span>
@@ -6794,7 +6795,8 @@ The raised error retains the planned/confirmed run and rollback outcome.</p>
 <span class="normal">730</span>
 <span class="normal">731</span>
 <span class="normal">732</span>
-<span class="normal">733</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">create_connect_server</span><span class="p">(</span><span class="n">client</span><span class="p">:</span> <span class="n">SparkOnK8S</span><span class="p">,</span> <span class="n">config</span><span class="p">:</span> <span class="n">ConnectServerConfig</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ConnectServerHandle</span><span class="p">:</span>
+<span class="normal">733</span>
+<span class="normal">734</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">create_connect_server</span><span class="p">(</span><span class="n">client</span><span class="p">:</span> <span class="n">SparkOnK8S</span><span class="p">,</span> <span class="n">config</span><span class="p">:</span> <span class="n">ConnectServerConfig</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ConnectServerHandle</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Create a driver and private gRPC Service, without claiming query readiness.</span>
 
 <span class="sd">    A failed create attempts rollback only after receiving a confirmed driver UID.</span>
@@ -6912,11 +6914,7 @@ a partially applied deletion; UID preconditions protect replacement resources.</
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>spark_on_k8s/connect_server.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">913</span>
-<span class="normal">914</span>
-<span class="normal">915</span>
-<span class="normal">916</span>
-<span class="normal">917</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">917</span>
 <span class="normal">918</span>
 <span class="normal">919</span>
 <span class="normal">920</span>
@@ -6947,7 +6945,11 @@ a partially applied deletion; UID preconditions protect replacement resources.</
 <span class="normal">945</span>
 <span class="normal">946</span>
 <span class="normal">947</span>
-<span class="normal">948</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">delete_connect_server</span><span class="p">(</span><span class="n">client</span><span class="p">:</span> <span class="n">SparkOnK8S</span><span class="p">,</span> <span class="n">handle</span><span class="p">:</span> <span class="n">ConnectServerHandle</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">10</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="normal">948</span>
+<span class="normal">949</span>
+<span class="normal">950</span>
+<span class="normal">951</span>
+<span class="normal">952</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">delete_connect_server</span><span class="p">(</span><span class="n">client</span><span class="p">:</span> <span class="n">SparkOnK8S</span><span class="p">,</span> <span class="n">handle</span><span class="p">:</span> <span class="n">ConnectServerHandle</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">10</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Verify all three resource identities before requesting UID-conditional deletion.</span>
 
 <span class="sd">    Missing resources are idempotent. Success means deletion was requested, not that</span>
@@ -7008,8 +7010,7 @@ deletion still requires the recorded identity checks. Errors propagate.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>spark_on_k8s/connect_server.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">806</span>
-<span class="normal">807</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">807</span>
 <span class="normal">808</span>
 <span class="normal">809</span>
 <span class="normal">810</span>
@@ -7052,7 +7053,8 @@ deletion still requires the recorded identity checks. Errors propagate.</p>
 <span class="normal">847</span>
 <span class="normal">848</span>
 <span class="normal">849</span>
-<span class="normal">850</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">list_connect_servers</span><span class="p">(</span><span class="n">client</span><span class="p">:</span> <span class="n">SparkOnK8S</span><span class="p">,</span> <span class="n">namespace</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">10</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">]:</span>
+<span class="normal">850</span>
+<span class="normal">851</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">list_connect_servers</span><span class="p">(</span><span class="n">client</span><span class="p">:</span> <span class="n">SparkOnK8S</span><span class="p">,</span> <span class="n">namespace</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">10</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">"""List driver pods labeled as servers created by this helper in one namespace, oldest first.</span>
 
 <span class="sd">    This is a read-only, label-based observation: it neither verifies receipts, Services</span>
@@ -7122,8 +7124,7 @@ appear. Identifiers are illustrative; nothing is created or reserved.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>spark_on_k8s/connect_server.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">623</span>
-<span class="normal">624</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">624</span>
 <span class="normal">625</span>
 <span class="normal">626</span>
 <span class="normal">627</span>
@@ -7137,7 +7138,8 @@ appear. Identifiers are illustrative; nothing is created or reserved.</p>
 <span class="normal">635</span>
 <span class="normal">636</span>
 <span class="normal">637</span>
-<span class="normal">638</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">plan_connect_server</span><span class="p">(</span><span class="n">client</span><span class="p">:</span> <span class="n">SparkOnK8S</span><span class="p">,</span> <span class="n">config</span><span class="p">:</span> <span class="n">ConnectServerConfig</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ApplicationPlan</span><span class="p">:</span>
+<span class="normal">638</span>
+<span class="normal">639</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">plan_connect_server</span><span class="p">(</span><span class="n">client</span><span class="p">:</span> <span class="n">SparkOnK8S</span><span class="p">,</span> <span class="n">config</span><span class="p">:</span> <span class="n">ConnectServerConfig</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ApplicationPlan</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Render the resources create_connect_server would request, without cluster access.</span>
 
 <span class="sd">    The plan uses the same submission builder as creation plus the gRPC Service. Secret</span>
@@ -7175,8 +7177,7 @@ appear. Identifiers are illustrative; nothing is created or reserved.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>spark_on_k8s/connect_server.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">853</span>
-<span class="normal">854</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">854</span>
 <span class="normal">855</span>
 <span class="normal">856</span>
 <span class="normal">857</span>
@@ -7232,7 +7233,11 @@ appear. Identifiers are illustrative; nothing is created or reserved.</p>
 <span class="normal">907</span>
 <span class="normal">908</span>
 <span class="normal">909</span>
-<span class="normal">910</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">wait_connect_server_ready</span><span class="p">(</span>
+<span class="normal">910</span>
+<span class="normal">911</span>
+<span class="normal">912</span>
+<span class="normal">913</span>
+<span class="normal">914</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">wait_connect_server_ready</span><span class="p">(</span>
     <span class="n">client</span><span class="p">:</span> <span class="n">SparkOnK8S</span><span class="p">,</span>
     <span class="n">handle</span><span class="p">:</span> <span class="n">ConnectServerHandle</span><span class="p">,</span>
     <span class="o">*</span><span class="p">,</span>
@@ -7246,6 +7251,7 @@ appear. Identifiers are illustrative; nothing is created or reserved.</p>
     <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">poll_interval</span><span class="p">)</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">{</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">}</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">math</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">poll_interval</span><span class="p">)</span> <span class="ow">or</span> <span class="n">poll_interval</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"poll_interval must be positive and finite"</span><span class="p">)</span>
     <span class="n">deadline</span> <span class="o">=</span> <span class="n">_deadline</span><span class="p">(</span><span class="n">timeout</span><span class="p">)</span>
+    <span class="n">last_failure</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="k">try</span><span class="p">:</span>
         <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
             <span class="n">status</span> <span class="o">=</span> <span class="n">connect_server_status</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="n">handle</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="n">deadline</span><span class="o">.</span><span class="n">remaining</span><span class="p">())</span>
@@ -7255,14 +7261,16 @@ appear. Identifiers are illustrative; nothing is created or reserved.</p>
                 <span class="p">)</span>
             <span class="k">if</span> <span class="n">status</span><span class="p">[</span><span class="s2">"status"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"running"</span><span class="p">:</span>
                 <span class="k">try</span><span class="p">:</span>
+                    <span class="c1"># The same per-check budget as `connect check`: a slower client start is not unreadiness.</span>
                     <span class="n">result</span> <span class="o">=</span> <span class="n">profile</span><span class="o">.</span><span class="n">probe</span><span class="p">(</span>
-                        <span class="n">timeout</span><span class="o">=</span><span class="nb">min</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="n">deadline</span><span class="o">.</span><span class="n">remaining</span><span class="p">()),</span> <span class="n">expected_app_id</span><span class="o">=</span><span class="n">handle</span><span class="o">.</span><span class="n">run</span><span class="o">.</span><span class="n">app_id</span>
+                        <span class="n">timeout</span><span class="o">=</span><span class="nb">min</span><span class="p">(</span><span class="mi">15</span><span class="p">,</span> <span class="n">deadline</span><span class="o">.</span><span class="n">remaining</span><span class="p">()),</span> <span class="n">expected_app_id</span><span class="o">=</span><span class="n">handle</span><span class="o">.</span><span class="n">run</span><span class="o">.</span><span class="n">app_id</span>
                     <span class="p">)</span>
                 <span class="k">except</span> <span class="n">ConnectClientUnavailable</span><span class="p">:</span>
                     <span class="c1"># A missing local client is not a server state; polling cannot make it ready.</span>
                     <span class="k">raise</span>
-                <span class="k">except</span> <span class="p">(</span><span class="n">ConnectError</span><span class="p">,</span> <span class="ne">TimeoutError</span><span class="p">):</span>
-                    <span class="k">pass</span>
+                <span class="k">except</span> <span class="p">(</span><span class="n">ConnectError</span><span class="p">,</span> <span class="ne">TimeoutError</span><span class="p">)</span> <span class="k">as</span> <span class="n">failure</span><span class="p">:</span>
+                    <span class="c1"># Reported if the wait times out, for example when another application answers.</span>
+                    <span class="n">last_failure</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">failure</span><span class="p">)</span>
                 <span class="k">else</span><span class="p">:</span>
                     <span class="n">after</span> <span class="o">=</span> <span class="n">connect_server_status</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="n">handle</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="n">deadline</span><span class="o">.</span><span class="n">remaining</span><span class="p">())</span>
                     <span class="k">if</span> <span class="n">after</span><span class="p">[</span><span class="s2">"status"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"running"</span><span class="p">:</span>
@@ -7279,7 +7287,7 @@ appear. Identifiers are illustrative; nothing is created or reserved.</p>
                         <span class="p">}</span>
             <span class="n">deadline</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="n">poll_interval</span><span class="p">)</span>
     <span class="k">except</span> <span class="ne">TimeoutError</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="n">ConnectServerTimeout</span><span class="p">(</span><span class="n">handle</span><span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="kc">None</span>
+        <span class="k">raise</span> <span class="n">ConnectServerTimeout</span><span class="p">(</span><span class="n">handle</span><span class="p">,</span> <span class="n">last_failure</span><span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="kc">None</span>
     <span class="k">except</span> <span class="p">(</span><span class="n">TransportTimeoutError</span><span class="p">,</span> <span class="n">MaxRetryError</span><span class="p">)</span> <span class="k">as</span> <span class="n">error</span><span class="p">:</span>
         <span class="c1"># urllib3 can wrap a request timeout once the remaining wait budget is tiny.</span>
         <span class="c1"># Only the enclosing deadline expiring changes that transport error into a wait timeout.</span>
@@ -7288,7 +7296,7 @@ appear. Identifiers are illustrative; nothing is created or reserved.</p>
             <span class="k">try</span><span class="p">:</span>
                 <span class="n">deadline</span><span class="o">.</span><span class="n">remaining</span><span class="p">()</span>
             <span class="k">except</span> <span class="ne">TimeoutError</span><span class="p">:</span>
-                <span class="k">raise</span> <span class="n">ConnectServerTimeout</span><span class="p">(</span><span class="n">handle</span><span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="kc">None</span>
+                <span class="k">raise</span> <span class="n">ConnectServerTimeout</span><span class="p">(</span><span class="n">handle</span><span class="p">,</span> <span class="n">last_failure</span><span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="kc">None</span>
         <span class="k">raise</span>
 </code></pre></div></td></tr></table></div>
             </details>
@@ -7323,7 +7331,7 @@ appear. Identifiers are illustrative; nothing is created or reserved.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 10, 2026 19:52:20 UTC">November 10, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 10, 2026 20:09:01 UTC">November 10, 2026</span>
   </span>
 
     

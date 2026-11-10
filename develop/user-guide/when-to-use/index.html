@@ -68,7 +68,7 @@
   <meta name="documentation-channel" content="develop">
   <meta name="documentation-version" content="develop">
   
-    <meta name="documentation-source" content="9ff8a1301cb80304d06449dd1d4b5c117b50fc2d">
+    <meta name="documentation-source" content="241de53b835de51b84f85fc32782902e6abf2c19">
   
 
   </head>
@@ -108,7 +108,7 @@
     <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
   
   
-    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/9ff8a1301cb80304d06449dd1d4b5c117b50fc2d"><code>9ff8a1301cb8</code></a>.
+    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/241de53b835de51b84f85fc32782902e6abf2c19"><code>241de53b835d</code></a>.
   
 
           </div>
@@ -958,6 +958,8 @@
       
         
       
+        
+      
     
     
     
@@ -1018,6 +1020,34 @@
     
   
     Portable job files
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../spark-operator-migration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Migrate from the Spark Operator
   
 
     
@@ -1178,6 +1208,8 @@
       
         
       
+        
+      
     
     
     
@@ -1238,6 +1270,34 @@
     
   
     CLI automation and recovery
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../recipes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ecosystem recipes
   
 
     
@@ -2388,6 +2448,8 @@
   
     
     
+      
+        
       
         
       
@@ -4176,6 +4238,34 @@
   
   
   
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/spark_operator_migration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    spark_operator_migration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
     
     
       
@@ -4198,7 +4288,7 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_1_5_9" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_1_5_10" >
         
           
           <div class="md-nav__link md-nav__container">
@@ -4220,14 +4310,14 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_5_1_5_9" id="__nav_5_1_5_9_label" tabindex="0">
+              <label class="md-nav__link " for="__nav_5_1_5_10" id="__nav_5_1_5_10_label" tabindex="0">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_5_1_5_9_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_5_1_5_9">
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_5_1_5_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_1_5_10">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -4315,10 +4405,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_1_5_10" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_1_5_11" >
         
           
-          <label class="md-nav__link" for="__nav_5_1_5_10" id="__nav_5_1_5_10_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_5_1_5_11" id="__nav_5_1_5_11_label" tabindex="0">
             
   
   
@@ -4336,8 +4426,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_5_1_5_10_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_5_1_5_10">
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_5_1_5_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_1_5_11">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -5832,14 +5922,16 @@ boundaries, catalog and storage integration, upgrades and support.</p>
 <li>You do not have, or do not want to operate, a Kubernetes cluster.</li>
 </ul>
 <h2 id="moving-from-another-approach">Moving from another approach<a class="headerlink" href="#moving-from-another-approach" title="Permanent link">&para;</a></h2>
-<p>There is no importer or converter. Spark-on-k8s does not read <code>SparkApplication</code>
-resources, <code>spark-submit</code> scripts or managed-service job definitions. Plan a
-side-by-side trial in a staging namespace instead:</p>
+<p>Only Spark Operator manifests have an offline assessor. Spark-on-k8s does not read
+<code>spark-submit</code> scripts or managed-service job definitions, and it never reads or
+changes live <code>SparkApplication</code> resources. Plan a side-by-side trial in a staging
+namespace in every case:</p>
 <ul>
-<li><strong>From a Spark operator:</strong> map each resource field to a <a href="../jobs/">job file</a>
-  setting, Spark property or <a href="../driver_pod_templates/">driver pod template</a>.
-  List the lifecycle features without an equivalent, such as restart policies,
-  schedules and cleanup handled by the controller, and decide who will own them,
+<li><strong>From a Spark operator:</strong> run the
+  <a href="../spark-operator-migration/">migration assessor</a> on your <code>SparkApplication</code>
+  manifests. It drafts <a href="../jobs/">job files</a> for the settings that translate and
+  reports lifecycle features without an equivalent, such as restart policies,
+  schedules and cleanup handled by the controller. Decide who will own them,
   or keep those workloads on the operator. Read
   <a href="../automation/#contract-coverage-and-lifecycle-ownership">lifecycle ownership</a>
   first, and record every field you cannot map instead of dropping it; see
@@ -5885,7 +5977,7 @@ Include a controlled failure so that you observe how each tool reports it.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 10, 2026 09:16:23 UTC">November 10, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 10, 2026 11:31:12 UTC">November 10, 2026</span>
   </span>
 
     

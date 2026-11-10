@@ -68,7 +68,7 @@
   <meta name="documentation-channel" content="develop">
   <meta name="documentation-version" content="develop">
   
-    <meta name="documentation-source" content="fbf06c54672be05f48694e11d5ee3b9f2acf2eca">
+    <meta name="documentation-source" content="7c822b403a89612ee4e552e66cd9512a9c9f7107">
   
 
   </head>
@@ -108,7 +108,7 @@
     <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
   
   
-    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/fbf06c54672be05f48694e11d5ee3b9f2acf2eca"><code>fbf06c54672b</code></a>.
+    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/7c822b403a89612ee4e552e66cd9512a9c9f7107"><code>7c822b403a89</code></a>.
   
 
           </div>
@@ -4605,6 +4605,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#spark_on_k8s.utils.spark_app_status.is_transient_status_code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        is_transient_status_code
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#spark_on_k8s.utils.spark_app_status.select_driver_pod" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5591,6 +5602,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#spark_on_k8s.utils.spark_app_status.is_transient_status_code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        is_transient_status_code
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#spark_on_k8s.utils.spark_app_status.select_driver_pod" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5740,15 +5762,15 @@
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>spark_on_k8s/utils/spark_app_status.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">49</span>
-<span class="normal">50</span>
-<span class="normal">51</span>
-<span class="normal">52</span>
-<span class="normal">53</span>
-<span class="normal">54</span>
-<span class="normal">55</span>
-<span class="normal">56</span>
-<span class="normal">57</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">driver_container_name</span><span class="p">(</span><span class="n">pod</span><span class="p">:</span> <span class="n">k8s</span><span class="o">.</span><span class="n">V1Pod</span> <span class="o">|</span> <span class="n">k8s_async</span><span class="o">.</span><span class="n">V1Pod</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">59</span>
+<span class="normal">60</span>
+<span class="normal">61</span>
+<span class="normal">62</span>
+<span class="normal">63</span>
+<span class="normal">64</span>
+<span class="normal">65</span>
+<span class="normal">66</span>
+<span class="normal">67</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">driver_container_name</span><span class="p">(</span><span class="n">pod</span><span class="p">:</span> <span class="n">k8s</span><span class="o">.</span><span class="n">V1Pod</span> <span class="o">|</span> <span class="n">k8s_async</span><span class="o">.</span><span class="n">V1Pod</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Name the submitted driver container, even if an admission webhook prepended a sidecar."""</span>
     <span class="n">names</span> <span class="o">=</span> <span class="p">[</span><span class="n">container</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">container</span> <span class="ow">in</span> <span class="n">pod</span><span class="o">.</span><span class="n">spec</span><span class="o">.</span><span class="n">containers</span><span class="p">]</span>
     <span class="n">metadata</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">pod</span><span class="p">,</span> <span class="s2">"metadata"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
@@ -5779,9 +5801,9 @@
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>spark_on_k8s/utils/spark_app_status.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">35</span>
-<span class="normal">36</span>
-<span class="normal">37</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">driver_pod_selector</span><span class="p">(</span><span class="n">app_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">45</span>
+<span class="normal">46</span>
+<span class="normal">47</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">driver_pod_selector</span><span class="p">(</span><span class="n">app_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Select only driver pods: other pods may carry an application's ID label."""</span>
     <span class="k">return</span> <span class="sa">f</span><span class="s2">"spark-app-id=</span><span class="si">{</span><span class="n">app_id</span><span class="si">}</span><span class="s2">,spark-role=driver"</span>
 </code></pre></div></td></tr></table></div>
@@ -5806,18 +5828,18 @@
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>spark_on_k8s/utils/spark_app_status.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">21</span>
-<span class="normal">22</span>
-<span class="normal">23</span>
-<span class="normal">24</span>
-<span class="normal">25</span>
-<span class="normal">26</span>
-<span class="normal">27</span>
-<span class="normal">28</span>
-<span class="normal">29</span>
-<span class="normal">30</span>
-<span class="normal">31</span>
-<span class="normal">32</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">get_app_status</span><span class="p">(</span><span class="n">pod</span><span class="p">:</span> <span class="n">k8s</span><span class="o">.</span><span class="n">V1Pod</span> <span class="o">|</span> <span class="n">k8s_async</span><span class="o">.</span><span class="n">V1Pod</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SparkAppStatus</span><span class="p">:</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">31</span>
+<span class="normal">32</span>
+<span class="normal">33</span>
+<span class="normal">34</span>
+<span class="normal">35</span>
+<span class="normal">36</span>
+<span class="normal">37</span>
+<span class="normal">38</span>
+<span class="normal">39</span>
+<span class="normal">40</span>
+<span class="normal">41</span>
+<span class="normal">42</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">get_app_status</span><span class="p">(</span><span class="n">pod</span><span class="p">:</span> <span class="n">k8s</span><span class="o">.</span><span class="n">V1Pod</span> <span class="o">|</span> <span class="n">k8s_async</span><span class="o">.</span><span class="n">V1Pod</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SparkAppStatus</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Get app status."""</span>
     <span class="k">if</span> <span class="n">pod</span><span class="o">.</span><span class="n">status</span><span class="o">.</span><span class="n">phase</span> <span class="o">==</span> <span class="s2">"Pending"</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">SparkAppStatus</span><span class="o">.</span><span class="n">Pending</span>
@@ -5829,6 +5851,33 @@
         <span class="k">return</span> <span class="n">SparkAppStatus</span><span class="o">.</span><span class="n">Failed</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">SparkAppStatus</span><span class="o">.</span><span class="n">Unknown</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="spark_on_k8s.utils.spark_app_status.is_transient_status_code" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">is_transient_status_code</span><span class="p">(</span><span class="n">status</span><span class="p">)</span></code>
+
+<a href="#spark_on_k8s.utils.spark_app_status.is_transient_status_code" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Whether a Kubernetes API response status may clear on its own.</p>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>spark_on_k8s/utils/spark_app_status.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">26</span>
+<span class="normal">27</span>
+<span class="normal">28</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">is_transient_status_code</span><span class="p">(</span><span class="n">status</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Whether a Kubernetes API response status may clear on its own."""</span>
+    <span class="k">return</span> <span class="n">status</span> <span class="o">==</span> <span class="mi">429</span> <span class="ow">or</span> <span class="p">(</span><span class="n">status</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="mi">500</span> <span class="o">&lt;=</span> <span class="n">status</span> <span class="o">&lt;=</span> <span class="mi">599</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -5851,13 +5900,13 @@
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>spark_on_k8s/utils/spark_app_status.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">40</span>
-<span class="normal">41</span>
-<span class="normal">42</span>
-<span class="normal">43</span>
-<span class="normal">44</span>
-<span class="normal">45</span>
-<span class="normal">46</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">select_driver_pod</span><span class="p">(</span><span class="n">pods</span><span class="p">:</span> <span class="nb">list</span><span class="p">,</span> <span class="n">app_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">50</span>
+<span class="normal">51</span>
+<span class="normal">52</span>
+<span class="normal">53</span>
+<span class="normal">54</span>
+<span class="normal">55</span>
+<span class="normal">56</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">select_driver_pod</span><span class="p">(</span><span class="n">pods</span><span class="p">:</span> <span class="nb">list</span><span class="p">,</span> <span class="n">app_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">"""Return the only driver for an application ID instead of acting on an arbitrary match."""</span>
     <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">pods</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"No pods found for app </span><span class="si">{</span><span class="n">app_id</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
@@ -5897,7 +5946,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 10, 2026 14:10:24 UTC">November 10, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 10, 2026 14:14:44 UTC">November 10, 2026</span>
   </span>
 
     

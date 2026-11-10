@@ -22,6 +22,24 @@ def validate_timeout(ctx, param, value):
     return value
 
 
+@contextmanager
+def text_command_errors():
+    """End a text-only command with one `Error:` line and exit code 1 instead of a traceback."""
+    from kubernetes.client import ApiException
+    from kubernetes.config import ConfigException
+    from urllib3.exceptions import HTTPError
+
+    try:
+        yield
+    except ApiException as error:
+        # Like `execution`, withhold the response body, which can carry cluster details.
+        raise click.ClickException(
+            f"Kubernetes API {error.status}: {error.reason or 'request failed'}"
+        ) from None
+    except (ValueError, ConfigException, HTTPError) as error:
+        raise click.ClickException(str(error)) from None
+
+
 timeout_option = click.option(
     "--timeout",
     type=click.FloatRange(min=0, min_open=True),

@@ -4,7 +4,13 @@ from typing import Literal
 
 import click
 
-from spark_on_k8s.cli.automation import execute_submission, execution, output_option, timeout_option
+from spark_on_k8s.cli.automation import (
+    execute_submission,
+    execution,
+    output_option,
+    text_command_errors,
+    timeout_option,
+)
 from spark_on_k8s.cli.options import (
     app_id_option,
     app_name_option,
@@ -80,16 +86,18 @@ def status(app_id: str, namespace: str, output: str):
 def logs(app_id: str, namespace: str):
     from spark_on_k8s.utils.app_manager import SparkAppManager
 
-    app_manager = SparkAppManager()
-    app_manager.stream_logs(namespace=namespace, app_id=app_id, should_print=True)
+    with text_command_errors():
+        app_manager = SparkAppManager()
+        app_manager.stream_logs(namespace=namespace, app_id=app_id, should_print=True)
 
 
 @app_cli.command(cls=SparkAppCommand, help="Kill a Spark application.")
 def kill(app_id: str, namespace: str):
     from spark_on_k8s.utils.app_manager import SparkAppManager
 
-    app_manager = SparkAppManager()
-    app_manager.kill_app(namespace=namespace, app_id=app_id)
+    with text_command_errors():
+        app_manager = SparkAppManager()
+        app_manager.kill_app(namespace=namespace, app_id=app_id)
 
 
 @app_cli.command(
@@ -100,8 +108,9 @@ def kill(app_id: str, namespace: str):
 def delete(app_id: str, namespace: str, force: bool):
     from spark_on_k8s.utils.app_manager import SparkAppManager
 
-    app_manager = SparkAppManager()
-    app_manager.delete_app(namespace=namespace, app_id=app_id, force=force)
+    with text_command_errors():
+        app_manager = SparkAppManager()
+        app_manager.delete_app(namespace=namespace, app_id=app_id, force=force)
 
 
 @app_cli.command(cls=SparkAppCommand, help="Wait for a Spark application to finish.")

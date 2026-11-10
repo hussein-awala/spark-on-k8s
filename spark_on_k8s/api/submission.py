@@ -10,6 +10,7 @@ from kubernetes.client.exceptions import ApiException
 from starlette.concurrency import run_in_threadpool
 from starlette.responses import JSONResponse
 
+from spark_on_k8s.api.audit import count_kubernetes_error, note
 from spark_on_k8s.api.namespace_scope import namespace_scope
 from spark_on_k8s.api.submission_policy import (
     MAX_DOCUMENT_BYTES,
@@ -25,6 +26,7 @@ logger = logging.getLogger(__name__)
 
 
 def error_response(status, code, message):
+    note(code=code)
     return JSONResponse(
         error_body(code, message),
         status_code=status,
@@ -117,8 +119,12 @@ def _execute(document, preview):
     plan = client.plan_app(**options)
     _validate_plan(plan, options)
     if preview:
+        note(namespace=plan.namespace)
         return {"schema_version": 1, "operation": "plan", "plan": plan.to_dict(), "error": None}
+    # Record the identity before creating resources: a failure can leave some of them behind.
+    note(namespace=plan.namespace, app_id=plan.app_id, driver_pod=plan.driver_pod)
     run = client.submit_run(**options)
+    note(driver_pod=run.driver_pod, driver_uid=run.driver_uid)
     return {"schema_version": 1, "operation": "submit", "run": run.to_dict(), "status": None, "error": None}
 
 
@@ -157,6 +163,7 @@ async def _handle(request: Request, preview: bool):
     except ValueError as error:
         return error_response(422, "invalid_job", str(error))
     except ApiException as error:
+        count_kubernetes_error(error)
         code = 409 if error.status == 409 else 502
         return error_response(
             code,

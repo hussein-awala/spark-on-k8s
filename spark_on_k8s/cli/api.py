@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import copy
+
 import click
 from click.core import ParameterSource
 
@@ -95,16 +97,26 @@ def start(
 ):
     try:
         import uvicorn
+        from uvicorn.config import LOGGING_CONFIG
     except ImportError:
         raise click.ClickException(
             "The API requires the 'api' extra: pip install 'spark-on-k8s[api]'"
         ) from None
 
+    # Without a handler, package records (such as run-history and readiness changes) reach
+    # stderr only through Python's last-resort handler, which drops INFO and formatting.
+    log_config = copy.deepcopy(LOGGING_CONFIG)
+    log_config["loggers"]["spark_on_k8s"] = {
+        "handlers": ["default"],
+        "level": log_level.upper(),
+        "propagate": False,
+    }
     uvicorn.run(
         "spark_on_k8s.api.main:app",
         host=host,
         port=port,
         log_level=log_level,
+        log_config=log_config,
         workers=workers,
         limit_concurrency=limit_concurrency,
         root_path=root_path,

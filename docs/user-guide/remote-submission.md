@@ -42,6 +42,8 @@ an error once for that change, without token values: a token you removed remains
 until a valid change is loaded, so check the logs after each change.
 `SPARK_ON_K8S_SUBMISSION_ENABLED`, the file paths and the reload interval are read only at
 startup.
+With the Helm chart, set the `remote` values instead; see
+[chart remote submission](chart-deployments.md#enable-remote-submission).
 
 Terminate TLS at a trusted reverse proxy or gateway. Do not expose the backend's plain HTTP port
 outside that trusted boundary. For browser access, the gateway must authenticate the browser,
@@ -281,7 +283,9 @@ Authentication failures return 401, admission denials 403, disabled routes 404, 
 idempotency or invalid JSON 400, bodies not received within the deadline 408, oversized bodies 413,
 unsupported content types 415, and invalid job schemas 422. Kubernetes conflicts return 409; other
 Kubernetes failures return 502, and unexpected server failures 500. Errors contain a stable code
-and a human-readable message, never the Kubernetes response body.
+and a human-readable message, never the Kubernetes response body. Every response carries an
+`X-Request-ID` header. The API's [audit events](operations.md#audit-events-and-metrics) record each
+plan and submission with that ID, its outcome and, once admitted, the generated run identity.
 
 Admission limits apply to each submitted job. They do not reserve shared capacity
 or account for concurrent accepted jobs. Enforce aggregate resources with
@@ -303,36 +307,19 @@ A rotation keeps a short overlap in which the current and the new token are both
 3. Replace the server's token file with the new token alone. Once that update reaches every
    pod, the old token receives 401.
 
-With the Helm chart, configure remote mode through the generic `env`, `volumes` and
-`volumeMounts` values, and mount the Secret that holds the token and policy as a directory:
-
-```yaml
-env:
-  - name: SPARK_ON_K8S_SUBMISSION_ENABLED
-    value: "true"
-  - name: SPARK_ON_K8S_SUBMISSION_TOKEN_FILE
-    value: /run/spark-on-k8s/remote/token
-  - name: SPARK_ON_K8S_SUBMISSION_POLICY_FILE
-    value: /run/spark-on-k8s/remote/policy.json
-volumes:
-  - name: remote-submission
-    secret:
-      secretName: spark-remote-submission
-volumeMounts:
-  - name: remote-submission
-    mountPath: /run/spark-on-k8s/remote
-    readOnly: true
-```
-
-Do not mount these files with `subPath`: such mounts never receive Secret updates, so every
-step would need a pod restart. Rotate with files in a private directory, so tokens never
-appear in command lines. Recreating the Secret replaces both keys, so copy the deployed policy
-first:
+With the Helm chart's [`remote` values](chart-deployments.md#enable-remote-submission), the
+chart mounts the Secret's token and policy keys as a directory under `remote.mountPath`
+(`/etc/spark-on-k8s/remote` by default), so Secret updates reach running pods. If you configure
+remote mode through the generic `env`, `volumes` and `volumeMounts` values instead, also mount
+the Secret as a directory. Do not mount these files with `subPath`: such mounts never receive
+Secret updates, so every step would need a pod restart. Rotate with files in a private
+directory, so tokens never appear in command lines. Recreating the Secret replaces both keys,
+so copy the deployed policy first:
 
 ```bash
 umask 077
 namespace=spark-system
-secret=spark-remote-submission
+secret=spark-api-remote
 kubectl get secret "$secret" --namespace "$namespace" --output jsonpath='{.data.token}' \
   | base64 --decode > current-token
 kubectl get secret "$secret" --namespace "$namespace" --output jsonpath='{.data.policy\.json}' \
@@ -349,7 +336,7 @@ kubectl create secret generic "$secret" --namespace "$namespace" \
 The kubelet projects Secret updates into running pods after its sync period, typically within a
 minute or two. Before step 2, confirm that each API pod sees the new file by comparing a
 checksum rather than printing tokens; for example, run
-`kubectl exec --namespace "$namespace" <api-pod> -- sha256sum /run/spark-on-k8s/remote/token`
+`kubectl exec --namespace "$namespace" <api-pod> -- sha256sum /etc/spark-on-k8s/remote/token`
 for every pod and compare it with the checksum of `overlap-token`. A worker checks the files at
 the first request it handles once `SPARK_ON_K8S_SUBMISSION_RELOAD_INTERVAL` seconds have passed
 since its previous check, and logs the number of accepted tokens when it applies the change. An

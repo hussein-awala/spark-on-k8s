@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from starlette.responses import JSONResponse
 
+from spark_on_k8s.api.audit import note
 from spark_on_k8s.api.submission_policy import get_submission_settings
 from spark_on_k8s.api.utils import error_body
 
@@ -27,6 +28,7 @@ class RemoteAccessMiddleware:
             values = [value for key, value in scope["headers"] if key.lower() == b"authorization"]
             scheme, _, credential = values[0].partition(b" ") if len(values) == 1 else (b"", b"", b"")
             if scheme.lower() != b"bearer" or not settings.accepts(credential):
+                note(code="unauthorized")
                 if scope["type"] == "websocket":
                     await send({"type": "websocket.close", "code": 1008})
                 else:

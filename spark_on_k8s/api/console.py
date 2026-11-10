@@ -9,6 +9,7 @@ from kubernetes_asyncio import client as k8s
 from pydantic import BaseModel, Field, TypeAdapter, ValidationError
 
 from spark_on_k8s.api import AsyncHttpClientSingleton, KubernetesClientSingleton, logger
+from spark_on_k8s.api.audit import count_kubernetes_error
 from spark_on_k8s.api.configuration import APIConfiguration
 from spark_on_k8s.api.namespace_scope import namespace_scope
 from spark_on_k8s.utils.console_models import (
@@ -76,6 +77,7 @@ def _application_from_pod(pod: k8s.V1Pod, namespace: str) -> ConsoleApplication:
 
 
 def _kubernetes_error(error: k8s.ApiException) -> HTTPException:
+    count_kubernetes_error(error)
     messages = {
         403: "Access to the requested Kubernetes resources is forbidden.",
         404: "The requested Kubernetes resource was not found.",

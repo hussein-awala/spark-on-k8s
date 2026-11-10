@@ -39,7 +39,9 @@ HA storage. Back up the database with SQLite's backup facility or during a clean
 only the main file while WAL writes are active can omit committed records. Keep the directory private
 to the API process and back up the database according to your operational needs.
 
-The store initializes schema version 1 transactionally and refuses an unknown future version.
+The store initializes schema version 1 transactionally and refuses an unknown future version. A
+version 1 database without the nullable collection failure-category column gains it on startup;
+builds that predate the column ignore it.
 Configuration objects and credential source fields are not collected into the database. A missing/unwritable directory or an
 invalid configuration prevents recorder startup; the API does not silently fall back to ephemeral
 storage.
@@ -100,7 +102,8 @@ API traffic; use namespaces and quotas that match the deployment's scale.
 
 ## Read-only HTTP API
 
-`GET /runs/v1/config` returns enabled namespaces and retention settings. `GET /runs/v1` returns
+`GET /runs/v1/config` returns enabled namespaces, retention settings and the
+[collection status](#collection-status-and-logs) of each namespace. `GET /runs/v1` returns
 `{schema_version: 1, items: [...], next_cursor: string | null}`. Each item contains:
 
 ```json
@@ -134,26 +137,92 @@ as other API routes. The recorder does not introduce tenant-specific permissions
 
 `/health` remains a lightweight liveness probe. `GET` and `HEAD /ready` check actual pod-list access in
 the configured namespaces, with a five-second overall deadline. Without history, readiness checks the
-API's default namespace. With history, the recorder must also be initialized and have a recent
-successful snapshot for every configured namespace. The freshness window is twice the poll interval
-plus the collection timeout and ten seconds. Until the first successful scan, readiness is 503.
+API's default namespace and fails when that listing fails.
 
-Both probes remain accessible without a bearer in remote mode. Readiness returns only
-`{"status":"ready"}` or `{"status":"not_ready"}` and does not expose namespace, database or credential
-errors. Failed readiness removes the pod from service traffic; liveness does not restart it merely
-because Kubernetes is temporarily unavailable.
+With history, readiness also requires an initialized, readable recorder database. A namespace is
+*fresh* when its last successful snapshot is within the freshness window: twice the poll interval plus
+the collection timeout and ten seconds (85 seconds with the defaults). Set
+`SPARK_ON_K8S_RUN_HISTORY_READINESS` to choose how stale namespaces affect readiness:
+
+| Mode | `/ready` result |
+| --- | --- |
+| `degraded` (default) | 503 when the database is unavailable, pod listing fails in every configured namespace, or no namespace is fresh. Otherwise 200, reporting `degraded` while any namespace is stale. |
+| `strict` | 503 unless pod listing succeeds and collection is fresh in every configured namespace. |
+
+In `degraded` mode, one namespace that the recorder cannot collect, for example because its pod-list
+permission was removed, the Kubernetes API throttles it, or it exceeds the page limit, no longer
+removes the API from its Service. Submissions, application views and the other namespaces keep
+working while the stale namespace is reported in logs, metrics and the console. A pod-list failure in
+only some namespaces is tolerated until it makes their collection stale. With one configured namespace,
+both modes behave the same. After startup, readiness is 503 until a snapshot succeeds in at least one
+namespace (`degraded`) or in every namespace (`strict`). Use `strict` when the API should receive
+traffic only while history is current for every namespace.
+
+Both probes remain accessible without a bearer in remote mode, so their bodies are limited to
+`{"status":"ready"}`, `{"status":"degraded"}` (both 200) or `{"status":"not_ready"}` (503). They do not
+expose namespace, database or credential errors; the authorized configuration endpoint and logs below
+identify stale namespaces. Failed readiness removes the pod from service traffic; liveness does not
+restart it merely because Kubernetes is temporarily unavailable.
+
+### Collection status and logs
+
+`GET /runs/v1/config` also returns `readiness`, `freshness_seconds` and one `collection` entry for each
+configured namespace:
+
+```json
+{
+  "namespace": "batch",
+  "fresh": false,
+  "last_success": "2026-11-07T12:00:15Z",
+  "last_attempt": "2026-11-07T12:09:45Z",
+  "last_error": "forbidden"
+}
+```
+
+`last_success` is null before the first successful collection and `last_attempt` before the first
+attempt. `last_error` is null after a successful collection; otherwise it is a fixed category of the
+latest failure: `unauthorized`,
+`forbidden`, `not_found`, `throttled`, `server_error`, `api_error` (another Kubernetes status),
+`timeout`, `connection`, `pagination` (an expired or repeated continuation token), `page_limit` (more
+driver pods than `PAGE_SIZE` × `MAX_PAGES`), `invalid_metadata`, `store` or `unexpected`. Kubernetes
+and database error messages are never stored, returned or logged. The console's **Recorded runs** page
+shows a notice when the selected namespace is stale.
+
+The worker that holds the collection lease logs a warning when a namespace becomes stale, with the age
+of its last success and its last error category, and an info line when it is fresh again. The category
+is `not_attempted` when the collection budget expired before the namespace was reached. Each API worker
+also logs its own readiness changes with their reason, including the not-ready state it observes
+before the first snapshot after startup. These lines are written once per transition, not on every
+probe or collection:
+
+```text
+WARNING:  Run-history collection for namespace batch is stale: last success 412s ago; last error: forbidden
+WARNING:  API is ready but degraded: run-history collection is stale in batch (last error: forbidden)
+INFO:     Run-history collection for namespace batch is fresh again
+INFO:     API readiness recovered
+```
+
+`spark-on-k8s api start` writes these records with the server's log format and `--log-level`
+(`SPARK_ON_K8S_API_LOG_LEVEL`). The `warning` level omits the recovery lines.
+
+### Prometheus metrics
 
 Set `SPARK_ON_K8S_METRICS_ENABLED=true` to expose `/metrics` in Prometheus text format. It remains protected
 by the remote operator bearer when remote mode is enabled. Configure the scraper's authorization
-through its secret mechanism; do not place a token in a scrape URL. Metrics include:
+through its secret mechanism; do not place a token in a scrape URL. The endpoint also serves the API's
+[operation counters](operations.md#operation-metrics). Run-history metrics include:
 
 - `spark_on_k8s_history_enabled`;
 - `spark_on_k8s_runs_recorded{namespace,status}`;
 - `spark_on_k8s_collection_successes_total{namespace}` and `spark_on_k8s_collection_failures_total{namespace}`;
-- `spark_on_k8s_collection_age_seconds{namespace}` (`-1` before any successful collection).
+- `spark_on_k8s_collection_age_seconds{namespace}` (`-1` before any successful collection);
+- `spark_on_k8s_collection_stale{namespace}` (`1` when the namespace has no successful collection within
+  the freshness window, including before its first collection; otherwise `0`).
 
 Labels contain only configured namespaces and five bounded status values. No application IDs, pod
 names, images or exception text appear in metric labels. Counters persist with the SQLite database.
+For example, alert on `spark_on_k8s_collection_stale == 1` to find a stale namespace while the
+`degraded` readiness mode keeps the API in service.
 
 ## Helm configuration
 
@@ -182,5 +251,13 @@ compete for the claim. Its default `fsGroup: 10001` gives the non-root API write
 that support `fsGroup`; see [non-root deployment](chart-deployments.md#run-the-api-as-a-non-root-user)
 for a claim written by an earlier root process. Existing environment overrides remain supported. Make
 sure history namespaces also have the pod-list permissions configured by `namespaces` or an externally
-managed service account.
+managed service account. To require every history namespace to be fresh for readiness, set the mode
+through `env`:
+
+```yaml
+env:
+  - name: SPARK_ON_K8S_RUN_HISTORY_READINESS
+    value: strict
+```
+
 The separately configured `sparkHistory` chart section still refers to Spark History Server event logs.

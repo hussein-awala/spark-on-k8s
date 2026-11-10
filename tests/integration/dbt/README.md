@@ -36,9 +36,14 @@ The caller needs namespace/RBAC creation rights; the Spark service account only
 receives namespaced Pod, Service, and ConfigMap permissions. Every fixture endpoint
 is private; the managed wrapper owns its loopback tunnel.
 
+Before its first invocation, each transport runs `spark-on-k8s-dbt check --output json`
+against the generated profile. Every check must pass, and the runner then verifies
+that no compute or other unexpected resource exists in the fixture namespace.
+
 Each transport uses two dbt threads and checks separate invocations of:
 
-1. Seed, followed by a 13-node build (seed, four models, eight data tests).
+1. Seed, followed by a 13-node build (seed, four models, eight data tests). The
+   seed log must contain the server-ready and compute-deleted progress lines.
 2. A persisted-table SQL assertion from a newly provisioned driver.
 3. `dbt docs generate`, including catalog collection after compilation.
 4. A separate Python model project targeting an existing table, which must fail

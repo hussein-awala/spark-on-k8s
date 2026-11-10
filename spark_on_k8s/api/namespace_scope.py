@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 
 from fastapi import HTTPException
 
+from spark_on_k8s.api.audit import note
 from spark_on_k8s.api.configuration import APIConfiguration
 from spark_on_k8s.utils.configuration import Configuration
 
@@ -60,6 +61,7 @@ class NamespaceScope:
 
     def require(self, namespace: str) -> str:
         """Reject a request target before any Kubernetes call or Spark UI connection."""
+        note(namespace=namespace)
         if not self.allows(namespace):
             raise HTTPException(
                 403,

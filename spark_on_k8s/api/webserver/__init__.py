@@ -18,6 +18,7 @@ from starlette.templating import Jinja2Templates
 
 from spark_on_k8s import __version__
 from spark_on_k8s.api import AsyncHttpClientSingleton, KubernetesClientSingleton, logger
+from spark_on_k8s.api.audit import count_kubernetes_error, note
 from spark_on_k8s.api.configuration import APIConfiguration
 from spark_on_k8s.api.namespace_scope import namespace_scope
 from spark_on_k8s.api.run_history import get_history_settings
@@ -206,6 +207,7 @@ def handle_k8s_errors(func):
         try:
             return await func(*args, request=request, **kwargs)
         except ApiException as e:
+            count_kubernetes_error(e)
             title = f"{e.status} {e.reason}"
             message = e.body
             return templates.TemplateResponse(
@@ -324,6 +326,7 @@ async def app_logs_websocket(
         await websocket.close(code=1008, reason="Browser origin is not permitted.")
         return
     if not namespace_scope().allows(namespace):
+        note(code="namespace_forbidden")
         await websocket.close(code=1008, reason="The namespace is outside this API's namespace scope.")
         return
     await websocket.accept()
@@ -354,6 +357,7 @@ async def app_logs_websocket(
     except WebSocketDisconnect:
         return
     except ApiException as error:
+        count_kubernetes_error(error)
         code = 1008 if error.status in (403, 404) else 1011
         reason = "Driver logs are unavailable."
     except ValueError:

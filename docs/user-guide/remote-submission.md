@@ -183,7 +183,9 @@ Authentication failures return 401, admission denials 403, disabled routes 404, 
 idempotency or invalid JSON 400, bodies not received within the deadline 408, oversized bodies 413,
 unsupported content types 415, and invalid job schemas 422. Kubernetes conflicts return 409; other
 Kubernetes failures return 502, and unexpected server failures 500. Errors contain a stable code
-and a human-readable message, never the Kubernetes response body.
+and a human-readable message, never the Kubernetes response body. Every response carries an
+`X-Request-ID` header. The API's [audit events](operations.md#audit-events-and-metrics) record each
+plan and submission with that ID, its outcome and, once admitted, the generated run identity.
 
 Admission limits apply to each submitted job. They do not reserve shared capacity
 or account for concurrent accepted jobs. Enforce aggregate resources with

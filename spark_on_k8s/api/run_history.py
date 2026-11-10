@@ -11,6 +11,7 @@ from kubernetes_asyncio.client import CoreV1Api
 from starlette.responses import JSONResponse, Response
 
 from spark_on_k8s.api import KubernetesClientSingleton
+from spark_on_k8s.api.audit import metric_lines
 from spark_on_k8s.api.namespace_scope import namespace_scope
 from spark_on_k8s.history.collector import RunCollector, error_category
 from spark_on_k8s.history.settings import HistorySettings
@@ -216,6 +217,7 @@ async def metrics():
         "# HELP spark_on_k8s_history_enabled Whether optional operational history is configured.\n"
         "# TYPE spark_on_k8s_history_enabled gauge",
         f"spark_on_k8s_history_enabled {int(settings.enabled)}",
+        *metric_lines(),
     ]
     if settings.enabled:
         try:

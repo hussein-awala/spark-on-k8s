@@ -209,7 +209,8 @@ INFO:     API readiness recovered
 
 Set `SPARK_ON_K8S_METRICS_ENABLED=true` to expose `/metrics` in Prometheus text format. It remains protected
 by the remote operator bearer when remote mode is enabled. Configure the scraper's authorization
-through its secret mechanism; do not place a token in a scrape URL. Metrics include:
+through its secret mechanism; do not place a token in a scrape URL. The endpoint also serves the API's
+[operation counters](operations.md#operation-metrics). Run-history metrics include:
 
 - `spark_on_k8s_history_enabled`;
 - `spark_on_k8s_runs_recorded{namespace,status}`;

@@ -15,7 +15,7 @@ installed release for its available features and tested versions.
 | Job files and plans | Documented schema/version and merge behavior in [job files](jobs.md) | A GitOps reconciler, scheduler or proof of cluster admission |
 | Experimental dbt | Separate managed-command adapter for pinned dbt Core/dbt-spark and Spark 4.3 SQL workloads | Stable adapter API, Python models, dbt Fusion/Cloud/v2, automatic cluster/catalog deployment or hard-kill cleanup |
 | Airflow | Documented operators, connection behavior, provider discovery and supported task UI integration | A replacement scheduler, identity system or indefinite support for every Airflow generation |
-| API and UI | Documented routes/configuration and shared console behavior | User/tenant isolation from a shared operator token; see [remote submission](remote-submission.md) |
+| API and UI | Documented routes/configuration, shared console behavior and the versioned [audit event](operations.md#audit-events-and-metrics) schema | User/tenant isolation from a shared operator token, see [remote submission](remote-submission.md); a durable or tamper-evident audit store |
 | History | Bounded metadata, readiness and recorder metrics as documented in [run history](run-history.md) | Durable Spark logs, audit certification, HA database or submission transaction authority |
 | Examples | The explicit assertions and runtime combinations attached to each example | Certification of every cloud, connector, storage backend or application outcome |
 

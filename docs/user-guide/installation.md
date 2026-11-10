@@ -20,6 +20,7 @@ Then choose one of these installations:
 
 ```bash
 python -m pip install spark-on-k8s # Python client, CLI and helpers
+python -m pip install "spark-on-k8s[sql]" # Also submit SQL files without Airflow
 python -m pip install "spark-on-k8s[api]" # Also install the REST API and web UI
 python -m pip install "spark-on-k8s[airflow]" # Also install the Airflow integration
 ```

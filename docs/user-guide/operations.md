@@ -54,15 +54,15 @@ evidence above first. Active drivers are only selected with `--include-active`.
 The SQLite history store is an operational index, not a job queue or durable
 source of submission truth. Restrict database and backup access because labels
 and operational metadata may be sensitive. A live database may use WAL files;
-copying only the `.sqlite` file while it is being written is not a safe backup.
+copying only the `.sqlite3` file while it is being written is not a safe backup.
 Use SQLite's online backup API (or stop all writers before a filesystem copy):
 
 ```python
 import sqlite3
 from pathlib import Path
 
-source = Path("/var/lib/spark-on-k8s/history.sqlite").resolve()
-backup = Path("/secure-backups/history.sqlite").resolve()
+source = Path("/var/lib/spark-on-k8s/runs.sqlite3").resolve()
+backup = Path("/secure-backups/runs.sqlite3").resolve()
 with sqlite3.connect(source.as_uri() + "?mode=ro", uri=True) as original:
     with sqlite3.connect(backup) as target:
         original.backup(target)

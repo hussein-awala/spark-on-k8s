@@ -29,7 +29,7 @@ rules in the linked guides before automating retries or cleanup.
 | Connect to an existing Spark Connect endpoint | [`ConnectProfile`](spark_on_k8s/connect.md#spark_on_k8s.connect.ConnectProfile) from `spark_on_k8s.connect` | [Spark Connect](../user-guide/spark_connect.md) |
 | Create a private Spark Connect server | [`ConnectServerConfig`](spark_on_k8s/connect_server.md#spark_on_k8s.connect_server.ConnectServerConfig) and [`ConnectServerHandle`](spark_on_k8s/connect_server.md#spark_on_k8s.connect_server.ConnectServerHandle) from `spark_on_k8s.connect_server` | [Server lifecycle](../user-guide/spark_connect_server.md) |
 
-SQL submission uses the client's `submit_sql()` and `plan_sql()` methods or the
+SQL submission uses the client's `submit_sql()` method or the
 Airflow operator's `sql` / `sql_file` options. See [SQL jobs](../user-guide/sql.md)
 for the required extra and execution behavior.
 

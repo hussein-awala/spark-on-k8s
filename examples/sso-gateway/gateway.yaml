@@ -37,7 +37,7 @@ data:
           emailClaim: email
           groupsClaim: groups
           insecureSkipNonce: false
-    # No injectRequestHeaders: the API reads no identity headers, so none are sent upstream.
+    # No injectRequestHeaders: the API authorizes nothing per user, so none are sent upstream.
 ---
 apiVersion: apps/v1
 kind: Deployment

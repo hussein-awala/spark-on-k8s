@@ -435,8 +435,11 @@ Set `metrics.serviceMonitor.labels` to match your Prometheus
 Prometheus defaults. The API and History Server Services share the chart's
 selector labels, so the ServiceMonitor keeps only the API Service's targets by
 name. With `networkPolicy.enabled`, also list Prometheus in
-`networkPolicy.ingress.from`. Metric values come from the run-history database, so
-every API worker reports the same values.
+`networkPolicy.ingress.from`. Run-history metric values come from the run-history
+database, so every API worker reports the same values. The
+[operation counters](operations.md#operation-metrics) are kept by each worker
+instead, and each scrape reaches one worker: set `workers: 1` before alerting on
+them.
 
 With `remote.enabled`, `/metrics` requires the operator bearer token, and the
 ServiceMonitor authenticates with the `remote.tokenKey` entry of
@@ -445,6 +448,13 @@ configuration of every Prometheus instance that selects the ServiceMonitor. The
 token grants full operator access to the API, including submissions, logs, kill
 and delete: restrict access to that Prometheus configuration accordingly, or do
 not enable the ServiceMonitor in remote mode.
+
+Prometheus sends that Secret entry as the bearer token byte for byte, while the API
+trims whitespace and accepts one token per line. The entry must therefore hold
+exactly one token with no trailing newline, or every scrape fails. During a
+[token rotation](remote-submission.md#rotate-the-token) the entry holds two tokens,
+so scrapes fail from step 1 until step 3 reaches the pods: expect a gap in these
+metrics and pause alerts on failed scrapes for that time.
 
 ### Set the API worker count
 

@@ -864,7 +864,8 @@ _APPLICATION_FIELDS = {
     ),
     "timeToLiveSeconds": _unsupported(
         "No controller deletes finished applications.",
-        "Delete finished drivers with `spark-on-k8s app delete` or a cleanup policy you own; executors, "
+        "Run `spark-on-k8s apps prune --delete --older-than SECONDS` on a schedule you own, or "
+        "`spark-on-k8s app delete`; prune ages count from pod creation, not completion. Executors, "
         "the driver Service and client-created ConfigMaps are owned by the driver pod.",
     ),
     "sparkUIOptions": _unsupported(*_UI),

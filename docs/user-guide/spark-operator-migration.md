@@ -21,7 +21,7 @@ afterwards.
 | Retries | `restartPolicy` resubmits | The caller retries; each retry is a new submission ([automation](automation.md)) |
 | Schedules | `ScheduledSparkApplication` | A [Kubernetes CronJob](recipes.md#schedule-with-a-kubernetes-cronjob) or [Airflow](airflow.md) |
 | Spark UI | Operator-created Service or Ingress | `ui_reverse_proxy: true` with the API's [Spark UI proxy](getting_started.md#rest-api), or `kubectl port-forward` |
-| Cleanup | `timeToLiveSeconds` | `spark-on-k8s app delete` or a cleanup policy you own; the driver pod owns executors and client-created objects |
+| Cleanup | `timeToLiveSeconds` | [`apps prune`](automation.md#prune-finished-or-orphaned-drivers) on a schedule you own, or `app delete`; prune ages count from pod creation, not completion; the driver pod owns executors and client-created objects |
 | Driver pod shape | Operator webhook or pod template | [Driver pod templates](driver_pod_templates.md) and job-file fields |
 
 Keep the operator for workloads that depend on controller behavior, such as

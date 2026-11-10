@@ -68,7 +68,7 @@
   <meta name="documentation-channel" content="develop">
   <meta name="documentation-version" content="develop">
   
-    <meta name="documentation-source" content="51d99d1664be7880da9c307e2de85011e1678c4d">
+    <meta name="documentation-source" content="491ad0936c436c5cbde9003ee5aeaadbc514ccf6">
   
 
   </head>
@@ -108,7 +108,7 @@
     <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
   
   
-    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/51d99d1664be7880da9c307e2de85011e1678c4d"><code>51d99d1664be</code></a>.
+    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/491ad0936c436c5cbde9003ee5aeaadbc514ccf6"><code>491ad0936c43</code></a>.
   
 
           </div>
@@ -1588,6 +1588,67 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#audit-events-and-metrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Audit events and metrics
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Audit events and metrics">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#configure-the-audit-log" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configure the audit log
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#event-schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Event schema
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#limits-of-the-audit-log" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Limits of the audit log
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#operation-metrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Operation metrics
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#authorization-review-matrix" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2738,6 +2799,8 @@
       
         
       
+        
+      
     
     
     
@@ -2835,6 +2898,34 @@
     
   
     apps
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/api/audit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    audit
   
 
     
@@ -5195,6 +5286,67 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#audit-events-and-metrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Audit events and metrics
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Audit events and metrics">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#configure-the-audit-log" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configure the audit log
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#event-schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Event schema
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#limits-of-the-audit-log" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Limits of the audit log
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#operation-metrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Operation metrics
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#authorization-review-matrix" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5295,6 +5447,194 @@ silently translate unknown Spark Operator semantics. OpenLineage reports and
 Airflow run correlation are optional evidence, not proof that every data write
 committed. Deployment examples do not establish arbitrary multi-cloud or
 multi-tenant isolation guarantees.</p>
+<h2 id="audit-events-and-metrics">Audit events and metrics<a class="headerlink" href="#audit-events-and-metrics" title="Permanent link">&para;</a></h2>
+<p>The API writes one structured audit event for each remote plan or submit, kill and
+delete request, and for each request refused by bearer authentication or the
+<a href="../../security-boundaries/#namespace-scope">namespace scope</a>. An event identifies a
+request: its route, target, outcome and the address it came from. It does not
+identify a person. The API has no user identity, and the shared operator bearer is
+the same for every caller. <a href="../run-history/">Run history</a> is a polled metadata index
+and is not an audit trail either.</p>
+<p>Every HTTP response carries an <code>X-Request-ID</code> header with a new random ID generated by
+the server. The API ignores an <code>X-Request-ID</code> sent by the client. To correlate with
+gateway logs, have the gateway log the upstream response header.</p>
+<h3 id="configure-the-audit-log">Configure the audit log<a class="headerlink" href="#configure-the-audit-log" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Default</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SPARK_ON_K8S_AUDIT_LOG_ENABLED</code></td>
+<td><code>true</code></td>
+<td>Write audit events to the <code>spark_on_k8s.audit</code> logger; <code>true</code> or <code>false</code>.</td>
+</tr>
+<tr>
+<td><code>SPARK_ON_K8S_AUDIT_IDENTITY_HEADER</code></td>
+<td>empty</td>
+<td>A request header that a trusted gateway sets, such as <code>X-Auth-Request-User</code>, recorded as <code>unverified_identity</code>.</td>
+</tr>
+</tbody>
+</table>
+<p>The log is enabled by default, because an event has to be recorded before you need
+it. Events are written only for the audited operations and for refusals, so each
+refusal adds one line next to the access-log line the server already writes for it.
+Invalid values prevent startup. Credential headers such as <code>Authorization</code> and <code>Cookie</code> cannot be used as the
+identity header.</p>
+<p><code>spark-on-k8s api start</code> writes each event to stdout as one JSON object per line. Each
+worker process writes its own events. Unlike the server's other logs, these lines do
+not depend on <code>--log-level</code>. If the deployment already configures logging handlers
+for <code>spark_on_k8s.audit</code> or its parent loggers, for example when another server
+embeds the application, the API sends the events to those handlers instead.</p>
+<h3 id="event-schema">Event schema<a class="headerlink" href="#event-schema" title="Permanent link">&para;</a></h3>
+<p>Events have <code>audit_version: 1</code>. A compatible version can add fields. A change to or
+removal of an existing field increments the version.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>time</code></td>
+<td>UTC time, to the millisecond, when the request finished.</td>
+</tr>
+<tr>
+<td><code>event</code></td>
+<td><code>job.plan</code>, <code>job.submit</code>, <code>app.kill</code>, <code>app.delete</code>, or <code>access</code> for a refused request to any other route.</td>
+</tr>
+<tr>
+<td><code>outcome</code></td>
+<td><code>succeeded</code>, <code>denied</code>, <code>rejected</code>, <code>failed</code> or <code>unknown</code>; see below.</td>
+</tr>
+<tr>
+<td><code>code</code></td>
+<td><code>ok</code>, or the <code>error.code</code> from the response's <a href="../remote-submission/#http-contract-and-retry-safety">error body</a>.</td>
+</tr>
+<tr>
+<td><code>status</code></td>
+<td>The HTTP status. A refused WebSocket handshake is recorded as <code>403</code>.</td>
+</tr>
+<tr>
+<td><code>request_id</code></td>
+<td>The value of the <code>X-Request-ID</code> response header.</td>
+</tr>
+<tr>
+<td><code>method</code></td>
+<td>The HTTP method, or <code>WEBSOCKET</code>.</td>
+</tr>
+<tr>
+<td><code>route</code></td>
+<td>The route template, such as <code>/app/{namespace}/{app_id}</code>, never the raw path or query string. Authentication happens before routing, so a request it refuses has a <code>null</code> route unless it targets an audited operation.</td>
+</tr>
+<tr>
+<td><code>client</code></td>
+<td>The client address that the ASGI server reports; see the limits below.</td>
+</tr>
+<tr>
+<td><code>unverified_identity</code></td>
+<td>The configured gateway header, if the request has exactly one; otherwise <code>null</code>.</td>
+</tr>
+<tr>
+<td><code>namespace</code>, <code>app_id</code>, <code>driver_pod</code>, <code>driver_uid</code></td>
+<td>The target, when known; otherwise <code>null</code>.</td>
+</tr>
+</tbody>
+</table>
+<p>Outcomes describe what the API did, not what the Spark application did:</p>
+<ul>
+<li><code>succeeded</code>: the API completed the request. A submission created the driver
+  resources and a kill sent the termination signal. Neither means the Spark work
+  succeeded.</li>
+<li><code>denied</code>: HTTP 401 or 403. The request was refused by authentication, the
+  namespace scope or the submission policy, or Kubernetes RBAC refused the API's
+  service account (code <code>forbidden</code>).</li>
+<li><code>rejected</code>: another 4xx response, such as <code>invalid_job</code>,
+  <code>application_not_found</code> or <code>application_state</code>. The API changed nothing.</li>
+<li><code>failed</code>: a server error during a plan, which creates nothing.</li>
+<li><code>unknown</code>: a server or Kubernetes failure during a submit, kill or delete. The
+  resources may have been created, signalled or deleted anyway. An uncertain result
+  does not mean nothing happened: inspect the recorded run before retrying.</li>
+</ul>
+<p>After a submission is admitted, its event records the generated <code>namespace</code>,
+<code>app_id</code> and <code>driver_pod</code>, even if Kubernetes fails afterwards. It records
+<code>driver_uid</code> once the driver pod exists. For denied or invalid documents, these
+fields are <code>null</code>. A plan records only its namespace, because the identity in a plan
+is illustrative and no run exists. Kill and delete events record the target from
+the request path. <code>access</code> events record the refused namespace and any application
+identifiers in the path.</p>
+<div class="highlight"><pre><span></span><code>{"audit_version":1,"time":"2026-11-09T10:15:02.418Z","event":"job.submit","outcome":"succeeded","code":"ok","status":201,"request_id":"6f1c2a9e0b5d4e7f8a3b2c1d0e9f8a7b","method":"POST","route":"/jobs/v1/submit","client":"10.42.0.17","unverified_identity":"alice@example.com","namespace":"analytics","app_id":"report-0123456789abcdef0123456789abcdef","driver_pod":"report-0123456789abcdef0123456789abcdef-driver","driver_uid":"5bdceeb0-7fa8-4f72-823b-80f26e6195c4"}
+{"audit_version":1,"time":"2026-11-09T10:16:40.007Z","event":"app.kill","outcome":"unknown","code":"internal_error","status":500,"request_id":"0d8e4f1a2b3c4d5e6f708192a3b4c5d6","method":"PATCH","route":"/app/{namespace}/{app_id}","client":"10.42.0.17","unverified_identity":null,"namespace":"analytics","app_id":"report-0123456789abcdef0123456789abcdef","driver_pod":null,"driver_uid":null}
+{"audit_version":1,"time":"2026-11-09T10:17:11.250Z","event":"access","outcome":"denied","code":"namespace_forbidden","status":403,"request_id":"9a8b7c6d5e4f40312a1b0c9d8e7f6a5b","method":"GET","route":"/webserver/ui/{path:path}","client":"10.42.0.17","unverified_identity":null,"namespace":"kube-system","app_id":null,"driver_pod":null,"driver_uid":null}
+{"audit_version":1,"time":"2026-11-09T10:18:30.912Z","event":"access","outcome":"denied","code":"unauthorized","status":401,"request_id":"47c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5","method":"GET","route":null,"client":"10.42.0.9","unverified_identity":null,"namespace":null,"app_id":null,"driver_pod":null,"driver_uid":null}
+</code></pre></div>
+<p>Events never include these values: authorization or cookie headers, bearer tokens,
+query strings, request or response bodies, job documents (including arguments,
+images and Spark configuration), Kubernetes response bodies, or exception text.
+Names in the target fields come from the workload or the request and can themselves
+be sensitive. Restrict access to these logs as you would for other API logs.</p>
+<h3 id="limits-of-the-audit-log">Limits of the audit log<a class="headerlink" href="#limits-of-the-audit-log" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Logs are the only transport.</strong> Collecting the logs, sending them off the node,
+  retaining them, controlling access and protecting their integrity are the job of
+  your log pipeline. Events are written as each request finishes. They can be lost
+  if the process stops or the node fails before collection. The log is not
+  tamper-evident and is not a durable audit store. A failure to write the log does
+  not fail the request.</li>
+<li><strong>The client address is the network peer.</strong> <code>client</code> is the address the ASGI
+  server reports. Behind a gateway or ingress, this is usually the gateway's address.
+  The server reports another address only when its trusted-proxy setting accepts
+  <code>X-Forwarded-For</code> from that peer. Uvicorn, which <code>spark-on-k8s api start</code> runs,
+  accepts these headers only from the addresses in <code>FORWARDED_ALLOW_IPS</code> (default
+  <code>127.0.0.1</code>). Keep that list limited to your gateways.</li>
+<li><strong>The gateway identity is not verified.</strong> The API records the configured header
+  but does not authenticate it. The value is meaningful only if the gateway
+  authenticates users, removes any copy of the header sent by the client, and the
+  backend cannot be reached except through the gateway. If the header appears more
+  than once, the API records <code>null</code>. Every bearer holder has the same permissions:
+  the recorded identity helps attribute a request, but does not authorize it.</li>
+<li><strong>Kubernetes sees the API.</strong> Kubernetes audit logs record the API's service
+  account as the actor. To find the matching API event, compare the time,
+  namespace and application ID.</li>
+<li>WebSocket handshakes and responses that the ASGI server writes itself, such as
+  its concurrency-limit 503, do not carry <code>X-Request-ID</code>.</li>
+</ul>
+<h3 id="operation-metrics">Operation metrics<a class="headerlink" href="#operation-metrics" title="Permanent link">&para;</a></h3>
+<p>When <a href="../run-history/#health-and-prometheus">metrics are enabled</a>
+(<code>SPARK_ON_K8S_METRICS_ENABLED=true</code>), <code>/metrics</code> also serves these counters:</p>
+<ul>
+<li><code>spark_on_k8s_api_audit_events_total{event,outcome,code}</code>: increases by one for
+  each audit event, including when the audit log is disabled.</li>
+<li><code>spark_on_k8s_api_kubernetes_errors_total{status_class}</code>: counts Kubernetes API
+  error responses (<code>4xx</code>, <code>5xx</code>, or <code>other</code> for a response without a usable status)
+  received while serving kill, delete, submit, console, log-stream and application
+  list requests. Readiness probes are not counted. The run-history collector reports
+  its own <code>spark_on_k8s_collection_failures_total</code>. Connection failures and
+  timeouts that return no Kubernetes response are not counted here. They appear as
+  <code>failed</code> or <code>unknown</code> outcomes.</li>
+</ul>
+<p>Label values come only from the fixed event and outcome names and the API's own
+error codes. Labels never contain a namespace, application ID, route or client. A
+namespace label would have no bound with the <code>*</code> scope, and refused namespaces are
+chosen by the caller, so any value in a request could create a new series. Use the
+audit log for per-namespace detail. A series appears after its first event.</p>
+<p>The counters are kept in the memory of each worker process and reset when that
+worker restarts. The API image runs four workers by default
+(<code>SPARK_ON_K8S_API_WORKERS</code>). Each scrape reaches one of them, so successive samples
+can come from different workers, and <code>rate()</code> can mistake the differences for
+counter resets. If you alert on these counters, run one worker per pod
+(<code>SPARK_ON_K8S_API_WORKERS=1</code>). Alternatively, count the audit lines in your log
+pipeline, which receives the events of every worker. For example, with one worker:</p>
+<div class="highlight"><pre><span></span><code><span class="k">sum</span><span class="w"> </span><span class="k">by</span><span class="w"> </span><span class="o">(</span><span class="nv">code</span><span class="o">)</span><span class="w"> </span><span class="o">(</span><span class="kr">increase</span><span class="o">(</span><span class="nv">spark_on_k8s_api_audit_events_total</span><span class="p">{</span><span class="nl">outcome</span><span class="o">=</span><span class="p">"</span><span class="s">denied</span><span class="p">"}[</span><span class="s">10m</span><span class="p">]</span><span class="o">))</span>
+<span class="kr">increase</span><span class="o">(</span><span class="nv">spark_on_k8s_api_audit_events_total</span><span class="p">{</span><span class="nl">event</span><span class="o">=</span><span class="p">"</span><span class="s">job.submit</span><span class="p">",</span><span class="nl">outcome</span><span class="o">=</span><span class="p">"</span><span class="s">unknown</span><span class="p">"}[</span><span class="s">15m</span><span class="p">]</span><span class="o">)</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span>
+<span class="kr">increase</span><span class="o">(</span><span class="nv">spark_on_k8s_api_kubernetes_errors_total</span><span class="p">{</span><span class="nl">status_class</span><span class="o">=</span><span class="p">"</span><span class="s">5xx</span><span class="p">"}[</span><span class="s">5m</span><span class="p">]</span><span class="o">)</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span>
+</code></pre></div>
 <h2 id="authorization-review-matrix">Authorization review matrix<a class="headerlink" href="#authorization-review-matrix" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -5368,7 +5708,7 @@ Spark job is tuned.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 7, 2026 23:37:11 UTC">November 7, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 10, 2026 09:23:51 UTC">November 10, 2026</span>
   </span>
 
     

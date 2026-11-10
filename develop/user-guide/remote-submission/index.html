@@ -68,7 +68,7 @@
   <meta name="documentation-channel" content="develop">
   <meta name="documentation-version" content="develop">
   
-    <meta name="documentation-source" content="51d99d1664be7880da9c307e2de85011e1678c4d">
+    <meta name="documentation-source" content="491ad0936c436c5cbde9003ee5aeaadbc514ccf6">
   
 
   </head>
@@ -108,7 +108,7 @@
     <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
   
   
-    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/51d99d1664be7880da9c307e2de85011e1678c4d"><code>51d99d1664be</code></a>.
+    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/491ad0936c436c5cbde9003ee5aeaadbc514ccf6"><code>491ad0936c43</code></a>.
   
 
           </div>
@@ -2737,6 +2737,8 @@
       
         
       
+        
+      
     
     
     
@@ -2834,6 +2836,34 @@
     
   
     apps
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/api/audit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    audit
   
 
     
@@ -5371,7 +5401,9 @@ available. In-memory deduplication would not be reliable across API workers or r
 idempotency or invalid JSON 400, bodies not received within the deadline 408, oversized bodies 413,
 unsupported content types 415, and invalid job schemas 422. Kubernetes conflicts return 409; other
 Kubernetes failures return 502, and unexpected server failures 500. Errors contain a stable code
-and a human-readable message, never the Kubernetes response body.</p>
+and a human-readable message, never the Kubernetes response body. Every response carries an
+<code>X-Request-ID</code> header. The API's <a href="../operations/#audit-events-and-metrics">audit events</a> record each
+plan and submission with that ID, its outcome and, once admitted, the generated run identity.</p>
 <p>Admission limits apply to each submitted job. They do not reserve shared capacity
 or account for concurrent accepted jobs. Enforce aggregate resources with
 Kubernetes ResourceQuota or your external admission system. A policy rejection,
@@ -5400,7 +5432,7 @@ trust boundaries where independent authorization is required.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 8, 2026 23:15:41 UTC">November 8, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 10, 2026 09:23:51 UTC">November 10, 2026</span>
   </span>
 
     

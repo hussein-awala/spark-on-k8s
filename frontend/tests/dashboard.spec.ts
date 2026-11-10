@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page, type Route } from "@playwright/test";
 import { application, archiveApp, demoApps } from "./data";
 
 async function history(page: Page, items = [archiveApp]) {
@@ -162,6 +162,36 @@ test("live errors can be retried and history errors do not hide live workloads",
   await expect(
     page.getByText("History server timed out", { exact: false }),
   ).toHaveCount(0);
+});
+
+test("a history listing slower than the refresh interval still completes", async ({
+  page,
+}) => {
+  await page.clock.install();
+  let appRequests = 0;
+  const held: Route[] = [];
+  await page.route(/\/webserver\/api\/apps\?/, (route) => {
+    appRequests += 1;
+    return route.fulfill({
+      json: { items: [application()], next_cursor: null },
+    });
+  });
+  await page.route("**/webserver/api/history", (route) => {
+    held.push(route);
+  });
+  await page.goto("/tests/fixture.html?refresh=1");
+  await expect(
+    page.getByRole("button", { name: "Daily revenue report", exact: true }),
+  ).toBeVisible();
+  await expect.poll(() => held.length).toBe(1);
+  // An automatic refresh happens while the first listing is still in flight.
+  const before = appRequests;
+  await page.clock.fastForward(1000);
+  await expect.poll(() => appRequests).toBeGreaterThan(before);
+  await held[0].fulfill({ json: { items: [archiveApp] } }).catch(() => {});
+  await expect(
+    page.getByRole("button", { name: "Weekly archive", exact: true }),
+  ).toBeVisible();
 });
 
 test("a server namespace scope offers only its namespaces", async ({
@@ -335,6 +365,59 @@ test("destructive actions confirm requests without claiming delayed deletion has
   await expect(
     page.getByRole("button", { name: "Daily revenue report", exact: true }),
   ).toHaveCount(0);
+});
+
+test("a repeated Escape cannot hide a pending confirmation or its failure", async ({
+  page,
+}) => {
+  let release: () => void = () => {};
+  const pending = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route(/\/webserver\/api\/apps\?/, (route) =>
+    route.fulfill({ json: { items: [application()], next_cursor: null } }),
+  );
+  await page.route("**/app/analytics/report-1", async (route) => {
+    await pending;
+    await route.fulfill({
+      status: 403,
+      json: {
+        schema_version: 1,
+        error: { code: "forbidden", message: "Deletion is not permitted" },
+      },
+    });
+  });
+  await page.goto("/tests/fixture.html?history=false");
+  await page
+    .getByRole("button", { name: "Daily revenue report", exact: true })
+    .click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Delete application", exact: true })
+    .click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Delete application", exact: true })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "Working…", exact: true }),
+  ).toBeDisabled();
+  // No assertion between the presses: a Playwright evaluation counts as a user
+  // gesture, and Chromium closes a modal dialog without a cancelable event only
+  // when Escape repeats with no other interaction in between.
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("Escape");
+  await expect(
+    page.getByRole("dialog", { name: "Delete this application?", exact: true }),
+  ).toBeVisible();
+  release();
+  await expect(page.getByRole("alert")).toContainText(
+    "Deletion is not permitted",
+  );
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(
+    page.getByRole("dialog", { name: "Daily revenue report", exact: true }),
+  ).toBeVisible();
 });
 
 test("unidentified pods and read-only configuration never expose management controls", async ({

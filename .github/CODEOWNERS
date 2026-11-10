@@ -43,6 +43,9 @@
 /tests/api/                             @hussein-awala
 /docs/user-guide/remote-submission.md   @hussein-awala
 /docs/security-boundaries.md            @hussein-awala
+/docs/user-guide/sso-gateway.md         @hussein-awala
+/examples/sso-gateway/                  @hussein-awala
+/tests/integration/sso_gateway/         @hussein-awala
 
 # Optional run history recorder.
 /spark_on_k8s/history/                  @hussein-awala
@@ -95,6 +98,7 @@
 # Release tooling, notes and runbook.
 /scripts/release_artifacts.py           @hussein-awala
 /scripts/release_eligibility.py         @hussein-awala
+/scripts/release_image.py               @hussein-awala
 /scripts/release_notes.py               @hussein-awala
 /scripts/chart_release.py               @hussein-awala
 /scripts/dbt_release.py                 @hussein-awala

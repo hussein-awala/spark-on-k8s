@@ -499,3 +499,47 @@ def test_cli_reports_an_undecodable_template_file_without_a_traceback(tmp_path, 
     else:
         assert result.stdout == ""
         assert result.stderr.startswith("Error: ")
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "2024-02-30",
+        "2024-13-01T00:00:00Z",
+        "0x_",
+        "0b_",
+        "9" * 5000,
+        "!!bool maybe",
+        "!!timestamp soon",
+        "[" * 3000 + "]" * 3000,
+    ],
+    ids=[
+        "date",
+        "timestamp",
+        "hexadecimal",
+        "binary",
+        "huge-integer",
+        "boolean-tag",
+        "timestamp-tag",
+        "nesting",
+    ],
+)
+@pytest.mark.parametrize("command", ["validate", "plan", "submit"])
+def test_cli_reports_values_pyyaml_cannot_construct_as_invalid_job_yaml(tmp_path, command, value):
+    # PyYAML resolves these plain scalars as dates or numbers, then fails with a non-YAML error.
+    file = tmp_path / "job.yaml"
+    file.write_text(yaml.safe_dump(definition()) + f"  app_arguments: [--run-date, {value}]\n")
+    with pytest.raises(JobValidationError, match="Invalid job YAML"):
+        JobSpec.from_file(file)
+    with patch("spark_on_k8s.k8s.sync_client.KubernetesClientManager.create_client") as connect:
+        result = CliRunner().invoke(job_cli, [command, str(file), "--output", "json"])
+        connect.assert_not_called()
+    assert isinstance(result.exception, SystemExit), repr(result.exception)
+    assert result.exit_code == 1
+    if command == "plan":
+        assert result.stdout == ""
+        assert result.stderr.startswith("Error: Invalid job YAML")
+    else:
+        report = json.loads(result.stdout)
+        assert report["error"]["code"] == ("invalid_job" if command == "validate" else "operation_error")
+        assert report["error"]["message"].startswith("Invalid job YAML")

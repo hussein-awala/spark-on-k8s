@@ -431,7 +431,11 @@ finally:
                 result = subprocess.run(
                     [
                         sys.executable,
-                        "-I",
+                        # As the Connect check: no working directory on sys.path, but the caller's
+                        # PYTHONPATH and user site, so the probe imports the client dbt imports.
+                        "-P",
+                        *(["-E"] if sys.flags.ignore_environment else []),
+                        *(["-s"] if sys.flags.no_user_site else []),
                         "-c",
                         probe,
                         host,

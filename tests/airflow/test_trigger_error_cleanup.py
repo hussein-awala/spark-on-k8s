@@ -183,3 +183,30 @@ def test_terminal_status_still_replays_logs_before_cleanup(status):
         mock.call.stream_logs(namespace="spark", pod_name="application-driver"),
         mock.call.delete_app(namespace="spark", pod_name="application-driver"),
     ]
+
+
+def test_trigger_reports_the_status_the_wait_ended_with_without_reading_it_again():
+    from kubernetes_asyncio.client import ApiException
+    from spark_on_k8s.airflow.triggers import SparkOnK8STrigger
+    from spark_on_k8s.utils.spark_app_status import SparkAppStatus
+
+    trigger = SparkOnK8STrigger(driver_pod_name="application-driver", namespace="spark")
+
+    async def collect():
+        return [event.payload async for event in trigger.run()]
+
+    # A second read could only fail transiently and turn a finished application into an error.
+    with (
+        mock.patch(
+            "spark_on_k8s.utils.async_app_manager.AsyncSparkAppManager.wait_for_app",
+            new=mock.AsyncMock(return_value=SparkAppStatus.Succeeded),
+        ),
+        mock.patch(
+            "spark_on_k8s.utils.async_app_manager.AsyncSparkAppManager.app_status",
+            new=mock.AsyncMock(side_effect=ApiException(status=503, reason="Service Unavailable")),
+        ) as app_status,
+    ):
+        events = asyncio.run(collect())
+
+    assert [event["status"] for event in events] == ["Succeeded"]
+    app_status.assert_not_called()

@@ -94,9 +94,11 @@ Spark 4 also changes SQL behavior, including ANSI mode by default.
 
 ## Kubernetes API errors end the wait
 
-- **What changed:** While a task waits, a Kubernetes API error other than 404 (for
-  example 401, 403, 429 or 5xx) is now raised. Once 0.12.x had read a status, it
-  ignored such errors and kept polling.
+- **What changed:** While a task waits, a Kubernetes API error other than 404 now
+  ends the wait. A definitive error, such as 401 or 403, ends it at once. Throttling
+  (429), server errors (5xx) and lost connections end it after five consecutive
+  failed status reads; between them the wait keeps polling at `poll_interval`. Once
+  0.12.x had read a status, it ignored every such error and kept polling.
 - **How you notice:**
     - Synchronous waiting: the task fails with the Kubernetes `ApiException`. No
       finish cleanup runs, so the application keeps running.
@@ -109,7 +111,7 @@ Spark 4 also changes SQL behavior, including ANSI mode by default.
 - **What to do:** Confirm that the worker and the triggerer each resolve the
   connection and can read driver Pods in the application namespace; see
   [permissions](airflow.md#separate-execution-and-task-tab-permissions). Set
-  Airflow `retries` for transient API failures. If a deferred task must never delete
+  Airflow `retries` for API outages longer than about four poll intervals. If a deferred task must never delete
   a possibly running application after an observation error, use
   `on_finish_action="keep"` and clean up separately.
 

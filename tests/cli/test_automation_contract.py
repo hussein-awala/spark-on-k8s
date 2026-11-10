@@ -141,8 +141,10 @@ def test_json_list_and_status_preserve_identity(cluster):
         (KeyboardInterrupt(), 130, "interrupted"),
     ],
 )
-def test_wait_reports_distinct_runtime_failures(cluster, error, code, error_code):
+def test_wait_reports_distinct_runtime_failures(cluster, monkeypatch, error, code, error_code):
     cluster.api.list_namespaced_pod.side_effect = error
+    # Connection failures are retried a few times at the poll interval before they are reported.
+    monkeypatch.setattr(run_module.time, "sleep", Mock())
     result = CliRunner().invoke(
         app_cli, ["wait", "--app-id", "existing", "--namespace", "spark", "--output", "json"]
     )

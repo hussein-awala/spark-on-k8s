@@ -4,6 +4,7 @@ import asyncio
 import logging
 import time
 
+import aiohttp
 from kubernetes.stream import stream
 from kubernetes_asyncio import client as k8s_async, watch
 from kubernetes_asyncio.client import ApiException
@@ -12,10 +13,12 @@ from kubernetes_asyncio.stream import WsApiClient
 from spark_on_k8s.k8s.async_client import KubernetesAsyncClientManager
 from spark_on_k8s.utils.logging_mixin import LoggingMixin
 from spark_on_k8s.utils.spark_app_status import (
+    TRANSIENT_STATUS_READ_ATTEMPTS,
     SparkAppStatus,
     driver_container_name,
     driver_pod_selector,
     get_app_status,
+    is_transient_status_code,
     select_driver_pod,
 )
 
@@ -112,17 +115,22 @@ class AsyncSparkAppManager(LoggingMixin):
             startup_deadline (float, optional): Absolute Unix timestamp after which a Pending
                 driver times out. Defaults to None (no startup timeout). Running applications
                 are not limited by this deadline.
+
+        Returns:
+            The final status, or None when the driver was deleted.
         """
         termination_statuses = {SparkAppStatus.Succeeded, SparkAppStatus.Failed, SparkAppStatus.Unknown}
         target = f"Pod {pod_name}" if pod_name is not None else f"App {app_id}"
         async with self.k8s_client_manager.client() as client:
             api = k8s_async.CoreV1Api(client)
+            failed_reads = 0
             while True:
                 sleep_interval = poll_interval
                 try:
                     status = await self.app_status(
                         namespace=namespace, pod_name=pod_name, app_id=app_id, client=api
                     )
+                    failed_reads = 0
                     if status in termination_statuses:
                         break
                     if status == SparkAppStatus.Pending and startup_deadline is not None:
@@ -130,11 +138,22 @@ class AsyncSparkAppManager(LoggingMixin):
                         if remaining <= 0:
                             raise SparkAppStartupTimeoutError("App startup timeout")
                         sleep_interval = min(poll_interval, remaining)
-                except ApiException as e:
-                    if e.status == 404:
+                except (ApiException, aiohttp.ClientError) as e:
+                    if isinstance(e, ApiException) and e.status == 404:
                         self.log(msg=f"{target} was deleted", level=logging.INFO, should_print=should_print)
-                        return
-                    raise
+                        return None
+                    failed_reads += 1
+                    transient = isinstance(e, aiohttp.ClientError) or is_transient_status_code(e.status)
+                    if not transient or failed_reads >= TRANSIENT_STATUS_READ_ATTEMPTS:
+                        raise
+                    detail = f"HTTP {e.status}" if isinstance(e, ApiException) else type(e).__name__
+                    self.log(
+                        msg=f"Could not read the status of {target} ({detail}), retry in {sleep_interval}s",
+                        level=logging.WARNING,
+                        should_print=should_print,
+                    )
+                    await asyncio.sleep(sleep_interval)
+                    continue
                 self.log(
                     msg=f"{target} status is {status}, sleep {sleep_interval}s",
                     level=logging.INFO,
@@ -146,6 +165,7 @@ class AsyncSparkAppManager(LoggingMixin):
                 level=logging.INFO,
                 should_print=should_print,
             )
+            return status
 
     async def logs_streamer(
         self,

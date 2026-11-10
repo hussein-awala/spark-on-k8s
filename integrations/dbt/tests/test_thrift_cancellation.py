@@ -32,6 +32,7 @@ class FakeClient:
         self.state = ttypes.TOperationState.RUNNING_STATE
         self.error_message = None
         self.close_operation_failure = None
+        self.close_session_failure = None
         self.operation = ttypes.TOperationHandle(
             operationId=ttypes.THandleIdentifier(guid=b"g" * 16, secret=b"s" * 16),
             operationType=ttypes.TOperationType.EXECUTE_STATEMENT,
@@ -82,6 +83,14 @@ class FakeClient:
 
     def CloseSession(self, request):
         with self.rpc("close_session"):
+            if self.close_session_failure == "transport":
+                raise TTransportException(TTransportException.END_OF_FILE, "TSocket read 0 bytes")
+            if self.close_session_failure == "status":
+                return ttypes.TCloseSessionResp(
+                    status=ttypes.TStatus(
+                        statusCode=ttypes.TStatusCode.ERROR_STATUS, errorMessage="Invalid SessionHandle"
+                    )
+                )
             return ttypes.TCloseSessionResp(status=success())
 
 
@@ -345,6 +354,22 @@ def test_close_operation_failure_after_a_successful_statement_does_not_fail_the_
     # error status leaves the stream usable for the normal session close.
     session = ["close_session"] if failure == "status" else []
     assert client.calls == ["execute", "poll", "close_operation", *session]
+    transport.close.assert_called_once()
+
+
+@pytest.mark.parametrize("failure", ["transport", "status"])
+def test_close_session_failure_after_a_successful_statement_does_not_fail_the_node(failure):
+    client = FakeClient()
+    client.state = ttypes.TOperationState.FINISHED_STATE
+    client.close_session_failure = failure
+    wrapper, transport = wrapper_for(client)
+    wrapper.execute("INSERT INTO t VALUES (1)")
+    # The statement finished and its operation closed. A stream that ends while
+    # the session closes ("TSocket read 0 bytes") cannot change that outcome, but
+    # raising from dbt's release() would mark the successful node as failed.
+    wrapper.close()
+    wrapper.close()
+    assert client.calls == ["execute", "poll", "close_operation", "close_session"]
     transport.close.assert_called_once()
 
 

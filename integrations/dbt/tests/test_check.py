@@ -366,6 +366,14 @@ def test_missing_profiles_file_and_invalid_vars(tmp_path):
     assert result.exit_code == 2 and "YAML mapping" in result.output
 
 
+@pytest.mark.parametrize("timeout", ["0", "301", "inf", "nan"])
+def test_timeout_that_is_not_a_positive_finite_number_is_an_invalid_option(tmp_path, timeout):
+    # NaN compares false against both range bounds, so the range alone accepts it.
+    result = check(tmp_path, "--output", "json", "--timeout", timeout)
+    assert result.exit_code == 2 and "--timeout" in result.stderr
+    assert result.stdout == ""
+
+
 def test_interrupt_reports_partial_results_in_one_document(tmp_path, cluster):
     cluster.core.read_namespace.side_effect = KeyboardInterrupt
     result, document = check_json(write_project(tmp_path))

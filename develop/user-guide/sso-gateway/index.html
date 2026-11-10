@@ -68,7 +68,7 @@
   <meta name="documentation-channel" content="develop">
   <meta name="documentation-version" content="develop">
   
-    <meta name="documentation-source" content="abc905d57f020fc61af37dc6489ee04e9eb2a373">
+    <meta name="documentation-source" content="b1c85e29a21f19b3e4c3febeb8ed35804c855127">
   
 
   </head>
@@ -108,7 +108,7 @@
     <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
   
   
-    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/abc905d57f020fc61af37dc6489ee04e9eb2a373"><code>abc905d57f02</code></a>.
+    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/b1c85e29a21f19b3e4c3febeb8ed35804c855127"><code>b1c85e29a21f</code></a>.
   
 
           </div>
@@ -5791,7 +5791,7 @@ gateway also does not isolate Spark or History HTML from the console origin; see
 <span class="w">          </span><span class="no">emailClaim: email</span>
 <span class="w">          </span><span class="no">groupsClaim: groups</span>
 <span class="w">          </span><span class="no">insecureSkipNonce: false</span>
-<span class="w">    </span><span class="no"># No injectRequestHeaders: the API reads no identity headers, so none are sent upstream.</span>
+<span class="w">    </span><span class="no"># No injectRequestHeaders: the API authorizes nothing per user, so none are sent upstream.</span>
 <span class="nn">---</span>
 <span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">apps/v1</span>
 <span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Deployment</span>
@@ -6077,10 +6077,15 @@ controller's address ranges. Raise the ingress controller's read or idle timeout
 if it closes quiet log streams; that setting is controller-specific.</p>
 <h2 id="identity-headers-are-deliberately-absent">Identity headers are deliberately absent<a class="headerlink" href="#identity-headers-are-deliberately-absent" title="Permanent link">&para;</a></h2>
 <p>The example defines no <code>injectRequestHeaders</code>, so oauth2-proxy sends no user,
-email, group or token headers to the API. The API would ignore them: it reads no
-identity headers and authorizes nothing per user. A gateway-injected or
-client-forged <code>X-Forwarded-Email</code> therefore grants nothing, and it cannot be used
-to add per-user rules later without changing the API.</p>
+email, group or token headers to the API. The API authorizes nothing per user. A
+gateway-injected or client-forged <code>X-Forwarded-Email</code> therefore grants nothing, and
+it cannot be used to add per-user rules later without changing the API.</p>
+<p>The API reads one identity header only when <code>SPARK_ON_K8S_AUDIT_IDENTITY_HEADER</code>
+names it, and then only copies it into <a href="../operations/">audit events</a> as an
+unverified claim. With this example a client can send that header itself, so leave
+the variable unset, or have the gateway inject the header with
+<code>injectRequestHeaders</code> so that it replaces any client-supplied value. An event
+records no identity when the request carries the header more than once.</p>
 <p>oauth2-proxy does not remove arbitrary client-supplied headers. That is acceptable
 here because the Spark UI and History proxies forward only the documented
 <a href="../../security-boundaries/#proxy-request-headers">request header allowlist</a>:
@@ -6191,7 +6196,7 @@ chart workflow does, then run it from the repository root:</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 10, 2026 10:31:38 UTC">November 10, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 10, 2026 19:48:36 UTC">November 10, 2026</span>
   </span>
 
     

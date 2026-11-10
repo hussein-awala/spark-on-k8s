@@ -68,7 +68,7 @@
   <meta name="documentation-channel" content="develop">
   <meta name="documentation-version" content="develop">
   
-    <meta name="documentation-source" content="abc905d57f020fc61af37dc6489ee04e9eb2a373">
+    <meta name="documentation-source" content="b1c85e29a21f19b3e4c3febeb8ed35804c855127">
   
 
   </head>
@@ -108,7 +108,7 @@
     <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
   
   
-    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/abc905d57f020fc61af37dc6489ee04e9eb2a373"><code>abc905d57f02</code></a>.
+    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/b1c85e29a21f19b3e4c3febeb8ed35804c855127"><code>b1c85e29a21f</code></a>.
   
 
           </div>
@@ -5937,7 +5937,8 @@ kubectl<span class="w"> </span>get<span class="w"> </span>secret<span class="w">
 <span class="w">  </span><span class="p">|</span><span class="w"> </span>base64<span class="w"> </span>--decode<span class="w"> </span>&gt;<span class="w"> </span>current-token
 kubectl<span class="w"> </span>get<span class="w"> </span>secret<span class="w"> </span><span class="s2">"</span><span class="nv">$secret</span><span class="s2">"</span><span class="w"> </span>--namespace<span class="w"> </span><span class="s2">"</span><span class="nv">$namespace</span><span class="s2">"</span><span class="w"> </span>--output<span class="w"> </span><span class="nv">jsonpath</span><span class="o">=</span><span class="s1">'{.data.policy\.json}'</span><span class="w"> </span><span class="se">\</span>
 <span class="w">  </span><span class="p">|</span><span class="w"> </span>base64<span class="w"> </span>--decode<span class="w"> </span>&gt;<span class="w"> </span>policy.json
-python3<span class="w"> </span>-c<span class="w"> </span><span class="s1">'import secrets; print(secrets.token_urlsafe(32))'</span><span class="w"> </span>&gt;<span class="w"> </span>next-token
+<span class="c1"># No trailing newline: the chart's ServiceMonitor sends the token file byte for byte.</span>
+python3<span class="w"> </span>-c<span class="w"> </span><span class="s1">'import secrets; print(secrets.token_urlsafe(32), end="")'</span><span class="w"> </span>&gt;<span class="w"> </span>next-token
 
 <span class="c1"># Step 1: accept both tokens. Blank lines are ignored; the newline must separate the tokens.</span>
 <span class="o">{</span><span class="w"> </span>cat<span class="w"> </span>current-token<span class="p">;</span><span class="w"> </span>echo<span class="p">;</span><span class="w"> </span>cat<span class="w"> </span>next-token<span class="p">;</span><span class="w"> </span><span class="o">}</span><span class="w"> </span>&gt;<span class="w"> </span>overlap-token
@@ -5958,7 +5959,9 @@ kubectl<span class="w"> </span>create<span class="w"> </span>secret<span class="
 <span class="w">  </span>--from-file<span class="o">=</span><span class="nv">token</span><span class="o">=</span>next-token<span class="w"> </span>--from-file<span class="o">=</span>policy.json<span class="o">=</span>policy.json<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--dry-run<span class="o">=</span>client<span class="w"> </span>--output<span class="w"> </span>yaml<span class="w"> </span><span class="p">|</span><span class="w"> </span>kubectl<span class="w"> </span>apply<span class="w"> </span>--filename<span class="w"> </span>-
 </code></pre></div>
-<p>Store the new token in your secret manager and delete the local files afterwards. Policy
+<p>With the chart's <a href="../chart-deployments/#add-operational-objects">ServiceMonitor</a>, metric
+scrapes fail from step 1 until step 3 reaches the pods, because Prometheus cannot send a
+two-line token. Store the new token in your secret manager and delete the local files afterwards. Policy
 changes reach the API the same way. To revoke a compromised token without waiting for the
 kubelet, update the Secret and restart the API pods; restarted workers read the current files
 at startup and refuse to start if they are invalid.</p>
@@ -5982,7 +5985,7 @@ at startup and refuse to start if they are invalid.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 10, 2026 11:26:32 UTC">November 10, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 10, 2026 19:48:36 UTC">November 10, 2026</span>
   </span>
 
     

@@ -68,7 +68,7 @@
   <meta name="documentation-channel" content="develop">
   <meta name="documentation-version" content="develop">
   
-    <meta name="documentation-source" content="ad2e58c9618515145c4d2f3abc80b67676a389a2">
+    <meta name="documentation-source" content="9ff8a1301cb80304d06449dd1d4b5c117b50fc2d">
   
 
   </head>
@@ -108,7 +108,7 @@
     <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
   
   
-    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/ad2e58c9618515145c4d2f3abc80b67676a389a2"><code>ad2e58c96185</code></a>.
+    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/9ff8a1301cb80304d06449dd1d4b5c117b50fc2d"><code>9ff8a1301cb8</code></a>.
   
 
           </div>
@@ -1382,6 +1382,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#failure-postmortem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Failure postmortem
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#native-task-tab-in-airflow-3" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2487,6 +2498,8 @@
       
         
       
+        
+      
     
     
     
@@ -2595,6 +2608,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/airflow/postmortem/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    postmortem
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../reference/spark_on_k8s/airflow/provider_info/" class="md-nav__link">
         
   
@@ -2674,10 +2715,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_1_5_1_5" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_1_5_1_6" >
         
           
-          <label class="md-nav__link" for="__nav_5_1_5_1_5" id="__nav_5_1_5_1_5_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_5_1_5_1_6" id="__nav_5_1_5_1_6_label" tabindex="0">
             
   
   
@@ -2695,8 +2736,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="5" aria-labelledby="__nav_5_1_5_1_5_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_5_1_5_1_5">
+        <nav class="md-nav" data-md-level="5" aria-labelledby="__nav_5_1_5_1_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_1_5_1_6">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -5509,6 +5550,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#failure-postmortem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Failure postmortem
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#native-task-tab-in-airflow-3" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5608,7 +5660,7 @@ The examples use namespace <code>spark</code> and service account <code>spark</c
 <tbody>
 <tr>
 <td>Worker submits, waits or performs configured cleanup</td>
-<td>The selected Airflow Kubernetes connection; grant the required pod/service and optional Secret/ConfigMap operations only in approved namespaces</td>
+<td>The selected Airflow Kubernetes connection; grant the required pod/service and optional Secret/ConfigMap operations only in approved namespaces. A <a href="#failure-postmortem">failure postmortem</a> also lists pods and events and reads pod logs</td>
 </tr>
 <tr>
 <td>Triggerer observes a deferred application</td>
@@ -5728,7 +5780,9 @@ the driver stopped submits a new application with a new deadline. See
 edit invokes <code>on_kill</code>. A termination request also does not prove that application
 output was rolled back. The SDK/CLI retain applications after observation timeout
 or interruption; the Airflow startup-timeout deletion policy is intentionally
-different. See the <a href="../automation/">automation contract</a>.</p>
+different. See the <a href="../automation/">automation contract</a>.
+Before this cleanup, the task logs a bounded <a href="#failure-postmortem">failure postmortem</a>
+for an unsuccessful application.</p>
 <p>When task-local XCom still contains the recorded namespace and driver name, a
 retry adopts a Pending or Running application. Confirmed absence (Kubernetes
 404), or a confirmed Succeeded/Failed application, permits the existing new-job
@@ -5791,6 +5845,97 @@ contexts. Inspect all six cases in <code>result.json</code>, the Airflow log, cl
 pods/events/logs and kind logs. A passing unit suite or an unexecuted workflow is
 not real-cluster evidence. See the <a href="../../development/">development guide</a> for
 installed-wheel checks and the complete validation policy.</p>
+<h2 id="failure-postmortem">Failure postmortem<a class="headerlink" href="#failure-postmortem" title="Permanent link">&para;</a></h2>
+<p>When a waiting task's Spark application does not succeed, <code>SparkOnK8SOperator</code>
+and <code>SparkSqlOnK8SOperator</code> write a bounded postmortem to the Airflow task log
+before any cleanup can delete the driver, its logs and its Kubernetes evidence.
+This applies to synchronous and deferred waiting on Airflow 2.11 and 3. A deferred
+task writes it in the worker when the task resumes, not in the triggerer.</p>
+<table>
+<thead>
+<tr>
+<th>Event</th>
+<th>Postmortem</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Spark <code>Failed</code> or <code>Unknown</code></td>
+<td>Before finish cleanup, also when <code>on_finish_action</code> retains the application</td>
+</tr>
+<tr>
+<td>Driver startup deadline expires</td>
+<td>Before the startup-timeout deletion</td>
+</tr>
+<tr>
+<td>Deferred trigger reports an observation error</td>
+<td>Before finish cleanup</td>
+</tr>
+<tr>
+<td><code>on_kill</code> with <code>on_kill_action="delete"</code></td>
+<td>Before the deletion; task log only, no XCom</td>
+</tr>
+<tr>
+<td>Spark succeeds, <code>app_waiter="no_wait"</code>, a synchronous non-timeout observation error, or <code>on_kill</code> with <code>"keep"</code> or <code>"kill"</code></td>
+<td>None</td>
+</tr>
+</tbody>
+</table>
+<p>The postmortem has two parts:</p>
+<ul>
+<li>A <a href="../diagnostics/">diagnosis</a> of the driver and its owned executors, from the
+  same collector as <code>spark-on-k8s app diagnose</code>: each finding's severity, code,
+  pod, container, summary, redacted evidence and next step, at most 20 findings.
+  No findings means that no specific cause was observed, not that none exists.
+  Set <code>failure_diagnostics=False</code> to skip it.</li>
+<li>The driver container's last <code>failure_log_tail_lines</code> lines: 100 by default, at
+  most 1000, and <code>0</code> skips them. They are skipped when the attempt already streamed
+  the driver log with <code>app_waiter="log"</code> (a trigger observation error replays no
+  log, so it still gets the tail) and when the driver container never started, for
+  example while unschedulable. Kubernetes sends at most 1 MiB, lines longer than
+  2,000 characters are cut, and at most 64 KiB of the most recent lines are logged;
+  the tail's header says when lines were left out.</li>
+</ul>
+<p>All reads share one five-second budget, of which the diagnosis may use three, so
+the postmortem delays cleanup by about five seconds at most. It is best effort: if
+the driver cannot be read or the budget runs out, the task log names the failed
+part with an exception type and HTTP status, never a Kubernetes response body. The
+task then keeps its original outcome and error, and cleanup proceeds as configured.</p>
+<p>The worker's Kubernetes connection reads the driver, lists pods and events, and
+reads the driver log in the application namespace. Without event or log access,
+the diagnosis is marked incomplete or the tail is reported unavailable. Like the
+streamed driver log, the tail contains what the application printed. URL
+credentials and <code>password</code>, <code>token</code>, <code>secret</code>, <code>credential</code> or access-key values
+written as <code>key=value</code> or <code>key: value</code> are replaced with <code>&lt;redacted&gt;</code>, and Airflow's
+secret masker applies as to any task log line. Use <code>failure_log_tail_lines=0</code> when
+driver logs must not reach the task log. <code>failure_diagnostics=False</code> together with
+<code>failure_log_tail_lines=0</code> disables the postmortem and its Kubernetes reads.</p>
+<p>When a diagnosis is collected outside <code>on_kill</code>, the task also pushes a compact
+summary to the <code>spark_failure_diagnosis</code> XCom key
+(<code>SparkOnK8SOperator.XCOM_FAILURE_DIAGNOSIS</code>). Evidence and next steps stay in the
+task log:</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"version"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"status"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Failed"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"namespace"</span><span class="p">:</span><span class="w"> </span><span class="s2">"analytics"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"app_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"daily-transform-20260101"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"driver_pod"</span><span class="p">:</span><span class="w"> </span><span class="s2">"daily-transform-20260101-driver"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"incomplete"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"findings"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">"code"</span><span class="p">:</span><span class="w"> </span><span class="s2">"oom_killed"</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"severity"</span><span class="p">:</span><span class="w"> </span><span class="s2">"error"</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"resource"</span><span class="p">:</span><span class="w"> </span><span class="s2">"daily-transform-20260101-driver"</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"container"</span><span class="p">:</span><span class="w"> </span><span class="s2">"driver"</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">],</span>
+<span class="w">  </span><span class="nt">"omitted_findings"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span>
+<span class="p">}</span>
+</code></pre></div>
+<p><code>status</code> is the Spark status, <code>startup_timeout</code> or <code>error</code> (trigger observation
+error). A failure callback can read it with
+<code>ti.xcom_pull(task_ids=ti.task_id, map_indexes=ti.map_index, key="spark_failure_diagnosis")</code>.
+Airflow removes it when the next attempt starts.</p>
 <h2 id="native-task-tab-in-airflow-3">Native task tab in Airflow 3<a class="headerlink" href="#native-task-tab-in-airflow-3" title="Permanent link">&para;</a></h2>
 <p>The optional <strong>Spark on Kubernetes</strong> tab is available for <code>SparkOnK8SOperator</code> and
 <code>SparkSqlOnK8SOperator</code> task instances, and for
@@ -5951,7 +6096,7 @@ each viewer.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 10, 2026 11:26:01 UTC">November 10, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 10, 2026 11:30:21 UTC">November 10, 2026</span>
   </span>
 
     

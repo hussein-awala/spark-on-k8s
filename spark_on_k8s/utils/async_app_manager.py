@@ -103,7 +103,7 @@ class AsyncSparkAppManager(LoggingMixin):
         poll_interval: float = 10,
         should_print: bool = False,
         startup_deadline: float | None = None,
-    ):
+    ) -> SparkAppStatus | None:
         """Wait for a Spark app to finish asynchronously.
 
         Args:

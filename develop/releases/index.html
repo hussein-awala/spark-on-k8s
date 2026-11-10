@@ -68,7 +68,7 @@
   <meta name="documentation-channel" content="develop">
   <meta name="documentation-version" content="develop">
   
-    <meta name="documentation-source" content="9352c9a7696e4198a58d1fe9087143823b3c6ad4">
+    <meta name="documentation-source" content="db9898f64ba229b3b911579cacadd9ce1bb251ce">
   
 
   </head>
@@ -108,7 +108,7 @@
     <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
   
   
-    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/9352c9a7696e4198a58d1fe9087143823b3c6ad4"><code>9352c9a7696e</code></a>.
+    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/db9898f64ba229b3b911579cacadd9ce1bb251ce"><code>db9898f64ba2</code></a>.
   
 
           </div>
@@ -5260,6 +5260,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#image-promotion-and-signatures" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Image promotion and signatures
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#documentation-publication" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5485,6 +5496,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#image-promotion-and-signatures" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Image promotion and signatures
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#documentation-publication" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5632,7 +5654,8 @@ do not describe analytical review personas as customer feedback.</p>
 <p>The current repository workflows are the source of truth for mechanics:</p>
 <ul>
 <li><code>.github/workflows/release.yml</code>: tag-triggered Python distributions, PyPI and
-  API image publication. The release build sets the package version from the tag.</li>
+  API image publication, then keyless signing of the published image digest. The
+  release build sets the package version from the tag.</li>
 <li><code>.github/workflows/deploy-doc.yml</code>: main publishes <code>develop</code>; a qualified tag
   publishes that documentation version. Only the highest stable numeric version
   can update the <code>latest</code> alias.</li>
@@ -5809,9 +5832,10 @@ python<span class="w"> </span>scripts/release_eligibility.py<span class="w"> </s
 <p>For the <code>release</code> workflow's manual <strong>Run workflow</strong>, choose the candidate branch
 or tag in GitHub's native ref selector and supply the <code>version</code> input. Every job
 checks out the resulting immutable event SHA; there is no arbitrary checkout-ref
-input. This path runs eligibility, builds distributions and tests frozen API
-images for Linux amd64 and arm64, then stops before PyPI/registry publication. It
-does not trigger a documentation push. Qualify missing main-commit workflows via
+input. This path runs eligibility, builds distributions, tests frozen API images
+for Linux amd64 and arm64 by digest and assembles the multi-architecture image
+from them, then stops before PyPI/registry publication and signing. It does not
+trigger a documentation push. Qualify missing main-commit workflows via
 their own manual runs first; the core CI dispatch runs all profiles even for a
 documentation-only candidate.</p>
 <p>Packaging-related PRs run the same artifact/container path with preview version
@@ -5831,14 +5855,11 @@ host-supplied React is not counted as a bundled dependency. Each architecture
 records installed Python packages at <code>/opt/spark-on-k8s/release/installed.json</code>
 and checks that the image runs as UID/GID 10001, which the chart's security
 context defaults assume, with a writable <code>/var/lib/spark-on-k8s</code>.</p>
-<p>The <code>release-eligibility</code>, <code>release-container-inputs</code>, <code>release-installed-*</code> and
-<code>published-release-manifest</code> workflow artifacts contain these records. Registry
-publication rebuilds from the same frozen inputs; it does not promote the exact
-image digest used in the architecture checks and does not promise bit-for-bit
-reproducibility. It also requests the build action's OCI SBOM and provenance attestations.
-Attach the relevant manifest and qualification links to the GitHub release for
-retention beyond transient workflow artifacts. A generated inventory or SBOM is
-not a certification that dependencies are vulnerability-free.</p>
+<p>The <code>release-eligibility</code>, <code>release-container-inputs</code>, <code>release-installed-*</code>,
+<code>published-release-manifest</code> and <code>release-image-signature</code> workflow artifacts
+contain these records. Attach the relevant manifest and qualification links to the
+GitHub release for retention beyond transient workflow artifacts. A generated
+inventory or SBOM is not a certification that dependencies are vulnerability-free.</p>
 <p>New tag-publication runs are serialized. The gate compares all existing bare
 stable numeric tags: only a highest stable version may move global <code>latest</code>, and
 only a highest version within a minor may move its <code>major.minor</code> image tag.
@@ -5847,6 +5868,45 @@ Prereleases move neither. Documentation uses the same global rule. Thus a later
 failed tag conservatively prevents lower-version promotion; resolve that state
 explicitly instead of automatically moving channels backward. GHCR's destination
 uses the repository owner, independently of the person rerunning the workflow.</p>
+<h3 id="image-promotion-and-signatures">Image promotion and signatures<a class="headerlink" href="#image-promotion-and-signatures" title="Permanent link">&para;</a></h3>
+<p>The API image is built once from the frozen inputs, before PyPI publication, and
+registries receive exactly those checked bytes. The build itself is not claimed to
+be bit-for-bit reproducible.</p>
+<ol>
+<li>Each <code>container-check</code> architecture exports an OCI image layout with BuildKit's
+   SBOM and provenance attestations, copies it into a job-local registry and runs
+   its checks on the image pulled by that digest. <code>scripts/release_image.py
+   describe</code> records the digests in <code>image.json</code> of the <code>release-installed-*</code>
+   artifact; the layout is the <code>release-image-*</code> artifact.</li>
+<li><code>container-image</code> assembles one multi-architecture index from those layouts
+   with <code>scripts/release_image.py assemble</code>. It refuses a layout whose digests
+   differ from the checked record or that lacks attestations, and copies the
+   per-platform manifests verbatim. It pushes the result to a job-local registry
+   and starts both platforms from it. PyPI publication waits for this job; the
+   PR and dry-run paths run it too.</li>
+<li>After PyPI, <code>docker-release</code> copies the assembled layout to every GHCR and
+   Docker Hub tag with <code>skopeo copy --preserve-digests</code>, reads each tag's digest
+   back from the registry and records the digest and per-platform digests in
+   <code>published-release-manifest</code>. Both registries hold the same digest.</li>
+<li><code>image-sign</code>, the only job besides PyPI publication with <code>id-token: write</code>,
+   signs that digest (never a tag) in each registry with Sigstore cosign keyless
+   signing, then verifies both signatures as a user would and keeps the output as
+   <code>release-image-signature</code>.</li>
+</ol>
+<p>The signing certificate's identity is
+<code>https://github.com/hussein-awala/spark-on-k8s/.github/workflows/release.yml@refs/tags/&lt;tag&gt;</code>
+with issuer <code>https://token.actions.githubusercontent.com</code>, and it records the tag's
+commit; each signature is entered in Sigstore's public transparency log. cosign
+stores a Sigstore bundle as an OCI referrer of the image; in a registry without the
+referrers API, cosign keeps the referrers under a <code>sha256-&lt;digest&gt;</code> tag. Do not
+delete those tags. The index signature covers the attestations it lists, so no
+separate attestation is signed. Per-platform digests are not signed individually;
+verify and deploy the index digest.</p>
+<p>Images released before this signing was added, including 0.12.1 and earlier, have
+no signature. Signing runs after the tags are pushed. If <code>image-sign</code> fails, the
+image is published but unsigned: diagnose the failure and re-run that job, which
+signs the recorded digest again. Never push a rebuilt image to the release tags
+to fix a signing failure.</p>
 <h3 id="documentation-publication">Documentation publication<a class="headerlink" href="#documentation-publication" title="Permanent link">&para;</a></h3>
 <p>The docs workflow adds its isolated environment to <code>PATH</code> because <code>mike</code> launches
 its documentation builder as a child command. <code>mike deploy</code> builds once using the
@@ -5952,7 +6012,7 @@ different default-branch commit while claiming it validated the tagged candidate
 </tr>
 <tr>
 <td>API image</td>
-<td>Registry references and immutable digests; base/dependency inventory where produced</td>
+<td>Registry references and immutable digests; base/dependency inventory where produced; signature verification for the digest</td>
 </tr>
 <tr>
 <td>Chart</td>
@@ -5968,8 +6028,11 @@ different default-branch commit while claiming it validated the tagged candidate
 </tr>
 </tbody>
 </table>
-<p>For a recommended API deployment, render the selected chart with the exact image
-reference and record the settings used. Claim a cluster-qualified combination only
+<p>Verify the recorded image digest from both registries with the commands in
+<a href="../user-guide/chart-deployments/#verify-a-published-api-image">verify a published API image</a>,
+using the release tag in the certificate identity. For a recommended API
+deployment, render the selected chart with the exact image reference and record
+the settings used. Claim a cluster-qualified combination only
 after that exact image/chart combination passes a staging smoke test; otherwise
 label it render/package validation. Historical releases without such a record are
 not retroactively certified. Link installation instructions to the recorded version,
@@ -5999,7 +6062,7 @@ the release complete.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 10, 2026 09:21:58 UTC">November 10, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 10, 2026 10:32:14 UTC">November 10, 2026</span>
   </span>
 
     

@@ -68,7 +68,7 @@
   <meta name="documentation-channel" content="develop">
   <meta name="documentation-version" content="develop">
   
-    <meta name="documentation-source" content="9352c9a7696e4198a58d1fe9087143823b3c6ad4">
+    <meta name="documentation-source" content="db9898f64ba229b3b911579cacadd9ce1bb251ce">
   
 
   </head>
@@ -108,7 +108,7 @@
     <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
   
   
-    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/9352c9a7696e4198a58d1fe9087143823b3c6ad4"><code>9352c9a7696e</code></a>.
+    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/db9898f64ba229b3b911579cacadd9ce1bb251ce"><code>db9898f64ba2</code></a>.
   
 
           </div>
@@ -1494,6 +1494,17 @@
     <span class="md-ellipsis">
       
         Select the image explicitly
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#verify-a-published-api-image" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Verify a published API image
       
     </span>
   </a>
@@ -5439,6 +5450,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#verify-a-published-api-image" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Verify a published API image
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#start-with-scoped-externally-managed-access" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5658,6 +5680,50 @@ tag. Use <code>repository</code> without an embedded tag or digest, and put the 
 Validate your selected History image, event-log storage and Spark runtime together
 before deployment. An explicitly selected <code>latest</code> tag remains accepted for
 intentional development use; it does not make the deployment reproducible.</p>
+<h2 id="verify-a-published-api-image">Verify a published API image<a class="headerlink" href="#verify-a-published-api-image" title="Permanent link">&para;</a></h2>
+<p>The release workflow signs each API image it publishes with
+<a href="https://docs.sigstore.dev/cosign/">Sigstore cosign</a> keyless signing, by digest.
+The signed digest is the multi-architecture image whose amd64 and arm64 images
+passed the workflow's checks; both registries receive those bytes without a
+rebuild, so <code>ghcr.io/hussein-awala/spark-on-k8s</code> and
+<code>docker.io/husseinawala/spark-on-k8s</code> have the same digest. API images released
+before signing was added, including 0.12.1 and earlier, have no signature, and
+<code>cosign verify</code> reports that none was found.</p>
+<p>Resolve the release tag once, then verify and deploy the digest it printed, not
+the tag. Use cosign 3; cosign 2.6 needs <code>--new-bundle-format</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="nv">RELEASE_VERSION</span><span class="o">=</span>X.Y.Z<span class="w">  </span><span class="c1"># replace with the selected API release</span>
+docker<span class="w"> </span>buildx<span class="w"> </span>imagetools<span class="w"> </span>inspect<span class="w"> </span><span class="s2">"ghcr.io/hussein-awala/spark-on-k8s:</span><span class="nv">$RELEASE_VERSION</span><span class="s2">"</span>
+<span class="c1"># Set API_IMAGE_DIGEST to the sha256:... value of the Digest line printed above.</span>
+:<span class="w"> </span><span class="s2">"</span><span class="si">${</span><span class="nv">API_IMAGE_DIGEST</span><span class="p">:?Set the digest printed for the release tag</span><span class="si">}</span><span class="s2">"</span>
+cosign<span class="w"> </span>verify<span class="w"> </span><span class="s2">"ghcr.io/hussein-awala/spark-on-k8s@</span><span class="nv">$API_IMAGE_DIGEST</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--certificate-identity<span class="w"> </span><span class="s2">"https://github.com/hussein-awala/spark-on-k8s/.github/workflows/release.yml@refs/tags/</span><span class="nv">$RELEASE_VERSION</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--certificate-oidc-issuer<span class="w"> </span>https://token.actions.githubusercontent.com
+</code></pre></div>
+<p>Verification succeeds only for a signature made by this repository's
+<code>release.yml</code> running for that tag; a fork, another workflow, a branch run or a
+different release tag fails it. Each signature is recorded in Sigstore's public
+transparency log. Verify the Docker Hub copy with the same command and
+<code>docker.io/husseinawala/spark-on-k8s@$API_IMAGE_DIGEST</code>. Then pin the verified
+digest with <code>--set-string image.digest="$API_IMAGE_DIGEST"</code>, as in the example
+below. A per-platform digest is not signed separately; deploy the multi-architecture
+digest.</p>
+<p>The same index carries BuildKit SBOM and provenance attestations for each platform.
+They are listed by digest in the signed index, so retrieving them through the
+verified digest also authenticates them:</p>
+<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>buildx<span class="w"> </span>imagetools<span class="w"> </span>inspect<span class="w"> </span><span class="s2">"ghcr.io/hussein-awala/spark-on-k8s@</span><span class="nv">$API_IMAGE_DIGEST</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--format<span class="w"> </span><span class="s1">'{{ json .Provenance }}'</span>
+docker<span class="w"> </span>buildx<span class="w"> </span>imagetools<span class="w"> </span>inspect<span class="w"> </span><span class="s2">"ghcr.io/hussein-awala/spark-on-k8s@</span><span class="nv">$API_IMAGE_DIGEST</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--format<span class="w"> </span><span class="s1">'{{ json .SBOM }}'</span>
+</code></pre></div>
+<p>They describe the image contents and build inputs; they do not certify that the
+dependencies are free of vulnerabilities.</p>
+<p>To enforce signatures at admission, configure a Sigstore-capable policy engine to
+require, for images from these repositories, the issuer
+<code>https://token.actions.githubusercontent.com</code> and a certificate subject matching
+<code>^https://github\.com/hussein-awala/spark-on-k8s/\.github/workflows/release\.yml@refs/tags/[0-9]+\.[0-9]+\.[0-9]+((a|b|rc)[0-9]+)?$</code>.
+Drop the optional group to refuse pre-releases. The signatures are Sigstore
+bundles attached as OCI referrers, the format cosign 3 writes; confirm that your
+engine version verifies that format, and exempt images released before signing.</p>
 <h2 id="start-with-scoped-externally-managed-access">Start with scoped, externally managed access<a class="headerlink" href="#start-with-scoped-externally-managed-access" title="Permanent link">&para;</a></h2>
 <p>The source includes <code>chart/examples/production-values.yaml</code>. It uses explicit
 <code>analytics,batch</code> namespaces, the preprovisioned <code>spark-observer</code> service account,
@@ -6161,7 +6227,7 @@ need a reviewed recreation because Deployment selectors are immutable.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 10, 2026 10:31:38 UTC">November 10, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 10, 2026 10:32:14 UTC">November 10, 2026</span>
   </span>
 
     

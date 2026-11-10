@@ -70,6 +70,9 @@ def test_history_uses_existing_claim_explicit_namespaces_and_recreate_strategy(t
         {"name": "other", "emptyDir": {}},
     ]
     assert container["volumeMounts"][0] == {"name": "run-history", "mountPath": "/var/lib/spark-on-k8s"}
+    # The kubelet regroups a root-written claim for the non-root API on volume types honoring fsGroup.
+    assert spec["securityContext"]["fsGroup"] == spec["securityContext"]["runAsGroup"]
+    assert spec["securityContext"]["fsGroupChangePolicy"] == "OnRootMismatch"
 
 
 @pytest.mark.parametrize(

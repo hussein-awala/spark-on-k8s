@@ -161,7 +161,40 @@ def test_all_profiles_reports_valid_and_invalid_profiles_without_cluster(tmp_pat
         ("dev", True),
         ("prod", False),
     ]
+    assert payload["schema_version"] == 1
+    assert payload["operation"] == "job_validate"
+    assert payload["valid"] is False
+    failure = payload["profiles"][2]["error"]
+    assert failure["code"] == "invalid_job"
+    assert failure["message"]
+    # The top-level error is the first failure, and is null exactly when the exit code is zero.
+    assert payload["error"] == failure
     connect.assert_not_called()
+
+
+def test_validate_json_reports_success_and_unreadable_templates(tmp_path):
+    document = job_document()
+    path = tmp_path / "job.yaml"
+    path.write_text(yaml.safe_dump(document))
+    result = CliRunner().invoke(job_cli, ["validate", str(path), "--output", "json"])
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout) == {
+        "schema_version": 1,
+        "operation": "job_validate",
+        "valid": True,
+        "profiles": [{"profile": None, "valid": True, "error": None}],
+        "error": None,
+    }
+    document["spec"]["driver_pod_template"] = "missing.yaml"
+    path.write_text(yaml.safe_dump(document))
+    result = CliRunner().invoke(job_cli, ["validate", str(path), "--output", "json"])
+    assert result.exit_code == 1
+    payload = json.loads(result.stdout)
+    assert payload["error"]["code"] == "read_error"
+    assert payload["profiles"][0]["error"] == payload["error"]
+    text = CliRunner().invoke(job_cli, ["validate", str(path)])
+    assert text.exit_code == 1
+    assert f"Invalid SparkJob (base): {payload['error']['message']}" in text.output
 
 
 def test_all_profiles_resolves_relative_templates(tmp_path):

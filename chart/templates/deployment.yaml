@@ -10,6 +10,8 @@
 {{- if eq .name "run-history" }}{{- fail "run-history is a reserved volume name" }}{{- end }}
 {{- end }}
 {{- end }}
+{{- /* --reuse-values from an older release omits newer values; absence means disabled. */}}
+{{- $remote := .Values.remote | default dict }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -100,6 +102,19 @@ spec:
             - name: SPARK_ON_K8S_METRICS_ENABLED
               value: "true"
             {{- end }}
+            {{- if and .Values.workers (not (has "SPARK_ON_K8S_API_WORKERS" $envNames)) }}
+            - name: SPARK_ON_K8S_API_WORKERS
+              value: {{ int .Values.workers | quote }}
+            {{- end }}
+            {{- if $remote.enabled }}
+            {{- $remoteEnv := dict "SPARK_ON_K8S_SUBMISSION_ENABLED" "true" "SPARK_ON_K8S_SUBMISSION_TOKEN_FILE" (printf "%s/token" $remote.mountPath) "SPARK_ON_K8S_SUBMISSION_POLICY_FILE" (printf "%s/policy.json" $remote.mountPath) }}
+            {{- range $name, $value := $remoteEnv }}
+            {{- if not (has $name $envNames) }}
+            - name: {{ $name }}
+              value: {{ $value | quote }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
             {{- with .Values.env }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -119,22 +134,38 @@ spec:
             timeoutSeconds: 5
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-          {{- if or .Values.runHistory.enabled .Values.volumeMounts }}
+          {{- if or .Values.runHistory.enabled $remote.enabled .Values.volumeMounts }}
           volumeMounts:
             {{- if .Values.runHistory.enabled }}
             - name: run-history
               mountPath: /var/lib/spark-on-k8s
             {{- end }}
+            {{- if $remote.enabled }}
+            - name: remote-submission
+              mountPath: {{ $remote.mountPath | quote }}
+              readOnly: true
+            {{- end }}
             {{- with .Values.volumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
           {{- end }}
-      {{- if or .Values.runHistory.enabled .Values.volumes }}
+      {{- if or .Values.runHistory.enabled $remote.enabled .Values.volumes }}
       volumes:
         {{- if .Values.runHistory.enabled }}
         - name: run-history
           persistentVolumeClaim:
             claimName: {{ .Values.runHistory.existingClaim | quote }}
+        {{- end }}
+        {{- if $remote.enabled }}
+        # Only the two configured keys are mounted; the chart never creates this Secret.
+        - name: remote-submission
+          secret:
+            secretName: {{ $remote.existingSecret | quote }}
+            items:
+              - key: {{ $remote.tokenKey | quote }}
+                path: token
+              - key: {{ $remote.policyKey | quote }}
+                path: policy.json
         {{- end }}
         {{- with .Values.volumes }}
         {{- toYaml . | nindent 8 }}

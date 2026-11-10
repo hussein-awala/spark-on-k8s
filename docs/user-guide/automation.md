@@ -211,7 +211,7 @@ not exist is a CLI usage error (exit 2) without a JSON document.
 | --- | --- | --- | --- |
 | app submit/wait, job submit, sql submit | `--output json` | Versioned result after CLI parsing | Inspect terminal `status`; detached submit means accepted |
 | app status, apps list, app cancel | `--output json` | Versioned result | Query/deletion request succeeded, not data correctness |
-| job validate | `--output json`, per-profile results | Validation failures in result | Offline validation only |
+| job validate | `--output json`, per-profile results | Versioned result; `error` repeats the first failing profile's error | Offline validation only |
 | job plan | `--output json` | Load/build errors remain Click text | Redacted preview, no reservation |
 | app diagnose, doctor | `--output json` report | Click text error, exit 1 (including a missing application) | Observed evidence, not a health certification |
 | connect check, connect server | `--output json` | Versioned result | Tiny query succeeded on existing server; server requests accepted; `server list` is a label-based observation |
@@ -220,6 +220,27 @@ not exist is a CLI usage error (exit 2) without a JSON document.
 
 CLI usage errors still follow Click's text/exit-code contract. Do not assume every
 JSON-capable command serializes every failure.
+
+## API error responses
+
+Every JSON error from the REST API, including framework routing (`404`, `405`) and
+request-validation (`422`) errors, uses the envelope of the remote `/jobs/v1` contract:
+
+```json
+{"schema_version": 1, "error": {"code": "not_found", "message": "Not Found"}}
+```
+
+Branch on the HTTP status and `error.code`; `message` is for people. Routes that know
+the cause return a specific code, such as `history_not_configured`,
+`application_not_found` or `policy_denied`. Other errors use a code derived from the
+status: `invalid_request` (400, 422), `unauthorized`, `forbidden`, `not_found`,
+`method_not_allowed`, `request_timeout`, `conflict`, `not_configured` (412),
+`body_too_large`, `invalid_content_type`, `too_many_requests`,
+`upstream_unavailable` (502), `unavailable` (503) and `upstream_timeout` (504). An
+unexpected failure returns `500` with `internal_error` and a reference that also
+appears in the server log; its details are never returned. Kubernetes errors from
+the Spark UI proxy still render an HTML error page, and the Airflow task tab, which
+runs inside Airflow's web server, follows Airflow's own error format.
 
 `SparkJob` is loaded by a client; it is not a Kubernetes custom resource or a
 reconciled controller. The caller submits and decides whether to observe or retry.

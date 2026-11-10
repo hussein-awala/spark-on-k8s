@@ -198,8 +198,9 @@ at an arbitrary current kubeconfig context.
 - `.github/workflows/spark-connect.yml` runs `tests/integration/connect/run.py`
   against a separate local Spark Connect server for client compatibility. Its
   Kubernetes job additionally creates Spark 4.0.5/4.3.0 servers with real executors
-  and exercises SDK/CLI receipts, query readiness, session independence, failure
-  handling and ownership-safe deletion using `tests/integration/connect/run_kubernetes.py`.
+  and exercises SDK/CLI receipts, query readiness and version reporting, label-based
+  server listing, session independence, failure handling and ownership-safe deletion
+  using `tests/integration/connect/run_kubernetes.py`.
   The same image matrix runs `tests/integration/jupyter/run_kubernetes.py`, executing
   the canonical `examples/jupyter/spark_connect.ipynb` with a real IPython kernel.
   It performs a planned kernel restart, reconnects to the same driver, verifies

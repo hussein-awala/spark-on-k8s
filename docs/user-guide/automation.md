@@ -205,12 +205,97 @@ An unreadable or invalid receipt is a runtime failure (exit 1): the JSON result 
 `run: null`, an empty `namespace` and an `operation_error`. A receipt path that does
 not exist is a CLI usage error (exit 2) without a JSON document.
 
+## Limit how long a driver can run
+
+`--timeout` and `wait_timeout` only limit observation. To stop an application that
+runs too long, including one whose submitting process, CI runner or Airflow worker
+was killed, set a maximum driver lifetime in whole seconds:
+
+```bash
+spark-on-k8s app submit --namespace spark \
+  --image registry.example.com/team/job:version \
+  --path local:///opt/spark/work-dir/job.py \
+  --max-runtime 7200 --wait --output json
+```
+
+The same setting is `max_runtime` in `submit_app`/`submit_run`, `spec.max_runtime`
+in [job files](jobs.md), `--max-runtime` on `sql submit` and
+[`connect server create`](spark_connect_server.md), `ConnectServerConfig.max_runtime`,
+`compute.max_runtime` for [managed dbt](dbt.md) and the [Airflow operators'](airflow.md)
+`max_runtime` argument. It is unset by default and has no environment-variable
+default. Values range from 1 to 2592000 seconds (30 days); offline plans show it.
+
+The client sets the driver pod's `spec.activeDeadlineSeconds`; no process needs to
+keep running. Kubernetes counts the deadline from the pod's `startTime`, when the
+kubelet accepts the scheduled pod (image pulls count; time spent unschedulable does
+not, so keep `startup_timeout` for that). When it elapses, the kubelet stops the
+driver containers with the pod's termination grace period and marks the pod `Failed`
+with reason `DeadlineExceeded`. The driver is not restarted. Waiting commands report
+`Failed` (exit code 3), and `app diagnose` reports a `deadline_exceeded` finding.
+Unlike an observation timeout, this deliberately ends the application. It is a hard
+stop rather than a drain: interrupted work can leave partial output, as with any
+killed run. Choose a value well above the expected duration.
+
+On that termination signal, Spark's driver shutdown normally deletes its executor
+pods (unless `spark.kubernetes.executor.deleteOnTermination=false`); an executor that
+loses its driver exits. The `Failed` driver pod itself remains, with its logs and the
+objects it owns: the driver Service, ConfigMaps, Secret and any retained executor
+pods. They request no further CPU or memory, but stay until the driver pod is
+deleted, after which Kubernetes garbage collection removes them. Delete the run with
+`app cancel --receipt` or `app delete`, or use `apps prune` below. With a [driver pod template](driver_pod_templates.md),
+`max_runtime` replaces the template's `activeDeadlineSeconds`; when unset, a template
+value is kept.
+
+## Prune finished or orphaned drivers
+
+`apps prune` finds drivers submitted by spark-on-k8s in one namespace. It only
+reports them unless you add `--delete`:
+
+```bash
+spark-on-k8s apps prune --namespace spark --older-than 86400 --output json
+spark-on-k8s apps prune --namespace spark --older-than 86400 --delete --output json
+```
+
+A driver is selected only when it has the `spark-role=driver` and `spark-app-id`
+labels and the pod name that this client derives from that application ID. This
+covers drivers created by the SDK, CLI, remote API, Airflow operators, Connect server
+helper and dbt adapter. Pods from other launchers, or that merely copy the labels,
+are counted as `unverified` and never deleted. By default, only terminal (`Succeeded`
+or `Failed`) drivers are selected, including those stopped by `max_runtime`.
+`--older-than SECONDS` (default 0) sets a minimum age since pod creation, as shown by
+`kubectl get pods`, not since completion. `--include-active` also selects `Pending`,
+`Running` and `Unknown` drivers, and deleting them stops those applications; it
+requires a positive `--older-than`. Pods already being deleted are skipped.
+
+With `--delete`, each selected driver is checked and deleted like `app cancel`: the
+current pod must still have the listed UID, application label and driver role, and
+the request carries a UID precondition with foreground propagation. Kubernetes then
+garbage-collects the executors, Services, ConfigMaps and Secret that the driver
+owns. An accepted request is not completed cleanup. Objects that were never owned
+by a driver, such as a Secret left by a submission interrupted before its driver
+existed, are not selected; the command does not list or read Secrets. It needs
+`list`, `get` and `delete` access to pods in the namespace. This is a one-time
+command, not a controller. Python callers can use the same steps through
+`SparkAppManager.find_prunable_drivers(...)` and `delete_prunable_driver(...)`.
+
+The JSON document adds `dry_run`, `criteria` (`older_than`, `include_active`),
+`items` and `excluded` to the common fields. Each item contains `app_id`,
+`driver_pod`, `driver_uid`, `phase`, the pod's `reason` (for example
+`DeadlineExceeded`) or `null`, `created_at`, `age_seconds`, `action` and `error`.
+`action` is `would_delete` without `--delete`, otherwise `deletion_requested`,
+`absent` (already gone), `replaced` (another pod now has that name; not deleted) or
+`failed` with an item `error`. `excluded` counts other matching pods as `active`,
+`recent`, `deleting` or `unverified`. If listing fails, `items` is `null`. If some
+deletions fail, the remaining requests are still sent and the command exits 1 with
+an `operation_error`; an interruption exits 130 and reports the requests made so far.
+
 ## Contract coverage and lifecycle ownership
 
 | Command family | Structured success | Structured runtime failures | Completion meaning |
 | --- | --- | --- | --- |
 | app submit/wait, job submit, sql submit | `--output json` | Versioned result after CLI parsing | Inspect terminal `status`; detached submit means accepted |
 | app status, apps list, app cancel | `--output json` | Versioned result | Query/deletion request succeeded, not data correctness |
+| apps prune | `--output json` | Versioned result with per-driver errors | Selection only, or deletion requests accepted; not completed cleanup |
 | job validate | `--output json`, per-profile results | Versioned result; `error` repeats the first failing profile's error | Offline validation only |
 | job plan | `--output json` | Load/build errors remain Click text | Redacted preview, no reservation |
 | app diagnose, doctor | `--output json` report | Click text error, exit 1 (including a missing application) | Observed evidence, not a health certification |
@@ -246,7 +331,8 @@ runs inside Airflow's web server, follows Airflow's own error format.
 reconciled controller. The caller submits and decides whether to observe or retry.
 Kubernetes runs the created workload after the client exits. Airflow owns scheduling
 and task retry policy when its operator is used. SDK/CLI observation timeouts retain
-the application; Airflow startup timeouts deliberately delete it. A kill signal is
+the application; Airflow startup timeouts deliberately delete it, and an elapsed
+`max_runtime` deliberately stops its driver. A kill signal is
 a termination request, not evidence of a completed streaming drain or checkpoint.
 
 Disable caching for workflow submission steps. Reusing a cached receipt does not

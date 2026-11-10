@@ -1,0 +1,24 @@
+# Only the gateway pods may open connections to the "spark-console" API pods.
+# See docs/user-guide/sso-gateway.md. Kubernetes keeps allowing connections from the
+# pod's own node, which carry the kubelet's /health and /ready probes.
+# Your network plugin must enforce NetworkPolicy, or this object has no effect.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: spark-console-api-from-gateway
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: spark-on-k8s
+      app.kubernetes.io/instance: spark-console
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: oauth2-proxy
+              app.kubernetes.io/instance: spark-console-gateway
+      ports:
+        - protocol: TCP
+          port: http

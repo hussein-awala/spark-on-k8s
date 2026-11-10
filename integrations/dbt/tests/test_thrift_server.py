@@ -154,6 +154,16 @@ def test_managed_thrift_configuration_cannot_be_overridden(cluster, conf):
     cluster[1].create_namespaced_pod.assert_not_called()
 
 
+def test_max_runtime_bounds_the_managed_thrift_driver(cluster):
+    _, _, objects, _ = cluster
+    unbounded, _ = backend(cluster)
+    pod = objects["pod"][unbounded.create()["run"]["driver_pod"]]
+    assert pod.spec.active_deadline_seconds is None
+    bounded, _ = backend(cluster, configuration(max_runtime=7200))
+    pod = objects["pod"][bounded.create()["run"]["driver_pod"]]
+    assert pod.spec.active_deadline_seconds == 7200
+
+
 def test_requires_thrift_port_and_creation_config(cluster):
     with pytest.raises(ValueError, match="10000"):
         backend(cluster, configuration(port=15002))

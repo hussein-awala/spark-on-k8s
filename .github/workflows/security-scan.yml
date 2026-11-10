@@ -1,0 +1,177 @@
+name: Vulnerability scan
+
+# Report-only: findings go to code scanning (Security > Code scanning) and to workflow
+# artifacts, and never fail this workflow or block a merge. A scanner that produces
+# no results does fail its job: an unexecuted scan is not a clean result.
+on:
+  workflow_dispatch:
+  schedule:
+    # Daily, so newly published advisories appear without a dependency change.
+    - cron: "23 4 * * *"
+  pull_request:
+    paths:
+      - "uv.lock"
+      - "pyproject.toml"
+      - "integrations/dbt/uv.lock"
+      - "integrations/dbt/pyproject.toml"
+      - "frontend/package.json"
+      - "frontend/package-lock.json"
+      - "docker/**"
+      - "scripts/release_artifacts.py"
+      - ".github/workflows/security-scan.yml"
+  push:
+    branches: [main]
+    paths:
+      - "uv.lock"
+      - "pyproject.toml"
+      - "integrations/dbt/uv.lock"
+      - "integrations/dbt/pyproject.toml"
+      - "frontend/package.json"
+      - "frontend/package-lock.json"
+      - "docker/**"
+      - "scripts/release_artifacts.py"
+      - ".github/workflows/security-scan.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-scan-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  locked-dependencies:
+    name: Locked dependencies (OSV-Scanner)
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      security-events: write
+    env:
+      SARIF: osv-scanner.sarif
+      SCAN_NAME: Locked dependencies (OSV-Scanner)
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Scan the uv and npm lockfiles
+        # osv-scanner exits non-zero when it finds vulnerabilities; the next step
+        # still requires its results.
+        continue-on-error: true
+        uses: google/osv-scanner-action/osv-scanner-action@b1d267aea5211fa648d9d442fa64b90dbdcbdd36 # v2.7.0
+        with:
+          scan-args: |-
+            --format=sarif
+            --output-file=osv-scanner.sarif
+            --lockfile=uv.lock
+            --lockfile=integrations/dbt/uv.lock
+            --lockfile=frontend/package-lock.json
+      - name: Require results and summarize findings
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          sarif = Path(os.environ["SARIF"])
+          if not sarif.is_file() or sarif.stat().st_size == 0:
+              print(f"::error::{sarif} was not written, so the scan did not complete; this is not a clean result.")
+              raise SystemExit(1)
+          results = [result for run in json.loads(sarif.read_text())["runs"] for result in run.get("results", [])]
+          message = f"{os.environ['SCAN_NAME']}: {len(results)} report-only finding(s)."
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as summary:
+              summary.write(f"{message} See Security > Code scanning or the {sarif.stem} artifact.\n")
+          print(f"::warning::{message}" if results else message)
+          PY
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: osv-scanner
+          path: osv-scanner.sarif
+          if-no-files-found: error
+          retention-days: 7
+      - name: Upload findings to code scanning
+        # Fork pull requests cannot write security events; they keep the artifact only.
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          sarif_file: osv-scanner.sarif
+          category: osv-scanner-lockfiles
+
+  api-image:
+    name: API image (Grype)
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      security-events: write
+    env:
+      SARIF: grype-api-image.sarif
+      SCAN_NAME: API image (Grype)
+      # Placeholder version: this image is built only to be scanned and is never published.
+      SCAN_VERSION: 0.0.0.dev0
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.7"
+          # No shared cache in a job that can write security events.
+          enable-cache: false
+      - name: Prepare the API image inputs from uv.lock
+        # The same frozen inputs as the release workflow's container build.
+        run: |
+          set -euo pipefail
+          unset CONDA_DEFAULT_ENV CONDA_PREFIX VIRTUAL_ENV
+          uv python install 3.12
+          python_path="$(uv python find --managed-python 3.12)"
+          export UV_PYTHON="$python_path"
+          uv lock --check
+          mkdir -p docker/release
+          uv export --locked --no-default-groups --extra api --no-emit-project \
+            --format requirements.txt --output-file docker/release/requirements.txt > /dev/null
+          uv version --frozen "$SCAN_VERSION"
+          uv build
+          python3 scripts/release_artifacts.py prepare --dist dist --lock uv.lock \
+            --requirements docker/release/requirements.txt --dockerfile docker/Dockerfile \
+            --output docker/release --version "$SCAN_VERSION" --commit "$GITHUB_SHA"
+      - name: Build the API image without publishing
+        run: docker build --tag spark-on-k8s-api:scan docker
+      - name: Scan the API image
+        uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439 # v7.4.2
+        with:
+          image: spark-on-k8s-api:scan
+          # Findings never fail the step; a scanner error still does.
+          fail-build: false
+          # Report advisories that a base-image or dependency update can resolve.
+          only-fixed: true
+          output-format: sarif
+          output-file: grype-api-image.sarif
+      - name: Require results and summarize findings
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          sarif = Path(os.environ["SARIF"])
+          if not sarif.is_file() or sarif.stat().st_size == 0:
+              print(f"::error::{sarif} was not written, so the scan did not complete; this is not a clean result.")
+              raise SystemExit(1)
+          results = [result for run in json.loads(sarif.read_text())["runs"] for result in run.get("results", [])]
+          message = f"{os.environ['SCAN_NAME']}: {len(results)} report-only finding(s)."
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as summary:
+              summary.write(f"{message} See Security > Code scanning or the {sarif.stem} artifact.\n")
+          print(f"::warning::{message}" if results else message)
+          PY
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: grype-api-image
+          path: grype-api-image.sarif
+          if-no-files-found: error
+          retention-days: 7
+      - name: Upload findings to code scanning
+        # Fork pull requests cannot write security events; they keep the artifact only.
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          sarif_file: grype-api-image.sarif
+          category: grype-api-image

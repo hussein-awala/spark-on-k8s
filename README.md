@@ -17,7 +17,8 @@ same React console components inside Airflow; see the [Airflow guide](https://hu
 
 Choose your route in the [start-here guide](https://hussein.awala.fr/spark-on-k8s/latest/user-guide/start-here/) and check the [support boundaries](https://hussein.awala.fr/spark-on-k8s/latest/user-guide/support/) before adopting a new integration.
 The [release notes](https://hussein.awala.fr/spark-on-k8s/release-notes/) describe every published
-release and the release in preparation.
+release and the release in preparation. Report vulnerabilities privately as described in the
+[security policy](https://github.com/hussein-awala/spark-on-k8s/blob/main/SECURITY.md).
 
 ## Installation
 
@@ -274,11 +275,12 @@ this checkout; adapt them to your cluster and selected chart version.
 The source chart defaults to `readOnly: true`, `namespaces: ""` (the release
 namespace), a ClusterIP Service on port `8000`, and disabled ingress. Set `namespaces`
 to a comma-separated string such as `"spark"` or `"spark,analytics"` to serve those
-namespaces, or to `"*"` to serve every namespace through a cluster-wide binding. The
-chart-created Kubernetes permissions follow the same value, and the API refuses
-requests, Spark UI proxy connections and log streams for other namespaces.
-Enable `readOnly: false` only if the API should be able to kill or
-delete applications. The separate web UI button settings control visibility,
+namespaces, or to `"*"` to serve every namespace through a chart-owned cluster role
+with the same permissions. The chart-created Kubernetes permissions follow the same
+value, and the API refuses requests, Spark UI proxy connections and log streams for
+other namespaces. Enable `readOnly: false` only if the API should be able to kill or
+delete applications; with `"*"`, that also requires `rbac.allowClusterWideWrite: true`.
+The separate web UI button settings control visibility,
 not Kubernetes authorization. The API has no built-in user authentication; its
 namespace scope limits what it can reach, not who can use it. Expose the API through
 access-controlled networking or an authenticating proxy.

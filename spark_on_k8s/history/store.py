@@ -89,8 +89,11 @@ class RunStore:
             db.execute("CREATE INDEX IF NOT EXISTS runs_namespace ON runs(namespace)")
             db.execute("""CREATE TABLE IF NOT EXISTS collection (
                 namespace TEXT PRIMARY KEY, last_attempt REAL, last_success REAL,
-                successes INTEGER NOT NULL DEFAULT 0, failures INTEGER NOT NULL DEFAULT 0
+                successes INTEGER NOT NULL DEFAULT 0, failures INTEGER NOT NULL DEFAULT 0, last_error TEXT
             )""")
+            # Earlier version 1 databases lack the failure category; older readers ignore the column.
+            if "last_error" not in {row["name"] for row in db.execute("PRAGMA table_info(collection)")}:
+                db.execute("ALTER TABLE collection ADD COLUMN last_error TEXT")
             db.execute("""CREATE TABLE IF NOT EXISTS collector_lease (
                 singleton INTEGER PRIMARY KEY CHECK(singleton=1), owner TEXT NOT NULL,
                 token INTEGER NOT NULL, expires REAL NOT NULL
@@ -166,7 +169,8 @@ class RunStore:
                 """INSERT INTO collection(namespace,last_attempt,last_success,successes)
                         VALUES(?,?,?,1) ON CONFLICT(namespace)
                         DO UPDATE SET last_attempt=excluded.last_attempt,
-                        last_success=excluded.last_success,successes=collection.successes+1""",
+                        last_success=excluded.last_success,successes=collection.successes+1,
+                        last_error=NULL""",
                 (namespace, now, now),
             )
             self._prune(db, now)
@@ -182,14 +186,15 @@ class RunStore:
             (self.max_rows,),
         )
 
-    def failure(self, namespace: str, lease: Lease):
+    def failure(self, namespace: str, lease: Lease, category: str = "unexpected"):
+        """Count a failed collection; ``category`` is a bounded reason, never exception text."""
         with self.connection(write=True) as db:
             self._fence(db, lease)
             db.execute(
-                """INSERT INTO collection(namespace,last_attempt,failures) VALUES(?,?,1)
+                """INSERT INTO collection(namespace,last_attempt,failures,last_error) VALUES(?,?,1,?)
                 ON CONFLICT(namespace) DO UPDATE SET last_attempt=excluded.last_attempt,
-                failures=collection.failures+1""",
-                (namespace, self.clock()),
+                failures=collection.failures+1,last_error=excluded.last_error""",
+                (namespace, self.clock(), category),
             )
             self._prune(db, self.clock())
             self._fence(db, lease)

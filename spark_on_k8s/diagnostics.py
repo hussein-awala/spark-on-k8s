@@ -47,13 +47,17 @@ def validate_target(namespace: str, value: str, *, label: bool = False) -> None:
         raise ValueError("Invalid Kubernetes application or pod identifier")
 
 
-def _evidence(value: Any) -> str:
-    # Kubernetes events can echo image URLs or error text. Never display embedded credentials.
-    text = str(value or "")[:1000]
+def _redact_credentials(text: str) -> str:
+    """Replace URL user information and secret-like key/value pairs."""
     text = re.sub(r"(://)[^/\s@]+@", r"\1<redacted>@", text)
     return re.sub(
         r"(?i)((?:password|token|secret|credential|access.key)\s*[=:]\s*)[^\s&;]+", r"\1<redacted>", text
     )
+
+
+def _evidence(value: Any) -> str:
+    # Kubernetes events can echo image URLs or error text. Never display embedded credentials.
+    return _redact_credentials(str(value or "")[:1000])
 
 
 def classify_pod(pod: dict, events: list[dict]) -> list[DiagnosticFinding]:

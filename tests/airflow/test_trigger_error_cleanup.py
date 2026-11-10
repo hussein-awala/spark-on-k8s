@@ -161,6 +161,8 @@ def test_terminal_status_still_replays_logs_before_cleanup(status):
         app_waiter="log",
         on_finish_action="delete",
         deferrable=True,
+        # test_failure_postmortem.py covers the postmortem between log replay and cleanup.
+        failure_diagnostics=False,
     )
     event = json.loads(
         json.dumps(

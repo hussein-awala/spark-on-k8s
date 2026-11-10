@@ -68,7 +68,7 @@
   <meta name="documentation-channel" content="develop">
   <meta name="documentation-version" content="develop">
   
-    <meta name="documentation-source" content="09ef7dad357da2af603ae331c061882044ba9a06">
+    <meta name="documentation-source" content="05b416a2a22b70997137bfe981d12063a8a07b21">
   
 
   </head>
@@ -108,7 +108,7 @@
     <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
   
   
-    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/09ef7dad357da2af603ae331c061882044ba9a06"><code>09ef7dad357d</code></a>.
+    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/05b416a2a22b70997137bfe981d12063a8a07b21"><code>05b416a2a22b</code></a>.
   
 
           </div>
@@ -1511,6 +1511,34 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Health and Prometheus">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#collection-status-and-logs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Collection status and logs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#prometheus-metrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prometheus metrics
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -5214,6 +5242,34 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Health and Prometheus">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#collection-status-and-logs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Collection status and logs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#prometheus-metrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prometheus metrics
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -5282,7 +5338,9 @@ independently to multiple replicas.</strong> This feature is intended for a smal
 HA storage. Back up the database with SQLite's backup facility or during a clean shutdown; copying
 only the main file while WAL writes are active can omit committed records. Keep the directory private
 to the API process and back up the database according to your operational needs.</p>
-<p>The store initializes schema version 1 transactionally and refuses an unknown future version.
+<p>The store initializes schema version 1 transactionally and refuses an unknown future version. A
+version 1 database without the nullable collection failure-category column gains it on startup;
+builds that predate the column ignore it.
 Configuration objects and credential source fields are not collected into the database. A missing/unwritable directory or an
 invalid configuration prevents recorder startup; the API does not silently fall back to ephemeral
 storage.</p>
@@ -5368,7 +5426,8 @@ independent backups. Define backup access and expiry separately.</p>
 <p>Restart API workers to change these settings. Increasing page limits may increase memory use and cluster
 API traffic; use namespaces and quotas that match the deployment's scale.</p>
 <h2 id="read-only-http-api">Read-only HTTP API<a class="headerlink" href="#read-only-http-api" title="Permanent link">&para;</a></h2>
-<p><code>GET /runs/v1/config</code> returns enabled namespaces and retention settings. <code>GET /runs/v1</code> returns
+<p><code>GET /runs/v1/config</code> returns enabled namespaces, retention settings and the
+<a href="#collection-status-and-logs">collection status</a> of each namespace. <code>GET /runs/v1</code> returns
 <code>{schema_version: 1, items: [...], next_cursor: string | null}</code>. Each item contains:</p>
 <div class="highlight"><pre><span></span><code><span class="p">{</span>
 <span class="w">  </span><span class="nt">"uid"</span><span class="p">:</span><span class="w"> </span><span class="s2">"6fb31548-331f-4c94-bb51-b0af6b8cd263"</span><span class="p">,</span>
@@ -5396,13 +5455,75 @@ as other API routes. The recorder does not introduce tenant-specific permissions
 <h2 id="health-and-prometheus">Health and Prometheus<a class="headerlink" href="#health-and-prometheus" title="Permanent link">&para;</a></h2>
 <p><code>/health</code> remains a lightweight liveness probe. <code>GET</code> and <code>HEAD /ready</code> check actual pod-list access in
 the configured namespaces, with a five-second overall deadline. Without history, readiness checks the
-API's default namespace. With history, the recorder must also be initialized and have a recent
-successful snapshot for every configured namespace. The freshness window is twice the poll interval
-plus the collection timeout and ten seconds. Until the first successful scan, readiness is 503.</p>
-<p>Both probes remain accessible without a bearer in remote mode. Readiness returns only
-<code>{"status":"ready"}</code> or <code>{"status":"not_ready"}</code> and does not expose namespace, database or credential
-errors. Failed readiness removes the pod from service traffic; liveness does not restart it merely
-because Kubernetes is temporarily unavailable.</p>
+API's default namespace and fails when that listing fails.</p>
+<p>With history, readiness also requires an initialized, readable recorder database. A namespace is
+<em>fresh</em> when its last successful snapshot is within the freshness window: twice the poll interval plus
+the collection timeout and ten seconds (85 seconds with the defaults). Set
+<code>SPARK_ON_K8S_RUN_HISTORY_READINESS</code> to choose how stale namespaces affect readiness:</p>
+<table>
+<thead>
+<tr>
+<th>Mode</th>
+<th><code>/ready</code> result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>degraded</code> (default)</td>
+<td>503 when the database is unavailable, pod listing fails in every configured namespace, or no namespace is fresh. Otherwise 200, reporting <code>degraded</code> while any namespace is stale.</td>
+</tr>
+<tr>
+<td><code>strict</code></td>
+<td>503 unless pod listing succeeds and collection is fresh in every configured namespace.</td>
+</tr>
+</tbody>
+</table>
+<p>In <code>degraded</code> mode, one namespace that the recorder cannot collect, for example because its pod-list
+permission was removed, the Kubernetes API throttles it, or it exceeds the page limit, no longer
+removes the API from its Service. Submissions, application views and the other namespaces keep
+working while the stale namespace is reported in logs, metrics and the console. A pod-list failure in
+only some namespaces is tolerated until it makes their collection stale. With one configured namespace,
+both modes behave the same. After startup, readiness is 503 until a snapshot succeeds in at least one
+namespace (<code>degraded</code>) or in every namespace (<code>strict</code>). Use <code>strict</code> when the API should receive
+traffic only while history is current for every namespace.</p>
+<p>Both probes remain accessible without a bearer in remote mode, so their bodies are limited to
+<code>{"status":"ready"}</code>, <code>{"status":"degraded"}</code> (both 200) or <code>{"status":"not_ready"}</code> (503). They do not
+expose namespace, database or credential errors; the authorized configuration endpoint and logs below
+identify stale namespaces. Failed readiness removes the pod from service traffic; liveness does not
+restart it merely because Kubernetes is temporarily unavailable.</p>
+<h3 id="collection-status-and-logs">Collection status and logs<a class="headerlink" href="#collection-status-and-logs" title="Permanent link">&para;</a></h3>
+<p><code>GET /runs/v1/config</code> also returns <code>readiness</code>, <code>freshness_seconds</code> and one <code>collection</code> entry for each
+configured namespace:</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"namespace"</span><span class="p">:</span><span class="w"> </span><span class="s2">"batch"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"fresh"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"last_success"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-11-07T12:00:15Z"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"last_attempt"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-11-07T12:09:45Z"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"last_error"</span><span class="p">:</span><span class="w"> </span><span class="s2">"forbidden"</span>
+<span class="p">}</span>
+</code></pre></div>
+<p><code>last_success</code> is null before the first successful collection and <code>last_attempt</code> before the first
+attempt. <code>last_error</code> is null after a successful collection; otherwise it is a fixed category of the
+latest failure: <code>unauthorized</code>,
+<code>forbidden</code>, <code>not_found</code>, <code>throttled</code>, <code>server_error</code>, <code>api_error</code> (another Kubernetes status),
+<code>timeout</code>, <code>connection</code>, <code>pagination</code> (an expired or repeated continuation token), <code>page_limit</code> (more
+driver pods than <code>PAGE_SIZE</code> × <code>MAX_PAGES</code>), <code>invalid_metadata</code>, <code>store</code> or <code>unexpected</code>. Kubernetes
+and database error messages are never stored, returned or logged. The console's <strong>Recorded runs</strong> page
+shows a notice when the selected namespace is stale.</p>
+<p>The worker that holds the collection lease logs a warning when a namespace becomes stale, with the age
+of its last success and its last error category, and an info line when it is fresh again. The category
+is <code>not_attempted</code> when the collection budget expired before the namespace was reached. Each API worker
+also logs its own readiness changes with their reason, including the not-ready state it observes
+before the first snapshot after startup. These lines are written once per transition, not on every
+probe or collection:</p>
+<div class="highlight"><pre><span></span><code>WARNING:  Run-history collection for namespace batch is stale: last success 412s ago; last error: forbidden
+WARNING:  API is ready but degraded: run-history collection is stale in batch (last error: forbidden)
+INFO:     Run-history collection for namespace batch is fresh again
+INFO:     API readiness recovered
+</code></pre></div>
+<p><code>spark-on-k8s api start</code> writes these records with the server's log format and <code>--log-level</code>
+(<code>SPARK_ON_K8S_API_LOG_LEVEL</code>). The <code>warning</code> level omits the recovery lines.</p>
+<h3 id="prometheus-metrics">Prometheus metrics<a class="headerlink" href="#prometheus-metrics" title="Permanent link">&para;</a></h3>
 <p>Set <code>SPARK_ON_K8S_METRICS_ENABLED=true</code> to expose <code>/metrics</code> in Prometheus text format. It remains protected
 by the remote operator bearer when remote mode is enabled. Configure the scraper's authorization
 through its secret mechanism; do not place a token in a scrape URL. Metrics include:</p>
@@ -5410,10 +5531,14 @@ through its secret mechanism; do not place a token in a scrape URL. Metrics incl
 <li><code>spark_on_k8s_history_enabled</code>;</li>
 <li><code>spark_on_k8s_runs_recorded{namespace,status}</code>;</li>
 <li><code>spark_on_k8s_collection_successes_total{namespace}</code> and <code>spark_on_k8s_collection_failures_total{namespace}</code>;</li>
-<li><code>spark_on_k8s_collection_age_seconds{namespace}</code> (<code>-1</code> before any successful collection).</li>
+<li><code>spark_on_k8s_collection_age_seconds{namespace}</code> (<code>-1</code> before any successful collection);</li>
+<li><code>spark_on_k8s_collection_stale{namespace}</code> (<code>1</code> when the namespace has no successful collection within
+  the freshness window, including before its first collection; otherwise <code>0</code>).</li>
 </ul>
 <p>Labels contain only configured namespaces and five bounded status values. No application IDs, pod
-names, images or exception text appear in metric labels. Counters persist with the SQLite database.</p>
+names, images or exception text appear in metric labels. Counters persist with the SQLite database.
+For example, alert on <code>spark_on_k8s_collection_stale == 1</code> to find a stale namespace while the
+<code>degraded</code> readiness mode keeps the API in service.</p>
 <h2 id="helm-configuration">Helm configuration<a class="headerlink" href="#helm-configuration" title="Permanent link">&para;</a></h2>
 <p>The chart uses <code>/health</code> and <code>/ready</code> for liveness and readiness. To enable history, provision an existing
 ReadWriteOnce block-backed claim and allow the API's filesystem user to write it:</p>
@@ -5437,8 +5562,13 @@ compete for the claim. Its default <code>fsGroup: 10001</code> gives the non-roo
 that support <code>fsGroup</code>; see <a href="../chart-deployments/#run-the-api-as-a-non-root-user">non-root deployment</a>
 for a claim written by an earlier root process. Existing environment overrides remain supported. Make
 sure history namespaces also have the pod-list permissions configured by <code>namespaces</code> or an externally
-managed service account.
-The separately configured <code>sparkHistory</code> chart section still refers to Spark History Server event logs.</p>
+managed service account. To require every history namespace to be fresh for readiness, set the mode
+through <code>env</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">env</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">SPARK_ON_K8S_RUN_HISTORY_READINESS</span>
+<span class="w">    </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">strict</span>
+</code></pre></div>
+<p>The separately configured <code>sparkHistory</code> chart section still refers to Spark History Server event logs.</p>
 
 
 
@@ -5459,7 +5589,7 @@ The separately configured <code>sparkHistory</code> chart section still refers t
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 9, 2026 08:42:42 UTC">November 9, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 10, 2026 09:21:37 UTC">November 10, 2026</span>
   </span>
 
     

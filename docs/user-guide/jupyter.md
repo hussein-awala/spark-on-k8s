@@ -7,13 +7,16 @@ delete the recorded server. The notebook uses the existing
 [independent Connect sessions](spark_connect.md); Jupyter runs on your machine.
 
 Use the canonical example at `examples/jupyter/spark_connect.ipynb` with
-`notebook_support.py` beside it. You can also download the
-[notebook bundle](../downloads/jupyter/jupyter-connect.zip),
-[notebook](../downloads/jupyter/spark_connect.ipynb), or
+`notebook_support.py` beside it. A shorter
+[private server quickstart](#private-server-quickstart) in the same directory adds an
+image pull Secret, a Secret-backed credential and a node selector. You can also
+download the [notebook bundle](../downloads/jupyter/jupyter-connect.zip),
+[notebook](../downloads/jupyter/spark_connect.ipynb),
+[quickstart](../downloads/jupyter/private_connect_quickstart.ipynb), or
 [helper](../downloads/jupyter/notebook_support.py).
 These downloads are built from the same source as the selected documentation
-version. The bundle contains both required files; it does not include credentials
-or an environment.
+version. The bundle contains both notebooks and the helper; it does not include
+credentials or an environment.
 
 ## Prepare the cluster and client
 
@@ -188,6 +191,46 @@ before attempting another creation. For your own servers, `ConnectServerConfig`
 accepts an optional `max_runtime` in seconds so Kubernetes stops a forgotten server's
 driver; see the [server guide](spark_connect_server.md#observe-stop-and-recover).
 
+## Private server quickstart
+
+`examples/jupyter/private_connect_quickstart.ipynb` creates a server whose image is
+pulled with an image pull Secret, whose driver and executors receive a credential as
+the `QUICKSTART_API_TOKEN` variable from a Secret key, and whose pods run on
+selected nodes. It previews the server offline, waits for a real query, runs a
+small query, checks that the variable is set on the executors without returning
+its value, and deletes the server. It has no kernel-restart boundary. The settings
+are described in
+[private images, credentials and node placement](spark_connect_server.md#private-images-credentials-and-node-placement).
+
+The notebook contains no credentials. An administrator creates the Secrets in the
+namespace first; the notebook only references them by name. For example, reading
+values from files rather than typing them into a shell:
+
+```bash
+kubectl --namespace "$SPARK_NOTEBOOK_NAMESPACE" create secret generic private-registry \
+  --type=kubernetes.io/dockerconfigjson --from-file=.dockerconfigjson=./registry-config.json
+kubectl --namespace "$SPARK_NOTEBOOK_NAMESPACE" create secret generic notebook-credentials \
+  --from-file=api-token=./api-token.txt
+```
+
+Use the same kernel and `SPARK_NOTEBOOK_*` cluster settings as the main example,
+with an image that the pull Secret can pull, then set the references and launch it:
+
+```bash
+export SPARK_NOTEBOOK_PULL_SECRET=private-registry
+export SPARK_NOTEBOOK_CREDENTIAL=notebook-credentials:api-token
+export SPARK_NOTEBOOK_NODE_SELECTOR=kubernetes.io/os=linux  # Or your pool's KEY=VALUE label.
+.venv-notebook/bin/jupyter lab examples/jupyter/private_connect_quickstart.ipynb
+```
+
+The default node selector matches every Linux node. Its receipt is
+`quickstart-receipt.json` in the artifact directory, separate from the main
+example's receipt; use it with `connect server status` and `connect server delete`
+if the notebook stops early. Every client of a server can read its environment
+variables through queries, so give the server only credentials that all of its
+users may hold. To install Python libraries on the server and run executors on GPU
+nodes, see [Build an ML image for Spark Connect](connect_ml_image.md).
+
 ## Data and session boundaries
 
 | Where state lives | What survives a notebook kernel restart |
@@ -267,6 +310,11 @@ IPython kernel, restarts that kernel at the marked boundary, and checks distribu
 execution, rendered table output, session separation, failure recovery and cleanup.
 It uses a built wheel on disposable kind clusters with matching client/server
 pairs 4.0.5/4.0.5 and 4.3.0/4.3.0. Its evidence includes the executed notebook and JSON results.
+The same workflow runs the private server quickstart against test Secrets it
+creates: it checks the executor pods' node selector, pull Secret and Secret
+reference, the variable's presence in executor tasks and cleanup, and that the
+random test value appears in no notebook output or saved evidence. The kind nodes
+already hold the image, so the pull Secret is referenced but never used for a pull.
 
 This automation covers notebook kernel execution and output. It does not click
 through JupyterLab's browser UI, test arbitrary extensions, or simulate an abrupt

@@ -64,6 +64,10 @@ class ComputeConfig:
                     raise ValueError(f"compute.{key} must be a mapping")
                 values[key] = factory(**values[key])
         server = ConnectServerConfig(**values)
+        if method == "thrift":
+            from spark_on_k8s_dbt.thrift_server import reject_unsupported_fields
+
+            reject_unsupported_fields(server)
         if "spark.sql.warehouse.dir" not in server.spark_conf:
             raise ValueError("compute.spark_conf must specify a shared spark.sql.warehouse.dir")
         warehouse = server.spark_conf["spark.sql.warehouse.dir"]

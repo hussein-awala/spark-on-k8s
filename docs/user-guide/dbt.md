@@ -127,6 +127,12 @@ executor-allocation, package, node-selector and `max_runtime` fields of
 fields above, `startup_timeout`, `cleanup_timeout` and `poll_interval` (positive seconds, at
 most 3600). `max_runtime` is unset by default; see
 [receipts, failure and recovery](#receipts-failure-and-recovery).
+With `method: connect`, it also accepts the
+[image pull Secret, Secret-backed environment and toleration fields](spark_connect_server.md#private-images-credentials-and-node-placement)
+and `executor_node_selector`, for example `image_pull_secrets: [private-registry]`
+or `executor_env_from_secrets: {AWS_ACCESS_KEY_ID: "s3-credentials:access-key"}`.
+`method: thrift` supports only `driver_node_selector` of these and rejects the
+others before contacting the cluster.
 Thrift fixes its managed port to 10000. Managed identity, ports and routing cannot
 be overridden through `spark_conf`. Put static Hive/catalog configuration in
 `compute.spark_conf`; `server_side_parameters` accepts runtime `spark.sql.*` settings; catalog, warehouse,

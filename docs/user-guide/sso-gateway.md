@@ -141,10 +141,16 @@ if it closes quiet log streams; that setting is controller-specific.
 ## Identity headers are deliberately absent
 
 The example defines no `injectRequestHeaders`, so oauth2-proxy sends no user,
-email, group or token headers to the API. The API would ignore them: it reads no
-identity headers and authorizes nothing per user. A gateway-injected or
-client-forged `X-Forwarded-Email` therefore grants nothing, and it cannot be used
-to add per-user rules later without changing the API.
+email, group or token headers to the API. The API authorizes nothing per user. A
+gateway-injected or client-forged `X-Forwarded-Email` therefore grants nothing, and
+it cannot be used to add per-user rules later without changing the API.
+
+The API reads one identity header only when `SPARK_ON_K8S_AUDIT_IDENTITY_HEADER`
+names it, and then only copies it into [audit events](operations.md) as an
+unverified claim. With this example a client can send that header itself, so leave
+the variable unset, or have the gateway inject the header with
+`injectRequestHeaders` so that it replaces any client-supplied value. An event
+records no identity when the request carries the header more than once.
 
 oauth2-proxy does not remove arbitrary client-supplied headers. That is acceptable
 here because the Spark UI and History proxies forward only the documented

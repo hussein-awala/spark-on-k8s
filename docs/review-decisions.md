@@ -628,7 +628,7 @@ The maintained roadmap is [TODO](https://github.com/hussein-awala/spark-on-k8s/b
 
 ### 37.1 · Add a conservative SparkApplication migration assessor and importer
 
-**Not adopted in this change.** Client versus controller ownership is clarified. A Spark Operator importer requires real manifests and must report every unsupported semantic; no silent conversion.
+**Adopted as an offline assessor (#254).** `spark-on-k8s job assess-operator` reports every field as mapped, approximated, unsupported or ignored and can write a draft job file; it never converts silently or contacts the cluster. Client versus controller ownership is clarified.
 
 **Required evidence before implementation:** For a small published fixture corpus, every source leaf has an explicit accounting status; supported fixtures produce validated jobs and expected plans; a fixture containing an unsupported lifecycle setting cannot receive a migration-ready result.
 

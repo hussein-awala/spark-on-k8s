@@ -48,7 +48,7 @@ from spark_on_k8s.cli.options import (
 from spark_on_k8s.cli.receipts import receipt_option
 
 
-@click.group(name="app", help="Create and manage a single Spark applications.")
+@click.group(name="app", help="Create and manage a single Spark application.")
 def app_cli():
     pass
 

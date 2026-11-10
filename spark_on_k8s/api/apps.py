@@ -48,7 +48,8 @@ async def _list_apps(namespace: str, max_per_page: int, continue_from: str) -> t
                 app_id=pod.metadata.labels.get("spark-app-id", pod.metadata.name),
                 status=get_app_status(pod),
                 driver_logs=True,
-                spark_ui_proxy=pod.metadata.labels.get("spark-ui-proxy", False),
+                # Match the console: a label value written by another tool is not a parsed boolean.
+                spark_ui_proxy=pod.metadata.labels.get("spark-ui-proxy", "").lower() == "true",
             )
             for pod in driver_pods.items
         ],

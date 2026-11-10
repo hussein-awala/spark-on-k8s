@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.util
 import json
 import subprocess
 import sys
@@ -10,6 +11,10 @@ import pytest
 from click.testing import CliRunner
 from spark_on_k8s.cli.connect import connect_cli
 from spark_on_k8s.connect import ConnectClientUnavailable, ConnectError, ConnectProfile
+
+# The Spark Connect workflow installs the client and runs this file; the core job does not install it
+# and refuses skipped tests, so a test that needs the client only exists where it can run.
+_CLIENT_INSTALLED = importlib.util.find_spec("pyspark") is not None
 
 
 @pytest.mark.parametrize(
@@ -34,6 +39,59 @@ from spark_on_k8s.connect import ConnectClientUnavailable, ConnectError, Connect
 def test_bad_profiles_are_rejected(settings):
     with pytest.raises(ConnectError):
         ConnectProfile(**settings)
+
+
+@pytest.mark.parametrize(
+    "endpoint",
+    [
+        "sc://spark.example:443?",
+        "sc://spark.example:443#",
+        "sc://spark.example:443/?",
+        "sc://spark.example:443/#",
+        "SC://spark.example:443",
+        "\x00sc://spark.example:443",
+    ],
+)
+def test_endpoints_the_client_would_read_differently_are_rejected(endpoint):
+    # After an empty query or fragment the client ignores the appended ";use_ssl=...;token=...;user_id=..."
+    # and connects in plaintext without credentials. It also requires the literal "sc://" prefix.
+    with pytest.raises(ConnectError, match="Use sc://host:port"):
+        ConnectProfile(endpoint=endpoint, token_env="TEST_TOKEN", user_id="alice")
+
+
+@pytest.mark.parametrize(
+    "endpoint",
+    [
+        "sc://spark.example:443?",
+        "sc://spark.example:443#",
+        "sc://spark.example:443/?",
+        "sc://spark.example",
+        "sc://spark.example:443/",
+        "sc://SPARK.example:",
+        "sc://[2001:db8::1]:443",
+    ],
+)
+def _the_client_reads_tls_token_and_user_from_every_accepted_endpoint(monkeypatch, endpoint):
+    from pyspark.sql.connect.client import core
+
+    monkeypatch.delenv("SPARK_CONNECT_AUTHENTICATE_TOKEN", raising=False)
+    monkeypatch.setenv("TEST_TOKEN", "private;token=with/&?#encoding")
+    try:
+        profile = ConnectProfile(endpoint=endpoint, token_env="TEST_TOKEN", user_id="alice;role=admin")
+    except ConnectError:
+        return  # A rejected endpoint never reaches the client.
+    channel = core.DefaultChannelBuilder(profile.connection_string())
+    assert (channel.use_ssl, channel.token, channel.userId) == (
+        True,
+        "private;token=with/&?#encoding",
+        "alice;role=admin",
+    )
+
+
+if _CLIENT_INSTALLED:
+    test_the_client_reads_tls_token_and_user_from_every_accepted_endpoint = (
+        _the_client_reads_tls_token_and_user_from_every_accepted_endpoint
+    )
 
 
 def test_profile_resolves_credentials_without_storing_them(monkeypatch, tmp_path):

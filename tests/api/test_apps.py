@@ -101,6 +101,32 @@ def test_unlimited_app_listing_omits_kubernetes_limit(max_per_page):
     )
 
 
+@pytest.mark.parametrize(
+    "label, enabled", [("true", True), ("True", True), ("false", False), ("", False), ("maybe", False)]
+)
+def test_proxy_label_written_outside_the_client_cannot_break_the_listing(label, enabled):
+    # The client writes only "true", but any pod creator in the namespace can write another value.
+    app = FastAPI()
+    app.include_router(router)
+    with (
+        mock.patch("spark_on_k8s.api.apps.KubernetesClientSingleton.client", new_callable=mock.AsyncMock),
+        mock.patch("spark_on_k8s.api.apps.CoreV1Api") as api_class,
+        TestClient(app, raise_server_exceptions=False) as client,
+    ):
+        api_class.return_value.list_namespaced_pod = mock.AsyncMock(
+            return_value=k8s.V1PodList(
+                metadata=k8s.V1ListMeta(),
+                items=[
+                    pod("driver-1", "Running", {"spark-app-id": "app-1", "spark-ui-proxy": label}),
+                    pod("driver-2", "Running", {"spark-app-id": "app-2", "spark-ui-proxy": "true"}),
+                ],
+            )
+        )
+        response = client.get("/apps/list_apps/analytics")
+    assert response.status_code == 200
+    assert [item["spark_ui_proxy"] for item in response.json()] == [enabled, True]
+
+
 def test_terminal_page_does_not_acquire_a_kubernetes_client():
     app = FastAPI()
     app.include_router(router)

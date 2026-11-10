@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import sqlite3
 import time
@@ -144,7 +145,17 @@ class RunCollector:
         raise CollectionError("Driver snapshot exceeds the configured page limit", "page_limit")
 
     async def collect_once(self):
-        lease = await asyncio.to_thread(self.store.acquire, self.owner, self.settings.lease_seconds)
+        acquiring = asyncio.ensure_future(
+            asyncio.to_thread(self.store.acquire, self.owner, self.settings.lease_seconds)
+        )
+        try:
+            lease = await asyncio.shield(acquiring)
+        except asyncio.CancelledError:
+            # Cancellation does not stop the thread, which can still commit the lease.
+            # Wait for it, so that stop() releases that lease instead of leaving it to expire.
+            with contextlib.suppress(Exception):
+                self.lease = await acquiring or self.lease
+            raise
         if lease is None:
             return False
         self.lease = lease

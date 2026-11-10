@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import sqlite3
+import threading
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, Mock
 
@@ -361,3 +362,33 @@ def test_shutdown_release_failure_does_not_prevent_other_client_cleanup(setup, c
     assert collector.lease is None
     assert "could not be released" in caplog.text
     assert "private database path" not in caplog.text
+
+
+def test_shutdown_during_lease_acquisition_still_releases_the_lease(setup):
+    collector, _ = setup
+    acquire = collector.store.acquire
+    acquiring, resume, committed = threading.Event(), threading.Event(), threading.Event()
+
+    def slow_acquire(owner, seconds):
+        # Cancelling the task does not stop this thread: it commits the lease after the cancellation.
+        acquiring.set()
+        resume.wait(5)
+        try:
+            return acquire(owner, seconds)
+        finally:
+            committed.set()
+
+    async def scenario():
+        collector.store.acquire = slow_acquire
+        await collector.start()
+        await asyncio.to_thread(acquiring.wait, 5)
+        stopping = asyncio.create_task(collector.stop())
+        await asyncio.sleep(0.05)
+        resume.set()
+        await stopping
+        await asyncio.to_thread(committed.wait, 5)
+
+    asyncio.run(scenario())
+    assert collector.lease is None
+    # The next process does not have to wait for the stopped collector's lease to expire.
+    assert acquire("new-process", 30) is not None

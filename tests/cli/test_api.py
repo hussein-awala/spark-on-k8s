@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import subprocess
 import sys
 from unittest import mock
@@ -202,3 +203,38 @@ def test_start_without_server_dependency_is_a_cli_error():
     result = CliRunner().invoke(start, [])
     assert result.exit_code == 1
     assert "pip install 'spark-on-k8s[api]'" in result.output
+
+
+# A child process, because applying the server's logging configuration is process-wide.
+_API_START_LOGGING = """
+import logging.config
+import sys
+from unittest import mock
+
+from click.testing import CliRunner
+
+from spark_on_k8s.cli.api import start
+
+with mock.patch("uvicorn.run") as run:
+    assert CliRunner().invoke(start, ["--log-level", sys.argv[1]]).exit_code == 0
+logging.config.dictConfig(run.call_args.kwargs["log_config"])
+
+from spark_on_k8s.api import audit
+
+audit.configure_audit_log()
+audit.logger.info('{"audit_version":1}')
+logging.getLogger("spark_on_k8s.api.run_history").warning("a package record")
+"""
+
+
+@pytest.mark.parametrize("log_level", ["info", "critical"])
+def test_start_writes_audit_events_to_stdout_as_bare_json_lines(log_level):
+    result = subprocess.run(
+        [sys.executable, "-c", _API_START_LOGGING, log_level], capture_output=True, text=True
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert [json.loads(line) for line in result.stdout.splitlines()] == [{"audit_version": 1}]
+    assert "audit_version" not in result.stderr
+    # Other package records keep the server's handler and --log-level.
+    assert ("a package record" in result.stderr) is (log_level == "info")

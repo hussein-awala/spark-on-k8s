@@ -235,7 +235,8 @@ class RunStore:
                     raise ValueError
                 # first_seen is REAL; also bounds integers that SQLite cannot bind.
                 first = float(first)
-            except (ValueError, KeyError, TypeError, OverflowError) as error:
+            # Python 3.11 raises RecursionError for JSON nested deeper than its recursion limit.
+            except (ValueError, KeyError, TypeError, OverflowError, RecursionError) as error:
                 raise ValueError("Invalid run-list cursor") from error
             conditions.append("(first_seen < ? OR (first_seen = ? AND uid < ?))")
             params.extend((first, first, uid))

@@ -272,6 +272,16 @@ class SparkAppManager(LoggingMixin):
                         deadline.remaining()
                         break
                     except ApiException as error:
+                        if error.status == 400 and pod.status.phase in ("Succeeded", "Failed"):
+                            # The kubelet rejects log requests for a container that never started.
+                            # The pod's outcome is final, so retrying or raising would only hide it.
+                            self.log(
+                                msg=f"No logs are available for {pod.status.phase} driver pod {pod_name}: "
+                                f"{error.reason}",
+                                level=logging.WARNING,
+                                should_print=should_print,
+                            )
+                            break
                         if received or retries == 0:
                             raise
                         self.log(

@@ -83,3 +83,43 @@ def test_kill_closes_websocket_and_outer_client(monkeypatch, outcome):
             await websocket.close()
 
     asyncio.run(check_cleanup())
+
+
+def test_kill_execs_against_the_cluster_of_an_explicit_client_configuration(monkeypatch):
+    """An explicit configuration is never the process default, so the exec client must be given it."""
+    from kubernetes_asyncio import client as k8s_async
+    from kubernetes_asyncio.stream.ws_client import WsResponse
+    from spark_on_k8s.k8s import async_client
+
+    configuration = k8s_async.Configuration(host="https://configured-cluster.example")
+    configuration.api_key = {"BearerToken": "Bearer test-token"}
+    monkeypatch.setattr(async_client.config, "load_kube_config", AsyncMock())
+    monkeypatch.setattr(
+        k8s_async.CoreV1Api,
+        "read_namespaced_pod",
+        AsyncMock(
+            return_value=SimpleNamespace(
+                metadata=SimpleNamespace(name="actual-driver", annotations=None),
+                spec=SimpleNamespace(containers=[SimpleNamespace(name="driver")]),
+                status=SimpleNamespace(phase="Running"),
+            )
+        ),
+    )
+    requests = []
+
+    async def request(self, method, url, headers=None, **kwargs):
+        requests.append((url, dict(headers or {})))
+        return WsResponse(200, b"")
+
+    monkeypatch.setattr(WsApiClient, "request", request)
+    manager = async_app_manager.AsyncSparkAppManager(
+        k8s_client_manager=async_client.KubernetesAsyncClientManager(
+            client_configuration=configuration, in_cluster=False
+        )
+    )
+
+    asyncio.run(manager.kill_app(namespace="analytics", pod_name="actual-driver"))
+
+    [(url, headers)] = requests
+    assert url == "https://configured-cluster.example/api/v1/namespaces/analytics/pods/actual-driver/exec"
+    assert headers["authorization"] == "Bearer test-token"

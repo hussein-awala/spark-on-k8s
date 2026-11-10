@@ -111,6 +111,19 @@ def start(
         "level": log_level.upper(),
         "propagate": False,
     }
+    # Audit events are bare JSON lines on stdout at every --log-level; the handler above would
+    # prefix them and send them to stderr with the server's other records.
+    log_config["formatters"]["audit"] = {"format": "%(message)s"}
+    log_config["handlers"]["audit"] = {
+        "class": "logging.StreamHandler",
+        "formatter": "audit",
+        "stream": "ext://sys.stdout",
+    }
+    log_config["loggers"]["spark_on_k8s.audit"] = {
+        "handlers": ["audit"],
+        "level": "INFO",
+        "propagate": False,
+    }
     uvicorn.run(
         "spark_on_k8s.api.main:app",
         host=host,

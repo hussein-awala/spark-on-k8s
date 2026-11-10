@@ -122,6 +122,8 @@ def test_create_maps_explicit_resources_and_configuration(server):
             "example:connector:1.0",
             "--image-pull-policy",
             "Never",
+            "--max-runtime",
+            "14400",
         ],
     )
     assert result.exit_code == 0, result.output
@@ -135,6 +137,14 @@ def test_create_maps_explicit_resources_and_configuration(server):
     assert config.spark_conf == {"spark.sql.shuffle.partitions": "4"}
     assert config.packages == ["example:connector:1.0"]
     assert config.image_pull_policy == "Never"
+    assert config.max_runtime == 14400
+
+
+def test_create_sets_no_max_runtime_by_default(server):
+    _, client, _, receipt, _ = server
+    result = CliRunner().invoke(connect_cli, create_args(receipt))
+    assert result.exit_code == 0, result.output
+    assert client.create_connect_server.call_args.args[0].max_runtime is None
 
 
 def test_existing_receipt_prevents_any_cluster_access(server):

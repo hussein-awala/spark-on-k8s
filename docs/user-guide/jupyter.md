@@ -187,7 +187,9 @@ after creation, retain the full identity printed by the cell and the available
 The notebook's helper manages the tunnel separately from the SDK. Closing a
 session, tunnel or notebook does not delete the server. A readiness timeout also
 leaves the server running. Keep the receipt and inspect the existing resources
-before attempting another creation.
+before attempting another creation. For your own servers, `ConnectServerConfig`
+accepts an optional `max_runtime` in seconds so Kubernetes stops a forgotten server's
+driver; see the [server guide](spark_connect_server.md#observe-stop-and-recover).
 
 ## Private server quickstart
 

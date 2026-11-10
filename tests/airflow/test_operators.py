@@ -630,3 +630,22 @@ def test_job_spec_reuses_configuration_and_secret_references():
     assert "kind: Pod" in kwargs["executor_pod_template"]
     assert kwargs["secret_values"] == {}
     assert kwargs["executor_instances"].initial == 2
+
+
+@pytest.mark.parametrize("max_runtime", [None, 3600])
+def test_max_runtime_is_forwarded_only_when_set(max_runtime):
+    from spark_on_k8s.airflow.operators import SparkOnK8SOperator
+
+    operator = SparkOnK8SOperator(
+        task_id="bounded",
+        image="spark:4.0.5",
+        app_path="local:///job.py",
+        app_waiter="no_wait",
+        **({"max_runtime": max_runtime} if max_runtime is not None else {}),
+    )
+    with mock.patch("spark_on_k8s.client.SparkOnK8S.submit_app", return_value="bounded-driver") as submit:
+        operator.execute({"ti": mock.MagicMock(xcom_pull=mock.MagicMock(return_value=None))})
+    if max_runtime is None:
+        assert "max_runtime" not in submit.call_args.kwargs
+    else:
+        assert submit.call_args.kwargs["max_runtime"] == max_runtime

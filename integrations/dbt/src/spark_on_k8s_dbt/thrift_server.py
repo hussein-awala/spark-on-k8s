@@ -140,6 +140,7 @@ def _options(config, token):
         "driver_host_aliases": [],
         "driver_pod_template": None,
         "driver_container_name": None,
+        "max_runtime": config.max_runtime,
         "dry_run": False,
     }
 

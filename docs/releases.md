@@ -30,7 +30,8 @@ do not describe analytical review personas as customer feedback.
 The current repository workflows are the source of truth for mechanics:
 
 - `.github/workflows/release.yml`: tag-triggered Python distributions, PyPI and
-  API image publication. The release build sets the package version from the tag.
+  API image publication, then keyless signing of the published image digest. The
+  release build sets the package version from the tag.
 - `.github/workflows/deploy-doc.yml`: main publishes `develop`; a qualified tag
   publishes that documentation version. Only the highest stable numeric version
   can update the `latest` alias.
@@ -207,9 +208,10 @@ python scripts/release_eligibility.py \
 For the `release` workflow's manual **Run workflow**, choose the candidate branch
 or tag in GitHub's native ref selector and supply the `version` input. Every job
 checks out the resulting immutable event SHA; there is no arbitrary checkout-ref
-input. This path runs eligibility, builds distributions and tests frozen API
-images for Linux amd64 and arm64, then stops before PyPI/registry publication. It
-does not trigger a documentation push. Qualify missing main-commit workflows via
+input. This path runs eligibility, builds distributions, tests frozen API images
+for Linux amd64 and arm64 by digest and assembles the multi-architecture image
+from them, then stops before PyPI/registry publication and signing. It does not
+trigger a documentation push. Qualify missing main-commit workflows via
 their own manual runs first; the core CI dispatch runs all profiles even for a
 documentation-only candidate.
 
@@ -232,14 +234,11 @@ records installed Python packages at `/opt/spark-on-k8s/release/installed.json`
 and checks that the image runs as UID/GID 10001, which the chart's security
 context defaults assume, with a writable `/var/lib/spark-on-k8s`.
 
-The `release-eligibility`, `release-container-inputs`, `release-installed-*` and
-`published-release-manifest` workflow artifacts contain these records. Registry
-publication rebuilds from the same frozen inputs; it does not promote the exact
-image digest used in the architecture checks and does not promise bit-for-bit
-reproducibility. It also requests the build action's OCI SBOM and provenance attestations.
-Attach the relevant manifest and qualification links to the GitHub release for
-retention beyond transient workflow artifacts. A generated inventory or SBOM is
-not a certification that dependencies are vulnerability-free.
+The `release-eligibility`, `release-container-inputs`, `release-installed-*`,
+`published-release-manifest` and `release-image-signature` workflow artifacts
+contain these records. Attach the relevant manifest and qualification links to the
+GitHub release for retention beyond transient workflow artifacts. A generated
+inventory or SBOM is not a certification that dependencies are vulnerability-free.
 
 New tag-publication runs are serialized. The gate compares all existing bare
 stable numeric tags: only a highest stable version may move global `latest`, and
@@ -249,6 +248,48 @@ Prereleases move neither. Documentation uses the same global rule. Thus a later
 failed tag conservatively prevents lower-version promotion; resolve that state
 explicitly instead of automatically moving channels backward. GHCR's destination
 uses the repository owner, independently of the person rerunning the workflow.
+
+### Image promotion and signatures
+
+The API image is built once from the frozen inputs, before PyPI publication, and
+registries receive exactly those checked bytes. The build itself is not claimed to
+be bit-for-bit reproducible.
+
+1. Each `container-check` architecture exports an OCI image layout with BuildKit's
+   SBOM and provenance attestations, copies it into a job-local registry and runs
+   its checks on the image pulled by that digest. `scripts/release_image.py
+   describe` records the digests in `image.json` of the `release-installed-*`
+   artifact; the layout is the `release-image-*` artifact.
+2. `container-image` assembles one multi-architecture index from those layouts
+   with `scripts/release_image.py assemble`. It refuses a layout whose digests
+   differ from the checked record or that lacks attestations, and copies the
+   per-platform manifests verbatim. It pushes the result to a job-local registry
+   and starts both platforms from it. PyPI publication waits for this job; the
+   PR and dry-run paths run it too.
+3. After PyPI, `docker-release` copies the assembled layout to every GHCR and
+   Docker Hub tag with `skopeo copy --preserve-digests`, reads each tag's digest
+   back from the registry and records the digest and per-platform digests in
+   `published-release-manifest`. Both registries hold the same digest.
+4. `image-sign`, the only job besides PyPI publication with `id-token: write`,
+   signs that digest (never a tag) in each registry with Sigstore cosign keyless
+   signing, then verifies both signatures as a user would and keeps the output as
+   `release-image-signature`.
+
+The signing certificate's identity is
+`https://github.com/hussein-awala/spark-on-k8s/.github/workflows/release.yml@refs/tags/<tag>`
+with issuer `https://token.actions.githubusercontent.com`, and it records the tag's
+commit; each signature is entered in Sigstore's public transparency log. cosign
+stores a Sigstore bundle as an OCI referrer of the image; in a registry without the
+referrers API, cosign keeps the referrers under a `sha256-<digest>` tag. Do not
+delete those tags. The index signature covers the attestations it lists, so no
+separate attestation is signed. Per-platform digests are not signed individually;
+verify and deploy the index digest.
+
+Images released before this signing was added, including 0.12.1 and earlier, have
+no signature. Signing runs after the tags are pushed. If `image-sign` fails, the
+image is published but unsigned: diagnose the failure and re-run that job, which
+signs the recorded digest again. Never push a rebuilt image to the release tags
+to fix a signing failure.
 
 ### Documentation publication
 
@@ -362,13 +403,16 @@ Resolve published artifacts and retain a small release record containing:
 | Field | Required evidence |
 | --- | --- |
 | Source/package | Full source commit, tag, package version and wheel/sdist hashes |
-| API image | Registry references and immutable digests; base/dependency inventory where produced |
+| API image | Registry references and immutable digests; base/dependency inventory where produced; signature verification for the digest |
 | Chart | Actual chart version and app version, or explicitly `not released/qualified` |
 | Documentation | Version URL and source revision |
 | Validation | Exact workflow runs, scenario outcomes and limits of validation |
 
-For a recommended API deployment, render the selected chart with the exact image
-reference and record the settings used. Claim a cluster-qualified combination only
+Verify the recorded image digest from both registries with the commands in
+[verify a published API image](user-guide/chart-deployments.md#verify-a-published-api-image),
+using the release tag in the certificate identity. For a recommended API
+deployment, render the selected chart with the exact image reference and record
+the settings used. Claim a cluster-qualified combination only
 after that exact image/chart combination passes a staging smoke test; otherwise
 label it render/package validation. Historical releases without such a record are
 not retroactively certified. Link installation instructions to the recorded version,

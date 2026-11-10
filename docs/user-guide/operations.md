@@ -39,6 +39,16 @@ Do not replay data writes, delete shared PVCs or repair streaming checkpoints
 based only on a pod failure. Keep images, job definitions and external data
 recovery procedures independently versioned.
 
+## Bound and clean up abandoned runs
+
+A killed client, CI runner or worker cannot stop what it submitted. For runs with a
+known upper duration, set [`max_runtime`](automation.md#limit-how-long-a-driver-can-run)
+so Kubernetes stops the driver itself. Finished drivers keep their logs, Services,
+ConfigMaps and Secrets until deleted. Review
+`spark-on-k8s apps prune --namespace NAMESPACE --older-than SECONDS` before adding
+`--delete`: deleting a driver also removes its logs and owned objects, so collect the
+evidence above first. Active drivers are only selected with `--include-active`.
+
 ## Back up optional history consistently
 
 The SQLite history store is an operational index, not a job queue or durable

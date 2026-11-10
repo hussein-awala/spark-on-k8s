@@ -171,6 +171,16 @@ def test_pod_settings_without_a_thrift_mapping_are_rejected_not_dropped(cluster,
     cluster[1].create_namespaced_pod.assert_not_called()
 
 
+def test_max_runtime_bounds_the_managed_thrift_driver(cluster):
+    _, _, objects, _ = cluster
+    unbounded, _ = backend(cluster)
+    pod = objects["pod"][unbounded.create()["run"]["driver_pod"]]
+    assert pod.spec.active_deadline_seconds is None
+    bounded, _ = backend(cluster, configuration(max_runtime=7200))
+    pod = objects["pod"][bounded.create()["run"]["driver_pod"]]
+    assert pod.spec.active_deadline_seconds == 7200
+
+
 def test_requires_thrift_port_and_creation_config(cluster):
     with pytest.raises(ValueError, match="10000"):
         backend(cluster, configuration(port=15002))

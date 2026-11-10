@@ -163,6 +163,31 @@ def test_status_reports_kubernetes_phase_not_query_readiness(cluster, phase, exp
     assert status["query_ready"] is None
 
 
+def test_max_runtime_bounds_the_server_driver_and_its_expiry_is_reported(cluster):
+    sdk, _, objects = cluster
+    unbounded = sdk.create_connect_server(config())
+    assert objects["pod"][unbounded.run.driver_pod].spec.active_deadline_seconds is None
+    handle = sdk.create_connect_server(config(max_runtime=4 * 3600))
+    pod = objects["pod"][handle.run.driver_pod]
+    assert pod.spec.active_deadline_seconds == 4 * 3600
+    assert sdk.connect_server_status(handle)["driver_reason"] is None
+    pod.status = k8s.V1PodStatus(phase="Failed", reason="DeadlineExceeded")
+    status = sdk.connect_server_status(handle)
+    assert (status["status"], status["driver_phase"], status["driver_reason"]) == (
+        "terminated",
+        "Failed",
+        "DeadlineExceeded",
+    )
+
+
+@pytest.mark.parametrize("value", [0, 1.0, True, "3600", 31 * 24 * 3600])
+def test_invalid_max_runtime_is_rejected_before_creation(cluster, value):
+    sdk, api, _ = cluster
+    with pytest.raises(ValueError, match="max_runtime"):
+        sdk.create_connect_server(config(max_runtime=value))
+    api.create_namespaced_pod.assert_not_called()
+
+
 def test_status_only_404_is_missing_and_rbac_or_transport_error_propagates(cluster):
     sdk, api, objects = cluster
     handle = sdk.create_connect_server(config())

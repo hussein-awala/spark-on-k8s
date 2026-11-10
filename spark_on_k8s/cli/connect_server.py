@@ -14,6 +14,7 @@ from spark_on_k8s.client import ExecutorInstances, PodResources, SparkOnK8S
 from spark_on_k8s.connect import ConnectProfile
 from spark_on_k8s.connect_server import ConnectServerConfig, ConnectServerCreateError, ConnectServerHandle
 from spark_on_k8s.k8s.sync_client import KubernetesClientManager
+from spark_on_k8s.utils.run import MAX_RUNTIME_LIMIT
 
 
 def _cluster_options(function):
@@ -180,6 +181,12 @@ _SERVER_OPTIONS = (
         help="Additional Spark key=value setting; managed identity/network settings cannot be overridden.",
     ),
     click.option("--package", "packages", multiple=True, help="Additional Maven package coordinate."),
+    click.option(
+        "--max-runtime",
+        type=click.IntRange(min=1, max=MAX_RUNTIME_LIMIT),
+        default=None,
+        help="Stop the server's driver this many seconds after it starts, even if it is never deleted.",
+    ),
 )
 
 
@@ -218,6 +225,7 @@ def _config(settings: dict) -> ConnectServerConfig:
         executor_node_selector=settings["executor_node_selector"],
         driver_tolerations=settings["driver_tolerations"],
         executor_tolerations=settings["executor_tolerations"],
+        max_runtime=settings["max_runtime"],
     )
 
 

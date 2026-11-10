@@ -1,10 +1,9 @@
 # Migrate from the Spark Operator
 
 Teams running the Kubeflow Spark Operator describe applications as
-`SparkApplication` and `ScheduledSparkApplication` custom resources. The source
-version can assess those manifests offline and draft equivalent
-[job files](jobs.md) for the settings that translate. Install from source until a
-release includes this command; see [installation](installation.md).
+`SparkApplication` and `ScheduledSparkApplication` custom resources. Since 0.13.0,
+`spark-on-k8s job assess-operator` assesses those manifests offline and drafts
+equivalent [job files](jobs.md) for the settings that translate.
 
 ## What changes: who owns the application
 

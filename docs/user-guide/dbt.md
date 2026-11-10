@@ -123,10 +123,11 @@ remote session for each dbt connection. Thrift uses PyHive's HiveServer2 protoco
 not a JDBC client.
 
 `compute` accepts the explicit image, namespace, service account, resource,
-executor-allocation, package and node-selector fields of
+executor-allocation, package, node-selector and `max_runtime` fields of
 [`ConnectServerConfig`](spark_connect_server.md), plus the cluster-selection
 fields above, `startup_timeout`, `cleanup_timeout` and `poll_interval` (positive seconds, at
-most 3600).
+most 3600). `max_runtime` is unset by default; see
+[receipts, failure and recovery](#receipts-failure-and-recovery).
 Thrift fixes its managed port to 10000. Managed identity, ports and routing cannot
 be overridden through `spark_conf`. Put static Hive/catalog configuration in
 `compute.spark_conf`; `server_side_parameters` accepts runtime `spark.sql.*` settings; catalog, warehouse,
@@ -365,6 +366,16 @@ name alone or discard the receipt. No external orphan-reaper controller is
 installed. Avoid concurrent invocations targeting the same dbt output tables;
 separate process ownership protects compute, not conflicting SQL writes.
 
+To bound what a hard kill can leave running, set `compute.max_runtime` (whole seconds)
+above the longest invocation you expect, including startup and `on-run-end` hooks. All
+commands of a [sequence](#run-several-commands-on-one-server) share one server, so the
+limit must cover the whole sequence. Kubernetes stops the server's driver that long
+after its pod starts, whether or not the wrapper survives; a command still running at
+that point fails like any lost compute. The stopped driver pod and its Services remain
+until cleanup or [`apps prune`](automation.md#prune-finished-or-orphaned-drivers)
+deletes them. See [driver lifetime
+limits](automation.md#limit-how-long-a-driver-can-run).
+
 ## Run in CI
 
 This recipe uses plain shell steps, so it fits GitHub Actions, GitLab CI or any
@@ -473,7 +484,8 @@ fi
 `cleanup` refuses a receipt without a complete server identity: that step then
 fails, and the receipt tells you what to inspect manually. Nothing runs if the
 runner itself disappears before this step; compute then keeps running until you
-run `cleanup` with the preserved receipt.
+run `cleanup` with the preserved receipt, or until `compute.max_runtime`, if set,
+stops the driver. Set it above the job timeout.
 
 ## Size the managed server
 

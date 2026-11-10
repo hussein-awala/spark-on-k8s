@@ -18,7 +18,7 @@
         <link rel="prev" href="../spark_connect/">
       
       
-        <link rel="next" href="../jupyter/">
+        <link rel="next" href="../connect_ml_image/">
       
       
         
@@ -68,7 +68,7 @@
   <meta name="documentation-channel" content="develop">
   <meta name="documentation-version" content="develop">
   
-    <meta name="documentation-source" content="8833360c51549a441010b345303a3ac18a14aef3">
+    <meta name="documentation-source" content="abb456fb2af3b39f7a78aef8d1c0ce1a6d67a938">
   
 
   </head>
@@ -108,7 +108,7 @@
     <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
   
   
-    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/8833360c51549a441010b345303a3ac18a14aef3"><code>8833360c5154</code></a>.
+    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/abb456fb2af3b39f7a78aef8d1c0ce1a6d67a938"><code>abb456fb2af3</code></a>.
   
 
           </div>
@@ -1020,6 +1020,8 @@
       
         
       
+        
+      
     
     
     
@@ -1224,6 +1226,34 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#private-images-credentials-and-node-placement" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Private images, credentials and node placement
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Private images, credentials and node placement">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#preview-a-server-offline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Preview a server offline
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#observe-stop-and-recover" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1249,6 +1279,34 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../connect_ml_image/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ML image for Connect
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -5374,6 +5432,34 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#private-images-credentials-and-node-placement" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Private images, credentials and node placement
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Private images, credentials and node placement">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#preview-a-server-offline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Preview a server offline
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#observe-stop-and-recover" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5548,6 +5634,149 @@ are rejected before creating resources. The explicit exception
 <code>spark.kubernetes.executor.request.cores</code> accepts a positive Kubernetes CPU quantity
 no greater than the configured executor cores, so fractional scheduling requests are
 possible while executor cores remain managed by <code>PodResources</code>.</p>
+<h2 id="private-images-credentials-and-node-placement">Private images, credentials and node placement<a class="headerlink" href="#private-images-credentials-and-node-placement" title="Permanent link">&para;</a></h2>
+<p>A server for real data or ML work often needs an image from a private registry,
+credentials such as object-storage keys, and nodes from a particular pool, for example
+GPU nodes. Use the typed settings below instead of Spark properties: <code>spark_conf</code>
+cannot set <code>spark.kubernetes.*</code> properties, and literal credentials in Spark
+properties appear in driver arguments and diagnostics.</p>
+<table>
+<thead>
+<tr>
+<th>Purpose</th>
+<th>CLI option (repeatable)</th>
+<th><code>ConnectServerConfig</code> field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Pull from a private registry</td>
+<td><code>--image-pull-secret NAME</code></td>
+<td><code>image_pull_secrets</code></td>
+<td>Existing image pull Secret names, used by the driver and executors</td>
+</tr>
+<tr>
+<td>Credentials as environment variables</td>
+<td><code>--driver-env-from-secret NAME=SECRET:KEY</code>, <code>--executor-env-from-secret NAME=SECRET:KEY</code></td>
+<td><code>driver_env_from_secrets</code>, <code>executor_env_from_secrets</code></td>
+<td>Variable name mapped to a key of an existing Secret</td>
+</tr>
+<tr>
+<td>Select nodes</td>
+<td><code>--driver-node-selector KEY=VALUE</code>, <code>--executor-node-selector KEY=VALUE</code></td>
+<td><code>driver_node_selector</code>, <code>executor_node_selector</code></td>
+<td>Node label keys and values</td>
+</tr>
+<tr>
+<td>Allow tainted nodes</td>
+<td><code>--driver-toleration</code>, <code>--executor-toleration</code> as <code>KEY[=VALUE][:EFFECT]</code></td>
+<td><code>driver_tolerations</code>, <code>executor_tolerations</code></td>
+<td>Kubernetes toleration mappings</td>
+</tr>
+</tbody>
+</table>
+<p>The helper only references Secrets: it never creates, reads or copies them, and
+their values never pass through the SDK, CLI, receipts, plans or logs. Kubernetes
+resolves each <code>SECRET:KEY</code> reference when it starts a container. An administrator
+creates the Secrets in the server's namespace, for example from files so that
+values stay out of command lines and shell history:</p>
+<div class="highlight"><pre><span></span><code>kubectl<span class="w"> </span>--namespace<span class="w"> </span>spark<span class="w"> </span>create<span class="w"> </span>secret<span class="w"> </span>generic<span class="w"> </span>private-registry<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--type<span class="o">=</span>kubernetes.io/dockerconfigjson<span class="w"> </span>--from-file<span class="o">=</span>.dockerconfigjson<span class="o">=</span>./registry-config.json
+kubectl<span class="w"> </span>--namespace<span class="w"> </span>spark<span class="w"> </span>create<span class="w"> </span>secret<span class="w"> </span>generic<span class="w"> </span>s3-credentials<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--from-file<span class="o">=</span>access-key<span class="o">=</span>./access-key.txt<span class="w"> </span>--from-file<span class="o">=</span>secret-key<span class="o">=</span>./secret-key.txt
+</code></pre></div>
+<p>See Kubernetes' guide to
+<a href="https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/">pulling an image from a private registry</a>
+for the registry configuration file.</p>
+<p>Every client of a server runs code in its driver and executors, so any client can
+read these variables, for example with a query. Give a server only credentials that
+all of its users may hold; a shared server is not a tenant-isolation boundary.</p>
+<p>Create a server on labeled, tainted GPU nodes with a private image and storage
+credentials:</p>
+<div class="highlight"><pre><span></span><code>spark-on-k8s<span class="w"> </span>connect<span class="w"> </span>server<span class="w"> </span>create<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--image<span class="w"> </span>registry.example.com/data/spark-connect-ml:4.3.0<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--server-jar<span class="w"> </span>local:///opt/spark/jars/spark-connect_2.13-4.3.0.jar<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--namespace<span class="w"> </span>spark<span class="w"> </span>--service-account<span class="w"> </span>spark<span class="w"> </span>--name<span class="w"> </span>ml-notebook<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--image-pull-secret<span class="w"> </span>private-registry<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--driver-env-from-secret<span class="w"> </span><span class="nv">AWS_ACCESS_KEY_ID</span><span class="o">=</span>s3-credentials:access-key<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--driver-env-from-secret<span class="w"> </span><span class="nv">AWS_SECRET_ACCESS_KEY</span><span class="o">=</span>s3-credentials:secret-key<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--executor-env-from-secret<span class="w"> </span><span class="nv">AWS_ACCESS_KEY_ID</span><span class="o">=</span>s3-credentials:access-key<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--executor-env-from-secret<span class="w"> </span><span class="nv">AWS_SECRET_ACCESS_KEY</span><span class="o">=</span>s3-credentials:secret-key<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--executor-node-selector<span class="w"> </span>example.com/pool<span class="o">=</span>gpu<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--executor-toleration<span class="w"> </span>nvidia.com/gpu:NoSchedule<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--receipt-file<span class="w"> </span>ml-server.json<span class="w"> </span>--output<span class="w"> </span>json
+</code></pre></div>
+<p>In the SDK, the same settings are fields of <code>ConnectServerConfig</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="n">ConnectServerConfig</span><span class="p">(</span>
+    <span class="n">image</span><span class="o">=</span><span class="s2">"registry.example.com/data/spark-connect-ml:4.3.0"</span><span class="p">,</span>
+    <span class="n">server_jar</span><span class="o">=</span><span class="s2">"local:///opt/spark/jars/spark-connect_2.13-4.3.0.jar"</span><span class="p">,</span>
+    <span class="n">namespace</span><span class="o">=</span><span class="s2">"spark"</span><span class="p">,</span>
+    <span class="n">service_account</span><span class="o">=</span><span class="s2">"spark"</span><span class="p">,</span>
+    <span class="n">app_name</span><span class="o">=</span><span class="s2">"ml-notebook"</span><span class="p">,</span>
+    <span class="n">image_pull_secrets</span><span class="o">=</span><span class="p">[</span><span class="s2">"private-registry"</span><span class="p">],</span>
+    <span class="n">driver_env_from_secrets</span><span class="o">=</span><span class="p">{</span><span class="s2">"AWS_ACCESS_KEY_ID"</span><span class="p">:</span> <span class="s2">"s3-credentials:access-key"</span><span class="p">},</span>
+    <span class="n">executor_env_from_secrets</span><span class="o">=</span><span class="p">{</span><span class="s2">"AWS_ACCESS_KEY_ID"</span><span class="p">:</span> <span class="s2">"s3-credentials:access-key"</span><span class="p">},</span>
+    <span class="n">executor_node_selector</span><span class="o">=</span><span class="p">{</span><span class="s2">"example.com/pool"</span><span class="p">:</span> <span class="s2">"gpu"</span><span class="p">},</span>
+    <span class="n">executor_tolerations</span><span class="o">=</span><span class="p">[{</span><span class="s2">"key"</span><span class="p">:</span> <span class="s2">"nvidia.com/gpu"</span><span class="p">,</span> <span class="s2">"operator"</span><span class="p">:</span> <span class="s2">"Exists"</span><span class="p">,</span> <span class="s2">"effect"</span><span class="p">:</span> <span class="s2">"NoSchedule"</span><span class="p">}],</span>
+<span class="p">)</span>
+</code></pre></div>
+<p>A node selector restricts pods to nodes with every listed label; a toleration only
+permits scheduling on nodes with a matching taint. To dedicate a pool, use both.
+In the CLI, <code>KEY=VALUE:EFFECT</code> creates an <code>Equal</code> toleration and <code>KEY:EFFECT</code> an
+<code>Exists</code> toleration; omitting the effect tolerates every effect. Use the SDK for
+<code>tolerationSeconds</code> or a key-less toleration. The mapping reuses existing
+submission mechanisms:</p>
+<ul>
+<li>The driver gets <code>imagePullSecrets</code> and <code>valueFrom.secretKeyRef</code> variables through a
+  generated <a href="../driver_pod_templates/">driver pod template</a>, and node selectors and
+  tolerations through the submission options of the same name.</li>
+<li>Executors are created by Spark. They use Spark's
+  <code>spark.kubernetes.container.image.pullSecrets</code>,
+  <code>spark.kubernetes.executor.secretKeyRef.NAME</code> and
+  <code>spark.kubernetes.executor.node.selector.KEY</code> properties. Spark has no property for
+  tolerations, so executor tolerations use an executor pod template, stored in a
+  ConfigMap owned by the driver. Creating it requires your permission to create and
+  patch ConfigMaps in the namespace; Kubernetes deletes it with the driver.</li>
+</ul>
+<p>Validation happens before any Kubernetes request: Secret and label syntax, toleration
+fields and operators, and variable names. Variable names are identifiers
+(<code>[A-Za-z_][A-Za-z0-9_]*</code>). Names starting with <code>SPARK_</code> are rejected because Spark
+and this helper set such variables. An executor variable cannot also be set with
+<code>spark.executorEnv.NAME</code> in <code>spark_conf</code>. These settings map individual Secret keys;
+the application option <code>driver_env_vars_from_secrets</code> instead imports every key of
+a Secret into the driver.</p>
+<p>Kubernetes, not this helper, checks that the referenced Secrets, keys, labels and
+taints exist. A missing pull Secret leaves the driver in <code>ErrImagePull</code> or
+<code>ImagePullBackOff</code>; a missing variable Secret or key stops the container from starting
+(<code>CreateContainerConfigError</code>); unmatched node selectors leave pods <code>Pending</code> as
+unschedulable. Readiness then times out and keeps the server. Run
+<code>spark-on-k8s app diagnose --namespace spark --app-id APP_ID</code> for the driver, or
+inspect executor pod events, then delete the server before creating a corrected one.</p>
+<h3 id="preview-a-server-offline">Preview a server offline<a class="headerlink" href="#preview-a-server-offline" title="Permanent link">&para;</a></h3>
+<p><code>connect server plan</code> accepts the same server options as <code>create</code>, without a receipt
+or cluster selection. It opens no Kubernetes connection and prints a redacted preview
+of the driver Pod, both Services and, with executor tolerations, the executor template
+ConfigMap that creation would request, as YAML or, with <code>--output json</code>, as a
+<a href="../automation/">versioned document</a> with <code>"operation": "connect_server_plan"</code>:</p>
+<div class="highlight"><pre><span></span><code>spark-on-k8s<span class="w"> </span>connect<span class="w"> </span>server<span class="w"> </span>plan<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--image<span class="w"> </span>registry.example.com/data/spark-connect-ml:4.3.0<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--server-jar<span class="w"> </span>local:///opt/spark/jars/spark-connect_2.13-4.3.0.jar<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--namespace<span class="w"> </span>spark<span class="w"> </span>--service-account<span class="w"> </span>spark<span class="w"> </span>--name<span class="w"> </span>ml-notebook<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--image-pull-secret<span class="w"> </span>private-registry<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--executor-env-from-secret<span class="w"> </span><span class="nv">AWS_ACCESS_KEY_ID</span><span class="o">=</span>s3-credentials:access-key<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--executor-toleration<span class="w"> </span>nvidia.com/gpu:NoSchedule<span class="w"> </span>--output<span class="w"> </span>json
+</code></pre></div>
+<p>The document contains <code>plan</code> and <code>pod_settings</code>, which lists the typed settings
+above: Secret names and keys, never values. Plan redaction hides fields whose names
+suggest credentials, such as the driver's <code>imagePullSecrets</code> and Spark properties
+naming Secrets, and the contents of ConfigMaps, so <code>pod_settings</code> is where to review
+those references. Identifiers in the plan, such as the <code>-preview</code> application ID,
+are illustrative. The SDK equivalent <code>client.plan_connect_server(config)</code> returns
+an <code>ApplicationPlan</code>; its raw <code>resources</code> are unredacted, which for these settings
+still contain only references.</p>
+<p>For an image with Python ML libraries and GPU executors, see
+<a href="../connect_ml_image/">Build an ML image for Spark Connect</a>.</p>
 <h2 id="observe-stop-and-recover">Observe, stop and recover<a class="headerlink" href="#observe-stop-and-recover" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code>spark-on-k8s<span class="w"> </span>connect<span class="w"> </span>server<span class="w"> </span>status<span class="w"> </span>connect-server.json<span class="w"> </span>--output<span class="w"> </span>json
 spark-on-k8s<span class="w"> </span>connect<span class="w"> </span>server<span class="w"> </span>delete<span class="w"> </span>connect-server.json<span class="w"> </span>--output<span class="w"> </span>json
@@ -5657,7 +5886,7 @@ and <a href="https://spark.apache.org/docs/4.3.0/running-on-kubernetes.html#clie
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 10, 2026 10:31:13 UTC">November 10, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 10, 2026 11:26:46 UTC">November 10, 2026</span>
   </span>
 
     
@@ -5712,13 +5941,13 @@ and <a href="https://spark.apache.org/docs/4.3.0/running-on-kubernetes.html#clie
         
         
           
-          <a href="../jupyter/" class="md-footer__link md-footer__link--next" aria-label="Next: Jupyter notebooks">
+          <a href="../connect_ml_image/" class="md-footer__link md-footer__link--next" aria-label="Next: ML image for Connect">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                Jupyter notebooks
+                ML image for Connect
               </div>
             </div>
             <div class="md-footer__button md-icon">

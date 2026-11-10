@@ -15,7 +15,7 @@
         <link rel="canonical" href="https://hussein.awala.fr/spark-on-k8s/develop/user-guide/jupyter/">
       
       
-        <link rel="prev" href="../spark_connect_server/">
+        <link rel="prev" href="../connect_ml_image/">
       
       
         <link rel="next" href="../dbt/">
@@ -68,7 +68,7 @@
   <meta name="documentation-channel" content="develop">
   <meta name="documentation-version" content="develop">
   
-    <meta name="documentation-source" content="8833360c51549a441010b345303a3ac18a14aef3">
+    <meta name="documentation-source" content="abb456fb2af3b39f7a78aef8d1c0ce1a6d67a938">
   
 
   </head>
@@ -108,7 +108,7 @@
     <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
   
   
-    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/8833360c51549a441010b345303a3ac18a14aef3"><code>8833360c5154</code></a>.
+    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/abb456fb2af3b39f7a78aef8d1c0ce1a6d67a938"><code>abb456fb2af3</code></a>.
   
 
           </div>
@@ -1020,6 +1020,8 @@
       
         
       
+        
+      
     
     
     
@@ -1156,6 +1158,34 @@
                 
   
   
+  
+  
+    <li class="md-nav__item">
+      <a href="../connect_ml_image/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ML image for Connect
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
     
   
   
@@ -1245,6 +1275,17 @@
     <span class="md-ellipsis">
       
         Run, restart and reconnect
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#private-server-quickstart" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Private server quickstart
       
     </span>
   </a>
@@ -5385,6 +5426,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#private-server-quickstart" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Private server quickstart
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#data-and-session-boundaries" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5449,13 +5501,16 @@ delete the recorded server. The notebook uses the existing
 <a href="../spark_connect_server/">server lifecycle SDK</a> and
 <a href="../spark_connect/">independent Connect sessions</a>; Jupyter runs on your machine.</p>
 <p>Use the canonical example at <code>examples/jupyter/spark_connect.ipynb</code> with
-<code>notebook_support.py</code> beside it. You can also download the
-<a href="../../downloads/jupyter/jupyter-connect.zip">notebook bundle</a>,
-<a href="../../downloads/jupyter/spark_connect.ipynb">notebook</a>, or
+<code>notebook_support.py</code> beside it. A shorter
+<a href="#private-server-quickstart">private server quickstart</a> in the same directory adds an
+image pull Secret, a Secret-backed credential and a node selector. You can also
+download the <a href="../../downloads/jupyter/jupyter-connect.zip">notebook bundle</a>,
+<a href="../../downloads/jupyter/spark_connect.ipynb">notebook</a>,
+<a href="../../downloads/jupyter/private_connect_quickstart.ipynb">quickstart</a>, or
 <a href="../../downloads/jupyter/notebook_support.py">helper</a>.
 These downloads are built from the same source as the selected documentation
-version. The bundle contains both required files; it does not include credentials
-or an environment.</p>
+version. The bundle contains both notebooks and the helper; it does not include
+credentials or an environment.</p>
 <h2 id="prepare-the-cluster-and-client">Prepare the cluster and client<a class="headerlink" href="#prepare-the-cluster-and-client" title="Permanent link">&para;</a></h2>
 <p>Server provisioning is available in the current source and may not be in your
 installed PyPI release. Follow <a href="../installation/#current-source">current-source installation</a>
@@ -5617,6 +5672,37 @@ leaves the server running. Keep the receipt and inspect the existing resources
 before attempting another creation. For your own servers, <code>ConnectServerConfig</code>
 accepts an optional <code>max_runtime</code> in seconds so Kubernetes stops a forgotten server's
 driver; see the <a href="../spark_connect_server/#observe-stop-and-recover">server guide</a>.</p>
+<h2 id="private-server-quickstart">Private server quickstart<a class="headerlink" href="#private-server-quickstart" title="Permanent link">&para;</a></h2>
+<p><code>examples/jupyter/private_connect_quickstart.ipynb</code> creates a server whose image is
+pulled with an image pull Secret, whose driver and executors receive a credential as
+the <code>QUICKSTART_API_TOKEN</code> variable from a Secret key, and whose pods run on
+selected nodes. It previews the server offline, waits for a real query, runs a
+small query, checks that the variable is set on the executors without returning
+its value, and deletes the server. It has no kernel-restart boundary. The settings
+are described in
+<a href="../spark_connect_server/#private-images-credentials-and-node-placement">private images, credentials and node placement</a>.</p>
+<p>The notebook contains no credentials. An administrator creates the Secrets in the
+namespace first; the notebook only references them by name. For example, reading
+values from files rather than typing them into a shell:</p>
+<div class="highlight"><pre><span></span><code>kubectl<span class="w"> </span>--namespace<span class="w"> </span><span class="s2">"</span><span class="nv">$SPARK_NOTEBOOK_NAMESPACE</span><span class="s2">"</span><span class="w"> </span>create<span class="w"> </span>secret<span class="w"> </span>generic<span class="w"> </span>private-registry<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--type<span class="o">=</span>kubernetes.io/dockerconfigjson<span class="w"> </span>--from-file<span class="o">=</span>.dockerconfigjson<span class="o">=</span>./registry-config.json
+kubectl<span class="w"> </span>--namespace<span class="w"> </span><span class="s2">"</span><span class="nv">$SPARK_NOTEBOOK_NAMESPACE</span><span class="s2">"</span><span class="w"> </span>create<span class="w"> </span>secret<span class="w"> </span>generic<span class="w"> </span>notebook-credentials<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--from-file<span class="o">=</span>api-token<span class="o">=</span>./api-token.txt
+</code></pre></div>
+<p>Use the same kernel and <code>SPARK_NOTEBOOK_*</code> cluster settings as the main example,
+with an image that the pull Secret can pull, then set the references and launch it:</p>
+<div class="highlight"><pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">SPARK_NOTEBOOK_PULL_SECRET</span><span class="o">=</span>private-registry
+<span class="nb">export</span><span class="w"> </span><span class="nv">SPARK_NOTEBOOK_CREDENTIAL</span><span class="o">=</span>notebook-credentials:api-token
+<span class="nb">export</span><span class="w"> </span><span class="nv">SPARK_NOTEBOOK_NODE_SELECTOR</span><span class="o">=</span>kubernetes.io/os<span class="o">=</span>linux<span class="w">  </span><span class="c1"># Or your pool's KEY=VALUE label.</span>
+.venv-notebook/bin/jupyter<span class="w"> </span>lab<span class="w"> </span>examples/jupyter/private_connect_quickstart.ipynb
+</code></pre></div>
+<p>The default node selector matches every Linux node. Its receipt is
+<code>quickstart-receipt.json</code> in the artifact directory, separate from the main
+example's receipt; use it with <code>connect server status</code> and <code>connect server delete</code>
+if the notebook stops early. Every client of a server can read its environment
+variables through queries, so give the server only credentials that all of its
+users may hold. To install Python libraries on the server and run executors on GPU
+nodes, see <a href="../connect_ml_image/">Build an ML image for Spark Connect</a>.</p>
 <h2 id="data-and-session-boundaries">Data and session boundaries<a class="headerlink" href="#data-and-session-boundaries" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -5725,7 +5811,12 @@ before creating a replacement with a new receipt.</p>
 IPython kernel, restarts that kernel at the marked boundary, and checks distributed
 execution, rendered table output, session separation, failure recovery and cleanup.
 It uses a built wheel on disposable kind clusters with matching client/server
-pairs 4.0.5/4.0.5 and 4.3.0/4.3.0. Its evidence includes the executed notebook and JSON results.</p>
+pairs 4.0.5/4.0.5 and 4.3.0/4.3.0. Its evidence includes the executed notebook and JSON results.
+The same workflow runs the private server quickstart against test Secrets it
+creates: it checks the executor pods' node selector, pull Secret and Secret
+reference, the variable's presence in executor tasks and cleanup, and that the
+random test value appears in no notebook output or saved evidence. The kind nodes
+already hold the image, so the pull Secret is referenced but never used for a pull.</p>
 <p>This automation covers notebook kernel execution and output. It does not click
 through JupyterLab's browser UI, test arbitrary extensions, or simulate an abrupt
 kernel/driver crash. Follow <a href="../../development/#real-runtime-checks">development validation</a>
@@ -5751,7 +5842,7 @@ runtime evidence.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 10, 2026 10:31:13 UTC">November 10, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 10, 2026 11:26:46 UTC">November 10, 2026</span>
   </span>
 
     
@@ -5789,7 +5880,7 @@ runtime evidence.</p>
       <nav class="md-footer__inner md-grid" aria-label="Footer" >
         
           
-          <a href="../spark_connect_server/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Connect server setup">
+          <a href="../connect_ml_image/" class="md-footer__link md-footer__link--prev" aria-label="Previous: ML image for Connect">
             <div class="md-footer__button md-icon">
               
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
@@ -5799,7 +5890,7 @@ runtime evidence.</p>
                 Previous
               </span>
               <div class="md-ellipsis">
-                Connect server setup
+                ML image for Connect
               </div>
             </div>
           </a>

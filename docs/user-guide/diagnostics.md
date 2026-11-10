@@ -2,7 +2,7 @@
 
 These commands are available from the current source tree. Check the documentation for your installed release before using them with a published package.
 
-Diagnostics collect a bounded snapshot of driver and executor pod states and Kubernetes events. They explain observed image-pull failures, scheduling constraints, denied operations, OOM kills, crash loops and unavailable persistent volume claims. Each finding contains a stable `code`, `severity`, affected resource, evidence and a suggested next step. An unsuccessful exit code alone is not treated as proof of an OOM kill or another specific cause.
+Diagnostics collect a bounded snapshot of driver and executor pod states and Kubernetes events. They explain observed image-pull failures, scheduling constraints, denied operations, OOM kills, crash loops, unavailable persistent volume claims and pods stopped by an elapsed [`max_runtime`](automation.md#limit-how-long-a-driver-can-run) (`deadline_exceeded`). Each finding contains a stable `code`, `severity`, affected resource, evidence and a suggested next step. An unsuccessful exit code alone is not treated as proof of an OOM kill or another specific cause.
 
 ## Inspect an application
 

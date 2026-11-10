@@ -60,7 +60,7 @@ to the minimum (or zero when only a maximum is given).
 Settings under `spec` match the Python SDK names: `image`, `app_path`, `namespace`,
 `service_account`, `class_name`, `packages`, `app_arguments`, `spark_conf`,
 `driver_resources`, `executor_resources`, `executor_instances`, `image_pull_policy`,
-`app_waiter`, `startup_timeout`, `ui_reverse_proxy`, driver/executor node selectors,
+`app_waiter`, `startup_timeout`, `max_runtime`, `ui_reverse_proxy`, driver/executor node selectors,
 labels and annotations, `driver_env_vars_from_secrets`, and `executor_pod_template`
 or `executor_pod_template_path`, plus `driver_pod_template` and `driver_container_name`. Secrets are referenced by name; literal secret
 payloads are deliberately not a job-file field.
@@ -73,6 +73,12 @@ Job submission defaults to `no_wait`, namespace `default`, service account `spar
 two executors, and 1 CPU/1024 MiB memory/512 MiB overhead per pod. Job files do not
 inherit `SPARK_ON_K8S_*` submission defaults. Set `spec.app_waiter: wait` or `log` to
 wait, and optionally bound CLI waiting with `--timeout SECONDS`.
+
+`spec.max_runtime` (whole seconds, at most 30 days) makes Kubernetes stop the driver
+that long after its pod starts, even if nothing is still watching the run; the plan
+shows it as the driver pod's `activeDeadlineSeconds`. A profile can set it to `null`
+to remove a base value. See [driver lifetime limits](automation.md#limit-how-long-a-driver-can-run)
+for what Kubernetes does to the driver, executors and owned objects.
 
 A driver or executor template may be a Pod mapping, inline YAML, or a `.yaml`/`.yml` filename.
 Local filenames resolve relative to the job file, not the current directory.

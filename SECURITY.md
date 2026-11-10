@@ -155,3 +155,17 @@ hash-checked locked dependencies, and its build requests OCI SBOM and provenance
 attestations. The [release runbook](docs/releases.md) describes these records. They
 identify build inputs; they do not certify that dependencies are free of known
 vulnerabilities.
+
+The release workflow signs the API images it publishes to
+`ghcr.io/hussein-awala/spark-on-k8s` and `docker.io/husseinawala/spark-on-k8s` by
+digest, with Sigstore cosign keyless signing. The certificate identity is
+`https://github.com/hussein-awala/spark-on-k8s/.github/workflows/release.yml@refs/tags/<version>`
+and the issuer is `https://token.actions.githubusercontent.com`. The signed digest
+is the multi-architecture image whose platform images passed the workflow's checks
+before the PyPI upload; it is copied to both registries without a rebuild. See
+[verify a published API image](docs/user-guide/chart-deployments.md#verify-a-published-api-image).
+
+Images released before signing was added, including 0.12.1 and earlier, are not
+signed. Python distributions, Helm charts and the dbt adapter are not signed by this
+mechanism. A valid signature shows which workflow run published an image; it does
+not certify that the image or its dependencies are free of vulnerabilities.

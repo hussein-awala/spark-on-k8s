@@ -1,0 +1,180 @@
+# oauth2-proxy gateway in front of the spark-on-k8s console. See docs/user-guide/sso-gateway.md.
+# Apply in the "spark-console" release namespace after creating the spark-console-gateway
+# Secret. Replace spark.example.com, the issuer, client ID, email domain and group.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spark-console-gateway
+  labels:
+    app.kubernetes.io/name: oauth2-proxy
+    app.kubernetes.io/instance: spark-console-gateway
+data:
+  # oauth2-proxy labels this structured format alpha; run --config-test before upgrading.
+  alpha-config.yaml: |
+    server:
+      bindAddress: 0.0.0.0:4180
+    upstreamConfig:
+      upstreams:
+        # One route for pages, /static assets, Spark UI proxies and log WebSocket upgrades.
+        - id: spark-console
+          path: /
+          uri: http://spark-console-spark-on-k8s:8000
+          proxyWebSockets: true
+    providers:
+      - id: oidc
+        provider: oidc
+        name: Single sign-on
+        clientID: spark-console
+        clientSecretFile: /etc/oauth2-proxy/client/client-secret
+        code_challenge_method: S256
+        scope: openid email profile
+        # Your identity provider must release this group in the ID token's groups claim.
+        allowedGroups:
+          - spark-console-users
+        oidcConfig:
+          # Must equal the "issuer" in the provider's discovery document, character for character.
+          issuerURL: https://login.example.com
+          emailClaim: email
+          groupsClaim: groups
+          insecureSkipNonce: false
+    # No injectRequestHeaders: the API reads no identity headers, so none are sent upstream.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spark-console-gateway
+  labels:
+    app.kubernetes.io/name: oauth2-proxy
+    app.kubernetes.io/instance: spark-console-gateway
+spec:
+  # Cookie sessions keep no server-side state; replicas share only the Secret.
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: oauth2-proxy
+      app.kubernetes.io/instance: spark-console-gateway
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: oauth2-proxy
+        app.kubernetes.io/instance: spark-console-gateway
+    spec:
+      # The gateway never calls the Kubernetes API.
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: oauth2-proxy
+          # Pinned by tag for readability; deploy a digest you have verified for this tag.
+          image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.6
+          args:
+            - --alpha-config=/etc/oauth2-proxy/alpha-config.yaml
+            - --redirect-url=https://spark.example.com/oauth2/callback
+            - --email-domain=example.com
+            - --skip-provider-button=true
+            # Background console requests receive 401 instead of a cross-origin login redirect.
+            - --api-route=^/(app|apps|runs/v1|webserver/api|webserver/ws)(/|$)
+            # The gateway answers these paths itself, so the API's probes are never proxied.
+            - --ping-path=/health
+            - --ready-path=/ready
+            - --cookie-name=__Host-spark-console
+            - --cookie-secure=true
+            - --cookie-samesite=lax
+            - --cookie-expire=8h
+            - --session-cookie-minimal=true
+          env:
+            - name: OAUTH2_PROXY_COOKIE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: spark-console-gateway
+                  key: cookie-secret
+          ports:
+            - name: http
+              containerPort: 4180
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: config
+              mountPath: /etc/oauth2-proxy/alpha-config.yaml
+              subPath: alpha-config.yaml
+              readOnly: true
+            - name: client
+              mountPath: /etc/oauth2-proxy/client
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: spark-console-gateway
+        - name: client
+          secret:
+            secretName: spark-console-gateway
+            items:
+              - key: client-secret
+                path: client-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: spark-console-gateway
+  labels:
+    app.kubernetes.io/name: oauth2-proxy
+    app.kubernetes.io/instance: spark-console-gateway
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: oauth2-proxy
+    app.kubernetes.io/instance: spark-console-gateway
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: spark-console-gateway
+  labels:
+    app.kubernetes.io/name: oauth2-proxy
+    app.kubernetes.io/instance: spark-console-gateway
+  # Raise your controller's read/idle timeout here if it closes quiet log streams.
+spec:
+  # Set ingressClassName to your controller; omitting it selects the cluster default class.
+  tls:
+    - hosts:
+        - spark.example.com
+      secretName: spark-console-tls
+  rules:
+    - host: spark.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: spark-console-gateway
+                port:
+                  name: http

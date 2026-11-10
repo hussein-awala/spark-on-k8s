@@ -422,7 +422,8 @@ async def runs_page(request: Request, namespace: str | None = None):
     settings = get_history_settings()
     if not settings.enabled:
         raise HTTPException(status_code=404, detail="Run history is disabled.")
-    namespace = namespace or settings.namespaces[0]
+    # The console links here from any namespace in the API scope, which may be wider than the
+    # recorded ones; open a recorded namespace instead of an error page. /runs/v1 still refuses it.
     if namespace not in settings.namespaces:
-        raise HTTPException(status_code=400, detail="Namespace is not recorded.")
+        namespace = settings.namespaces[0]
     return console_page(request, view="runs", namespace=namespace)

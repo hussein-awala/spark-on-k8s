@@ -52,6 +52,18 @@ def cluster(monkeypatch):
             raise ApiException(status=409)
         del objects[kind][name]
 
+    def list_pods(namespace, label_selector, **kwargs):
+        wanted = dict(item.split("=", 1) for item in label_selector.split(","))
+        return k8s.V1PodList(
+            items=[
+                deepcopy(pod)
+                for pod in objects["pod"].values()
+                if pod.metadata.namespace == namespace
+                and all((pod.metadata.labels or {}).get(key) == value for key, value in wanted.items())
+            ]
+        )
+
+    api.list_namespaced_pod.side_effect = list_pods
     for kind in objects:
         getattr(api, f"create_namespaced_{kind}").side_effect = lambda kind=kind, **kwargs: create(
             kind, **kwargs
@@ -158,6 +170,110 @@ def test_status_only_404_is_missing_and_rbac_or_transport_error_propagates(clust
     api.delete_namespaced_pod.assert_not_called()
 
 
+@pytest.mark.parametrize("aware", [True, False])
+def test_status_reports_driver_age_and_optional_version_label(cluster, aware):
+    from datetime import UTC, datetime, timedelta
+
+    sdk, _, objects = cluster
+    handle = sdk.create_connect_server(config())
+    initial = sdk.connect_server_status(handle)
+    assert (initial["created_at"], initial["age_seconds"], initial["spark_version"]) == (None, None, None)
+    created = datetime.now(UTC).replace(microsecond=0) - timedelta(hours=2)
+    pod = objects["pod"][handle.run.driver_pod]
+    pod.metadata.creation_timestamp = created if aware else created.replace(tzinfo=None)
+    pod.metadata.labels["spark-version"] = "4.0.5"
+    status = sdk.connect_server_status(handle)
+    assert status["created_at"] == created.isoformat().replace("+00:00", "Z")
+    assert 7200 <= status["age_seconds"] < 7260
+    assert status["spark_version"] == "4.0.5"
+    assert status["query_ready"] is None
+    pod.metadata.creation_timestamp = datetime.now(UTC) + timedelta(minutes=5)
+    assert sdk.connect_server_status(handle)["age_seconds"] == 0, "Clock skew is not a negative age"
+    del objects["pod"][handle.run.driver_pod]
+    missing = sdk.connect_server_status(handle)
+    assert (missing["status"], missing["created_at"], missing["age_seconds"], missing["spark_version"]) == (
+        "missing",
+        None,
+        None,
+        None,
+    )
+
+
+def test_list_reports_only_helper_labeled_drivers_oldest_first_without_mutation(cluster):
+    from datetime import UTC, datetime, timedelta
+
+    sdk, api, objects = cluster
+    newer = sdk.create_connect_server(config(app_name="newer"))
+    older = sdk.create_connect_server(config(app_name="older"))
+    elsewhere = sdk.create_connect_server(config(namespace="other-team"))
+    now = datetime.now(UTC).replace(microsecond=0)
+    objects["pod"][older.run.driver_pod].metadata.creation_timestamp = now - timedelta(days=3, hours=4)
+    objects["pod"][older.run.driver_pod].metadata.labels["spark-version"] = "4.0.5"
+    objects["pod"][newer.run.driver_pod].metadata.creation_timestamp = now - timedelta(minutes=10)
+    objects["pod"][newer.run.driver_pod].metadata.deletion_timestamp = now
+    objects["pod"][newer.run.driver_pod].status.phase = "Running"
+    # An ordinary batch driver and a labeled pod without the helper's application ID are not servers.
+    objects["pod"]["batch-driver"] = k8s.V1Pod(
+        metadata=k8s.V1ObjectMeta(
+            name="batch-driver",
+            namespace="connect-test",
+            uid="batch-uid",
+            labels={"spark-role": "driver", "spark-app-id": "batch"},
+        ),
+        status=k8s.V1PodStatus(phase="Running"),
+    )
+    objects["pod"]["unidentified"] = k8s.V1Pod(
+        metadata=k8s.V1ObjectMeta(
+            name="unidentified",
+            namespace="connect-test",
+            uid="unidentified-uid",
+            labels={"spark-role": "driver", "spark-on-k8s.io/connect-server": "true"},
+        ),
+    )
+    servers = sdk.list_connect_servers("connect-test", timeout=7)
+    assert [server["app_id"] for server in servers] == [older.run.app_id, newer.run.app_id]
+    assert servers[0] == {
+        "app_id": older.run.app_id,
+        "name": "older",
+        "namespace": "connect-test",
+        "driver_pod": older.run.driver_pod,
+        "driver_uid": older.run.driver_uid,
+        "status": "running",
+        "driver_phase": "Running",
+        "spark_version": "4.0.5",
+        "image": "apache/spark:4.0.5",
+        "created_at": (now - timedelta(days=3, hours=4)).isoformat().replace("+00:00", "Z"),
+        "age_seconds": servers[0]["age_seconds"],
+    }
+    assert 273600 <= servers[0]["age_seconds"] < 273660
+    assert (servers[1]["status"], servers[1]["driver_phase"], servers[1]["spark_version"]) == (
+        "deleting",
+        "Running",
+        None,
+    )
+    call = api.list_namespaced_pod.call_args.kwargs
+    assert call["namespace"] == "connect-test"
+    assert call["label_selector"] == "spark-role=driver,spark-on-k8s.io/connect-server=true"
+    assert 0 < call["_request_timeout"] <= 7
+    assert [server["app_id"] for server in sdk.list_connect_servers("other-team")] == [elsewhere.run.app_id]
+    assert sdk.list_connect_servers("empty") == []
+    api.delete_namespaced_pod.assert_not_called()
+    api.delete_namespaced_service.assert_not_called()
+    api.patch_namespaced_pod.assert_not_called()
+
+
+def test_list_validates_before_requests_and_propagates_kubernetes_errors(cluster):
+    sdk, api, _ = cluster
+    for namespace, timeout in (("Not/A-Namespace", 10), ("spark", 0), ("spark", float("nan"))):
+        with pytest.raises(ValueError):
+            sdk.list_connect_servers(namespace, timeout=timeout)
+    api.list_namespaced_pod.assert_not_called()
+    for error in (ApiException(status=403), ApiException(status=503), OSError("unavailable")):
+        api.list_namespaced_pod.side_effect = error
+        with pytest.raises(type(error)):
+            sdk.list_connect_servers("connect-test")
+
+
 def test_readiness_requires_query_identity_then_revalidates_resources(cluster, monkeypatch):
     sdk, api, _ = cluster
     handle = sdk.create_connect_server(config())
@@ -176,6 +292,33 @@ def test_readiness_requires_query_identity_then_revalidates_resources(cluster, m
     assert result["status"] == "ready" and result["query_ready"] is True
     assert probe.call_args.kwargs["expected_app_id"] == handle.run.app_id
     assert api.read_namespaced_pod.call_count == before + 2
+
+
+def test_readiness_reports_queried_versions_and_skew_without_failing(cluster, monkeypatch):
+    from spark_on_k8s.connect import version_warnings
+
+    sdk, api, objects = cluster
+    handle = sdk.create_connect_server(config())
+    objects["pod"][handle.run.driver_pod].metadata.labels["spark-version"] = "label-is-not-authoritative"
+    warnings = version_warnings("4.3.0", "4.0.5")
+    probe = MagicMock(
+        return_value={
+            "schema_version": 1,
+            "status": "ok",
+            "spark_version": "4.0.5",
+            "client_version": "4.3.0",
+            "warnings": warnings,
+            "app_id": handle.run.app_id,
+        }
+    )
+    monkeypatch.setattr(ConnectProfile, "probe", probe)
+    result = sdk.wait_connect_server_ready(
+        handle, profile=ConnectProfile(endpoint="sc://localhost", tls=False)
+    )
+    assert result["query_ready"] is True
+    assert (result["spark_version"], result["client_version"]) == ("4.0.5", "4.3.0")
+    assert result["warnings"] == warnings and warnings[0]["code"] == "version_skew"
+    api.delete_namespaced_pod.assert_not_called()
 
 
 def test_readiness_detects_resource_replacement_during_query(cluster, monkeypatch):
@@ -345,7 +488,7 @@ def test_invalid_configuration_is_rejected_without_kubernetes_access(cluster, se
     api.create_namespaced_service.assert_not_called()
 
 
-def test_start_status_and_delete_do_not_import_pyspark(cluster, monkeypatch):
+def test_start_status_list_and_delete_do_not_import_pyspark(cluster, monkeypatch):
     import builtins
 
     sdk, _, _ = cluster
@@ -359,6 +502,7 @@ def test_start_status_and_delete_do_not_import_pyspark(cluster, monkeypatch):
     monkeypatch.setattr(builtins, "__import__", import_without_pyspark)
     handle = sdk.create_connect_server(config())
     assert sdk.connect_server_status(handle)["status"] == "running"
+    assert sdk.list_connect_servers("connect-test")[0]["app_id"] == handle.run.app_id
     assert sdk.delete_connect_server(handle)["status"] == "deletion_requested"
 
 

@@ -59,6 +59,12 @@ class JobValidationError(ValueError):
     """A job definition has an invalid structure or unsupported setting."""
 
 
+def validation_error(error: Exception) -> dict[str, str]:
+    """Classify an offline validation failure for the versioned validate result."""
+    # An unreadable job or template file is a read failure, not an invalid definition.
+    return {"code": "read_error" if isinstance(error, OSError) else "invalid_job", "message": str(error)}
+
+
 class _UniqueLoader(yaml.SafeLoader):
     def compose_node(self, parent, index):
         if self.check_event(yaml.AliasEvent):
@@ -258,7 +264,7 @@ class JobSpec:
             try:
                 cls.from_file(path, profile=profile).plan()
             except (ValueError, TypeError, OSError) as error:
-                results.append({"profile": profile, "valid": False, "error": str(error)})
+                results.append({"profile": profile, "valid": False, "error": validation_error(error)})
             else:
                 results.append({"profile": profile, "valid": True, "error": None})
         return results

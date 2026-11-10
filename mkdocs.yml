@@ -109,12 +109,14 @@ nav:
   - Guides:
       - Run applications:
           - Portable job files: user-guide/jobs.md
+          - Migrate from the Spark Operator: user-guide/spark-operator-migration.md
           - SQL jobs: user-guide/sql.md
           - Driver pod templates: user-guide/driver_pod_templates.md
           - Application examples: user-guide/examples.md
           - ETL and lakehouse starters: user-guide/starters.md
       - Integrate and automate:
           - CLI automation and recovery: user-guide/automation.md
+          - Ecosystem recipes: user-guide/recipes.md
           - Spark Connect: user-guide/spark_connect.md
           - Connect server setup: user-guide/spark_connect_server.md
           - ML image for Connect: user-guide/connect_ml_image.md

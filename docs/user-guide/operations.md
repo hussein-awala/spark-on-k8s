@@ -85,11 +85,12 @@ replacement. For streaming/lakehouse jobs, distinguish pod recovery from
 checkpoint correctness, table commits, ordering and replay guarantees.
 
 Prefer a small recipe using the existing SDK and receipts over another control
-plane. A migration assessor must report unsupported source fields; it must not
-silently translate unknown Spark Operator semantics. OpenLineage reports and
-Airflow run correlation are optional evidence, not proof that every data write
-committed. Deployment examples do not establish arbitrary multi-cloud or
-multi-tenant isolation guarantees.
+plane; see the [ecosystem recipes](recipes.md). The
+[Spark Operator assessor](spark-operator-migration.md) reports unsupported source
+fields; it does not silently translate unknown Spark Operator semantics.
+OpenLineage reports and Airflow run correlation are optional evidence, not proof
+that every data write committed. Deployment examples do not establish arbitrary
+multi-cloud or multi-tenant isolation guarantees.
 
 ## Audit events and metrics
 

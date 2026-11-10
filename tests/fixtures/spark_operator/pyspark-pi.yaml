@@ -1,0 +1,37 @@
+# A small PySpark SparkApplication that translates without unsupported fields.
+apiVersion: sparkoperator.k8s.io/v1beta2
+kind: SparkApplication
+metadata:
+  name: pyspark-pi
+  namespace: spark-jobs
+  labels:
+    team: analytics
+spec:
+  type: Python
+  pythonVersion: "3"
+  mode: cluster
+  image: registry.example.com/spark/pyspark:3.5.9
+  imagePullPolicy: IfNotPresent
+  mainApplicationFile: local:///opt/spark/examples/src/main/python/pi.py
+  arguments:
+    - "100"
+  sparkVersion: 3.5.9
+  restartPolicy:
+    type: Never
+  sparkConf:
+    spark.sql.shuffle.partitions: "8"
+  driver:
+    cores: 1
+    coreLimit: 1200m
+    memory: 512m
+    memoryOverhead: 384m
+    serviceAccount: spark-driver
+    labels:
+      version: 3.5.9
+  executor:
+    cores: 1
+    instances: 2
+    memory: 512m
+    memoryOverhead: 384m
+    labels:
+      version: 3.5.9

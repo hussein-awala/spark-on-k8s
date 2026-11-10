@@ -298,6 +298,7 @@ an `operation_error`; an interruption exits 130 and reports the requests made so
 | apps prune | `--output json` | Versioned result with per-driver errors | Selection only, or deletion requests accepted; not completed cleanup |
 | job validate | `--output json`, per-profile results | Versioned result; `error` repeats the first failing profile's error | Offline validation only |
 | job plan | `--output json` | Load/build errors remain Click text | Redacted preview, no reservation |
+| job assess-operator | `--output json` | Versioned result for unreadable input or draft write errors | Offline field accounting; unsupported fields still exit 0 ([migration](spark-operator-migration.md)) |
 | app diagnose, doctor | `--output json` report | Click text error, exit 1 (including a missing application) | Observed evidence, not a health certification |
 | connect check, connect server | `--output json` | Versioned result | Tiny query succeeded on existing server; server requests accepted; `server list` is a label-based observation |
 | remote plan/submit | JSON by default | Versioned result | Request admitted or accepted, not workload completion |

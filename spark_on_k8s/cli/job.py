@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import click
 import yaml
@@ -9,7 +10,10 @@ from spark_on_k8s.cli.receipts import receipt_option
 from spark_on_k8s.jobs import JobSpec, JobValidationError, validation_error
 
 
-@click.group(name="job", help="Validate, preview and submit versioned Spark job files.")
+@click.group(
+    name="job",
+    help="Validate, preview and submit versioned Spark job files; assess Spark Operator manifests.",
+)
 def job_cli():
     pass
 
@@ -127,3 +131,96 @@ def submit(file, profile, output, timeout, receipt_file):
     execute_submission(
         job.client(), job.to_submit_kwargs(), output=output, timeout=timeout, receipt_file=receipt_file
     )
+
+
+@job_cli.command(name="assess-operator")
+@click.argument("file", type=click.Path(exists=True, dir_okay=False))
+@click.option("--output", type=click.Choice(["text", "json"]), default="text", show_default=True)
+@click.option(
+    "--draft-dir",
+    type=click.Path(exists=True, file_okay=False, writable=True),
+    help="Write each valid SparkJob draft to this directory as NAME.yaml; existing files are kept.",
+)
+def assess_operator(file, output, draft_dir):
+    """Assess Kubeflow Spark Operator manifests offline and draft SparkJob files.
+
+    Reads sparkoperator.k8s.io/v1beta2 SparkApplication and ScheduledSparkApplication
+    documents without contacting a cluster. Unsupported fields are reported, not
+    translated, and do not change the exit code; unreadable input exits 1.
+    """
+    from spark_on_k8s.spark_operator_migration import SCHEMA_VERSION, ManifestError, assess_file
+
+    result = {
+        "schema_version": SCHEMA_VERSION,
+        "operation": "assess_operator",
+        "error": None,
+        "migration_ready": False,
+        "applications": None,
+        "skipped": None,
+    }
+    try:
+        result.update(assess_file(file))
+        if draft_dir is not None:
+            _write_drafts(result["applications"], Path(draft_dir), Path(file).name)
+    except (ManifestError, OSError) as error:
+        result["error"] = {"code": "operation_error", "message": str(error)}
+    if output == "json":
+        click.echo(json.dumps(result, ensure_ascii=False, default=str))
+    else:
+        _echo_assessment(result)
+    if result["error"]:
+        raise click.exceptions.Exit(1)
+
+
+def _write_drafts(applications, directory: Path, source: str) -> None:
+    """Check every draft destination before writing; never replace an existing file."""
+    from spark_on_k8s.spark_operator_migration import ManifestError, draft_yaml
+
+    targets = []
+    for application in applications:
+        if application["draft"] is None:
+            continue
+        path = directory / f"{application['draft']['metadata']['name']}.yaml"
+        if any(path == existing for _, existing in targets):
+            raise ManifestError(f"Two drafts would be written to {path}; assess the documents separately.")
+        if path.exists():
+            raise ManifestError(f"{path} already exists; drafts never replace existing files.")
+        targets.append((application, path))
+    for application, path in targets:
+        with path.open("x", encoding="utf-8") as stream:
+            stream.write(draft_yaml(application, source))
+        application["draft_file"] = str(path)
+
+
+def _echo_assessment(result) -> None:
+    order = {"unsupported": 0, "approximated": 1, "mapped": 2, "ignored": 3}
+    for application in result["applications"] or []:
+        location = f"{application['namespace']}/" if application["namespace"] else ""
+        readiness = "migration-ready" if application["migration_ready"] else "not migration-ready"
+        click.echo(
+            f"{application['kind']} {location}{application['name']} "
+            f"(document {application['document']}): {readiness}"
+        )
+        click.echo("  " + ", ".join(f"{count} {status}" for status, count in application["counts"].items()))
+        for finding in sorted(application["findings"], key=lambda item: order[item["status"]]):
+            line = f"  {finding['status'].upper():<12} {finding['path']}"
+            if finding["target"]:
+                line += f" -> {finding['target']}"
+            click.echo(line)
+            for label in ("note", "alternative"):
+                if finding[label]:
+                    click.echo(f"{'':15}{label.capitalize()}: {finding[label]}")
+        for note in application["notes"]:
+            click.echo(f"  Note: {note}")
+        if application["draft_file"]:
+            click.echo(f"  Draft written to {application['draft_file']}; validate it with `job validate`.")
+        elif application["draft"] is not None:
+            click.echo("  Draft: valid offline; write it with --draft-dir.")
+        else:
+            click.echo(f"  Draft: not produced: {application['draft_error']}")
+    for item in result["skipped"] or []:
+        click.echo(
+            f"Skipped document {item['document']} ({item['api_version']} {item['kind']}): {item['reason']}"
+        )
+    if result["error"]:
+        click.echo(f"Error: {result['error']['message']}", err=True)

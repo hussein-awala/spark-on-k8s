@@ -15,7 +15,7 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
-    "spark-on-k8s[connect]==0.11.0.dev0",
+    "spark-on-k8s[connect]>=0.13.0,<0.14",
     "dbt-core==1.12.6",
     "dbt-spark==1.11.0",
     # Own the transport dependencies: dbt-spark's optional extra caps Thrift
@@ -39,9 +39,6 @@ test = ["pytest>=9.2.0,<10"]
 [build-system]
 requires = ["uv_build==0.13.7"]
 build-backend = "uv_build"
-
-[tool.uv.sources]
-spark-on-k8s = {path = "../.."}
 
 [tool.uv.build-backend]
 module-name = ["spark_on_k8s_dbt", "dbt.adapters.spark_on_k8s", "dbt.include.spark_on_k8s"]

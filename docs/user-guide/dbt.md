@@ -45,19 +45,20 @@ checks); local access also needs pod port-forward permission.
 [`spark-on-k8s-dbt check`](#check-a-profile-before-running) verifies these
 permissions without creating anything.
 
-## Install from the repository
+## Install
 
-Until the experimental distribution is separately published, build both wheels
-from the same checkout. These commands use an isolated Python 3.12 environment:
+`dbt-spark-on-k8s` is published separately from `spark-on-k8s` and requires a released
+SDK (0.1.0 requires `spark-on-k8s[connect]` 0.13.x). Install it in its own virtual
+environment, here with Python 3.12:
 
 ```bash
-# From the spark-on-k8s repository root:
-uv build --wheel --out-dir dist/dbt-experiment
-uv build --project integrations/dbt --wheel --out-dir dist/dbt-experiment
 uv venv --python 3.12 .venv-dbt
-uv pip install --python .venv-dbt/bin/python dist/dbt-experiment/*.whl
+uv pip install --python .venv-dbt/bin/python dbt-spark-on-k8s
 uv pip check --python .venv-dbt/bin/python
 ```
+
+The adapter is Experimental: any release, including a minor or patch one, may change
+its profile fields, commands or modules. Pin the version you tested.
 
 For reproducible development/testing, use the separate lockfile instead:
 
@@ -390,9 +391,8 @@ limits](automation.md#limit-how-long-a-driver-can-run).
 ## Run in CI
 
 This recipe uses plain shell steps, so it fits GitHub Actions, GitLab CI or any
-runner that can reach the Kubernetes API. Install the wheels as in
-[Install from the repository](#install-from-the-repository) and put the
-environment's `bin` directory on `PATH`.
+runner that can reach the Kubernetes API. Install the adapter as in
+[Install](#install) and put the environment's `bin` directory on `PATH`.
 
 ### Keep credentials out of the repository
 

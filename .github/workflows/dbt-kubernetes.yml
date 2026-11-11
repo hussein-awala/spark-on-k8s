@@ -49,7 +49,7 @@ jobs:
           cache-dependency-glob: |
             uv.lock
             integrations/dbt/uv.lock
-      - name: Install the core and adapter wheels in an isolated environment
+      - name: Install the adapter wheel and the locked released SDK in an isolated environment
         env:
           DBT_PYTHON: ${{ matrix.python }}
         run: |
@@ -58,7 +58,7 @@ jobs:
           uv venv --python "$(uv python find --managed-python "$DBT_PYTHON")" .venv-dbt
           UV_PROJECT_ENVIRONMENT="$GITHUB_WORKSPACE/.venv-dbt" uv sync \
             --project integrations/dbt --locked --group test --no-install-project
-          uv build --wheel --out-dir "$RUNNER_TEMP/dbt-wheels"
+          # The adapter requires a released SDK; the locked one comes from PyPI with the sync above.
           uv build --project integrations/dbt --wheel --out-dir "$RUNNER_TEMP/dbt-wheels"
           uv pip install --python .venv-dbt/bin/python --no-deps --reinstall "$RUNNER_TEMP"/dbt-wheels/*.whl
           uv pip check --python .venv-dbt/bin/python
@@ -103,14 +103,14 @@ jobs:
           cache-dependency-glob: |
             uv.lock
             integrations/dbt/uv.lock
-      - name: Install both wheels with the locked experimental dependencies
+      - name: Install the adapter wheel with the locked released SDK and dependencies
         run: |
           unset CONDA_DEFAULT_ENV CONDA_PREFIX VIRTUAL_ENV
           uv python install 3.12
           uv venv --python "$(uv python find --managed-python 3.12)" .venv-dbt
           UV_PROJECT_ENVIRONMENT="$GITHUB_WORKSPACE/.venv-dbt" uv sync \
             --project integrations/dbt --locked --group test --no-install-project
-          uv build --wheel --out-dir "$RUNNER_TEMP/dbt-wheels"
+          # The adapter requires a released SDK; the locked one comes from PyPI with the sync above.
           uv build --project integrations/dbt --wheel --out-dir "$RUNNER_TEMP/dbt-wheels"
           uv pip install --python .venv-dbt/bin/python --no-deps --reinstall "$RUNNER_TEMP"/dbt-wheels/*.whl
           uv pip check --python .venv-dbt/bin/python

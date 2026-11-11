@@ -144,10 +144,11 @@ is published by `.github/workflows/dbt-release.yml`, which runs only by manual
 dispatch: every tag push starts the package release and documentation workflows,
 so the adapter is not released from a Git tag.
 
-During development the adapter requires the checkout's development SDK version and
-`[tool.uv.sources]` installs that SDK from `../..`. PyPI can never satisfy that
-requirement, and `scripts/dbt_release.py` refuses to publish it. Release the adapter
-only after the SDK version it needs is on PyPI:
+The adapter requires a released SDK (since 0.1.0, `spark-on-k8s[connect]>=0.13.0,<0.14`),
+installed from PyPI by its lockfile. Before 0.13.0 it required the checkout's development
+SDK through a `[tool.uv.sources]` path entry, which PyPI can never satisfy and
+`scripts/dbt_release.py` refuses to publish. When an adapter release needs a newer SDK,
+release the adapter only after that SDK version is on PyPI:
 
 1. In a signed PR, set the adapter version in `pyproject.toml`,
    `dbt/adapters/spark_on_k8s/__version__.py` and `spark_on_k8s_dbt/__init__.py`.

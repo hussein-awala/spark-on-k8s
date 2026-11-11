@@ -391,9 +391,8 @@ limits](automation.md#limit-how-long-a-driver-can-run).
 ## Run in CI
 
 This recipe uses plain shell steps, so it fits GitHub Actions, GitLab CI or any
-runner that can reach the Kubernetes API. Install the wheels as in
-[Install from the repository](#install-from-the-repository) and put the
-environment's `bin` directory on `PATH`.
+runner that can reach the Kubernetes API. Install the adapter as in
+[Install](#install) and put the environment's `bin` directory on `PATH`.
 
 ### Keep credentials out of the repository
 

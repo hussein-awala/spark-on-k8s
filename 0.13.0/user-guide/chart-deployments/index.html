@@ -1,0 +1,6615 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Submit, observe and troubleshoot Spark jobs on Kubernetes with Python, the CLI and Airflow.">
+      
+      
+        <meta name="author" content="hussein-awala">
+      
+      
+        <link rel="canonical" href="https://hussein.awala.fr/spark-on-k8s/0.13.0/user-guide/chart-deployments/">
+      
+      
+        <link rel="prev" href="../run-history/">
+      
+      
+        <link rel="next" href="../../security-boundaries/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.8.1">
+    
+    
+      
+        <title>Deploy the chart - Spark on Kubernetes</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Fira+Sans:300,300i,400,400i,700,700i%7CFira+Code:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Fira Sans";--md-code-font:"Fira Code"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  
+  
+  <meta name="documentation-channel" content="release">
+  <meta name="documentation-version" content="0.13.0">
+  
+    <meta name="documentation-source" content="84857613fb45ac74277f8aeecacff62fa4e8f775">
+  
+
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#chart-deployment-boundaries" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+        <aside class="md-banner">
+          <div class="md-banner__inner md-grid md-typeset">
+            
+            
+  
+  
+    <strong>Release 0.13.0 documentation.</strong>
+  
+  
+    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/84857613fb45ac74277f8aeecacff62fa4e8f775"><code>84857613fb45</code></a>.
+  
+
+          </div>
+          
+        </aside>
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+          <aside class="md-banner md-banner--warning">
+            <div class="md-banner__inner md-grid md-typeset">
+              A newer stable release is available.
+    <a href="https://hussein.awala.fr/spark-on-k8s/latest/">
+      <strong>Read the latest stable documentation.</strong>
+    </a>
+            </div>
+            <script>var el=document.querySelector("[data-md-component=outdated]"),base=new URL("../.."),outdated=__md_get("__outdated",sessionStorage,base);!0===outdated&&el&&(el.hidden=!1)</script>
+          </aside>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Spark on Kubernetes" class="md-header__button md-logo" aria-label="Spark on Kubernetes" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Spark on Kubernetes
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Deploy the chart
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="black"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+          <a href="javascript:void(0)" class="md-search__icon md-icon" title="Share" aria-label="Share" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
+            
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg>
+          </a>
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/hussein-awala/spark-on-k8s" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    hussein-awala/spark-on-k8s
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../start-here/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Get started
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../jobs/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Guides
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../diagnostics/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Operate
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../reference/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Reference
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="https://hussein.awala.fr/spark-on-k8s/release-notes/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Release notes
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../development/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Contributing
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Spark on Kubernetes" class="md-nav__button md-logo" aria-label="Spark on Kubernetes" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Spark on Kubernetes
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/hussein-awala/spark-on-k8s" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    hussein-awala/spark-on-k8s
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Get started
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Get started
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../start-here/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Choose your path
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../when-to-use/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    When to use it
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Install
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting_started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Your first Kubernetes job
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../spark_compatibility/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Supported Spark runtimes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_1" id="__nav_3_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Run applications
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Run applications
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../jobs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Portable job files
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../spark-operator-migration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Migrate from the Spark Operator
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sql/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SQL jobs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../driver_pod_templates/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Driver pod templates
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Application examples
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../starters/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ETL and lakehouse starters
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_2" id="__nav_3_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Integrate and automate
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Integrate and automate
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../automation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI automation and recovery
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../recipes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ecosystem recipes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../spark_connect/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Spark Connect
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../spark_connect_server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Connect server setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../connect_ml_image/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ML image for Connect
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../jupyter/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Jupyter notebooks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../dbt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experimental managed dbt
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../airflow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Airflow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../airflow-upgrade/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Upgrade Airflow DAGs from 0.12
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../remote-submission/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Remote submission
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operate
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Operate
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../diagnostics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Diagnose failures
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../run-history/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Run history and health
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploy the chart
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploy the chart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#select-the-image-explicitly" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Select the image explicitly
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#verify-a-published-api-image" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Verify a published API image
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#start-with-scoped-externally-managed-access" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Start with scoped, externally managed access
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#decide-who-owns-the-account-and-permissions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Decide who owns the account and permissions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#review-the-chart-managed-permissions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Review the chart-managed permissions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#keep-the-four-workload-identities-separate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Keep the four workload identities separate
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#run-the-api-as-a-non-root-user" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Run the API as a non-root user
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#understand-the-scaling-controls" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Understand the scaling controls
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#validate-before-installation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Validate before installation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#add-operational-objects" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Add operational objects
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Add operational objects">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#restrict-api-traffic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Restrict API traffic
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#keep-replicas-available-during-node-drains" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Keep replicas available during node drains
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#scrape-metrics-with-the-prometheus-operator" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scrape metrics with the Prometheus Operator
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#set-the-api-worker-count" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Set the API worker count
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#probe-the-history-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Probe the History Server
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#enable-remote-submission" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Enable remote submission
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#preparing-the-next-chart-release" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Preparing the next chart release
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../security-boundaries/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Browser and gateway boundaries
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sso-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Single sign-on gateway
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../operations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operational boundaries
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../support/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Support and compatibility
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../stability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interface stability and 1.0
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_1" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../reference/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python API
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_5_1" id="__nav_5_1_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Python API
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_1_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_1_2" id="__nav_5_1_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python client
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_5_1_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_1_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Python client
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/client/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Client and resource options
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/utils/run/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Run handles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/diagnostics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Diagnostic results
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/utils/setup_namespace/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Namespace setup helper
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_1_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_1_3" id="__nav_5_1_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Job definitions
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_5_1_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_1_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Job definitions
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/jobs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    JobSpec
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/planning/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Application plans
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_1_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_1_4" id="__nav_5_1_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Integrations
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_5_1_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_1_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Integrations
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/airflow/operators/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Airflow operators
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/connect/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Spark Connect profiles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/connect_server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Spark Connect server lifecycle
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_1_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_1_5" id="__nav_5_1_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Implementation details
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_5_1_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_1_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Implementation details
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_1_5_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_1_5_1" id="__nav_5_1_5_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    airflow
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_5_1_5_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_1_5_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    airflow
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/airflow/_compat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    _compat
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/airflow/operator_links/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    operator_links
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/airflow/postmortem/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    postmortem
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/airflow/provider_info/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    provider_info
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/airflow/triggers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    triggers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_1_5_1_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_1_5_1_6" id="__nav_5_1_5_1_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ui
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="5" aria-labelledby="__nav_5_1_5_1_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_1_5_1_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    ui
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/airflow/ui/backend/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    backend
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/airflow/ui/plugin/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    plugin
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/airflow/ui/snapshots/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    snapshots
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/airflow/ui/task_binding/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    task_binding
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/airflow/ui_config/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ui_config
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_1_5_2" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../reference/spark_on_k8s/api/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    api
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_5_1_5_2" id="__nav_5_1_5_2_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_5_1_5_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_1_5_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    api
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/api/app/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    app
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/api/apps/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    apps
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/api/audit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    audit
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/api/configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/api/console/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    console
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/api/main/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    main
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/api/namespace_scope/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    namespace_scope
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/api/remote_auth/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    remote_auth
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/api/run_history/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    run_history
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/api/submission/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    submission
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/api/submission_policy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    submission_policy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/api/utils/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    utils
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/api/webserver/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    webserver
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_1_5_3" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../reference/spark_on_k8s/cli/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    cli
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_5_1_5_3" id="__nav_5_1_5_3_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_5_1_5_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_1_5_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    cli
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/cli/__main__/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    _main_
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/cli/api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    api
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/cli/app/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    app
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/cli/apps/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    apps
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/cli/automation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    automation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/cli/connect/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    connect
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/cli/connect_server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    connect_server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/cli/diagnostics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    diagnostics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/cli/job/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    job
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/cli/namespace/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    namespace
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/cli/options/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    options
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/cli/receipts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    receipts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/cli/remote/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    remote
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/cli/sql/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    sql
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/doctor/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    doctor
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_1_5_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_1_5_5" id="__nav_5_1_5_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    history
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_5_1_5_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_1_5_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    history
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/history/collector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    collector
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/history/settings/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    settings
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/history/store/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    store
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_1_5_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_1_5_6" id="__nav_5_1_5_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    k8s
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_5_1_5_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_1_5_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    k8s
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/k8s/async_client/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    async_client
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/k8s/sync_client/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    sync_client
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/remote/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    remote
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/resource_plan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    resource_plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/spark_operator_migration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    spark_operator_migration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_1_5_10" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../reference/spark_on_k8s/sql/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    sql
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_5_1_5_10" id="__nav_5_1_5_10_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_5_1_5_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_1_5_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    sql
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/sql/runner/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    runner
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_1_5_11" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_1_5_11" id="__nav_5_1_5_11_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    utils
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_5_1_5_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_1_5_11">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    utils
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/utils/app_manager/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    app_manager
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/utils/async_app_manager/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    async_app_manager
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/utils/configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/utils/console_models/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    console_models
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/utils/driver_pod_template/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    driver_pod_template
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/utils/env/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    env
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/utils/logging_mixin/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    logging_mixin
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/utils/spark_app_status/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    spark_app_status
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/utils/types/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    types
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/utils/warnings/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    warnings
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/airflow/scripts/spark_sql/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SQL runner: older reference URL
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_2" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../helm-chart/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Helm values
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_5_2" id="__nav_5_2_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Helm values
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_2_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_2_2" id="__nav_5_2_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Config
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_5_2_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_2_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Config
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../helm-chart/config/autoscaling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    autoscaling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../helm-chart/config/image/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    image
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../helm-chart/config/ingress/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ingress
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../helm-chart/config/metrics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    metrics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../helm-chart/config/networkPolicy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    networkPolicy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../helm-chart/config/podDisruptionBudget/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    podDisruptionBudget
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../helm-chart/config/podSecurityContext/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    podSecurityContext
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../helm-chart/config/rbac/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    rbac
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../helm-chart/config/remote/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    remote
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../helm-chart/config/root/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Root
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../helm-chart/config/runHistory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    runHistory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../helm-chart/config/securityContext/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    securityContext
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../helm-chart/config/service/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    service
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../helm-chart/config/serviceAccount/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    serviceAccount
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../helm-chart/config/sparkHistory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    sparkHistory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://hussein.awala.fr/spark-on-k8s/release-notes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Release notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Contributing
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../development/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development and testing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../releases/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Releases
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../review-decisions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Review decisions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#select-the-image-explicitly" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Select the image explicitly
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#verify-a-published-api-image" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Verify a published API image
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#start-with-scoped-externally-managed-access" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Start with scoped, externally managed access
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#decide-who-owns-the-account-and-permissions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Decide who owns the account and permissions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#review-the-chart-managed-permissions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Review the chart-managed permissions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#keep-the-four-workload-identities-separate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Keep the four workload identities separate
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#run-the-api-as-a-non-root-user" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Run the API as a non-root user
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#understand-the-scaling-controls" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Understand the scaling controls
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#validate-before-installation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Validate before installation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#add-operational-objects" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Add operational objects
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Add operational objects">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#restrict-api-traffic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Restrict API traffic
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#keep-replicas-available-during-node-drains" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Keep replicas available during node drains
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#scrape-metrics-with-the-prometheus-operator" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scrape metrics with the Prometheus Operator
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#set-the-api-worker-count" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Set the API worker count
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#probe-the-history-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Probe the History Server
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#enable-remote-submission" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Enable remote submission
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#preparing-the-next-chart-release" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Preparing the next chart release
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/hussein-awala/spark-on-k8s/edit/main/docs/user-guide/chart-deployments.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+
+
+<h1 id="chart-deployment-boundaries">Chart deployment boundaries<a class="headerlink" href="#chart-deployment-boundaries" title="Permanent link">&para;</a></h1>
+<p>These controls describe the current source chart. Published charts, API images
+and Python packages have independent release histories; inspect the selected
+chart and image before upgrading. The chart is an API/console deployment with an
+optional Spark History Server. It does not deploy a Spark scheduler, create a
+cloud workload identity, or configure applications submitted through the SDK.</p>
+<h2 id="select-the-image-explicitly">Select the image explicitly<a class="headerlink" href="#select-the-image-explicitly" title="Permanent link">&para;</a></h2>
+<p>The API image uses <code>image.digest</code> when set. Otherwise it uses <code>image.tag</code>; an
+explicitly empty tag opts into that chart's <code>appVersion</code> fallback. A version tag
+is clearer than <code>latest</code>, but only a verified digest fixes the image contents.</p>
+<p>The source chart requires an explicit compatible image tag or digest while its
+<code>appVersion</code> is <code>unreleased</code>. Release packaging sets a qualified application
+version, which becomes the default image tag. Building or rendering the local
+chart does not build an API image.</p>
+<p>The API image contains the API, its locked dependencies and Python 3.14 (0.12.1 used
+Python 3.11), but no pip,
+setuptools or wheel. To add packages in an image built <code>FROM</code> it, switch to
+<code>USER root</code>, run <code>python -m ensurepip</code> to restore the base image's pip, install your
+packages, then switch back with <code>USER 10001:10001</code>. That pip is the base image's
+older version, so remove or upgrade it in your image. Alternatively, install the
+packages in a separate build stage and copy the result.</p>
+<p>The optional History Server has a separate image lifecycle. Enabling
+<code>sparkHistory.enabled</code> requires an explicit <code>sparkHistory.image.tag</code> or
+<code>sparkHistory.image.digest</code>; there is no implicit API-version or <code>latest</code>
+fallback. For both images, a digest takes precedence over a simultaneously set
+tag. Use <code>repository</code> without an embedded tag or digest, and put the complete
+<code>sha256:</code> plus 64 hexadecimal characters in <code>digest</code>.</p>
+<p>No History Server image version is qualified by these chart-rendering checks.
+Validate your selected History image, event-log storage and Spark runtime together
+before deployment. An explicitly selected <code>latest</code> tag remains accepted for
+intentional development use; it does not make the deployment reproducible.</p>
+<h2 id="verify-a-published-api-image">Verify a published API image<a class="headerlink" href="#verify-a-published-api-image" title="Permanent link">&para;</a></h2>
+<p>The release workflow signs each API image it publishes with
+<a href="https://docs.sigstore.dev/cosign/">Sigstore cosign</a> keyless signing, by digest.
+The signed digest is the multi-architecture image whose amd64 and arm64 images
+passed the workflow's checks; both registries receive those bytes without a
+rebuild, so <code>ghcr.io/hussein-awala/spark-on-k8s</code> and
+<code>docker.io/husseinawala/spark-on-k8s</code> have the same digest. API images released
+before signing was added, including 0.12.1 and earlier, have no signature, and
+<code>cosign verify</code> reports that none was found.</p>
+<p>Resolve the release tag once, then verify and deploy the digest it printed, not
+the tag. Use cosign 3; cosign 2.6 needs <code>--new-bundle-format</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="nv">RELEASE_VERSION</span><span class="o">=</span>X.Y.Z<span class="w">  </span><span class="c1"># replace with the selected API release</span>
+docker<span class="w"> </span>buildx<span class="w"> </span>imagetools<span class="w"> </span>inspect<span class="w"> </span><span class="s2">"ghcr.io/hussein-awala/spark-on-k8s:</span><span class="nv">$RELEASE_VERSION</span><span class="s2">"</span>
+<span class="c1"># Set API_IMAGE_DIGEST to the sha256:... value of the Digest line printed above.</span>
+:<span class="w"> </span><span class="s2">"</span><span class="si">${</span><span class="nv">API_IMAGE_DIGEST</span><span class="p">:?Set the digest printed for the release tag</span><span class="si">}</span><span class="s2">"</span>
+cosign<span class="w"> </span>verify<span class="w"> </span><span class="s2">"ghcr.io/hussein-awala/spark-on-k8s@</span><span class="nv">$API_IMAGE_DIGEST</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--certificate-identity<span class="w"> </span><span class="s2">"https://github.com/hussein-awala/spark-on-k8s/.github/workflows/release.yml@refs/tags/</span><span class="nv">$RELEASE_VERSION</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--certificate-oidc-issuer<span class="w"> </span>https://token.actions.githubusercontent.com
+</code></pre></div>
+<p>Verification succeeds only for a signature made by this repository's
+<code>release.yml</code> running for that tag; a fork, another workflow, a branch run or a
+different release tag fails it. Each signature is recorded in Sigstore's public
+transparency log. Verify the Docker Hub copy with the same command and
+<code>docker.io/husseinawala/spark-on-k8s@$API_IMAGE_DIGEST</code>. Then pin the verified
+digest with <code>--set-string image.digest="$API_IMAGE_DIGEST"</code>, as in the example
+below. A per-platform digest is not signed separately; deploy the multi-architecture
+digest.</p>
+<p>The same index carries BuildKit SBOM and provenance attestations for each platform.
+They are listed by digest in the signed index, so retrieving them through the
+verified digest also authenticates them:</p>
+<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>buildx<span class="w"> </span>imagetools<span class="w"> </span>inspect<span class="w"> </span><span class="s2">"ghcr.io/hussein-awala/spark-on-k8s@</span><span class="nv">$API_IMAGE_DIGEST</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--format<span class="w"> </span><span class="s1">'{{ json .Provenance }}'</span>
+docker<span class="w"> </span>buildx<span class="w"> </span>imagetools<span class="w"> </span>inspect<span class="w"> </span><span class="s2">"ghcr.io/hussein-awala/spark-on-k8s@</span><span class="nv">$API_IMAGE_DIGEST</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--format<span class="w"> </span><span class="s1">'{{ json .SBOM }}'</span>
+</code></pre></div>
+<p>They describe the image contents and build inputs; they do not certify that the
+dependencies are free of vulnerabilities.</p>
+<p>To enforce signatures at admission, configure a Sigstore-capable policy engine to
+require, for images from these repositories, the issuer
+<code>https://token.actions.githubusercontent.com</code> and a certificate subject matching
+<code>^https://github\.com/hussein-awala/spark-on-k8s/\.github/workflows/release\.yml@refs/tags/[0-9]+\.[0-9]+\.[0-9]+((a|b|rc)[0-9]+)?$</code>.
+Drop the optional group to refuse pre-releases. The signatures are Sigstore
+bundles attached as OCI referrers, the format cosign 3 writes; confirm that your
+engine version verifies that format, and exempt images released before signing.</p>
+<h2 id="start-with-scoped-externally-managed-access">Start with scoped, externally managed access<a class="headerlink" href="#start-with-scoped-externally-managed-access" title="Permanent link">&para;</a></h2>
+<p>The source includes <code>chart/examples/production-values.yaml</code>. It uses explicit
+<code>analytics,batch</code> namespaces, the preprovisioned <code>spark-observer</code> service account,
+external RBAC, a ClusterIP service, and illustrative resource reservations. Its
+<code>REQUIRED_SHA256_DIGEST</code> placeholder deliberately fails validation. Set a digest
+you have verified for the selected API image repository:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Set API_IMAGE_DIGEST to the verified sha256:... digest; no sample image is implied.</span>
+:<span class="w"> </span><span class="s2">"</span><span class="si">${</span><span class="nv">API_IMAGE_DIGEST</span><span class="p">:?Set the verified API image digest</span><span class="si">}</span><span class="s2">"</span>
+helm<span class="w"> </span>lint<span class="w"> </span>./chart<span class="w"> </span>-f<span class="w"> </span>chart/examples/production-values.yaml<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--set-string<span class="w"> </span>image.digest<span class="o">=</span><span class="s2">"</span><span class="nv">$API_IMAGE_DIGEST</span><span class="s2">"</span>
+helm<span class="w"> </span>template<span class="w"> </span>spark-console<span class="w"> </span>./chart<span class="w"> </span>--namespace<span class="w"> </span>spark-system<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-f<span class="w"> </span>chart/examples/production-values.yaml<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--set-string<span class="w"> </span>image.digest<span class="o">=</span><span class="s2">"</span><span class="nv">$API_IMAGE_DIGEST</span><span class="s2">"</span><span class="w"> </span>&gt;<span class="w"> </span>rendered-console.yaml
+</code></pre></div>
+<p>Provision the release namespace and named service account before installation.
+The administrator must grant that account the needed access in the selected
+application namespaces. Review the rendered resources and adjust the example's
+namespaces, resource requests and limits for your deployment. The example does
+not establish availability, throughput or cloud-identity compatibility.</p>
+<p>The default <code>readOnly: true</code> remains unchanged. With chart-managed RBAC, the default
+empty <code>namespaces</code> creates a Role and RoleBinding in the release namespace, and an
+explicit namespace string creates them in each listed namespace.
+<code>namespaces: "*"</code> instead creates a ClusterRole with the same rules and binds it
+cluster-wide; the chart does not bind the built-in <code>view</code> or <code>edit</code> roles. The chart
+passes the same scope to the API as <code>SPARK_ON_K8S_API_NAMESPACES</code>, so the API refuses
+other namespaces even where Service DNS would reach them. Neither the namespace scope
+nor hiding UI buttons provides user or tenant authorization; use the
+<a href="../remote-submission/">remote-submission security boundary</a>.</p>
+<h2 id="decide-who-owns-the-account-and-permissions">Decide who owns the account and permissions<a class="headerlink" href="#decide-who-owns-the-account-and-permissions" title="Permanent link">&para;</a></h2>
+<p><code>rbac.create</code> controls API roles and bindings independently of
+<code>serviceAccount.create</code>. Its default, <code>null</code>, follows <code>serviceAccount.create</code> to
+preserve existing rendering. The History Server has its own service-account
+setting; API RBAC settings do not grant History Server storage permissions.</p>
+<table>
+<thead>
+<tr>
+<th>API configuration</th>
+<th>Account created by Helm</th>
+<th>Roles/bindings created by Helm</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>serviceAccount.create: true</code>, <code>rbac.create: null</code></td>
+<td>Yes</td>
+<td>Yes; legacy default</td>
+</tr>
+<tr>
+<td><code>serviceAccount.create: false</code>, <code>rbac.create: null</code></td>
+<td>No</td>
+<td>No; legacy external-account behavior</td>
+</tr>
+<tr>
+<td><code>serviceAccount.create: false</code>, explicit <code>serviceAccount.name</code>, <code>rbac.create: true</code></td>
+<td>No</td>
+<td>Yes, bound to that account in the release namespace</td>
+</tr>
+<tr>
+<td><code>serviceAccount.create: true</code>, <code>rbac.create: false</code></td>
+<td>Yes</td>
+<td>No</td>
+</tr>
+<tr>
+<td><code>serviceAccount.create: false</code>, <code>rbac.create: false</code></td>
+<td>No</td>
+<td>No; fully external ownership</td>
+</tr>
+</tbody>
+</table>
+<p>The chart requires an explicit account name when creating RBAC for an external
+account. <code>readOnly</code> only changes chart-managed permissions; it cannot reduce
+permissions already granted externally.</p>
+<h2 id="review-the-chart-managed-permissions">Review the chart-managed permissions<a class="headerlink" href="#review-the-chart-managed-permissions" title="Permanent link">&para;</a></h2>
+<p>Chart-managed Roles and the cluster-wide ClusterRole render the same rules, all on
+core API resources in the served namespaces:</p>
+<table>
+<thead>
+<tr>
+<th><code>readOnly</code></th>
+<th>Rules</th>
+<th>Used for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>true</code></td>
+<td><code>get</code> and <code>list</code> on <code>pods</code>, <code>get</code> on <code>pods/log</code>, <code>list</code> on <code>events</code></td>
+<td>Application lists and details, driver logs, diagnostics, readiness and run history</td>
+</tr>
+<tr>
+<td><code>false</code></td>
+<td>Adds <code>create</code> and <code>delete</code> on <code>pods</code>, <code>get</code> and <code>create</code> on <code>pods/exec</code>, and <code>create</code> on <code>services</code></td>
+<td>Stopping and deleting drivers, and remote submission</td>
+</tr>
+</tbody>
+</table>
+<p>These are the only verbs the API calls: it never watches pods, the Spark UI proxy
+reaches Services by DNS, and a driver's Service is deleted with the driver through
+its owner reference. Grant more through externally managed RBAC if other tools use
+the API's service account.</p>
+<p>Neither mode grants Secrets, ConfigMaps or any other resource. Remote submission
+creates only a driver Pod and its headless Service, so <code>readOnly: false</code> covers it;
+the API rejects jobs that would create Secrets or ConfigMaps. Spark drivers create
+executors with the job's own service account, not the API's; see
+<a href="../diagnostics/#check-cluster-prerequisites">cluster prerequisites</a> for a baseline
+for that account.</p>
+<p>With <code>namespaces: "*"</code>, <code>readOnly: false</code> lets the API create, delete and exec into
+pods in every namespace, including system namespaces. Rendering fails unless
+<code>rbac.allowClusterWideWrite: true</code> acknowledges that grant; listing the namespaces
+the API manages keeps write access scoped instead. Read-only cluster-wide access and
+externally managed RBAC need no acknowledgement.</p>
+<p>When changing ownership on an installed release, inspect the Helm diff first.
+Setting a create flag to <code>false</code> removes previously managed resources from the
+release; Helm can delete them during upgrade. Arrange the replacement permissions
+and deliberate resource-ownership transfer before that upgrade. Do not assume
+that changing the flag alone preserves the existing account or grants.</p>
+<h2 id="keep-the-four-workload-identities-separate">Keep the four workload identities separate<a class="headerlink" href="#keep-the-four-workload-identities-separate" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Role</th>
+<th>Identity and metadata inputs</th>
+<th>Image and image-pull inputs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>API/console</td>
+<td>Chart <code>serviceAccount.*</code>, <code>podLabels</code>, <code>podAnnotations</code>; its Kubernetes credentials observe/manage applications</td>
+<td>Chart <code>image.*</code>, <code>imagePullSecrets</code></td>
+</tr>
+<tr>
+<td>Spark driver</td>
+<td>Submission <code>namespace</code>, <code>service_account</code>, <code>driver_labels</code>, <code>driver_annotations</code> and driver template</td>
+<td>Submission <code>image</code>, <code>image_pull_policy</code>; driver template for supported pull-secret customization</td>
+</tr>
+<tr>
+<td>Spark executors</td>
+<td>Application executor template and Spark configuration for the chosen runtime; <code>executor_labels</code> and <code>executor_annotations</code></td>
+<td>Application image/configuration and executor template; API chart pull secrets are not inherited</td>
+</tr>
+<tr>
+<td>History Server</td>
+<td>Chart <code>sparkHistory.serviceAccount.*</code>, <code>sparkHistory.podLabels</code>, <code>sparkHistory.podAnnotations</code>; independent event-storage identity</td>
+<td><code>sparkHistory.image.*</code>; chart <code>imagePullSecrets</code> is applied to its pod too</td>
+</tr>
+</tbody>
+</table>
+<p>These roles may share an account when that is intentional; they do not need to.
+The resolved submission <code>service_account</code> overrides a service account written
+inside the driver template. API chart account annotations and labels do not
+become application defaults. See <a href="../driver_pod_templates/">driver templates</a> for
+the supported merge rules and inspect the generated driver plan.</p>
+<p>Cloud IAM bindings, storage credentials and admission policies remain owned by
+the cluster administrator. A successful <a href="../diagnostics/">doctor check</a> establishes
+only its reported caller checks and account existence; it does not prove that a
+driver, executor or History Server can access your object store. Cloud-specific
+recipes and arbitrary-user container support are not qualified by this chart
+validation suite.</p>
+<h2 id="run-the-api-as-a-non-root-user">Run the API as a non-root user<a class="headerlink" href="#run-the-api-as-a-non-root-user" title="Permanent link">&para;</a></h2>
+<p>The API image runs as the dedicated user and group <code>10001</code>. The chart's default
+<code>podSecurityContext</code> and <code>securityContext</code> match that identity and meet Pod
+Security <code>restricted</code>: <code>runAsNonRoot</code>, <code>runAsUser</code>, <code>runAsGroup</code> and <code>fsGroup</code>
+<code>10001</code>, <code>fsGroupChangePolicy: OnRootMismatch</code>, the <code>RuntimeDefault</code> seccomp
+profile, no privilege escalation and all capabilities dropped. Override individual
+keys in your values file, or set a key to <code>null</code> to remove it; an image built with
+another user needs matching IDs. The History Server keeps its own security settings.</p>
+<p>The API must be able to read files mounted from volumes, such as a
+remote-submission token or policy, or a kubeconfig selected with
+<code>SPARK_ON_K8S_CONFIG_FILE</code>. The chart sets <code>SPARK_ON_K8S_IN_CLUSTER=true</code> unless
+<code>env</code> sets <code>SPARK_ON_K8S_IN_CLUSTER</code> or <code>SPARK_ON_K8S_CONFIG_FILE</code>, so a selected
+kubeconfig is used instead of the pod's service account. Its home directory is <code>/home/spark-on-k8s</code>; <code>/root</code>
+is not readable. Keep <code>service.port</code> at 1024 or above, because some container
+runtimes do not let a non-root process bind lower ports. Mount a remote-submission
+Secret as a directory rather than with <code>subPath</code>, so a
+<a href="../remote-submission/#rotate-the-token">token rotation</a> reaches running pods.</p>
+<p>A run-history claim written by an earlier root API process holds root-owned
+files. On volume types that support <code>fsGroup</code>, such as most block-storage CSI
+drivers and <code>local</code> volumes, the kubelet makes them group-writable at the first
+non-root mount. Volume types that ignore <code>fsGroup</code>, such as <code>hostPath</code>-backed
+provisioners, keep them read-only: the API then exits with <code>attempt to write a
+readonly database</code>. Before upgrading such a claim, change ownership from the
+current root pod:</p>
+<div class="highlight"><pre><span></span><code>kubectl<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>--namespace<span class="w"> </span>&lt;release-namespace&gt;<span class="w"> </span>deploy/&lt;release-fullname&gt;<span class="w"> </span>--<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>chown<span class="w"> </span>-R<span class="w"> </span><span class="m">10001</span>:10001<span class="w"> </span>/var/lib/spark-on-k8s
+</code></pre></div>
+<p>If the upgraded API already exited, <code>helm rollback</code> to the root release and run
+the command there before upgrading again. To keep running as root instead,
+restore the previous identity and capabilities; the capabilities let root write
+files that a failed non-root start may have created. Such a pod does not meet Pod
+Security <code>restricted</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">podSecurityContext</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">runAsNonRoot</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">  </span><span class="nt">runAsUser</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
+<span class="w">  </span><span class="nt">runAsGroup</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
+<span class="nt">securityContext</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">capabilities</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">null</span>
+</code></pre></div>
+<p><code>readOnlyRootFilesystem</code> is not a default because the Kubernetes client writes
+temporary files in some configurations, such as kubeconfig credentials embedded
+as data. To enable it, also mount a writable <code>/tmp</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">securityContext</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">readOnlyRootFilesystem</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="nt">volumes</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tmp</span>
+<span class="w">    </span><span class="nt">emptyDir</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{}</span>
+<span class="nt">volumeMounts</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tmp</span>
+<span class="w">    </span><span class="nt">mountPath</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/tmp</span>
+</code></pre></div>
+<h2 id="understand-the-scaling-controls">Understand the scaling controls<a class="headerlink" href="#understand-the-scaling-controls" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Control</th>
+<th>What it scales</th>
+<th>Owner</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Chart <code>replicaCount</code> or <code>autoscaling.*</code></td>
+<td>API/console replicas</td>
+<td>API deployment owner</td>
+</tr>
+<tr>
+<td>Application <code>ExecutorInstances</code> / Spark dynamic allocation</td>
+<td>Executors within one Spark application</td>
+<td>Application owner</td>
+</tr>
+<tr>
+<td>Kubernetes cluster/node-pool autoscaler</td>
+<td>Available worker nodes</td>
+<td>Cluster/cloud administrator</td>
+</tr>
+</tbody>
+</table>
+<p>Increasing <code>autoscaling.maxReplicas</code> does not increase an application's executor
+ceiling or create nodes. The optional History Server has its own
+<code>sparkHistory.replicaCount</code> and autoscaling settings. CPU/memory HPA targets need
+appropriate container requests and the cluster's metrics support; setting a
+target to <code>null</code> or <code>0</code> disables that metric, and an enabled HPA requires at least
+one positive target.</p>
+<p>The <a href="../run-history/">metadata recorder</a> is separate from the Spark History
+Server. Enabling <code>runHistory</code> requires exactly one API replica, no API autoscaling,
+an existing writable persistent claim, and one to twenty explicit namespace
+entries. Unless <code>namespaces</code> is <code>"*"</code>, every <code>runHistory.namespaces</code> entry must also
+be in the API scope: the release namespace by default, or the listed namespaces.
+Otherwise the API refuses to start, and with chart-managed RBAC rendering fails. The chart
+uses a <code>Recreate</code> rollout. It neither provisions the claim nor
+validates its filesystem locking behavior; use supported block/local storage,
+rehearse backups and allow for rollout downtime.</p>
+<h2 id="validate-before-installation">Validate before installation<a class="headerlink" href="#validate-before-installation" title="Permanent link">&para;</a></h2>
+<p><code>values.schema.json</code> checks chart-owned types, image references, service ports,
+namespace forms, HPA bounds and recorder settings. Template guards cover
+cross-field comparisons, such as the cluster-wide write acknowledgement, and reserved
+volume names. Run both <code>helm lint</code> and <code>helm template</code>: lint can suppress
+template-level <code>fail</code> messages, while rendering
+rejects those cross-field conflicts. <code>namespaces</code> remains a
+comma-separated string; <code>runHistory.namespaces</code> is a YAML list. Kubernetes
+passthrough objects, such as affinity, resources and security contexts, remain
+open so normal cluster-specific fields are accepted.</p>
+<p>Rendering checks do not validate cloud permissions, image availability, storage
+access or API server admission. Raw <code>env</code> overrides still take precedence over
+chart-generated environment settings and remain the operator's responsibility.
+An <code>ingress.tls</code> entry terminates TLS before the API, so browser log streams are
+rejected until <code>env</code> sets <code>SPARK_ON_K8S_API_WEBSOCKET_ALLOWED_ORIGINS</code> to the
+public <code>https://</code> origins; see
+<a href="../../security-boundaries/#log-websocket-browser-origins">browser origins</a>.
+To serve the API below an ingress path such as <code>/platform/spark</code>, have the ingress
+controller remove that prefix before forwarding and set
+<code>SPARK_ON_K8S_API_ROOT_PATH</code> to the same path in <code>env</code>; see
+<a href="../../security-boundaries/#mounted-spark-ui-paths">mounted paths</a>.
+To require single sign-on, keep the chart Ingress disabled and publish the
+console through the <a href="../sso-gateway/">oauth2-proxy gateway recipe</a> instead.
+Use the <a href="../../development/">development guide</a> for the Helm regression suite and
+<a href="../../releases/">release guidance</a> for the artifact publication boundary.</p>
+<h2 id="add-operational-objects">Add operational objects<a class="headerlink" href="#add-operational-objects" title="Permanent link">&para;</a></h2>
+<p>The settings in this section are disabled by default, apart from the History
+Server probes, which apply only when <code>sparkHistory.enabled</code> is set. A release
+upgraded with <code>--reuse-values</code> from a chart without these settings renders as
+before. Some invalid combinations fail only during rendering, so run
+<code>helm template</code> as well as <code>helm lint</code>.</p>
+<h3 id="restrict-api-traffic">Restrict API traffic<a class="headerlink" href="#restrict-api-traffic" title="Permanent link">&para;</a></h3>
+<p><code>networkPolicy.enabled</code> adds a NetworkPolicy for the API pods. It admits traffic
+to the API port only from <code>networkPolicy.ingress.from</code> and from pods with this
+release's API labels: the API pods and the chart's <code>helm test</code> pod. With an empty
+list nothing else can connect, including an ingress controller, a gateway,
+Prometheus and clients of a <code>LoadBalancer</code> or <code>NodePort</code> Service. List every peer
+that needs the API:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">networkPolicy</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">ingress</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">from</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">namespaceSelector</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">matchLabels</span><span class="p">:</span>
+<span class="w">            </span><span class="nt">kubernetes.io/metadata.name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ingress-nginx</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">namespaceSelector</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">matchLabels</span><span class="p">:</span>
+<span class="w">            </span><span class="nt">kubernetes.io/metadata.name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">monitoring</span>
+<span class="w">        </span><span class="nt">podSelector</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">matchLabels</span><span class="p">:</span>
+<span class="w">            </span><span class="nt">app.kubernetes.io/name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">prometheus</span>
+</code></pre></div>
+<p>The policy needs a network plugin that enforces NetworkPolicy; other plugins
+accept the object and enforce nothing. NetworkPolicy does not block traffic from
+a pod's own node, so kubelet probes keep working. Traffic through a
+<code>LoadBalancer</code> or <code>NodePort</code> Service can arrive with a node address rather than
+the client's, depending on <code>externalTrafficPolicy</code> and the plugin. A NetworkPolicy
+limits which peers can connect; it does not authenticate callers or replace
+<a href="../remote-submission/">remote mode</a> or an authenticating gateway.</p>
+<p><code>networkPolicy.egress.enabled</code> also restricts the API's outbound connections to:</p>
+<ul>
+<li>DNS on port 53 to <code>networkPolicy.egress.dns.to</code>: kube-dns pods in
+  <code>kube-system</code> by default. An empty list allows port 53 to any destination, for
+  example a node-local DNS cache;</li>
+<li>the Kubernetes API server peers in <code>networkPolicy.egress.kubernetesApi.to</code>, on
+  <code>kubernetesApi.ports</code> (443 and 6443 by default);</li>
+<li>port 4040 on pods labeled <code>spark-role=driver</code> in the namespaces selected by
+  <code>namespaces</code>, for the Spark UI proxy;</li>
+<li>this release's API pods, so its <code>helm test</code> pod can connect, and the History
+  Server pods on port 18080 when <code>sparkHistory.enabled</code> is set;</li>
+<li><code>networkPolicy.egress.extraRules</code>, for example a cluster selected by
+  <code>SPARK_ON_K8S_CONFIG_FILE</code>.</li>
+</ul>
+<p>The chart cannot discover API server addresses. Most plugins evaluate egress after
+a Service address is translated to its endpoints, so list the endpoint addresses
+of the <code>default/kubernetes</code> Service:</p>
+<div class="highlight"><pre><span></span><code>kubectl<span class="w"> </span>get<span class="w"> </span>endpointslices<span class="w"> </span>--namespace<span class="w"> </span>default<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--selector<span class="w"> </span>kubernetes.io/service-name<span class="o">=</span>kubernetes<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-o<span class="w"> </span><span class="nv">jsonpath</span><span class="o">=</span><span class="s1">'{range .items[*].endpoints[*]}{.addresses[0]}{"\n"}{end}'</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><span class="nt">networkPolicy</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">egress</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">kubernetesApi</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">to</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">ipBlock</span><span class="p">:</span>
+<span class="w">            </span><span class="nt">cidr</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">172.18.0.2/32</span>
+</code></pre></div>
+<p>With an empty <code>kubernetesApi.to</code>, the chart's policy grants no API server access:
+the API stays unready unless another policy allows it, and the install notes warn
+about it. Plugins differ: some match the Service address before translation, and
+some do not match node or control-plane addresses with <code>ipBlock</code> at all and need
+their own policy resources for the API server. After enabling egress, check
+readiness, the Spark UI proxy and log streams. The driver namespace selector
+follows <code>namespaces</code>; an <code>env</code> override of <code>SPARK_ON_K8S_API_NAMESPACES</code> does not
+change it.</p>
+<p><code>sparkHistory.networkPolicy.enabled</code> adds an ingress-only NetworkPolicy for the
+History Server: the API pods and <code>sparkHistory.networkPolicy.ingress.from</code> can
+reach port 18080. History Server egress, such as to event-log storage, stays
+unrestricted.</p>
+<h3 id="keep-replicas-available-during-node-drains">Keep replicas available during node drains<a class="headerlink" href="#keep-replicas-available-during-node-drains" title="Permanent link">&para;</a></h3>
+<p><code>podDisruptionBudget.enabled</code> adds a PodDisruptionBudget for the API pods, and
+<code>sparkHistory.podDisruptionBudget.enabled</code> one for the History Server pods. Set
+<code>minAvailable</code> or <code>maxUnavailable</code> to a pod count or a percentage such as <code>"50%"</code>.
+Setting both is rejected; setting neither uses <code>maxUnavailable: 1</code>.</p>
+<p>Rendering fails when a budget permits no voluntary disruption at the smallest
+replica count, which is <code>replicaCount</code>, or <code>autoscaling.minReplicas</code> with
+autoscaling enabled. Such a budget blocks <code>kubectl drain</code>, node pool upgrades and
+cluster autoscaler scale-down indefinitely. For example, <code>minAvailable: 1</code> with one
+replica is rejected; Kubernetes rounds percentages up, so <code>minAvailable: "60%"</code>
+with two replicas is rejected too. Run at least two API replicas to keep the API
+available while a node drains. A single-replica API, as <a href="../run-history/">run history</a>
+requires, can only use a budget that allows its pod to be evicted, so a budget
+adds no protection there.</p>
+<h3 id="scrape-metrics-with-the-prometheus-operator">Scrape metrics with the Prometheus Operator<a class="headerlink" href="#scrape-metrics-with-the-prometheus-operator" title="Permanent link">&para;</a></h3>
+<p><code>metrics.serviceMonitor.enabled</code> adds a <code>monitoring.coreos.com/v1</code> ServiceMonitor
+for the API's <code>/metrics</code> and requires <code>metrics.enabled</code>. Rendering fails if the
+cluster does not serve the ServiceMonitor API, rather than silently omitting the
+object and leaving monitoring unconfigured. <code>helm template</code> and client-side dry
+runs do not query a cluster, so pass the API explicitly:</p>
+<div class="highlight"><pre><span></span><code>helm<span class="w"> </span>template<span class="w"> </span>spark-console<span class="w"> </span>./chart<span class="w"> </span>--namespace<span class="w"> </span>spark-system<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--set<span class="w"> </span>metrics.enabled<span class="o">=</span><span class="nb">true</span><span class="w"> </span>--set<span class="w"> </span>metrics.serviceMonitor.enabled<span class="o">=</span><span class="nb">true</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--set-string<span class="w"> </span>image.tag<span class="o">=</span><span class="s2">"</span><span class="nv">$API_IMAGE_TAG</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--api-versions<span class="w"> </span>monitoring.coreos.com/v1/ServiceMonitor
+</code></pre></div>
+<p>Set <code>metrics.serviceMonitor.labels</code> to match your Prometheus
+<code>serviceMonitorSelector</code>, and <code>interval</code> or <code>scrapeTimeout</code> to override the
+Prometheus defaults. The API and History Server Services share the chart's
+selector labels, so the ServiceMonitor keeps only the API Service's targets by
+name. With <code>networkPolicy.enabled</code>, also list Prometheus in
+<code>networkPolicy.ingress.from</code>. Run-history metric values come from the run-history
+database, so every API worker reports the same values. The
+<a href="../operations/#operation-metrics">operation counters</a> are kept by each worker
+instead, and each scrape reaches one worker: set <code>workers: 1</code> before alerting on
+them.</p>
+<p>With <code>remote.enabled</code>, <code>/metrics</code> requires the operator bearer token, and the
+ServiceMonitor authenticates with the <code>remote.tokenKey</code> entry of
+<code>remote.existingSecret</code>. The Prometheus Operator then copies that token into the
+configuration of every Prometheus instance that selects the ServiceMonitor. The
+token grants full operator access to the API, including submissions, logs, kill
+and delete: restrict access to that Prometheus configuration accordingly, or do
+not enable the ServiceMonitor in remote mode.</p>
+<p>Prometheus sends that Secret entry as the bearer token byte for byte, while the API
+trims whitespace and accepts one token per line. The entry must therefore hold
+exactly one token with no trailing newline, or every scrape fails. During a
+<a href="../remote-submission/#rotate-the-token">token rotation</a> the entry holds two tokens,
+so scrapes fail from step 1 until step 3 reaches the pods: expect a gap in these
+metrics and pause alerts on failed scrapes for that time.</p>
+<h3 id="set-the-api-worker-count">Set the API worker count<a class="headerlink" href="#set-the-api-worker-count" title="Permanent link">&para;</a></h3>
+<p><code>workers</code> sets <code>SPARK_ON_K8S_API_WORKERS</code>, the number of API processes in each
+pod, from 1 to 64. The default <code>null</code> keeps the image default, which is 4 in the
+published image. An <code>env</code> entry with the same name takes precedence. Each worker
+is a separate process with its own memory, Kubernetes client and
+<code>SPARK_ON_K8S_API_LIMIT_CONCURRENCY</code> connection limit, so raise <code>resources</code> with
+the worker count. Run history keeps its single replica but supports several
+workers in that pod: a database lease elects one collector. In remote mode, each
+worker reads the token and policy files when it starts.</p>
+<p>With more than one worker, <code>spark-on-k8s api start</code> exits with code 0 when a worker
+fails to start, for example on an unusable run-history volume or an invalid setting:
+uvicorn's process supervisor logs <code>Child process [...] failed to start</code> and stops
+without reporting the failure as an exit code. The chart's readiness probe on <code>/ready</code>
+keeps such a pod out of service, and Kubernetes restarts the container. Read that log
+line, or run with <code>workers: 1</code> to get exit code 3, when diagnosing a pod that never
+becomes ready.</p>
+<h3 id="probe-the-history-server">Probe the History Server<a class="headerlink" href="#probe-the-history-server" title="Permanent link">&para;</a></h3>
+<p>With <code>sparkHistory.enabled</code>, the History Server container has readiness and
+liveness probes on its UI port, 18080, at <code>/api/v1/version</code>. Readiness keeps a
+starting server out of its Service. Liveness restarts a server that has stopped
+answering for about two minutes, after a one-minute initial delay. Adding the
+probes changes the pod template, so upgrading a release with the History Server
+enabled restarts its pods once.</p>
+<p>Override individual probe fields under <code>sparkHistory.readinessProbe</code> and
+<code>sparkHistory.livenessProbe</code>, or set a probe to <code>null</code> to remove it. Helm merges
+your probe with the default, so set <code>httpGet: null</code> beside another handler such as
+<code>tcpSocket</code>. An authentication filter on the History Server UI must allow the
+probe path, or the probe must use <code>tcpSocket</code>.</p>
+<h3 id="enable-remote-submission">Enable remote submission<a class="headerlink" href="#enable-remote-submission" title="Permanent link">&para;</a></h3>
+<p><code>remote.enabled</code> configures <a href="../remote-submission/">remote submission</a>. The chart
+sets <code>SPARK_ON_K8S_SUBMISSION_ENABLED</code>, <code>SPARK_ON_K8S_SUBMISSION_TOKEN_FILE</code> and
+<code>SPARK_ON_K8S_SUBMISSION_POLICY_FILE</code>, and mounts only the <code>remote.tokenKey</code> and
+<code>remote.policyKey</code> entries of <code>remote.existingSecret</code> read-only under
+<code>remote.mountPath</code> (<code>/etc/spark-on-k8s/remote</code> by default). The chart never
+creates this Secret and has no value for an inline token, so the token stays out
+of Helm values and release history. Create the Secret in the release namespace
+with your secret tooling, for example from a random token file and the policy:</p>
+<div class="highlight"><pre><span></span><code>kubectl<span class="w"> </span>create<span class="w"> </span>secret<span class="w"> </span>generic<span class="w"> </span>spark-api-remote<span class="w"> </span>--namespace<span class="w"> </span>spark-system<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--from-file<span class="o">=</span><span class="nv">token</span><span class="o">=</span>./submission-token<span class="w"> </span>--from-file<span class="o">=</span>policy.json<span class="o">=</span>./submission-policy.json
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><span class="nt">remote</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">existingSecret</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">spark-api-remote</span>
+<span class="nt">namespaces</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">analytics</span>
+<span class="nt">readOnly</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+</code></pre></div>
+<p>Every route except <code>/health</code> and <code>/ready</code> then requires the bearer token,
+including the console; kubelet probes and the chart's <code>helm test</code> use those two
+public routes. Submissions create driver pods and Services, so with chart-managed
+RBAC set <code>readOnly: false</code>. Keep the policy's namespaces within <code>namespaces</code>: the
+API refuses to start with a policy namespace outside its scope. A missing Secret
+key also prevents the pod from starting. The Secret is mounted as a directory, so
+a <a href="../remote-submission/#rotate-the-token">token rotation</a> or policy change reaches
+running pods after the kubelet's sync period; each worker then applies valid files
+without a restart. <code>env</code> entries for the same variables take
+precedence, and <code>remote-submission</code> is a reserved volume name. The token is one
+shared operator credential, not tenant isolation.</p>
+<h2 id="preparing-the-next-chart-release">Preparing the next chart release<a class="headerlink" href="#preparing-the-next-chart-release" title="Permanent link">&para;</a></h2>
+<p>The source chart marks <code>appVersion</code> as <code>unreleased</code> and requires an explicit
+compatible <code>image.tag</code> or <code>image.digest</code>. The release publisher sets the package's
+qualified application version; an empty image tag then selects that version.
+API 0.12.1 does not implement <code>/ready</code> and is not compatible with these probes.
+Do not publish this chart against that older API image. The <code>helm-release</code>
+workflow refuses an <code>app_version</code> below 0.13.0 or without a published
+<code>ghcr.io/hussein-awala/spark-on-k8s</code> image, and a <code>chart_version</code> that the chart
+repository already lists. Run it only after the package release has published the
+API image, selecting that release tag in the workflow's ref selector so the chart
+source matches the qualified application.</p>
+<p>When upgrading a release installed from published chart 0.3.0, pass your values
+file again, or use <code>--reset-then-reuse-values</code> (Helm 3.14 and later), instead of
+<code>--reuse-values</code>. <code>--reuse-values</code> replaces this chart's defaults with the old
+release's values, including its <code>latest</code> image tags, and omits new settings such
+as <code>rbac</code>, <code>runHistory</code> and <code>metrics</code>. The chart schema rejects such an upgrade
+with a <code>missing properties</code> error before rendering.</p>
+<p>Shared RBAC resource names now include the release namespace identity. Existing
+installations can set <code>rbac.legacyNames: true</code> to retain their old names during an
+upgrade. New installations should use the default <code>false</code>, allowing identical
+release names in separate namespaces. To migrate existing installations, render
+and review both RBAC sets, ensure the new bindings exist before removing old
+bindings, and verify access under the service account. Switching the value in a
+normal Helm upgrade replaces the old resources; schedule that transition if a
+brief permissions interruption is unacceptable. Never reuse legacy names for two
+releases managing the same shared scope.</p>
+<p>Releases with <code>namespaces: "*"</code> were bound to the built-in <code>view</code> or <code>edit</code>
+ClusterRole by a ClusterRoleBinding named after the release with a <code>-view</code> or
+<code>-edit</code> suffix. The chart now creates its own ClusterRole and a ClusterRoleBinding
+with the role's name and no suffix, whether or not <code>rbac.legacyNames</code> is set.
+Because a binding's <code>roleRef</code> cannot change, the binding takes a new name instead of
+being updated in place: the same <code>helm upgrade</code> creates the new role and binding and
+removes the old binding, so no manual deletion is needed. As with the name change
+above, schedule it if a brief permissions interruption is unacceptable. The API's
+account loses everything else those roles granted, such as reading ConfigMaps and,
+with <code>edit</code>, reading and writing Secrets in every namespace. If another workload
+shares that account and relies on such access, grant it separately before upgrading. A <code>"*"</code> release with <code>readOnly: false</code> must also set
+<code>rbac.allowClusterWideWrite: true</code>; without it, the upgrade fails before changing
+anything.</p>
+<p>The default <code>namespaces</code> value changed from <code>"*"</code> to empty, which selects only the
+release namespace. A release that relied on the old default loses its cluster-wide
+binding on upgrade, and the API then refuses other namespaces. Set <code>namespaces: "*"</code>
+or list the namespaces before upgrading. With <code>"*"</code>, the console opens the API's own
+namespace unless <code>SPARK_ON_K8S_API_DEFAULT_NAMESPACE</code> is set in <code>env</code>. If <code>env</code> sets
+<code>SPARK_ON_K8S_API_DEFAULT_NAMESPACE</code> to a namespace outside the new scope, the API
+refuses to start and <code>helm upgrade --wait</code> times out: include that namespace in
+<code>namespaces</code>, or change or remove the variable, in the same upgrade.</p>
+<p>History configuration updates now roll its Deployment automatically. History
+<code>affinity</code> and <code>tolerations</code> are passed to the Pod. The rare long-name suffix
+collision is disambiguated; existing installations using those colliding names
+need a reviewed recreation because Deployment selectors are immutable.</p>
+
+
+
+
+
+
+
+  
+    
+  
+  
+
+
+  <aside class="md-source-file">
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Last update">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 11, 2026 11:16:14 UTC">November 11, 2026</span>
+  </span>
+
+    
+    
+    
+    
+  </aside>
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../run-history/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Run history and health">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Run history and health
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../../security-boundaries/" class="md-footer__link md-footer__link--next" aria-label="Next: Browser and gateway boundaries">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Browser and gateway boundaries
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.action.edit", "content.tooltips", "content.code.annotate", "content.code.copy", "content.tabs.link", "search.highlight", "search.share", "search.suggest", "navigation.footer", "navigation.indexes", "navigation.instant", "navigation.sections", "navigation.tabs", "navigation.tabs.sticky", "navigation.top", "navigation.tracking", "toc.follow"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": ["latest", "develop"], "provider": "mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      
+    
+  </body>
+</html>

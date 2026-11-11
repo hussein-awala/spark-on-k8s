@@ -9,11 +9,20 @@
     }
   },
   {
-    "version": "0.12.1",
-    "title": "0.12.1",
+    "version": "0.13.0",
+    "title": "0.13.0",
     "aliases": [
       "latest"
-    ]
+    ],
+    "properties": {
+      "source_sha": "84857613fb45ac74277f8aeecacff62fa4e8f775",
+      "channel": "release"
+    }
+  },
+  {
+    "version": "0.12.1",
+    "title": "0.12.1",
+    "aliases": []
   },
   {
     "version": "0.12.0",

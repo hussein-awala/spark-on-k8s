@@ -62,3 +62,17 @@ def test_a_malformed_variable_is_one_error_line_even_for_help(variable, value, m
     assert result.returncode == 1
     assert result.stderr == f"Error: {message}\n"
     assert "abc" not in result.stderr
+
+
+def test_main_turns_a_configuration_error_into_one_line(monkeypatch, capsys):
+    from spark_on_k8s import cli
+    from spark_on_k8s.utils.env import ConfigurationError
+
+    def broken():
+        raise ConfigurationError("SPARK_ON_K8S_DRIVER_CPU must be an integer; got 'two'")
+
+    monkeypatch.setattr(cli, "_commands", broken)
+    with pytest.raises(SystemExit) as raised:
+        cli.main()
+    assert raised.value.code == 1
+    assert capsys.readouterr().err == "Error: SPARK_ON_K8S_DRIVER_CPU must be an integer; got 'two'\n"

@@ -247,7 +247,7 @@ short progress lines with the elapsed time to **stderr**:
 Managed Spark +0s: requesting a Spark Connect server in namespace spark (startup timeout 180s)
 Managed Spark +1s: driver pod dbt-connect-0f3c...-driver created
 Managed Spark +1s: waiting for the driver pod to be scheduled (Unschedulable: 0/3 nodes are available: 3 Insufficient cpu.)
-Managed Spark +12s: driver pod scheduled on worker-2; container spark-kubernetes-driver is ContainerCreating
+Managed Spark +12s: driver pod scheduled on worker-2; container driver is ContainerCreating
 Managed Spark +40s: driver container running
 Managed Spark +40s: opening a kubectl port-forward tunnel to the driver
 Managed Spark +41s: waiting for the Spark Connect endpoint to answer a query

@@ -106,7 +106,7 @@ as `spec.sparkConf[spark.executor.memory]`. Consumers should check
 | --- | --- |
 | `0` | Every document was read and assessed, including when fields are unsupported or `migration_ready` is false |
 | `1` | Unreadable or invalid input (invalid YAML, no Spark Operator application, a document without `metadata.name` or `spec`), or a draft file could not be written; the JSON result has an `operation_error` |
-| `2` | Invalid CLI arguments, including a missing input file or draft directory |
+| `2` | Invalid CLI arguments, including a missing input file or a `--draft-dir` that is an existing file |
 
 Use `migration_ready` or the `counts` to gate a migration in CI; the exit code
 does not.
@@ -119,7 +119,7 @@ process exactly like `spark-on-k8s job validate`, without contacting Kubernetes.
 Only a draft that passes is emitted; otherwise `draft` is `null` and `draft_error`
 explains the validation failure (for example, no image in the source).
 
-`--draft-dir DIRECTORY` writes each valid draft to `DIRECTORY/NAME.yaml` with a
+`--draft-dir DIRECTORY` (created if missing) writes each valid draft to `DIRECTORY/NAME.yaml` with a
 header comment marking it as a draft. Existing files are never replaced, and
 nothing is written when any destination already exists. The JSON output always
 contains the draft object.

@@ -39,6 +39,7 @@ def test_operator_renders_and_submits_driver_template(template_kind, monkeypatch
         expected = str(tmp_path / "analytics-driver.yaml")
     submit = MagicMock(return_value="report-driver")
     monkeypatch.setattr(SparkOnK8S, "submit_app", submit)
+    monkeypatch.setattr(SparkOnK8SOperator, "_list_task_drivers", MagicMock(return_value=[]))
     operator = SparkOnK8SOperator(
         task_id="report",
         image="spark:v1",

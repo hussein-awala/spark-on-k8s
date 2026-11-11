@@ -54,7 +54,10 @@ def test_submitted_full_id_is_persisted_with_current_try_and_legacy_keys():
         try_number=3,
         xcom_pull=mock.Mock(return_value=None),
     )
-    with mock.patch("spark_on_k8s.client.SparkOnK8S.submit_app", autospec=True, side_effect=submit):
+    with (
+        mock.patch.object(task, "_list_task_drivers", return_value=[]),
+        mock.patch("spark_on_k8s.client.SparkOnK8S.submit_app", autospec=True, side_effect=submit),
+    ):
         task.execute({"ti": ti})
     pushed = {call.kwargs["key"]: call.kwargs["value"] for call in ti.xcom_push.call_args_list}
     assert pushed["driver_pod_name"] == POD

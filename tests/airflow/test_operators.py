@@ -216,7 +216,7 @@ class TestSparkOnK8SOperator:
             executor_volume_mounts=None,
             driver_node_selector=None,
             executor_node_selector=None,
-            driver_labels=None,
+            driver_labels={},
             executor_labels=None,
             driver_annotations={},
             executor_annotations=None,
@@ -330,10 +330,10 @@ class TestSparkOnK8SOperator:
 
     def test_package_and_pod_metadata_templates_preserve_task_identity(self):
         from spark_on_k8s.airflow.operators import SparkOnK8SOperator
-        from spark_on_k8s.utils.console_models import AIRFLOW_TASK_ANNOTATION
+        from spark_on_k8s.utils.console_models import AIRFLOW_TASK_ANNOTATION, AIRFLOW_TASK_KEY_LABEL
 
         packages = ["org.example:job:{{ version }}"]
-        labels = {"dataset": "{{ dataset }}"}
+        labels = {"dataset": "{{ dataset }}", AIRFLOW_TASK_KEY_LABEL: "forged"}
         annotations = {"source": "{{ dataset }}", AIRFLOW_TASK_ANNOTATION: "forged"}
         for dataset in ("orders", "customers"):
             task = SparkOnK8SOperator(
@@ -343,7 +343,7 @@ class TestSparkOnK8SOperator:
                 app_waiter="no_wait",
                 packages=packages,
                 driver_labels=labels,
-                executor_labels=labels,
+                executor_labels={"dataset": "{{ dataset }}"},
                 driver_annotations=annotations,
                 executor_annotations={"source": "{{ dataset }}"},
             )
@@ -358,16 +358,25 @@ class TestSparkOnK8SOperator:
                 region_index=None,
                 xcom_pull=mock.Mock(return_value=None),
             )
-            with mock.patch("spark_on_k8s.client.SparkOnK8S.submit_app", return_value="driver") as submit:
+            with (
+                mock.patch.object(SparkOnK8SOperator, "_list_task_drivers", return_value=[]),
+                mock.patch("spark_on_k8s.client.SparkOnK8S.submit_app", return_value="driver") as submit,
+            ):
                 task.execute({"ti": ti})
             values = submit.call_args.kwargs
             assert values["packages"] == ["org.example:job:1.0"]
-            assert values["driver_labels"] == values["executor_labels"] == {"dataset": dataset}
+            assert values["executor_labels"] == {"dataset": dataset}
+            assert values["driver_labels"] == {
+                "dataset": dataset,
+                AIRFLOW_TASK_KEY_LABEL: task._task_identity({"ti": ti}).task_key(),
+                "spark-on-k8s.io/airflow-dag-id": "dag",
+                "spark-on-k8s.io/airflow-task-id": "spark",
+            }
             assert values["driver_annotations"]["source"] == dataset
             assert values["executor_annotations"] == {"source": dataset}
             assert json.loads(values["driver_annotations"][AIRFLOW_TASK_ANNOTATION])["map_index"] == 2
         assert packages == ["org.example:job:{{ version }}"]
-        assert labels == {"dataset": "{{ dataset }}"}
+        assert labels == {"dataset": "{{ dataset }}", AIRFLOW_TASK_KEY_LABEL: "forged"}
         assert annotations[AIRFLOW_TASK_ANNOTATION] == "forged"
 
     @pytest.mark.parametrize(
@@ -495,7 +504,7 @@ class TestSparkSqlOnK8SOperator:
             executor_volume_mounts=None,
             driver_node_selector=None,
             executor_node_selector=None,
-            driver_labels=None,
+            driver_labels={},
             executor_labels=None,
             driver_annotations={},
             executor_annotations=None,

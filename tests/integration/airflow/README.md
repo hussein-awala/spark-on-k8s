@@ -7,10 +7,12 @@ trigger runner and deferred-task resumption. Spark drivers and executors run as
 separate real Kubernetes pods. No Kubernetes or trigger calls are mocked.
 
 This is **not** a deployed scheduler/executor/triggerer-process test. It does not
-establish worker-crash recovery, scheduler retry behavior, or durable reattachment
-after Airflow clears XCom. The retained-XCom adoption decision is covered by the
-operator regression tests. Production scheduler coverage needs a separate,
-explicitly scoped deployment fixture.
+establish worker-crash recovery, scheduler retry behavior, or a retry reattaching
+after Airflow clears XCom. Each case checks that the real driver carries the
+task-key label matching its ownership annotation, after the operator's label
+lookup has run against the cluster. Reattachment decisions by label and by retained
+XCom are covered by the operator regression tests. Production scheduler coverage
+needs a separate, explicitly scoped deployment fixture.
 
 The workflow runs Airflow 2.11.2 and 3.4.0 on Python 3.12 against one representative
 Spark 4.0.5 image. Existing Spark compatibility CI owns the broader Spark matrix.

@@ -97,6 +97,8 @@ def test_namespaces_that_read_as_yaml_scalars_stay_strings_in_chart_managed_rbac
 # also kill (exec), delete and remote submission's driver pod and headless service.
 READ_ACCESS = {("pods", "list"), ("pods", "get"), ("pods/log", "get"), ("events", "list")}
 WRITE_ACCESS = READ_ACCESS | {
+    # A WebSocket exec starts as a GET; newer API servers also require create.
+    ("pods/exec", "get"),
     ("pods/exec", "create"),
     ("pods", "delete"),
     ("pods", "create"),
@@ -123,7 +125,8 @@ def test_cluster_wide_scope_binds_a_chart_owned_role_with_the_namespace_rules(tm
     ]
     rules = cluster_role["rules"]
     granted = {(resource, verb) for rule in rules for resource in rule["resources"] for verb in rule["verbs"]}
-    assert (READ_ACCESS if read_only else WRITE_ACCESS) <= granted
+    # Exactly these: least privilege, so an unused verb is a failure too.
+    assert granted == (READ_ACCESS if read_only else WRITE_ACCESS)
     # Unlike the built-in view/edit roles: core API pod access only, never Secrets or ConfigMaps.
     assert all(rule["apiGroups"] == [""] for rule in rules)
     assert {resource for resource, _ in granted} <= {"pods", "pods/log", "pods/exec", "services", "events"}

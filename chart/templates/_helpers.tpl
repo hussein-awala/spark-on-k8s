@@ -126,29 +126,28 @@ The API's Kubernetes permissions in each namespace it serves. Namespace Roles an
 cluster-wide ClusterRole both render these rules, so the two scopes cannot drift.
 */}}
 {{- define "spark-on-k8s.rbacRules" -}}
+{{- /* Only the verbs the API calls: it never watches pods, and it reaches Spark UIs by DNS. */}}
 {{- if .Values.readOnly -}}
 - apiGroups: [""]
   resources: ["pods"]
-  verbs: ["get", "list", "watch"]
+  verbs: ["get", "list"]
 - apiGroups: [""]
   resources: ["pods/log"]
-  verbs: ["get", "list", "watch"]
-- apiGroups: [""]
-  resources: ["services"]
-  verbs: ["get", "list", "watch"]
+  verbs: ["get"]
 {{- else -}}
 - apiGroups: [""]
   resources: ["pods"]
-  verbs: ["get", "list", "watch", "create", "delete"]
+  verbs: ["get", "list", "create", "delete"]
 - apiGroups: [""]
   resources: ["pods/exec"]
   verbs: ["get", "create"]
 - apiGroups: [""]
   resources: ["pods/log"]
-  verbs: ["get", "list", "watch"]
+  verbs: ["get"]
+{{- /* Remote submission's driver Service; its owner reference lets Kubernetes delete it. */}}
 - apiGroups: [""]
   resources: ["services"]
-  verbs: ["get", "list", "watch", "create", "delete"]
+  verbs: ["create"]
 {{- end }}
 - apiGroups: [""]
   resources: ["events"]

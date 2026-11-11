@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import re
 import time
 from dataclasses import replace
 from enum import StrEnum
@@ -16,7 +17,7 @@ from spark_on_k8s.airflow.triggers import SparkOnK8STrigger
 from spark_on_k8s.k8s.sync_client import KubernetesClientManager
 from spark_on_k8s.sql import SQL_MOUNT_PATH, prepare_sql_configmap, reserves_sql_mount
 from spark_on_k8s.utils.app_manager import SparkAppManager
-from spark_on_k8s.utils.spark_app_status import SparkAppDeletedError, SparkAppStatus
+from spark_on_k8s.utils.spark_app_status import SparkAppDeletedError, SparkAppStatus, get_app_status
 
 if TYPE_CHECKING:
     from typing import Literal
@@ -26,7 +27,16 @@ if TYPE_CHECKING:
 
     from spark_on_k8s.airflow._compat import Context
     from spark_on_k8s.client import ExecutorInstances, PodResources
+    from spark_on_k8s.utils.console_models import AirflowTaskContext
     from spark_on_k8s.utils.types import ConfigMap
+
+# Characters outside a Kubernetes label value's alphabet.
+_LABEL_VALUE_INVALID = re.compile(r"[^A-Za-z0-9_.-]")
+
+
+def _readable_label_value(value: str) -> str:
+    """Fit a display value into a label value; altered values may collide, so never select by one."""
+    return _LABEL_VALUE_INVALID.sub("_", value)[:63].strip("_.-")
 
 
 class _AirflowKubernetesClientManager(KubernetesClientManager):
@@ -120,6 +130,11 @@ class SparkOnK8SOperator(BaseOperator):
         max_runtime (int, optional): Maximum driver lifetime in seconds, counted from the driver
             pod's start (Kubernetes activeDeadlineSeconds). Kubernetes then stops the driver, even if
             the task's worker was lost. Defaults to None (no limit).
+        reattach_by_label (bool, optional): When task XCom does not identify a driver to adopt,
+            find this task instance's earlier drivers by their task-key label and adopt a Pending
+            or Running one instead of submitting another application. Defaults to True.
+        reattach_succeeded (bool, optional): Also adopt a retained Succeeded driver of this task
+            instance as the attempt's result instead of rerunning Spark. Defaults to False.
     """
 
     _XCOM_DRIVER_POD_NAMESPACE = "driver_pod_namespace"
@@ -210,6 +225,8 @@ class SparkOnK8SOperator(BaseOperator):
         failure_log_tail_lines: int = 100,
         startup_timeout: int = 0,
         max_runtime: int | None = None,
+        reattach_by_label: bool = True,
+        reattach_succeeded: bool = False,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -264,6 +281,8 @@ class SparkOnK8SOperator(BaseOperator):
         self.failure_log_tail_lines = failure_log_tail_lines
         self.startup_timeout = startup_timeout
         self.max_runtime = max_runtime
+        self.reattach_by_label = reattach_by_label
+        self.reattach_succeeded = reattach_succeeded
 
     def _render_nested_template_fields(
         self,
@@ -389,7 +408,9 @@ class SparkOnK8SOperator(BaseOperator):
                 f"Cannot verify previously recorded Spark driver {self.namespace}/{xcom_driver_pod_name}; "
                 "refusing to submit another application. Restore Kubernetes access before retrying."
             ) from error
-        if app_status in {SparkAppStatus.Pending, SparkAppStatus.Running}:
+        if app_status in {SparkAppStatus.Pending, SparkAppStatus.Running} or (
+            app_status == SparkAppStatus.Succeeded and self.reattach_succeeded
+        ):
             self._driver_pod_name = xcom_driver_pod_name
             self._restore_console_metadata(context)
             self.log.info(
@@ -409,17 +430,14 @@ class SparkOnK8SOperator(BaseOperator):
             f"has indeterminate status {app_status}; refusing to submit another application."
         )
 
-    def _task_driver_annotations(self, context: Context) -> dict[str, str]:
+    def _task_identity(self, context: Context) -> AirflowTaskContext | None:
         from pydantic import ValidationError
 
-        from spark_on_k8s.utils.console_models import AIRFLOW_TASK_ANNOTATION, AirflowTaskContext
+        from spark_on_k8s.utils.console_models import AirflowTaskContext
 
-        annotations = dict(self.driver_annotations or {})
-        # This reserved annotation cannot be supplied through user annotations.
-        annotations.pop(AIRFLOW_TASK_ANNOTATION, None)
         ti = context.get("ti")
         try:
-            identity = AirflowTaskContext(
+            return AirflowTaskContext(
                 dag_id=getattr(ti, "dag_id", None),
                 run_id=getattr(ti, "run_id", None),
                 task_id=getattr(ti, "task_id", None),
@@ -429,11 +447,120 @@ class SparkOnK8SOperator(BaseOperator):
                 region_index=getattr(ti, "region_index", None),
             )
         except ValidationError:
-            # Legacy/manual operator invocations without task context remain supported;
-            # the task UI will refuse live actions on their unbound pods.
-            return annotations
-        annotations[AIRFLOW_TASK_ANNOTATION] = identity.model_dump_json(exclude_none=True)
+            # Legacy/manual operator invocations without task context remain supported; their
+            # unbound pods get no task labels, and the task UI will refuse live actions on them.
+            return None
+
+    def _task_driver_annotations(self, context: Context) -> dict[str, str]:
+        from spark_on_k8s.utils.console_models import AIRFLOW_TASK_ANNOTATION
+
+        annotations = dict(self.driver_annotations or {})
+        # This reserved annotation cannot be supplied through user annotations.
+        annotations.pop(AIRFLOW_TASK_ANNOTATION, None)
+        identity = self._task_identity(context)
+        if identity is not None:
+            annotations[AIRFLOW_TASK_ANNOTATION] = identity.model_dump_json(exclude_none=True)
         return annotations
+
+    def _task_driver_labels(self, context: Context) -> dict[str, str]:
+        from spark_on_k8s.utils.console_models import (
+            AIRFLOW_DAG_ID_LABEL,
+            AIRFLOW_TASK_ID_LABEL,
+            AIRFLOW_TASK_KEY_LABEL,
+        )
+
+        reserved = {AIRFLOW_TASK_KEY_LABEL, AIRFLOW_DAG_ID_LABEL, AIRFLOW_TASK_ID_LABEL}
+        # Like the task annotation, reserved task labels cannot be supplied through user labels.
+        labels = {key: value for key, value in (self.driver_labels or {}).items() if key not in reserved}
+        identity = self._task_identity(context)
+        if identity is None:
+            return labels
+        labels[AIRFLOW_TASK_KEY_LABEL] = identity.task_key()
+        readable = {AIRFLOW_DAG_ID_LABEL: identity.dag_id, AIRFLOW_TASK_ID_LABEL: identity.task_id}
+        for key, value in readable.items():
+            if label := _readable_label_value(value):
+                labels[key] = label
+        return labels
+
+    def _list_task_drivers(self, spark_app_manager: SparkAppManager, task_key: str) -> list[k8s.V1Pod]:
+        from kubernetes import client as k8s_client
+
+        from spark_on_k8s.utils.console_models import AIRFLOW_TASK_KEY_LABEL
+
+        selector = f"spark-role=driver,{AIRFLOW_TASK_KEY_LABEL}={task_key}"
+        with spark_app_manager.k8s_client_manager.client() as client:
+            api = k8s_client.CoreV1Api(client)
+            return api.list_namespaced_pod(namespace=self.namespace, label_selector=selector).items
+
+    def _try_to_adopt_labelled_job(self, context: Context, spark_app_manager: SparkAppManager) -> bool:
+        """Adopt an earlier attempt's driver by its task-key label when XCom does not identify one."""
+        identity = self._task_identity(context) if self.reattach_by_label else None
+        if identity is None:
+            return False
+        try:
+            pods = self._list_task_drivers(spark_app_manager, identity.task_key())
+        except Exception as error:
+            raise AirflowException(
+                f"Cannot look up earlier Spark drivers of this task in namespace {self.namespace}; "
+                "refusing to submit another application. Restore Kubernetes access before retrying."
+            ) from error
+        drivers: dict[SparkAppStatus, list[k8s.V1Pod]] = {}
+        for pod in pods:
+            if pod.metadata.deletion_timestamp is not None:
+                # Deletion was already requested, for example after a startup timeout.
+                self.log.info(
+                    "Ignoring Spark driver %s/%s of this task: it is being deleted",
+                    self.namespace,
+                    pod.metadata.name,
+                )
+                continue
+            status = get_app_status(pod) if pod.status else SparkAppStatus.Unknown
+            drivers.setdefault(status, []).append(pod)
+
+        def names(*statuses: SparkAppStatus) -> str:
+            matches = (pod.metadata.name for status in statuses for pod in drivers.get(status, []))
+            return ", ".join(sorted(matches))
+
+        if SparkAppStatus.Unknown in drivers:
+            raise AirflowException(
+                f"Spark driver(s) {names(SparkAppStatus.Unknown)} of this task in namespace "
+                f"{self.namespace} have indeterminate status; refusing to submit another application."
+            )
+        adoptable: tuple[SparkAppStatus, ...] = (SparkAppStatus.Pending, SparkAppStatus.Running)
+        if not any(status in drivers for status in adoptable):
+            adoptable = (SparkAppStatus.Succeeded,) if self.reattach_succeeded else ()
+        candidates = [(status, pod) for status in adoptable for pod in drivers.get(status, [])]
+        if len(candidates) > 1:
+            raise AirflowException(
+                f"Several Spark drivers of this task can be adopted in namespace {self.namespace} "
+                f"({names(*adoptable)}); refusing to choose one or submit another application. "
+                "Delete the extra drivers before retrying."
+            )
+        if candidates:
+            status, pod = candidates[0]
+            self._driver_pod_name = pod.metadata.name
+            self._spark_app_id = (pod.metadata.labels or {}).get("spark-app-id")
+            self.log.info(
+                "Reattaching to Spark driver %s/%s (%s) found by its task-key label",
+                self.namespace,
+                self._driver_pod_name,
+                status,
+            )
+            return True
+        if SparkAppStatus.Succeeded in drivers:
+            self.log.warning(
+                "Spark driver(s) %s of this task already succeeded in namespace %s; submitting a new "
+                "application because reattach_succeeded is False",
+                names(SparkAppStatus.Succeeded),
+                self.namespace,
+            )
+        if SparkAppStatus.Failed in drivers:
+            self.log.info(
+                "Not adopting failed Spark driver(s) %s of this task in namespace %s",
+                names(SparkAppStatus.Failed),
+                self.namespace,
+            )
+        return False
 
     def _submit_new_job(self, context: Context):
         from spark_on_k8s.client import PodResources, SparkOnK8S
@@ -508,7 +635,7 @@ class SparkOnK8SOperator(BaseOperator):
             executor_volume_mounts=self.executor_volume_mounts,
             driver_node_selector=self.driver_node_selector,
             executor_node_selector=self.executor_node_selector,
-            driver_labels=self.driver_labels,
+            driver_labels=self._task_driver_labels(context),
             executor_labels=self.executor_labels,
             driver_annotations=self._task_driver_annotations(context),
             executor_annotations=self.executor_annotations,
@@ -594,8 +721,11 @@ class SparkOnK8SOperator(BaseOperator):
         spark_app_manager = SparkAppManager(
             k8s_client_manager=k8s_client_manager,
         )
+        # Airflow clears task XCom when a new attempt starts, so a retry usually finds an
+        # earlier attempt's driver only by its task-key label.
         if not self._try_to_adopt_job(context, spark_app_manager):
-            self._submit_new_job(context)
+            if not self._try_to_adopt_labelled_job(context, spark_app_manager):
+                self._submit_new_job(context)
             self._persist_pod_name(context)
         self._persist_spark_ui_link(context)
         self._persist_console_metadata(context)

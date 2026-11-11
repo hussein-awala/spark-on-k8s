@@ -122,6 +122,7 @@ the driver stopped submits a new application with a new deadline. See
 | Deferred trigger reports an observation error | Task fails with the trigger error; `keep` retains the application, while `delete` and `keep_if_failed` delete it because an observation error is not a confirmed Spark `Failed` state |
 | Synchronous observation raises a non-timeout API/transport error | Error propagates before finish cleanup; no new submission or automatic cleanup is performed by that wait path |
 | `app_waiter="no_wait"` | Returns after submission/adoption; no finish cleanup or completion assertion |
+| A retried or cleared attempt finds an earlier driver of the same task instance | One Pending or Running driver is adopted instead of submitting; a Succeeded one only with `reattach_succeeded=True`; ambiguous or uncertain findings fail the attempt. See [retries and reattachment](#retries-and-reattachment) |
 | Finish cleanup finds the driver already deleted | Treated as cleaned up; the task keeps its Spark outcome |
 | Finish cleanup fails for another reason | Task fails; after a Spark failure or timeout, that failure is reported with the cleanup error as its cause |
 | Airflow invokes `on_kill` with a known driver | `on_kill_action="keep"` retains, `"delete"` requests deletion, and `"kill"` requests process termination; default is `delete` |
@@ -133,18 +134,6 @@ or interruption; the Airflow startup-timeout deletion policy is intentionally
 different. See the [automation contract](automation.md).
 Before this cleanup, the task logs a bounded [failure postmortem](#failure-postmortem)
 for an unsuccessful application.
-
-When task-local XCom still contains the recorded namespace and driver name, a
-retry adopts a Pending or Running application. Confirmed absence (Kubernetes
-404), or a confirmed Succeeded/Failed application, permits the existing new-job
-path. Authentication failures, unavailable status lookups and Unknown status now
-fail the task before submission. Restoring access lets a later attempt inspect
-the same recorded identity; uncertainty is not treated as absence.
-
-This depends on retained XCom. Airflow may clear XCom during a retry, and a crash
-between pod creation and receipt persistence remains outside this guarantee.
-It is not submission deduplication or an exactly-once data-write promise.
-Applications must define their own handling of a repeated logical date.
 
 For a daily DAG, choose the startup deadline and retention behavior explicitly.
 Replace the example image with your approved application artifact:
@@ -175,9 +164,97 @@ with DAG(
 `packages` and driver/executor labels and annotations support Airflow templates,
 alongside the existing image, arguments and resource fields. Use valid Kubernetes
 label values after rendering. The reserved `spark-on-k8s.io/airflow-task`
-annotation is generated from task identity and cannot be overridden by a user
-annotation. Previously literal Jinja expressions in these newly templated fields
-will now be rendered; review existing DAGs when upgrading.
+annotation and the task labels described below are generated from task identity
+and cannot be overridden by user annotations or labels. Previously literal Jinja
+expressions in these newly templated fields will now be rendered; review existing
+DAGs when upgrading.
+
+### Retries and reattachment
+
+Each driver the operator submits carries the reserved `spark-on-k8s.io/airflow-task`
+ownership annotation and these labels:
+
+| Label | Value |
+| --- | --- |
+| `spark-on-k8s.io/airflow-task-key` | 32-character digest of the DAG ID, run ID, task ID, map index and, on Airflow 3, region; the same for every attempt of one task instance |
+| `spark-on-k8s.io/airflow-dag-id`, `spark-on-k8s.io/airflow-task-id` | Readable IDs for people and dashboards. Characters outside the label alphabet become `_` and values are cut to 63 characters, so they can collide; never select one task instance by them |
+
+When an attempt starts, before submitting, the operator looks for an earlier
+driver of the same task instance in its `namespace`:
+
+1. If task XCom still records a driver, that driver is checked first. A Pending or
+   Running driver is adopted. Status lookup failures and Unknown status fail the
+   attempt. A confirmed absent (404) or terminal driver continues to step 2.
+2. With `reattach_by_label=True`, the default, it lists the drivers carrying the
+   attempt's task key and acts as in the table below. Otherwise it submits a new
+   application.
+
+Airflow 2.11 and 3.4 delete a task instance's XCom when a new attempt starts; they
+keep it only when a deferred task resumes. On an ordinary retry, or after clearing
+the task, step 2 therefore finds the earlier driver; step 1 applies only where XCom
+survives into the next attempt. The labels are written at pod creation, so step 2
+also covers a worker lost between creating the driver and recording it in XCom.
+
+| Drivers found by task key | Attempt's action |
+| --- | --- |
+| None, or only Failed drivers | Submits a new application; Failed drivers are logged and kept or deleted as `on_finish_action` already decided |
+| One Pending or Running driver | Adopts it and waits as for a new submission, synchronously or deferred, with a new startup deadline; terminal drivers beside it are ignored |
+| More than one Pending or Running driver | Fails without submitting or choosing; delete the extra drivers before retrying |
+| Succeeded drivers and no active one, `reattach_succeeded=False` (default) | Logs a warning naming them, then submits a new application |
+| One Succeeded driver and no active one, `reattach_succeeded=True` | Adopts it as the attempt's result without rerunning Spark, then applies `on_finish_action` |
+| More than one Succeeded driver and no active one, `reattach_succeeded=True` | Fails without submitting or choosing |
+| Any driver with Unknown or missing phase | Fails without submitting; an indeterminate driver may still be running |
+| A driver whose deletion was already requested | Ignored, for example after a startup-timeout deletion |
+| The listing fails (permission, API, network or timeout error) | Fails without submitting; restore access before the next attempt |
+
+`reattach_succeeded=True` also adopts a Succeeded driver found in retained XCom.
+It suits a job whose earlier success for the same DAG run is an acceptable result,
+such as a partition overwrite that should not run twice. The Succeeded driver must
+still exist: `on_finish_action="keep"` retains it, while `"delete"` and
+`"keep_if_failed"` delete it after success. With the option enabled, clearing a
+successful task does not rerun Spark while that driver exists; delete the driver
+first to force a rerun.
+
+```python
+from spark_on_k8s.airflow.operators import SparkOnK8SOperator
+
+SparkOnK8SOperator(
+    task_id="publish_partition",
+    image="registry.example.com/team/publish-job:approved",
+    app_path="local:///opt/spark/work-dir/publish.py",
+    namespace="analytics", service_account="spark-driver",
+    app_arguments=["--partition", "{{ ds }}"],
+    on_finish_action="keep",  # retain the Succeeded driver that a retry may adopt
+    reattach_succeeded=True,
+    retries=2,
+)
+```
+
+To inspect a DAG's drivers and their task keys, list them with the readable labels:
+
+```bash
+kubectl get pods -n analytics -L spark-on-k8s.io/airflow-task-key \
+  -l spark-role=driver,spark-on-k8s.io/airflow-dag-id=daily_transform
+```
+
+The worker's Kubernetes connection needs permission to list pods in the namespace;
+the `edit` role used in [Getting Started](getting_started.md) includes it. Without
+that permission, every attempt fails before submitting. Set `reattach_by_label=False`
+to keep only the XCom check; drivers are still labelled.
+
+Upgrading changes retries of existing DAGs. An attempt whose earlier driver of the
+same task instance is still Pending or Running now adopts that driver instead of
+starting a concurrent second application. This includes drivers retained by
+`on_kill_action="keep"` or left running when `on_kill` was not invoked. The adopted
+driver keeps the image, arguments and configuration it was submitted with; to run
+changed DAG code instead, delete or kill the earlier driver before clearing or
+retrying the task. Drivers submitted by earlier versions have no task-key label and
+are not found.
+
+This is best-effort reattachment, not submission deduplication or an exactly-once
+data-write promise. Drivers that were deleted, are in another namespace, or lost
+their labels are not found, and two concurrent attempts are not serialized.
+Applications must define their own handling of a repeated logical date.
 
 ## Verify the integration on Kubernetes
 
@@ -186,10 +263,11 @@ and runs Airflow 2.11.2 and 3.4.0 in service-account-bearing pods against the
 representative Spark 4.0.5 image. It checks successful work, deliberate Spark
 failure after real executor work, and an unschedulable startup timeout, each in
 synchronous and deferred mode. Deferred cases run and resume the real trigger.
+Each case also checks that the driver carries its task-key label.
 
 This uses Airflow's `DAG.test()` engine, metadata database and XCom. It does not
-qualify a separately deployed scheduler, executor or triggerer process, or
-worker-crash recovery. The broader Spark runtime matrix remains in the Spark
+qualify a separately deployed scheduler, executor or triggerer process,
+worker-crash recovery, or a retry reattaching by label. The broader Spark runtime matrix remains in the Spark
 compatibility workflow. Follow the Airflow workflow's image-building and kind
 setup, then run its exact host command from the repository root:
 

@@ -201,8 +201,9 @@ at an arbitrary current kubeconfig context.
   each synchronously and with real deferred-task resumption. The runner uses
   `DAG.test()` in a Kubernetes pod with real database/XCom/inline triggers; this
   does not exercise a deployed scheduler, separate triggerer process, worker crash
-  or durable reattachment after XCom clearing. Retained-XCom adoption failures
-  remain covered by operator regression tests.
+  or a retry reattaching after XCom clearing. Each case checks that the real driver
+  carries its task-key label after the operator's label lookup. Reattachment
+  decisions by label and retained XCom remain covered by operator regression tests.
 - `.github/workflows/spark-connect.yml` runs `tests/integration/connect/run.py`
   against a separate local Spark Connect server for client compatibility. Its
   Kubernetes job additionally creates Spark 4.0.5/4.3.0 servers with real executors

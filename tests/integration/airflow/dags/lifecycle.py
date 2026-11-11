@@ -16,6 +16,7 @@ from importlib.metadata import version
 from kubernetes import client as k8s, config
 from spark_on_k8s.airflow.operators import SparkOnK8SOperator
 from spark_on_k8s.client import ExecutorInstances, PodResources
+from spark_on_k8s.utils.console_models import AirflowTaskContext
 
 from airflow import DAG
 
@@ -106,7 +107,11 @@ def main():
     assert len(observed) == 1, f"Unexpected duplicate drivers: {list(observed)}"
     driver = next(iter(observed.values()))
     assert driver.spec.service_account_name == "spark"
-    assert driver.metadata.annotations.get("spark-on-k8s.io/airflow-task"), "Missing real task attribution"
+    owner = driver.metadata.annotations.get("spark-on-k8s.io/airflow-task")
+    assert owner, "Missing real task attribution"
+    # Retries select earlier attempts' drivers by this label; the operator listed it before submitting.
+    task_key = AirflowTaskContext.model_validate_json(owner).task_key()
+    assert driver.metadata.labels.get("spark-on-k8s.io/airflow-task-key") == task_key, "Missing task key"
     driver_container = next(container for container in driver.spec.containers if container.name == "driver")
     # The Kubernetes API may omit value="" while retaining the environment entry.
     driver_env = {item.name: item.value or "" for item in driver_container.env or []}

@@ -19,6 +19,8 @@ CASES = {
     "deferred-failure",
     "sync-timeout",
     "deferred-timeout",
+    "mapped-deferred",
+    "mapped-reattach",
 }
 
 

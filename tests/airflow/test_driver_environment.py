@@ -16,6 +16,7 @@ def test_rendered_driver_environment_reaches_submitted_driver_pod(kind, monkeypa
     from spark_on_k8s.airflow import operators
 
     api = MagicMock()
+    api.list_namespaced_pod.return_value = SimpleNamespace(items=[])
     api.create_namespaced_pod.return_value = SimpleNamespace(
         metadata=SimpleNamespace(name="environment-rendered-driver", uid="driver-uid")
     )
@@ -69,6 +70,13 @@ def test_rendered_driver_environment_reaches_submitted_driver_pod(kind, monkeypa
     pod = api.create_namespaced_pod.call_args.kwargs["body"]
     assert pod["metadata"]["name"] == "environment-rendered-driver"
     assert pod["metadata"]["namespace"] == "analytics"
+    # The retry lookup and the created driver use the same task key, through the template merge.
+    task_key = pod["metadata"]["labels"]["spark-on-k8s.io/airflow-task-key"]
+    api.list_namespaced_pod.assert_called_once_with(
+        namespace="analytics", label_selector=f"spark-role=driver,spark-on-k8s.io/airflow-task-key={task_key}"
+    )
+    assert pod["metadata"]["labels"]["spark-on-k8s.io/airflow-dag-id"] == "driver_environment"
+    assert pod["metadata"]["labels"]["spark-on-k8s.io/airflow-task-id"] == "environment"
     driver, observer = pod["spec"]["containers"]
     assert driver["name"] == "spark-main"
     environment = {variable["name"]: variable for variable in driver["env"]}

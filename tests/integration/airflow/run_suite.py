@@ -16,6 +16,8 @@ CASES = (
     "deferred-failure",
     "sync-timeout",
     "deferred-timeout",
+    "mapped-deferred",
+    "mapped-reattach",
 )
 PREFIX = "AIRFLOW_K8S_CASE_RESULT "
 
@@ -42,14 +44,16 @@ def main():
     failed = False
     for scenario in CASES:
         env = os.environ | {"AIRFLOW_K8S_CASE": scenario}
+        script = "mapped" if scenario.startswith("mapped") else "lifecycle"
         try:
             result = subprocess.run(
-                [sys.executable, "-I", "/opt/airflow/tests/dags/lifecycle.py"],
+                [sys.executable, "-I", f"/opt/airflow/tests/dags/{script}.py"],
                 env=env,
                 text=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
-                timeout=360,
+                # The reattach case keeps one driver running for four minutes on purpose.
+                timeout=600 if scenario.startswith("mapped") else 360,
             )
             print(result.stdout, flush=True)
             records = [
@@ -64,7 +68,8 @@ def main():
                 assert "Spark application startup timeout exceeded" in result.stdout, "Wrong failure reason"
             # The operator logs a postmortem before cleanup for unsuccessful applications only.
             postmortem = "Spark failure postmortem for "
-            if scenario.endswith("success"):
+            # Both mapped cases end with succeeded applications.
+            if scenario.endswith("success") or scenario.startswith("mapped"):
                 assert postmortem not in result.stdout, "Postmortem logged for a successful application"
             else:
                 assert postmortem in result.stdout, "Missing failure postmortem"
@@ -73,9 +78,12 @@ def main():
             if scenario.endswith("timeout"):
                 # Only an existing, not yet deleted Pending driver yields this finding.
                 assert "[error] unschedulable" in result.stdout, "Missing pre-cleanup diagnosis"
-            if scenario.startswith("deferred"):
+            if scenario.startswith("deferred") or scenario == "mapped-deferred":
                 # Both supported Airflow versions emit this only after running the inline trigger.
                 assert "Trigger completed" in result.stdout, "Airflow did not resume a real trigger"
+            if scenario == "mapped-reattach":
+                # Airflow cleared the lost try's XCom, so only the task-key label can find its driver.
+                assert "found by its task-key label" in result.stdout, "The retry did not reattach by label"
         except Exception as error:
             if isinstance(error, subprocess.TimeoutExpired) and error.stdout:
                 print(error.stdout.decode() if isinstance(error.stdout, bytes) else error.stdout, flush=True)

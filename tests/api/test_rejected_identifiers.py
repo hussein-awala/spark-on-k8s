@@ -57,3 +57,22 @@ def test_a_continuation_token_kubernetes_rejects_is_a_client_error(status):
             "/apps/list_apps/analytics", params={"continue_from": "not-a-token"}
         )
     assert response.status_code in {400, 410}
+
+
+@pytest.mark.parametrize("continue_from,status", [("", 400), ("a-token", 503)])
+def test_other_listing_errors_keep_their_handling(continue_from, status):
+    # Only a refused continuation token is the caller's mistake; other errors are not reworded.
+    api = FastAPI()
+    install_error_handlers(api)
+    api.include_router(apps_routes.router)
+    with (
+        mock.patch("spark_on_k8s.api.apps.KubernetesClientSingleton.client", new_callable=mock.AsyncMock),
+        mock.patch("spark_on_k8s.api.apps.CoreV1Api") as api_class,
+    ):
+        api_class.return_value.list_namespaced_pod = mock.AsyncMock(
+            side_effect=ApiException(status=status, reason="Refused")
+        )
+        response = TestClient(api, raise_server_exceptions=False).get(
+            "/apps/list_apps/analytics", params={"continue_from": continue_from}
+        )
+    assert "continuation token" not in response.text

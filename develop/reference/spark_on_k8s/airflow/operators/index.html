@@ -68,7 +68,7 @@
   <meta name="documentation-channel" content="develop">
   <meta name="documentation-version" content="develop">
   
-    <meta name="documentation-source" content="b35c4ea72cc634cdbdf3ac3838e0351a7538df76">
+    <meta name="documentation-source" content="cde07f2979358df3d0f7be23086693edb515dbc5">
   
 
   </head>
@@ -108,7 +108,7 @@
     <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
   
   
-    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/b35c4ea72cc634cdbdf3ac3838e0351a7538df76"><code>b35c4ea72cc6</code></a>.
+    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/cde07f2979358df3d0f7be23086693edb515dbc5"><code>cde07f297935</code></a>.
   
 
           </div>
@@ -4348,6 +4348,8 @@
       
         
       
+        
+      
     
     
     
@@ -4520,6 +4522,34 @@
     
   
     driver_pod_template
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../utils/env/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    env
   
 
     
@@ -7114,7 +7144,23 @@ instance as the attempt's result instead of rerunning Spark. Defaults to False.<
 <span class="normal">881</span>
 <span class="normal">882</span>
 <span class="normal">883</span>
-<span class="normal">884</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">SparkOnK8SOperator</span><span class="p">(</span><span class="n">BaseOperator</span><span class="p">):</span>
+<span class="normal">884</span>
+<span class="normal">885</span>
+<span class="normal">886</span>
+<span class="normal">887</span>
+<span class="normal">888</span>
+<span class="normal">889</span>
+<span class="normal">890</span>
+<span class="normal">891</span>
+<span class="normal">892</span>
+<span class="normal">893</span>
+<span class="normal">894</span>
+<span class="normal">895</span>
+<span class="normal">896</span>
+<span class="normal">897</span>
+<span class="normal">898</span>
+<span class="normal">899</span>
+<span class="normal">900</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">SparkOnK8SOperator</span><span class="p">(</span><span class="n">BaseOperator</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">"""Submit a Spark application on Kubernetes.</span>
 
 <span class="sd">    Args:</span>
@@ -7805,6 +7851,9 @@ instance as the attempt's result instead of rerunning Spark. Defaults to False.<
                     <span class="n">pod_name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_driver_pod_name</span><span class="p">,</span>
                     <span class="n">poll_interval</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
                 <span class="p">)</span>
+        <span class="k">except</span> <span class="n">SparkAppDeletedError</span> <span class="k">as</span> <span class="n">error</span><span class="p">:</span>
+            <span class="c1"># Nothing is left to diagnose or clean up, and the outcome is unknown: fail rather than guess.</span>
+            <span class="k">raise</span> <span class="n">AirflowException</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">error</span><span class="si">}</span><span class="s2">; failing the task"</span><span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="kc">None</span>
         <span class="k">except</span> <span class="ne">TimeoutError</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_log_failure_postmortem</span><span class="p">(</span><span class="n">spark_app_manager</span><span class="p">,</span> <span class="s2">"startup_timeout"</span><span class="p">,</span> <span class="n">context</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Deleting Spark application due to startup timeout..."</span><span class="p">)</span>
@@ -7824,7 +7873,7 @@ instance as the attempt's result instead of rerunning Spark. Defaults to False.<
         <span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_persist_spark_history_ui_link</span><span class="p">(</span><span class="n">context</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">app_status</span> <span class="o">==</span> <span class="n">SparkAppStatus</span><span class="o">.</span><span class="n">Succeeded</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_clean_up</span><span class="p">(</span><span class="n">spark_app_manager</span><span class="p">,</span> <span class="n">app_status</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_clean_up_after_success</span><span class="p">(</span><span class="n">spark_app_manager</span><span class="p">,</span> <span class="n">app_status</span><span class="p">)</span>
             <span class="k">return</span> <span class="n">app_status</span>
         <span class="n">failure</span> <span class="o">=</span> <span class="n">AirflowException</span><span class="p">(</span><span class="sa">f</span><span class="s2">"The job finished with status: </span><span class="si">{</span><span class="n">app_status</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_log_failure_postmortem</span><span class="p">(</span><span class="n">spark_app_manager</span><span class="p">,</span> <span class="n">app_status</span><span class="p">,</span> <span class="n">context</span><span class="p">)</span>
@@ -7845,6 +7894,9 @@ instance as the attempt's result instead of rerunning Spark. Defaults to False.<
         <span class="n">spark_app_manager</span> <span class="o">=</span> <span class="n">SparkAppManager</span><span class="p">(</span>
             <span class="n">k8s_client_manager</span><span class="o">=</span><span class="n">k8s_client_manager</span><span class="p">,</span>
         <span class="p">)</span>
+        <span class="k">if</span> <span class="n">event</span><span class="p">[</span><span class="s2">"status"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"deleted"</span><span class="p">:</span>
+            <span class="c1"># Nothing is left to replay, diagnose or clean up, and the outcome is unknown.</span>
+            <span class="k">raise</span> <span class="n">AirflowException</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">event</span><span class="p">[</span><span class="s1">'error'</span><span class="p">]</span><span class="si">}</span><span class="s2">; failing the task"</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">event</span><span class="p">[</span><span class="s2">"status"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"startup_timeout"</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_log_failure_postmortem</span><span class="p">(</span><span class="n">spark_app_manager</span><span class="p">,</span> <span class="s2">"startup_timeout"</span><span class="p">,</span> <span class="n">context</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Deleting Spark application due to startup timeout..."</span><span class="p">)</span>
@@ -7878,7 +7930,7 @@ instance as the attempt's result instead of rerunning Spark. Defaults to False.<
                 <span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_persist_spark_history_ui_link</span><span class="p">(</span><span class="n">context</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">event</span><span class="p">[</span><span class="s2">"status"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"Succeeded"</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_clean_up</span><span class="p">(</span><span class="n">spark_app_manager</span><span class="p">,</span> <span class="n">event</span><span class="p">[</span><span class="s2">"status"</span><span class="p">])</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_clean_up_after_success</span><span class="p">(</span><span class="n">spark_app_manager</span><span class="p">,</span> <span class="n">event</span><span class="p">[</span><span class="s2">"status"</span><span class="p">])</span>
             <span class="k">return</span> <span class="n">event</span><span class="p">[</span><span class="s2">"status"</span><span class="p">]</span>
         <span class="k">if</span> <span class="n">event</span><span class="p">[</span><span class="s2">"status"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"error"</span><span class="p">:</span>
             <span class="n">failure</span> <span class="o">=</span> <span class="n">AirflowException</span><span class="p">(</span>
@@ -7893,6 +7945,16 @@ instance as the attempt's result instead of rerunning Spark. Defaults to False.<
             <span class="c1"># A failed cleanup must not replace the trigger diagnostics or Spark outcome.</span>
             <span class="k">raise</span> <span class="n">failure</span> <span class="kn">from</span><span class="w"> </span><span class="nn">cleanup_error</span>
         <span class="k">raise</span> <span class="n">failure</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_clean_up_after_success</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">spark_app_manager</span><span class="p">:</span> <span class="n">SparkAppManager</span><span class="p">,</span> <span class="n">app_status</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_clean_up</span><span class="p">(</span><span class="n">spark_app_manager</span><span class="p">,</span> <span class="n">app_status</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">cleanup_error</span><span class="p">:</span>
+            <span class="c1"># Name the outcome: the bare cleanup error read as a Spark failure, and a retry reran the job.</span>
+            <span class="k">raise</span> <span class="n">AirflowException</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"The job finished with status: </span><span class="si">{</span><span class="n">app_status</span><span class="si">}</span><span class="s2">, but its cleanup failed; "</span>
+                <span class="s2">"the application does not need to run again"</span>
+            <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">cleanup_error</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">on_kill</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">on_kill_action</span> <span class="o">==</span> <span class="n">OnKillAction</span><span class="o">.</span><span class="n">KEEP</span><span class="p">:</span>
@@ -8011,23 +8073,7 @@ internal runner receives a JSON statement list and does not require a SQL parser
 
               <details class="mkdocstrings-source">
                 <summary>Source code in <code>spark_on_k8s/airflow/operators.py</code></summary>
-                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">887</span>
-<span class="normal">888</span>
-<span class="normal">889</span>
-<span class="normal">890</span>
-<span class="normal">891</span>
-<span class="normal">892</span>
-<span class="normal">893</span>
-<span class="normal">894</span>
-<span class="normal">895</span>
-<span class="normal">896</span>
-<span class="normal">897</span>
-<span class="normal">898</span>
-<span class="normal">899</span>
-<span class="normal">900</span>
-<span class="normal">901</span>
-<span class="normal">902</span>
-<span class="normal">903</span>
+                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">903</span>
 <span class="normal">904</span>
 <span class="normal">905</span>
 <span class="normal">906</span>
@@ -8049,7 +8095,23 @@ internal runner receives a JSON statement list and does not require a SQL parser
 <span class="normal">922</span>
 <span class="normal">923</span>
 <span class="normal">924</span>
-<span class="normal">925</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">SparkSqlOnK8SOperator</span><span class="p">(</span><span class="n">SparkOnK8SOperator</span><span class="p">):</span>
+<span class="normal">925</span>
+<span class="normal">926</span>
+<span class="normal">927</span>
+<span class="normal">928</span>
+<span class="normal">929</span>
+<span class="normal">930</span>
+<span class="normal">931</span>
+<span class="normal">932</span>
+<span class="normal">933</span>
+<span class="normal">934</span>
+<span class="normal">935</span>
+<span class="normal">936</span>
+<span class="normal">937</span>
+<span class="normal">938</span>
+<span class="normal">939</span>
+<span class="normal">940</span>
+<span class="normal">941</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">SparkSqlOnK8SOperator</span><span class="p">(</span><span class="n">SparkOnK8SOperator</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">"""Execute Spark SQL commands on Kubernetes.</span>
 
 <span class="sd">    This operator passes the SQL commands to a Python script that runs them on Spark,</span>
@@ -8140,7 +8202,7 @@ internal runner receives a JSON statement list and does not require a SQL parser
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 11, 2026 00:35:27 UTC">November 11, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 11, 2026 01:06:25 UTC">November 11, 2026</span>
   </span>
 
     

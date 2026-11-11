@@ -68,7 +68,7 @@
   <meta name="documentation-channel" content="develop">
   <meta name="documentation-version" content="develop">
   
-    <meta name="documentation-source" content="b35c4ea72cc634cdbdf3ac3838e0351a7538df76">
+    <meta name="documentation-source" content="cde07f2979358df3d0f7be23086693edb515dbc5">
   
 
   </head>
@@ -108,7 +108,7 @@
     <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
   
   
-    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/b35c4ea72cc634cdbdf3ac3838e0351a7538df76"><code>b35c4ea72cc6</code></a>.
+    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/cde07f2979358df3d0f7be23086693edb515dbc5"><code>cde07f297935</code></a>.
   
 
           </div>
@@ -4460,6 +4460,8 @@
       
         
       
+        
+      
     
     
     
@@ -4632,6 +4634,34 @@
     
   
     driver_pod_template
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spark_on_k8s/utils/env/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    env
   
 
     
@@ -5925,6 +5955,10 @@ the driver stopped submits a new application with a new deadline. See
 <td>Returns after submission/adoption; no finish cleanup or completion assertion</td>
 </tr>
 <tr>
+<td>The driver disappears before a final status is observed</td>
+<td>Task fails because the outcome is unknown; no log replay, postmortem or cleanup</td>
+</tr>
+<tr>
 <td>A retried or cleared attempt finds an earlier driver of the same task instance</td>
 <td>One Pending or Running driver is adopted instead of submitting; a Succeeded one only with <code>reattach_succeeded=True</code>; ambiguous or uncertain findings fail the attempt. See <a href="#retries-and-reattachment">retries and reattachment</a></td>
 </tr>
@@ -5934,7 +5968,7 @@ the driver stopped submits a new application with a new deadline. See
 </tr>
 <tr>
 <td>Finish cleanup fails for another reason</td>
-<td>Task fails; after a Spark failure or timeout, that failure is reported with the cleanup error as its cause</td>
+<td>Task fails with the cleanup error as the cause of the Spark outcome: the failure or timeout, or <code>Succeeded</code>, so a retry is not mistaken for a Spark failure</td>
 </tr>
 <tr>
 <td>Airflow invokes <code>on_kill</code> with a known driver</td>
@@ -6379,7 +6413,7 @@ each viewer.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 11, 2026 00:33:11 UTC">November 11, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 11, 2026 01:05:59 UTC">November 11, 2026</span>
   </span>
 
     

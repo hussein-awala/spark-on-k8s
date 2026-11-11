@@ -52,7 +52,8 @@ def main():
                 text=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
-                timeout=360,
+                # The reattach case keeps one driver running for four minutes on purpose.
+                timeout=600 if scenario.startswith("mapped") else 360,
             )
             print(result.stdout, flush=True)
             records = [

@@ -55,8 +55,9 @@ try:
     if sys.argv[2] == "failure":
         raise RuntimeError("AIRFLOW_SPARK_EXPECTED_FAILURE")
     if sys.argv[2] == "slow":
-        # Keeps the driver running while a mapped task's retry looks for it.
-        time.sleep(90)
+        # Keeps the driver running while a mapped task's retry looks for it, even when the other
+        # mapped instance runs its whole application first (about two minutes on kind).
+        time.sleep(240)
     print("AIRFLOW_SPARK_SUCCESS", flush=True)
 finally:
     spark.stop()

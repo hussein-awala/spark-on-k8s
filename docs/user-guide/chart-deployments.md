@@ -469,6 +469,14 @@ the worker count. Run history keeps its single replica but supports several
 workers in that pod: a database lease elects one collector. In remote mode, each
 worker reads the token and policy files when it starts.
 
+With more than one worker, `spark-on-k8s api start` exits with code 0 when a worker
+fails to start, for example on an unusable run-history volume or an invalid setting:
+uvicorn's process supervisor logs `Child process [...] failed to start` and stops
+without reporting the failure as an exit code. The chart's readiness probe on `/ready`
+keeps such a pod out of service, and Kubernetes restarts the container. Read that log
+line, or run with `workers: 1` to get exit code 3, when diagnosing a pod that never
+becomes ready.
+
 ### Probe the History Server
 
 With `sparkHistory.enabled`, the History Server container has readiness and

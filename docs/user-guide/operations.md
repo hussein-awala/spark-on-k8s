@@ -153,7 +153,9 @@ Outcomes describe what the API did, not what the Spark application did:
   namespace scope or the submission policy, or Kubernetes RBAC refused the API's
   service account (code `forbidden`).
 - `rejected`: another 4xx response, such as `invalid_job`,
-  `application_not_found` or `application_state`. The API changed nothing.
+  `application_not_found`, `application_state`, `invalid_request` for an identifier
+  Kubernetes refused, or `client_disconnected` for an upload the client abandoned.
+  The API changed nothing.
 - `failed`: a server error during a plan, which creates nothing.
 - `unknown`: a server or Kubernetes failure during a submit, kill or delete. The
   resources may have been created, signalled or deleted anyway. An uncertain result

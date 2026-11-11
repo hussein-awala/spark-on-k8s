@@ -8,6 +8,7 @@ from uuid import uuid4
 from fastapi import APIRouter, Request
 from kubernetes.client.exceptions import ApiException
 from starlette.concurrency import run_in_threadpool
+from starlette.requests import ClientDisconnect
 from starlette.responses import JSONResponse
 
 from spark_on_k8s.api.audit import count_kubernetes_error, note
@@ -155,6 +156,10 @@ async def _handle(request: Request, preview: bool):
         return error_response(413, "body_too_large", "Job documents cannot exceed 1 MiB.")
     except TimeoutError:
         return error_response(408, "request_timeout", "The job document was not received in time.")
+    except ClientDisconnect:
+        # The document was not received, so nothing was created. The client never sees this response;
+        # it gives the audit event a rejected outcome instead of an unknown one.
+        return error_response(400, "client_disconnected", "The job document was not received.")
     except (ValueError, UnicodeError, RecursionError):
         return error_response(400, "invalid_json", "Send a JSON object with unique keys and finite values.")
     try:

@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 # ruff: noqa: TCH002
 from fastapi.responses import Response
-from kubernetes_asyncio.client import CoreV1Api
+from kubernetes_asyncio.client import ApiException, CoreV1Api
 from pydantic import BaseModel
 
 from spark_on_k8s.api import KubernetesClientSingleton
@@ -40,7 +40,19 @@ async def _list_apps(namespace: str, max_per_page: int, continue_from: str) -> t
         search_params["limit"] = max_per_page
     if continue_from:
         search_params["_continue"] = continue_from
-    driver_pods = await core_client.list_namespaced_pod(**search_params)
+    try:
+        driver_pods = await core_client.list_namespaced_pod(**search_params)
+    except ApiException as error:
+        if continue_from and error.status in {400, 410, 422}:
+            # Kubernetes refused the caller's continuation token, malformed or expired.
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "invalid_request",
+                    "message": "The continuation token is invalid or expired; list again without it.",
+                },
+            ) from None
+        raise
     return (
         driver_pods.metadata._continue if driver_pods.metadata._continue else no_more_items,
         [

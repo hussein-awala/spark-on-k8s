@@ -318,7 +318,10 @@ request-validation (`422`) errors, uses the envelope of the remote `/jobs/v1` co
 
 Branch on the HTTP status and `error.code`; `message` is for people. Routes that know
 the cause return a specific code, such as `history_not_configured`,
-`application_not_found` or `policy_denied`. Other errors use a code derived from the
+`application_not_found` or `policy_denied`. When Kubernetes refuses an application
+identifier for stop or delete, or a `continue_from` token for listing, the API returns
+400 `invalid_request` and changed nothing. A remote upload whose client disconnects
+before the document arrives is recorded as 400 `client_disconnected`. Other errors use a code derived from the
 status: `invalid_request` (400, 422), `unauthorized`, `forbidden`, `not_found`,
 `method_not_allowed`, `request_timeout`, `conflict`, `not_configured` (412),
 `body_too_large`, `invalid_content_type`, `too_many_requests`,

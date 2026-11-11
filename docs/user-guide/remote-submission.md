@@ -287,7 +287,8 @@ body is not a valid result: the server or a gateway may have accepted the job.
 available. In-memory deduplication would not be reliable across API workers or replicas.
 
 Authentication failures return 401, admission denials 403, disabled routes 404, unsupported
-idempotency or invalid JSON 400, bodies not received within the deadline 408, oversized bodies 413,
+idempotency or invalid JSON 400, a client that disconnects before its body arrives 400
+`client_disconnected` (recorded only: the client is gone), bodies not received within the deadline 408, oversized bodies 413,
 unsupported content types 415, and invalid job schemas 422. Kubernetes conflicts return 409; other
 Kubernetes failures return 502, and unexpected server failures 500. Errors contain a stable code
 and a human-readable message, never the Kubernetes response body. Every response carries an

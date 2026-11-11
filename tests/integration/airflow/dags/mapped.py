@@ -78,6 +78,10 @@ with DAG(
         # Covers a retry that waits for the whole four-minute slow driver.
         execution_timeout=timedelta(seconds=540),
         on_finish_action="keep",
+        # Map index 0 can run its whole application first, and on a small node it waits for CPU until
+        # map index 1's driver ends, so that driver may already have succeeded when its retry looks for
+        # it. Adopting a succeeded driver too keeps the case on the label path in either order.
+        reattach_succeeded=REATTACH,
     ).expand_kwargs(
         [
             # Distinct names: mapped instances submitted within one second must not share an ID.

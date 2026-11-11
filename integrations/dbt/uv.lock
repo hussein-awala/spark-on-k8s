@@ -425,7 +425,7 @@ requires-dist = [
     { name = "dbt-spark", specifier = "==1.11.0" },
     { name = "pyhive", extras = ["hive-pure-sasl"], specifier = "==0.7.0" },
     { name = "pyspark-client", specifier = "==4.3.0" },
-    { name = "spark-on-k8s", extras = ["connect"], directory = "../../" },
+    { name = "spark-on-k8s", extras = ["connect"], specifier = ">=0.13.0,<0.14" },
     { name = "thrift", specifier = ">=0.25.0,<0.26" },
 ]
 
@@ -1705,77 +1705,22 @@ wheels = [
 
 [[package]]
 name = "spark-on-k8s"
-version = "0.11.0.dev0"
-source = { directory = "../../" }
+version = "0.13.0"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
     { name = "kubernetes" },
     { name = "pyyaml" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/25/d4/ea95f9c770b2060c3573cd15843f88b4f12ba81a49b4472457d65afc1c5c/spark_on_k8s-0.13.0.tar.gz", hash = "sha256:3dcaf02abb7a737f52ceba3eed589cdc401a1cd14baccc4665813f948f492217", size = 364439, upload-time = "2026-11-11T22:22:08.704Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ed/c8/5598a11a6255087d97a0a8e1bfeb6eef1d3257903b5f9abed698cf719856/spark_on_k8s-0.13.0-py3-none-any.whl", hash = "sha256:25fcbc002a3045ad50740084cd66ee45f3b66541b1dd73bb75444ba4c1c4638f", size = 328475, upload-time = "2026-11-11T22:22:07.124Z" },
 ]
 
 [package.optional-dependencies]
 connect = [
     { name = "pandas" },
     { name = "pyspark-client" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "aiohttp", marker = "extra == 'api'", specifier = ">=3.14.5,<4" },
-    { name = "apache-airflow", marker = "python_full_version < '3.15' and extra == 'airflow'", specifier = ">=2.11.2,<4" },
-    { name = "apache-airflow", marker = "python_full_version < '3.15' and extra == 'airflow-ui'", specifier = ">=3.4.0,<4" },
-    { name = "apache-airflow-providers-cncf-kubernetes", marker = "python_full_version < '3.15' and extra == 'airflow'", specifier = ">=10.25.0,<11" },
-    { name = "apache-airflow-providers-cncf-kubernetes", marker = "python_full_version < '3.15' and extra == 'airflow-ui'", specifier = ">=10.25.0,<11" },
-    { name = "click", specifier = ">=8.5.0,<9" },
-    { name = "fastapi", marker = "python_full_version < '3.15' and extra == 'airflow-ui'", specifier = ">=0.162.0,<0.163" },
-    { name = "fastapi", marker = "extra == 'api'", specifier = ">=0.162.0,<0.163" },
-    { name = "httpx", marker = "python_full_version < '3.15' and extra == 'airflow-ui'", specifier = ">=0.28.1,<0.29" },
-    { name = "httpx", marker = "extra == 'api'", specifier = ">=0.28.1,<0.29" },
-    { name = "jinja2", marker = "extra == 'api'", specifier = ">=3.1.6,<4" },
-    { name = "kubernetes", specifier = ">=36.0.3,<37" },
-    { name = "kubernetes-asyncio", marker = "python_full_version < '3.15' and extra == 'airflow'", specifier = ">=36.1.0,<37" },
-    { name = "kubernetes-asyncio", marker = "python_full_version < '3.15' and extra == 'airflow-ui'", specifier = ">=36.1.0,<37" },
-    { name = "kubernetes-asyncio", marker = "extra == 'api'", specifier = ">=36.1.0,<37" },
-    { name = "pandas", marker = "python_full_version < '3.15' and extra == 'connect'", specifier = ">=2.2,<3" },
-    { name = "pyspark-client", marker = "python_full_version < '3.15' and extra == 'connect'", specifier = ">=4.0.5,<5" },
-    { name = "pyyaml", specifier = ">=6.0.3,<7" },
-    { name = "sqlparse", marker = "python_full_version < '3.15' and extra == 'airflow'", specifier = ">=0.6.1,<0.7" },
-    { name = "sqlparse", marker = "python_full_version < '3.15' and extra == 'airflow-ui'", specifier = ">=0.6.1,<0.7" },
-    { name = "sqlparse", marker = "extra == 'sql'", specifier = ">=0.6.1,<0.7" },
-    { name = "starlette", marker = "extra == 'api'", specifier = ">=1.10.0,<2" },
-    { name = "uvicorn", marker = "extra == 'api'", specifier = ">=0.54.0,<0.55" },
-    { name = "websockets", marker = "python_full_version < '3.15' and extra == 'airflow-ui'", specifier = ">=17.4,<18" },
-    { name = "websockets", marker = "extra == 'api'", specifier = ">=17.4,<18" },
-]
-provides-extras = ["sql", "connect", "api", "airflow", "airflow-ui"]
-
-[package.metadata.requires-dev]
-docs = [
-    { name = "helm-mkdocs", specifier = ">=0.0.5,<0.0.6" },
-    { name = "mike", specifier = ">=2.2.0,<3" },
-    { name = "mkdocs", specifier = "==1.6.1" },
-    { name = "mkdocs-gen-files", specifier = ">=0.6.1,<0.7" },
-    { name = "mkdocs-git-revision-date-localized-plugin", specifier = ">=1.6.3,<2" },
-    { name = "mkdocs-literate-nav", specifier = ">=0.6.3,<0.7" },
-    { name = "mkdocs-material", specifier = ">=9.8.0,<10" },
-    { name = "mkdocstrings", extras = ["python"], specifier = ">=1.0.8,<2" },
-]
-lint = [
-    { name = "pre-commit", specifier = ">=4.7.0,<5" },
-    { name = "ruff", specifier = "==0.17.4" },
-    { name = "sqlfluff", specifier = "==4.5.0" },
-]
-notebook = [
-    { name = "ipykernel", marker = "python_full_version >= '3.11' and python_full_version < '3.15'", specifier = ">=7.4.0,<8" },
-    { name = "nbclient", marker = "python_full_version >= '3.11' and python_full_version < '3.15'", specifier = ">=0.11.0,<0.12" },
-    { name = "nbformat", marker = "python_full_version >= '3.11' and python_full_version < '3.15'", specifier = ">=5.10.4,<6" },
-    { name = "psutil", marker = "python_full_version >= '3.11' and python_full_version < '3.15'", specifier = ">=7.2.2,<8" },
-]
-test = [
-    { name = "freezegun", specifier = ">=1.5.5,<2" },
-    { name = "mock", specifier = ">=5.2.0,<6" },
-    { name = "pytest", specifier = ">=9.2.0,<10" },
-    { name = "pytest-cov", specifier = ">=7.1.0,<8" },
 ]
 
 [[package]]

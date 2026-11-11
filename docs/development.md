@@ -316,7 +316,6 @@ keep server ownership independent from dbt's intermediate connection cleanup.
 ```bash
 UV_PROJECT_ENVIRONMENT="$PWD/.venv-dbt" uv sync \
   --project integrations/dbt --locked --python 3.12 --group test
-uv build --wheel --out-dir dist/dbt-check
 uv build --project integrations/dbt --wheel --out-dir dist/dbt-check
 uv pip install --python .venv-dbt/bin/python --no-deps --reinstall dist/dbt-check/*.whl
 .venv-dbt/bin/python -I -m pytest -p no:cacheprovider integrations/dbt/tests
@@ -324,8 +323,10 @@ uv pip check --python .venv-dbt/bin/python
 ```
 
 Use `tests/integration/dbt/run_kubernetes.py` as documented in that directory's
-README for real runtime checks. The **Experimental managed dbt** workflow installs
-both wheels and tests Thrift and Connect separately on Spark 4.3.0/Python 3.12,
+README for real runtime checks. The adapter requires a released SDK, so the locked
+sync installs `spark-on-k8s` from PyPI; changes to the SDK in this checkout reach the
+adapter only after an SDK release raises that requirement. The **Experimental managed
+dbt** workflow installs the adapter wheel with that locked SDK and tests Thrift and Connect separately on Spark 4.3.0/Python 3.12,
 with fixtures and cleanup evidence. A mock test or receipt alone does not prove
 SQL execution, table persistence or resource disappearance. Keep the published
 [profile and command guide](user-guide/dbt.md) synchronized with this runner.

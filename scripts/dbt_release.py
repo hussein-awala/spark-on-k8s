@@ -14,7 +14,7 @@ VERSION_FILES = (
     (Path("src/dbt/adapters/spark_on_k8s/__version__.py"), re.compile(r'^version = "([^"]+)"$', re.M)),
     (Path("src/spark_on_k8s_dbt/__init__.py"), re.compile(r'^__version__ = "([^"]+)"$', re.M)),
 )
-# Adapter versions are bare tags like the package release, for example 0.1.0 or 0.1.0a1.
+# Adapter versions are bare tags like the package release, for example 0.1.0 or 0.2.0rc1.
 validate_version = runpy.run_path(str(Path(__file__).with_name("release_eligibility.py")))["validate_version"]
 SDK_REQUIREMENT = re.compile(r"spark-on-k8s(?:\[[^\]]*\])?\s*(.*)")
 

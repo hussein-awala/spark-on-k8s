@@ -13,6 +13,7 @@ SQL/Connect clients and real Spark runtime checks already exist.
 | Improve error explanation | Add one missing actionable message or diagnostic scenario | Regression case preserves uncertainty and avoids leaking secrets |
 | Fill a runtime coverage gap | Identify one uncovered lifecycle failure in an existing harness | Bounded real-runtime scenario with saved evidence and cleanup; no duplicate matrix |
 | Qualify a requested integration | One recipe reusing the SDK/CLI and existing profiles | Named maintainer, explicit versions and a repeatable output check |
+| Move the API image to Python 3.15 | Change the `python:3.14-slim` base of `docker/Dockerfile` and `tests/integration/chart/Dockerfile` to `python:3.15-slim` by digest once PyYAML publishes cp315 manylinux wheels; 6.0.3 has none and the image installs wheels only | `uv pip compile` of the `api` export for Python 3.15 on x86_64 and aarch64 with `--only-binary :all:` succeeds; the image scan clears the interpreter alerts fixed only in 3.15 |
 | Modernize dependency scanning | Reconcile the external Snyk project with uv extras/groups | Scanner sees the intended runtime/build profiles; access and external changes explicitly authorized |
 
 ## Two bounded first-contribution candidates

@@ -1,4 +1,4 @@
-FROM python:3.13-slim@sha256:e48f59cdba69a3cbd9ed2cf0f348d90d45a8d350d98134cf1070bc106ee9ed90
+FROM python:3.14-slim@sha256:9aaa474097d094040649f2162a627c0049b408f52138d980916788d80f04802f
 # The same fixed identity as docker/Dockerfile, so chart checks run the image's own non-root user.
 RUN groupadd --gid 10001 spark-on-k8s \
     && useradd --uid 10001 --gid 10001 --no-log-init --create-home --home-dir /home/spark-on-k8s \

@@ -17,7 +17,7 @@ The source chart requires an explicit compatible image tag or digest while its
 version, which becomes the default image tag. Building or rendering the local
 chart does not build an API image.
 
-The API image contains the API, its locked dependencies and Python 3.13 (0.12.1 used
+The API image contains the API, its locked dependencies and Python 3.14 (0.12.1 used
 Python 3.11), but no pip,
 setuptools or wheel. To add packages in an image built `FROM` it, switch to
 `USER root`, run `python -m ensurepip` to restore the base image's pip, install your

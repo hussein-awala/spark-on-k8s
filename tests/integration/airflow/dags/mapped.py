@@ -75,7 +75,8 @@ with DAG(
         deferrable=not REATTACH,
         poll_interval=1,
         startup_timeout=120,
-        execution_timeout=timedelta(seconds=300),
+        # Covers a retry that waits for the whole four-minute slow driver.
+        execution_timeout=timedelta(seconds=540),
         on_finish_action="keep",
     ).expand_kwargs(
         [

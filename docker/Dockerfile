@@ -1,6 +1,12 @@
 # TODO: move to Python 3.15 once PyYAML publishes cp315 wheels; see TODO.md.
 FROM python:3.14-slim@sha256:9aaa474097d094040649f2162a627c0049b408f52138d980916788d80f04802f
 
+# The pinned base can lag Debian security updates (for example zlib1g); install them so the
+# released image carries every fix published for its base.
+RUN apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
+
 ENV SPARK_ON_K8S_API_HOST=127.0.0.1
 ENV SPARK_ON_K8S_API_PORT=8000
 ENV SPARK_ON_K8S_API_WORKERS=4

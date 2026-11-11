@@ -122,9 +122,10 @@ the driver stopped submits a new application with a new deadline. See
 | Deferred trigger reports an observation error | Task fails with the trigger error; `keep` retains the application, while `delete` and `keep_if_failed` delete it because an observation error is not a confirmed Spark `Failed` state |
 | Synchronous observation raises a non-timeout API/transport error | Error propagates before finish cleanup; no new submission or automatic cleanup is performed by that wait path |
 | `app_waiter="no_wait"` | Returns after submission/adoption; no finish cleanup or completion assertion |
+| The driver disappears before a final status is observed | Task fails because the outcome is unknown; no log replay, postmortem or cleanup |
 | A retried or cleared attempt finds an earlier driver of the same task instance | One Pending or Running driver is adopted instead of submitting; a Succeeded one only with `reattach_succeeded=True`; ambiguous or uncertain findings fail the attempt. See [retries and reattachment](#retries-and-reattachment) |
 | Finish cleanup finds the driver already deleted | Treated as cleaned up; the task keeps its Spark outcome |
-| Finish cleanup fails for another reason | Task fails; after a Spark failure or timeout, that failure is reported with the cleanup error as its cause |
+| Finish cleanup fails for another reason | Task fails with the cleanup error as the cause of the Spark outcome: the failure or timeout, or `Succeeded`, so a retry is not mistaken for a Spark failure |
 | Airflow invokes `on_kill` with a known driver | `on_kill_action="keep"` retains, `"delete"` requests deletion, and `"kill"` requests process termination; default is `delete` |
 
 Do not assume every scheduler state change, worker loss or manual task-state

@@ -79,7 +79,10 @@ it does not contain `app_id` or `status` at the top level. On a list error,
 `items` is `null`. Listing does not make a status request for each application.
 
 Runtime errors use `error: { "code": "...", "message": "..." }` with codes
-`api_error`, `operation_error`, `not_found`, `timeout`, or `interrupted`.
+`api_error`, `operation_error`, `not_found`, `timeout`, or `interrupted`. A driver
+that disappears while it is watched is `not_found` (exit code 4) with `status: null`:
+its outcome is unknown, not finished. The SDK raises `SparkAppDeletedError` from
+`wait_for_app` in that case.
 JSON error messages exclude Kubernetes response bodies. Receipts do not contain submitted
 configuration or secrets. Driver logs remain application-controlled data and may
 contain sensitive information. Consumers should check `schema_version`, tolerate

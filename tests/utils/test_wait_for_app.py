@@ -66,22 +66,28 @@ def test_waiting_by_application_id_names_the_application_not_a_missing_pod(capsy
     )
 
 
-def test_sync_waiter_still_returns_when_pod_is_deleted(monkeypatch):
+def test_sync_waiter_reports_a_deleted_pod_as_an_unknown_outcome(monkeypatch):
+    from spark_on_k8s.utils.spark_app_status import SparkAppDeletedError
+
     manager = app_manager.SparkAppManager(k8s_client_manager=MagicMock())
     status = Mock(side_effect=app_manager.ApiException(status=404))
     monkeypatch.setattr(manager, "app_status", status)
 
-    manager.wait_for_app(namespace="spark", pod_name="test-driver")
+    with pytest.raises(SparkAppDeletedError, match="Pod test-driver was deleted"):
+        manager.wait_for_app(namespace="spark", pod_name="test-driver")
 
     status.assert_called_once()
 
 
-def test_async_waiter_still_returns_when_pod_is_deleted(monkeypatch):
+def test_async_waiter_reports_a_deleted_pod_as_an_unknown_outcome(monkeypatch):
+    from spark_on_k8s.utils.spark_app_status import SparkAppDeletedError
+
     manager = async_app_manager.AsyncSparkAppManager(k8s_client_manager=MagicMock())
     status = AsyncMock(side_effect=async_app_manager.ApiException(status=404))
     monkeypatch.setattr(manager, "app_status", status)
 
-    asyncio.run(manager.wait_for_app(namespace="spark", pod_name="test-driver"))
+    with pytest.raises(SparkAppDeletedError, match="Pod test-driver was deleted"):
+        asyncio.run(manager.wait_for_app(namespace="spark", pod_name="test-driver"))
 
     status.assert_awaited_once()
 

@@ -18,6 +18,10 @@ class SparkAppStatus(StrEnum):
     Unknown = "Unknown"
 
 
+class SparkAppDeletedError(LookupError):
+    """The driver disappeared before a final status was observed, so the outcome is unknown."""
+
+
 # Consecutive failed status reads a wait accepts when each failure may clear on its own
 # (throttling, a server error or a lost connection) before it reports the last one.
 TRANSIENT_STATUS_READ_ATTEMPTS = 5

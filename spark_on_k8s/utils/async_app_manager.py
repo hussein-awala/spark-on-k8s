@@ -14,6 +14,7 @@ from spark_on_k8s.k8s.async_client import KubernetesAsyncClientManager
 from spark_on_k8s.utils.logging_mixin import LoggingMixin
 from spark_on_k8s.utils.spark_app_status import (
     TRANSIENT_STATUS_READ_ATTEMPTS,
+    SparkAppDeletedError,
     SparkAppStatus,
     driver_container_name,
     driver_pod_selector,
@@ -117,7 +118,10 @@ class AsyncSparkAppManager(LoggingMixin):
                 are not limited by this deadline.
 
         Returns:
-            The final status, or None when the driver was deleted.
+            The final status.
+
+        Raises:
+            SparkAppDeletedError: The driver disappeared before a final status was observed.
         """
         termination_statuses = {SparkAppStatus.Succeeded, SparkAppStatus.Failed, SparkAppStatus.Unknown}
         target = f"Pod {pod_name}" if pod_name is not None else f"App {app_id}"
@@ -140,8 +144,11 @@ class AsyncSparkAppManager(LoggingMixin):
                         sleep_interval = min(poll_interval, remaining)
                 except (ApiException, aiohttp.ClientError) as e:
                     if isinstance(e, ApiException) and e.status == 404:
-                        self.log(msg=f"{target} was deleted", level=logging.INFO, should_print=should_print)
-                        return None
+                        # Uncertain status is not absence: a vanished driver is not a completed one.
+                        raise SparkAppDeletedError(
+                            f"{target} was deleted, or does not exist, before a final status was observed; "
+                            "its outcome is unknown"
+                        ) from None
                     failed_reads += 1
                     transient = isinstance(e, aiohttp.ClientError) or is_transient_status_code(e.status)
                     if not transient or failed_reads >= TRANSIENT_STATUS_READ_ATTEMPTS:

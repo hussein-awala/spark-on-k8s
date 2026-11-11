@@ -9,7 +9,7 @@ import click
 from kubernetes.client.exceptions import ApiException
 from urllib3.exceptions import MaxRetryError, NewConnectionError, TimeoutError as HTTPTimeoutError
 
-from spark_on_k8s.utils.spark_app_status import SparkAppStatus
+from spark_on_k8s.utils.spark_app_status import SparkAppDeletedError, SparkAppStatus
 
 output_option = click.option(
     "--output", type=click.Choice(["text", "json"]), default="text", show_default=True
@@ -91,6 +91,10 @@ def execution(operation: str, namespace: str, output: str):
         timed_out = isinstance(error, TimeoutError) or is_transport_timeout(error)
         code = 5 if timed_out else 1
         result["error"] = {"code": "timeout" if timed_out else "operation_error", "message": str(error)}
+    except SparkAppDeletedError as error:
+        # As when the driver is missing before the wait: exit 4, and the outcome is not reported.
+        code = 4
+        result["error"] = {"code": "not_found", "message": str(error)}
     except ApiException as error:
         code = 4 if error.status == 404 else 1
         result["error"] = {

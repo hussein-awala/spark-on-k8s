@@ -6,7 +6,7 @@ import subprocess
 import sys
 from dataclasses import FrozenInstanceError
 from types import SimpleNamespace
-from unittest.mock import MagicMock, Mock
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 from click.testing import CliRunner
@@ -391,3 +391,19 @@ def test_text_output_ends_quietly_when_the_reader_closes_the_pipe():
         process.wait()
     # Click's convention for a closed pipe, as `apps list --output json` and `app logs` already follow.
     assert (process.returncode, stderr) == (1, b"")
+
+
+def test_a_driver_that_vanishes_during_the_wait_is_not_found_not_finished(cluster):
+    from spark_on_k8s.utils.spark_app_status import SparkAppDeletedError
+
+    deleted = SparkAppDeletedError(
+        "App existing was deleted, or does not exist, before a final status was observed"
+    )
+    with patch("spark_on_k8s.utils.app_manager.SparkAppManager.wait_for_app", side_effect=deleted):
+        result = CliRunner().invoke(
+            app_cli, ["wait", "--app-id", "existing", "--namespace", "spark", "--output", "json"]
+        )
+    assert result.exit_code == 4, result.output
+    document = json.loads(result.stdout)
+    assert document["error"] == {"code": "not_found", "message": str(deleted)}
+    assert document.get("status") is None

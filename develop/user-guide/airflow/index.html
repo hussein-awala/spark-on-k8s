@@ -68,7 +68,7 @@
   <meta name="documentation-channel" content="develop">
   <meta name="documentation-version" content="develop">
   
-    <meta name="documentation-source" content="a5d08b8f1341b68aa55e750de60ad74971241a47">
+    <meta name="documentation-source" content="0a1a42232868baa2ad871a55d20cc61f57689e86">
   
 
   </head>
@@ -108,7 +108,7 @@
     <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
   
   
-    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/a5d08b8f1341b68aa55e750de60ad74971241a47"><code>a5d08b8f1341</code></a>.
+    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/0a1a42232868baa2ad871a55d20cc61f57689e86"><code>0a1a42232868</code></a>.
   
 
           </div>
@@ -1427,6 +1427,23 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Lifecycle, retries and cleanup">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#retries-and-reattachment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Retries and reattachment
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -5656,6 +5673,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Lifecycle, retries and cleanup">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#retries-and-reattachment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Retries and reattachment
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -5891,6 +5925,10 @@ the driver stopped submits a new application with a new deadline. See
 <td>Returns after submission/adoption; no finish cleanup or completion assertion</td>
 </tr>
 <tr>
+<td>A retried or cleared attempt finds an earlier driver of the same task instance</td>
+<td>One Pending or Running driver is adopted instead of submitting; a Succeeded one only with <code>reattach_succeeded=True</code>; ambiguous or uncertain findings fail the attempt. See <a href="#retries-and-reattachment">retries and reattachment</a></td>
+</tr>
+<tr>
 <td>Finish cleanup finds the driver already deleted</td>
 <td>Treated as cleaned up; the task keeps its Spark outcome</td>
 </tr>
@@ -5911,16 +5949,6 @@ or interruption; the Airflow startup-timeout deletion policy is intentionally
 different. See the <a href="../automation/">automation contract</a>.
 Before this cleanup, the task logs a bounded <a href="#failure-postmortem">failure postmortem</a>
 for an unsuccessful application.</p>
-<p>When task-local XCom still contains the recorded namespace and driver name, a
-retry adopts a Pending or Running application. Confirmed absence (Kubernetes
-404), or a confirmed Succeeded/Failed application, permits the existing new-job
-path. Authentication failures, unavailable status lookups and Unknown status now
-fail the task before submission. Restoring access lets a later attempt inspect
-the same recorded identity; uncertainty is not treated as absence.</p>
-<p>This depends on retained XCom. Airflow may clear XCom during a retry, and a crash
-between pod creation and receipt persistence remains outside this guarantee.
-It is not submission deduplication or an exactly-once data-write promise.
-Applications must define their own handling of a repeated logical date.</p>
 <p>For a daily DAG, choose the startup deadline and retention behavior explicitly.
 Replace the example image with your approved application artifact:</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">UTC</span><span class="p">,</span> <span class="n">datetime</span><span class="p">,</span> <span class="n">timedelta</span>
@@ -5947,18 +5975,142 @@ Replace the example image with your approved application artifact:</p>
 <p><code>packages</code> and driver/executor labels and annotations support Airflow templates,
 alongside the existing image, arguments and resource fields. Use valid Kubernetes
 label values after rendering. The reserved <code>spark-on-k8s.io/airflow-task</code>
-annotation is generated from task identity and cannot be overridden by a user
-annotation. Previously literal Jinja expressions in these newly templated fields
-will now be rendered; review existing DAGs when upgrading.</p>
+annotation and the task labels described below are generated from task identity
+and cannot be overridden by user annotations or labels. Previously literal Jinja
+expressions in these newly templated fields will now be rendered; review existing
+DAGs when upgrading.</p>
+<h3 id="retries-and-reattachment">Retries and reattachment<a class="headerlink" href="#retries-and-reattachment" title="Permanent link">&para;</a></h3>
+<p>Each driver the operator submits carries the reserved <code>spark-on-k8s.io/airflow-task</code>
+ownership annotation and these labels:</p>
+<table>
+<thead>
+<tr>
+<th>Label</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>spark-on-k8s.io/airflow-task-key</code></td>
+<td>32-character digest of the DAG ID, run ID, task ID, map index and, on Airflow 3, region; the same for every attempt of one task instance</td>
+</tr>
+<tr>
+<td><code>spark-on-k8s.io/airflow-dag-id</code>, <code>spark-on-k8s.io/airflow-task-id</code></td>
+<td>Readable IDs for people and dashboards. Characters outside the label alphabet become <code>_</code> and values are cut to 63 characters, so they can collide; never select one task instance by them</td>
+</tr>
+</tbody>
+</table>
+<p>When an attempt starts, before submitting, the operator looks for an earlier
+driver of the same task instance in its <code>namespace</code>:</p>
+<ol>
+<li>If task XCom still records a driver, that driver is checked first. A Pending or
+   Running driver is adopted. Status lookup failures and Unknown status fail the
+   attempt. A confirmed absent (404) or terminal driver continues to step 2.</li>
+<li>With <code>reattach_by_label=True</code>, the default, it lists the drivers carrying the
+   attempt's task key and acts as in the table below. Otherwise it submits a new
+   application.</li>
+</ol>
+<p>Airflow 2.11 and 3.4 delete a task instance's XCom when a new attempt starts; they
+keep it only when a deferred task resumes. On an ordinary retry, or after clearing
+the task, step 2 therefore finds the earlier driver; step 1 applies only where XCom
+survives into the next attempt. The labels are written at pod creation, so step 2
+also covers a worker lost between creating the driver and recording it in XCom.</p>
+<table>
+<thead>
+<tr>
+<th>Drivers found by task key</th>
+<th>Attempt's action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>None, or only Failed drivers</td>
+<td>Submits a new application; Failed drivers are logged and kept or deleted as <code>on_finish_action</code> already decided</td>
+</tr>
+<tr>
+<td>One Pending or Running driver</td>
+<td>Adopts it and waits as for a new submission, synchronously or deferred, with a new startup deadline; terminal drivers beside it are ignored</td>
+</tr>
+<tr>
+<td>More than one Pending or Running driver</td>
+<td>Fails without submitting or choosing; delete the extra drivers before retrying</td>
+</tr>
+<tr>
+<td>Succeeded drivers and no active one, <code>reattach_succeeded=False</code> (default)</td>
+<td>Logs a warning naming them, then submits a new application</td>
+</tr>
+<tr>
+<td>One Succeeded driver and no active one, <code>reattach_succeeded=True</code></td>
+<td>Adopts it as the attempt's result without rerunning Spark, then applies <code>on_finish_action</code></td>
+</tr>
+<tr>
+<td>More than one Succeeded driver and no active one, <code>reattach_succeeded=True</code></td>
+<td>Fails without submitting or choosing</td>
+</tr>
+<tr>
+<td>Any driver with Unknown or missing phase</td>
+<td>Fails without submitting; an indeterminate driver may still be running</td>
+</tr>
+<tr>
+<td>A driver whose deletion was already requested</td>
+<td>Ignored, for example after a startup-timeout deletion</td>
+</tr>
+<tr>
+<td>The listing fails (permission, API, network or timeout error)</td>
+<td>Fails without submitting; restore access before the next attempt</td>
+</tr>
+</tbody>
+</table>
+<p><code>reattach_succeeded=True</code> also adopts a Succeeded driver found in retained XCom.
+It suits a job whose earlier success for the same DAG run is an acceptable result,
+such as a partition overwrite that should not run twice. The Succeeded driver must
+still exist: <code>on_finish_action="keep"</code> retains it, while <code>"delete"</code> and
+<code>"keep_if_failed"</code> delete it after success. With the option enabled, clearing a
+successful task does not rerun Spark while that driver exists; delete the driver
+first to force a rerun.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">spark_on_k8s.airflow.operators</span><span class="w"> </span><span class="kn">import</span> <span class="n">SparkOnK8SOperator</span>
+
+<span class="n">SparkOnK8SOperator</span><span class="p">(</span>
+    <span class="n">task_id</span><span class="o">=</span><span class="s2">"publish_partition"</span><span class="p">,</span>
+    <span class="n">image</span><span class="o">=</span><span class="s2">"registry.example.com/team/publish-job:approved"</span><span class="p">,</span>
+    <span class="n">app_path</span><span class="o">=</span><span class="s2">"local:///opt/spark/work-dir/publish.py"</span><span class="p">,</span>
+    <span class="n">namespace</span><span class="o">=</span><span class="s2">"analytics"</span><span class="p">,</span> <span class="n">service_account</span><span class="o">=</span><span class="s2">"spark-driver"</span><span class="p">,</span>
+    <span class="n">app_arguments</span><span class="o">=</span><span class="p">[</span><span class="s2">"--partition"</span><span class="p">,</span> <span class="s2">"{{ ds }}"</span><span class="p">],</span>
+    <span class="n">on_finish_action</span><span class="o">=</span><span class="s2">"keep"</span><span class="p">,</span>  <span class="c1"># retain the Succeeded driver that a retry may adopt</span>
+    <span class="n">reattach_succeeded</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">retries</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
+<p>To inspect a DAG's drivers and their task keys, list them with the readable labels:</p>
+<div class="highlight"><pre><span></span><code>kubectl<span class="w"> </span>get<span class="w"> </span>pods<span class="w"> </span>-n<span class="w"> </span>analytics<span class="w"> </span>-L<span class="w"> </span>spark-on-k8s.io/airflow-task-key<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-l<span class="w"> </span>spark-role<span class="o">=</span>driver,spark-on-k8s.io/airflow-dag-id<span class="o">=</span>daily_transform
+</code></pre></div>
+<p>The worker's Kubernetes connection needs permission to list pods in the namespace;
+the <code>edit</code> role used in <a href="../getting_started/">Getting Started</a> includes it. Without
+that permission, every attempt fails before submitting. Set <code>reattach_by_label=False</code>
+to keep only the XCom check; drivers are still labelled.</p>
+<p>Upgrading changes retries of existing DAGs. An attempt whose earlier driver of the
+same task instance is still Pending or Running now adopts that driver instead of
+starting a concurrent second application. This includes drivers retained by
+<code>on_kill_action="keep"</code> or left running when <code>on_kill</code> was not invoked. The adopted
+driver keeps the image, arguments and configuration it was submitted with; to run
+changed DAG code instead, delete or kill the earlier driver before clearing or
+retrying the task. Drivers submitted by earlier versions have no task-key label and
+are not found.</p>
+<p>This is best-effort reattachment, not submission deduplication or an exactly-once
+data-write promise. Drivers that were deleted, are in another namespace, or lost
+their labels are not found, and two concurrent attempts are not serialized.
+Applications must define their own handling of a repeated logical date.</p>
 <h2 id="verify-the-integration-on-kubernetes">Verify the integration on Kubernetes<a class="headerlink" href="#verify-the-integration-on-kubernetes" title="Permanent link">&para;</a></h2>
 <p>The source workflow <code>.github/workflows/airflow-kubernetes.yml</code> builds the wheel
 and runs Airflow 2.11.2 and 3.4.0 in service-account-bearing pods against the
 representative Spark 4.0.5 image. It checks successful work, deliberate Spark
 failure after real executor work, and an unschedulable startup timeout, each in
-synchronous and deferred mode. Deferred cases run and resume the real trigger.</p>
+synchronous and deferred mode. Deferred cases run and resume the real trigger.
+Each case also checks that the driver carries its task-key label.</p>
 <p>This uses Airflow's <code>DAG.test()</code> engine, metadata database and XCom. It does not
-qualify a separately deployed scheduler, executor or triggerer process, or
-worker-crash recovery. The broader Spark runtime matrix remains in the Spark
+qualify a separately deployed scheduler, executor or triggerer process,
+worker-crash recovery, or a retry reattaching by label. The broader Spark runtime matrix remains in the Spark
 compatibility workflow. Follow the Airflow workflow's image-building and kind
 setup, then run its exact host command from the repository root:</p>
 <div class="highlight"><pre><span></span><code>.venv/bin/python<span class="w"> </span>-I<span class="w"> </span>tests/integration/airflow/run_kubernetes.py<span class="w"> </span><span class="se">\</span>
@@ -6227,7 +6379,7 @@ each viewer.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 10, 2026 22:12:31 UTC">November 10, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 11, 2026 00:33:11 UTC">November 11, 2026</span>
   </span>
 
     

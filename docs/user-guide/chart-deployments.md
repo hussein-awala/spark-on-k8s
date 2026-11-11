@@ -151,8 +151,13 @@ core API resources in the served namespaces:
 
 | `readOnly` | Rules | Used for |
 | --- | --- | --- |
-| `true` | `get`, `list` and `watch` on `pods`, `pods/log` and `services`; `list` on `events` | Application lists and details, driver logs, diagnostics, readiness and run history |
-| `false` | Adds `create` and `delete` on `pods` and `services`, and `get` and `create` on `pods/exec` | Stopping and deleting drivers, and remote submission |
+| `true` | `get` and `list` on `pods`, `get` on `pods/log`, `list` on `events` | Application lists and details, driver logs, diagnostics, readiness and run history |
+| `false` | Adds `create` and `delete` on `pods`, `get` and `create` on `pods/exec`, and `create` on `services` | Stopping and deleting drivers, and remote submission |
+
+These are the only verbs the API calls: it never watches pods, the Spark UI proxy
+reaches Services by DNS, and a driver's Service is deleted with the driver through
+its owner reference. Grant more through externally managed RBAC if other tools use
+the API's service account.
 
 Neither mode grants Secrets, ConfigMaps or any other resource. Remote submission
 creates only a driver Pod and its headless Service, so `readOnly: false` covers it;

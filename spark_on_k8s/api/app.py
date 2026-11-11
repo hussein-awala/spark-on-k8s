@@ -15,6 +15,9 @@ router = APIRouter(
 )
 
 _TARGET_ERRORS = {
+    # Kubernetes refuses an identifier it cannot use as a label selector value: nothing changed.
+    400: ("invalid_request", "Kubernetes rejected the application identifier."),
+    422: ("invalid_request", "Kubernetes rejected the application identifier."),
     403: ("forbidden", "Access to the Spark application is forbidden."),
     404: ("application_not_found", "The Spark application was not found."),
     409: ("application_state", "The Spark application cannot be changed in its current state."),
@@ -28,7 +31,9 @@ def _target_error(e: Exception) -> HTTPException | None:
     if status not in _TARGET_ERRORS:
         return None
     code, message = _TARGET_ERRORS[status]
-    return HTTPException(status_code=status, detail={"code": code, "message": message})
+    return HTTPException(
+        status_code=400 if status == 422 else status, detail={"code": code, "message": message}
+    )
 
 
 @router.patch(

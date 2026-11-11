@@ -16,7 +16,7 @@ from spark_on_k8s.airflow.triggers import SparkOnK8STrigger
 from spark_on_k8s.k8s.sync_client import KubernetesClientManager
 from spark_on_k8s.sql import SQL_MOUNT_PATH, prepare_sql_configmap, reserves_sql_mount
 from spark_on_k8s.utils.app_manager import SparkAppManager
-from spark_on_k8s.utils.spark_app_status import SparkAppStatus
+from spark_on_k8s.utils.spark_app_status import SparkAppDeletedError, SparkAppStatus
 
 if TYPE_CHECKING:
     from typing import Literal
@@ -633,6 +633,9 @@ class SparkOnK8SOperator(BaseOperator):
                     pod_name=self._driver_pod_name,
                     poll_interval=1,
                 )
+        except SparkAppDeletedError as error:
+            # Nothing is left to diagnose or clean up, and the outcome is unknown: fail rather than guess.
+            raise AirflowException(f"{error}; failing the task") from None
         except TimeoutError:
             self._log_failure_postmortem(spark_app_manager, "startup_timeout", context)
             self.log.info("Deleting Spark application due to startup timeout...")
@@ -652,7 +655,7 @@ class SparkOnK8SOperator(BaseOperator):
         )
         self._persist_spark_history_ui_link(context)
         if app_status == SparkAppStatus.Succeeded:
-            self._clean_up(spark_app_manager, app_status)
+            self._clean_up_after_success(spark_app_manager, app_status)
             return app_status
         failure = AirflowException(f"The job finished with status: {app_status}")
         self._log_failure_postmortem(spark_app_manager, app_status, context)
@@ -673,6 +676,9 @@ class SparkOnK8SOperator(BaseOperator):
         spark_app_manager = SparkAppManager(
             k8s_client_manager=k8s_client_manager,
         )
+        if event["status"] == "deleted":
+            # Nothing is left to replay, diagnose or clean up, and the outcome is unknown.
+            raise AirflowException(f"{event['error']}; failing the task")
         if event["status"] == "startup_timeout":
             self._log_failure_postmortem(spark_app_manager, "startup_timeout", context)
             self.log.info("Deleting Spark application due to startup timeout...")
@@ -706,7 +712,7 @@ class SparkOnK8SOperator(BaseOperator):
                 )
         self._persist_spark_history_ui_link(context)
         if event["status"] == "Succeeded":
-            self._clean_up(spark_app_manager, event["status"])
+            self._clean_up_after_success(spark_app_manager, event["status"])
             return event["status"]
         if event["status"] == "error":
             failure = AirflowException(
@@ -721,6 +727,16 @@ class SparkOnK8SOperator(BaseOperator):
             # A failed cleanup must not replace the trigger diagnostics or Spark outcome.
             raise failure from cleanup_error
         raise failure
+
+    def _clean_up_after_success(self, spark_app_manager: SparkAppManager, app_status) -> None:
+        try:
+            self._clean_up(spark_app_manager, app_status)
+        except Exception as cleanup_error:
+            # Name the outcome: the bare cleanup error read as a Spark failure, and a retry reran the job.
+            raise AirflowException(
+                f"The job finished with status: {app_status}, but its cleanup failed; "
+                "the application does not need to run again"
+            ) from cleanup_error
 
     def on_kill(self) -> None:
         if self.on_kill_action == OnKillAction.KEEP:

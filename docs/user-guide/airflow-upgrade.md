@@ -276,6 +276,8 @@ deadline passed. Airflow's `execution_timeout` reaches the application only thro
 | Airflow fails a deferred task without resuming it, such as a trigger failure | No operator cleanup; the application keeps running | Unchanged |
 | Cleanup fails after a deferred completion | The cleanup error could replace the Spark outcome | The task reports the trigger error, startup timeout or Spark status, with the cleanup error as its cause |
 | Cleanup fails after a synchronous failure or startup timeout | The cleanup error replaced the Spark outcome | As for a deferred completion |
+| Cleanup fails after Spark succeeds | The task failed with only the cleanup error | The task fails with a message naming `Succeeded`, with the cleanup error as its cause |
+| The driver disappears while the task waits | The wait ended as if the application had finished | The task fails: the outcome is unknown; no cleanup runs |
 | The driver is already deleted when cleanup runs | The 404 failed the task, even after success | Treated as cleaned up |
 
 The operator does not handle `execution_timeout` itself. Airflow 2.11.2 and 3.4.0

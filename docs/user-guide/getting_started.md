@@ -270,6 +270,11 @@ If all three executor-count variables are unset, applications use two executors
 with dynamic allocation disabled. The two executor-template settings are mutually
 exclusive, including when supplied through environment variables.
 
+A value that cannot be parsed, such as `SPARK_ON_K8S_DRIVER_CPU=two` or an empty
+integer, stops the CLI with one error line naming the variable; the SDK, API and Airflow
+raise `ConfigurationError` (a `ValueError`) when the configuration is imported. JSON
+values are never echoed in these errors.
+
 | Environment variable | Description | Default |
 | --- | --- | --- |
 | `SPARK_ON_K8S_DOCKER_IMAGE` | Spark driver and executor image; required unless passed explicitly | unset |

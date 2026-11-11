@@ -64,13 +64,17 @@ def test_existing_app_id_returns_status(status_manager):
 
 
 @pytest.mark.parametrize("already_running", [False, True])
-def test_waiter_returns_when_app_id_disappears(status_manager, already_running):
+def test_waiter_reports_an_unknown_outcome_when_app_id_disappears(status_manager, already_running):
+    from spark_on_k8s.utils.spark_app_status import SparkAppDeletedError
+
     responses = [SimpleNamespace(items=[])]
     if already_running:
         pod = SimpleNamespace(status=SimpleNamespace(phase="Running"))
         responses.insert(0, SimpleNamespace(items=[pod]))
     status_manager.api.list_namespaced_pod.side_effect = responses
 
-    assert status_manager.call("wait_for_app", app_id="deleted-app", poll_interval=0) is None
+    # A vanished driver is not a completed one: its outcome is unknown.
+    with pytest.raises(SparkAppDeletedError, match="outcome is unknown"):
+        status_manager.call("wait_for_app", app_id="deleted-app", poll_interval=0)
 
     assert status_manager.api.list_namespaced_pod.call_count == len(responses)

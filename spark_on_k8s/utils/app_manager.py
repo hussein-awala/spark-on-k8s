@@ -18,6 +18,7 @@ from spark_on_k8s.utils.logging_mixin import LoggingMixin
 from spark_on_k8s.utils.run import RunHandle, WaitDeadline
 from spark_on_k8s.utils.spark_app_status import (
     TRANSIENT_STATUS_READ_ATTEMPTS,
+    SparkAppDeletedError,
     SparkAppStatus,
     driver_container_name,
     driver_pod_selector,
@@ -182,8 +183,11 @@ class SparkAppManager(LoggingMixin):
 
                 except (ApiException, HTTPError) as e:
                     if isinstance(e, ApiException) and e.status == 404:
-                        self.log(msg=f"{target} was deleted", level=logging.INFO, should_print=should_print)
-                        return
+                        # Uncertain status is not absence: a vanished driver is not a completed one.
+                        raise SparkAppDeletedError(
+                            f"{target} was deleted, or does not exist, before a final status was observed; "
+                            "its outcome is unknown"
+                        ) from None
                     failed_reads += 1
                     transient = isinstance(e, HTTPError) or is_transient_status_code(e.status)
                     if not transient or failed_reads >= TRANSIENT_STATUS_READ_ATTEMPTS:

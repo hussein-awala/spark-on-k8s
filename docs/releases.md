@@ -168,7 +168,9 @@ only after the SDK version it needs is on PyPI:
    trusted publisher on PyPI for project `dbt-spark-on-k8s`, this repository,
    workflow `dbt-release.yml` and environment `pypi-dbt`.
 
-A pre-release version such as `0.1.0a1` needs `pip install --pre` or an exact pin.
+Adapter versions are plain `X.Y.Z` releases starting at `0.1.0`, so `pip install dbt-spark-on-k8s`
+finds them without `--pre`. The adapter stays Experimental: any release, including a minor or
+patch one, may change its profile fields, commands or modules, as its release notes record.
 Record the published adapter version, its SDK requirement and the source commit in
 the release record. A normal root release does not establish compatibility for a
 separately rebuilt adapter.

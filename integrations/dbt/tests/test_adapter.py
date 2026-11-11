@@ -523,7 +523,7 @@ def test_registered_adapter_run_metadata_uses_explicit_package_name():
     result = SimpleNamespace(node=SimpleNamespace(config=config))
     metadata = _get_adapter_info(adapter, result)
     assert metadata["adapter_name"] == "spark_on_k8s"
-    assert metadata["adapter_version"] == "0.1.0a1"
+    assert metadata["adapter_version"] == "0.1.0"
     assert metadata["base_adapter_version"]
     assert metadata["model_adapter_details"] == {
         "adapter_type": "spark_on_k8s",

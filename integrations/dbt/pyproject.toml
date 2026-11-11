@@ -1,6 +1,6 @@
 [project]
 name = "dbt-spark-on-k8s"
-version = "0.1.0a1"
+version = "0.1.0"
 description = "Experimental invocation-scoped Spark on Kubernetes adapter for dbt Core"
 authors = [{name = "Hussein Awala", email = "hussein@awala.fr"}]
 requires-python = ">=3.11,<3.14"

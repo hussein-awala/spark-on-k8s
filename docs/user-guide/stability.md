@@ -87,7 +87,7 @@ release that knows it.
 | Rendered chart templates and resource names | Internal | Upgrade notes describe required migrations |
 | API image version tags | Stable | An exact version tag identifies a release; `X.Y` and `latest` move as the [release runbook](../releases.md#implementation-and-dry-run) describes. Pin a digest to fix the contents |
 | API image contents, base image and file layout | Internal | Rebuilt for each release |
-| `dbt-spark-on-k8s` adapter: profile fields, commands and Python modules | Experimental | Separate pre-release distribution; [managed dbt](dbt.md) |
+| `dbt-spark-on-k8s` adapter: profile fields, commands and Python modules | Experimental | Separate distribution with its own versions from 0.1.0; any release may change it; [managed dbt](dbt.md) |
 | Examples, starters and test fixtures | Internal | Copy and adapt them; their assertions describe what was tested |
 
 ## Versioning

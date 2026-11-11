@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'dbt-spark-on-k8s version declared in integrations/dbt (for example 0.1.0a1)'
+        description: 'dbt-spark-on-k8s version declared in integrations/dbt (for example 0.1.0)'
         required: true
       publish:
         description: 'Upload to PyPI after verification; otherwise verify only'

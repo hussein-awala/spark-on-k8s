@@ -68,7 +68,7 @@
   <meta name="documentation-channel" content="develop">
   <meta name="documentation-version" content="develop">
   
-    <meta name="documentation-source" content="e578e4e3708fc7ef9ddd75db9de40174c7e3d42d">
+    <meta name="documentation-source" content="96ccde724db988b496f7b7383eb6f9097bd33053">
   
 
   </head>
@@ -108,7 +108,7 @@
     <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
   
   
-    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/e578e4e3708fc7ef9ddd75db9de40174c7e3d42d"><code>e578e4e3708f</code></a>.
+    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/96ccde724db988b496f7b7383eb6f9097bd33053"><code>96ccde724db9</code></a>.
   
 
           </div>
@@ -6016,10 +6016,11 @@ The main release workflow builds and publishes the root package only. The adapte
 is published by <code>.github/workflows/dbt-release.yml</code>, which runs only by manual
 dispatch: every tag push starts the package release and documentation workflows,
 so the adapter is not released from a Git tag.</p>
-<p>During development the adapter requires the checkout's development SDK version and
-<code>[tool.uv.sources]</code> installs that SDK from <code>../..</code>. PyPI can never satisfy that
-requirement, and <code>scripts/dbt_release.py</code> refuses to publish it. Release the adapter
-only after the SDK version it needs is on PyPI:</p>
+<p>The adapter requires a released SDK (since 0.1.0, <code>spark-on-k8s[connect]&gt;=0.13.0,&lt;0.14</code>),
+installed from PyPI by its lockfile. Before 0.13.0 it required the checkout's development
+SDK through a <code>[tool.uv.sources]</code> path entry, which PyPI can never satisfy and
+<code>scripts/dbt_release.py</code> refuses to publish. When an adapter release needs a newer SDK,
+release the adapter only after that SDK version is on PyPI:</p>
 <ol>
 <li>In a signed PR, set the adapter version in <code>pyproject.toml</code>,
    <code>dbt/adapters/spark_on_k8s/__version__.py</code> and <code>spark_on_k8s_dbt/__init__.py</code>.
@@ -6307,7 +6308,7 @@ the release complete.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 11, 2026 01:06:29 UTC">November 11, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 11, 2026 23:10:37 UTC">November 11, 2026</span>
   </span>
 
     

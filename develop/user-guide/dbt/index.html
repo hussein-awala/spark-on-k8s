@@ -68,7 +68,7 @@
   <meta name="documentation-channel" content="develop">
   <meta name="documentation-version" content="develop">
   
-    <meta name="documentation-source" content="e578e4e3708fc7ef9ddd75db9de40174c7e3d42d">
+    <meta name="documentation-source" content="96ccde724db988b496f7b7383eb6f9097bd33053">
   
 
   </head>
@@ -108,7 +108,7 @@
     <a href="https://hussein.awala.fr/spark-on-k8s/latest/">Latest stable documentation</a>.
   
   
-    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/e578e4e3708fc7ef9ddd75db9de40174c7e3d42d"><code>e578e4e3708f</code></a>.
+    Source: <a href="https://github.com/hussein-awala/spark-on-k8s/tree/96ccde724db988b496f7b7383eb6f9097bd33053"><code>96ccde724db9</code></a>.
   
 
           </div>
@@ -1348,10 +1348,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#install-from-the-repository" class="md-nav__link">
+  <a href="#install" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Install from the repository
+        Install
       
     </span>
   </a>
@@ -5656,10 +5656,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#install-from-the-repository" class="md-nav__link">
+  <a href="#install" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Install from the repository
+        Install
       
     </span>
   </a>
@@ -5862,16 +5862,16 @@ pods, Services and ConfigMaps (including list permission for garbage-collection
 checks); local access also needs pod port-forward permission.
 <a href="#check-a-profile-before-running"><code>spark-on-k8s-dbt check</code></a> verifies these
 permissions without creating anything.</p>
-<h2 id="install-from-the-repository">Install from the repository<a class="headerlink" href="#install-from-the-repository" title="Permanent link">&para;</a></h2>
-<p>Until the experimental distribution is separately published, build both wheels
-from the same checkout. These commands use an isolated Python 3.12 environment:</p>
-<div class="highlight"><pre><span></span><code><span class="c1"># From the spark-on-k8s repository root:</span>
-uv<span class="w"> </span>build<span class="w"> </span>--wheel<span class="w"> </span>--out-dir<span class="w"> </span>dist/dbt-experiment
-uv<span class="w"> </span>build<span class="w"> </span>--project<span class="w"> </span>integrations/dbt<span class="w"> </span>--wheel<span class="w"> </span>--out-dir<span class="w"> </span>dist/dbt-experiment
-uv<span class="w"> </span>venv<span class="w"> </span>--python<span class="w"> </span><span class="m">3</span>.12<span class="w"> </span>.venv-dbt
-uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>--python<span class="w"> </span>.venv-dbt/bin/python<span class="w"> </span>dist/dbt-experiment/*.whl
+<h2 id="install">Install<a class="headerlink" href="#install" title="Permanent link">&para;</a></h2>
+<p><code>dbt-spark-on-k8s</code> is published separately from <code>spark-on-k8s</code> and requires a released
+SDK (0.1.0 requires <code>spark-on-k8s[connect]</code> 0.13.x). Install it in its own virtual
+environment, here with Python 3.12:</p>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>venv<span class="w"> </span>--python<span class="w"> </span><span class="m">3</span>.12<span class="w"> </span>.venv-dbt
+uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>--python<span class="w"> </span>.venv-dbt/bin/python<span class="w"> </span>dbt-spark-on-k8s
 uv<span class="w"> </span>pip<span class="w"> </span>check<span class="w"> </span>--python<span class="w"> </span>.venv-dbt/bin/python
 </code></pre></div>
+<p>The adapter is Experimental: any release, including a minor or patch one, may change
+its profile fields, commands or modules. Pin the version you tested.</p>
 <p>For reproducible development/testing, use the separate lockfile instead:</p>
 <div class="highlight"><pre><span></span><code><span class="nv">UV_PROJECT_ENVIRONMENT</span><span class="o">=</span><span class="s2">"</span><span class="nv">$PWD</span><span class="s2">/.venv-dbt"</span><span class="w"> </span>uv<span class="w"> </span>sync<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--project<span class="w"> </span>integrations/dbt<span class="w"> </span>--locked<span class="w"> </span>--python<span class="w"> </span><span class="m">3</span>.12<span class="w"> </span>--group<span class="w"> </span><span class="nb">test</span>
@@ -6208,9 +6208,8 @@ deletes them. See <a href="../automation/#limit-how-long-a-driver-can-run">drive
 limits</a>.</p>
 <h2 id="run-in-ci">Run in CI<a class="headerlink" href="#run-in-ci" title="Permanent link">&para;</a></h2>
 <p>This recipe uses plain shell steps, so it fits GitHub Actions, GitLab CI or any
-runner that can reach the Kubernetes API. Install the wheels as in
-<a href="#install-from-the-repository">Install from the repository</a> and put the
-environment's <code>bin</code> directory on <code>PATH</code>.</p>
+runner that can reach the Kubernetes API. Install the adapter as in
+<a href="#install">Install</a> and put the environment's <code>bin</code> directory on <code>PATH</code>.</p>
 <h3 id="keep-credentials-out-of-the-repository">Keep credentials out of the repository<a class="headerlink" href="#keep-credentials-out-of-the-repository" title="Permanent link">&para;</a></h3>
 <p>Commit a CI output that reads everything secret or job-specific from the
 environment, and let the CI system inject the values from its secret store:</p>
@@ -6458,7 +6457,7 @@ sizing values above are not exercised by these tests.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 11, 2026 01:06:29 UTC">November 11, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 11, 2026 23:10:37 UTC">November 11, 2026</span>
   </span>
 
     

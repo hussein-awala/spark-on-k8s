@@ -421,10 +421,22 @@ jobs:
           set -euo pipefail
           mkdir -p release-evidence
           for image in "$GHCR_IMAGE" "$DOCKERHUB_IMAGE"; do
-            cosign verify "$image@$IMAGE_DIGEST" \
-              --certificate-identity "https://github.com/$GITHUB_WORKFLOW_REF" \
-              --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-              --certificate-github-workflow-sha "$GITHUB_SHA" > "release-evidence/${image%%/*}.json"
+            # A registry can serve a just-pushed signature late (Docker Hub did for 0.13.0), so a
+            # failed check is retried for about two minutes before it fails the release.
+            for attempt in 1 2 3 4 5 6; do
+              if cosign verify "$image@$IMAGE_DIGEST" \
+                --certificate-identity "https://github.com/$GITHUB_WORKFLOW_REF" \
+                --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+                --certificate-github-workflow-sha "$GITHUB_SHA" > "release-evidence/${image%%/*}.json"; then
+                break
+              fi
+              if [ "$attempt" = 6 ]; then
+                echo "::error::No verifiable signature for $image@$IMAGE_DIGEST after $attempt attempts"
+                exit 1
+              fi
+              echo "Signature for $image not verifiable yet (attempt $attempt); retrying in 20 seconds"
+              sleep 20
+            done
           done
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

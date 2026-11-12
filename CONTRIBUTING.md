@@ -30,16 +30,20 @@ assignment. Agree a reviewer for larger contributions before expanding their sco
 
 ## Before a pull request
 
-1. Follow the [check route for the files changed](docs/development.md#choose-checks-by-change).
+1. Add automated tests with the change: new functionality gets tests in the suite that
+   mirrors its area (see [structure](docs/development.md#structure-and-contracts)), and a
+   bug fix gets a regression test that fails without the fix. Do not weaken or delete an
+   existing test to make a change pass.
+2. Follow the [check route for the files changed](docs/development.md#choose-checks-by-change).
    Run focused checks during iteration, then the relevant broader profile once.
-2. Update the canonical guide for changed public behavior, including migration
+3. Update the canonical guide for changed public behavior, including migration
    notes for compatibility changes. Keep source-only instructions distinct from
    published releases.
-3. Include generated UI assets and intentional lockfile updates. Review the full
+4. Include generated UI assets and intentional lockfile updates. Review the full
    diff for unrelated files and sensitive data.
-4. Sign your commits with `git commit -S` using your own configured identity.
+5. Sign your commits with `git commit -S` using your own configured identity.
    Do not bypass failed signing. A `Signed-off-by` line alone is not a signature.
-5. Describe the resulting behavior, tests actually run, and any unavailable runtime
+6. Describe the resulting behavior, tests actually run, and any unavailable runtime
    check. Do not present queued or skipped CI as passing. Use a focused PR title;
    link the relevant issue or discussion when one exists.
 

@@ -416,7 +416,7 @@ wheels = [
 
 [[package]]
 name = "apache-airflow-providers-common-sql"
-version = "2.4.0"
+version = "3.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "apache-airflow" },
@@ -425,9 +425,9 @@ dependencies = [
     { name = "more-itertools" },
     { name = "sqlparse" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/fe/83/addb51c36e20de3121f25a7d83fdd43eb7b15464d7ffe912b12b4cb1f3ca/apache_airflow_providers_common_sql-2.4.0.tar.gz", hash = "sha256:363f89dab28bdb00e9090a50476a71795b8237adb0b1768c9490b805b1868e0d", size = 161884, upload-time = "2026-10-24T18:48:44.92Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c6/87/399a2c73c06cd668f9484333d569defd6895e22ae0d1277e738071d5a58f/apache_airflow_providers_common_sql-3.0.0.tar.gz", hash = "sha256:58d06553eaf2adb275380d7845f0cec3118271be38291ce1ee7af88bb098037f", size = 168838, upload-time = "2026-11-09T18:25:39.314Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e0/dc/802061fa7f25f41e114a27986f21dd772c14458091328739733b9f78c4c4/apache_airflow_providers_common_sql-2.4.0-py3-none-any.whl", hash = "sha256:1b0b1364d92df2390f5b4278dc570061f2f81b9c7ad61e0467c9f9cc3159781e", size = 103189, upload-time = "2026-10-24T18:48:15.379Z" },
+    { url = "https://files.pythonhosted.org/packages/e3/35/33d3633ed1c05d5f1c4ed9c38c5157d5d7c636f1e706795b9f7c0e027932/apache_airflow_providers_common_sql-3.0.0-py3-none-any.whl", hash = "sha256:9713147be403f3b8343fab035bd6830e21ec413855c98c1c2512fc1e9131653e", size = 105820, upload-time = "2026-11-09T18:25:02.652Z" },
 ]
 
 [[package]]

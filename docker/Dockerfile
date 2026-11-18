@@ -1,5 +1,5 @@
 # TODO: move to Python 3.15 once PyYAML publishes cp315 wheels; see TODO.md.
-FROM python:3.14-slim@sha256:9aaa474097d094040649f2162a627c0049b408f52138d980916788d80f04802f
+FROM python:3.15-slim@sha256:65a65fc7b30b06cb6df4930fd4650697cb23f4c2698ab81fc87e4b031bc36928
 
 # The pinned base can lag Debian security updates (for example zlib1g); install them so the
 # released image carries every fix published for its base.
